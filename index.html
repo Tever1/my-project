@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Алексей Волков — Фотограф</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" id="header">
+        <div class="container header__inner">
+            <a href="#" class="logo">AV</a>
+            <nav class="nav" id="nav">
+                <a href="#home" class="nav__link active">Главная</a>
+                <a href="#portfolio" class="nav__link">Портфолио</a>
+                <a href="#about" class="nav__link">Обо мне</a>
+                <a href="#services" class="nav__link">Услуги</a>
+                <a href="#contact" class="nav__link">Контакты</a>
+            </nav>
+            <button class="burger" id="burger" aria-label="Открыть меню">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero" id="home">
+        <div class="hero__overlay"></div>
+        <div class="container hero__content">
+            <p class="hero__subtitle">Фотограф</p>
+            <h1 class="hero__title">Алексей Волков</h1>
+            <p class="hero__text">Ловлю мгновения, которые рассказывают истории. Свадебная, портретная и пейзажная фотография.</p>
+            <a href="#portfolio" class="btn">Смотреть работы</a>
+        </div>
+        <div class="hero__scroll">
+            <span>Листайте вниз</span>
+            <div class="hero__scroll-line"></div>
+        </div>
+    </section>
+
+    <!-- Portfolio -->
+    <section class="section portfolio" id="portfolio">
+        <div class="container">
+            <h2 class="section__title">Портфолио</h2>
+            <p class="section__subtitle">Избранные работы</p>
+
+            <div class="portfolio__filters">
+                <button class="filter-btn active" data-filter="all">Все</button>
+                <button class="filter-btn" data-filter="wedding">Свадьбы</button>
+                <button class="filter-btn" data-filter="portrait">Портреты</button>
+                <button class="filter-btn" data-filter="landscape">Пейзажи</button>
+                <button class="filter-btn" data-filter="street">Стрит</button>
+            </div>
+
+            <div class="portfolio__grid" id="portfolio-grid">
+                <div class="portfolio__item" data-category="wedding">
+                    <div class="portfolio__img" style="background: linear-gradient(135deg, #f5e6d3, #e8d5c4);">
+                        <div class="portfolio__placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                        </div>
+                    </div>
+                    <div class="portfolio__info">
+                        <h3>Свадьба у моря</h3>
+                        <p>Свадебная фотография</p>
+                    </div>
+                </div>
+
+                <div class="portfolio__item portfolio__item--tall" data-category="portrait">
+                    <div class="portfolio__img" style="background: linear-gradient(135deg, #d4e5f7, #b8d4f0);">
+                        <div class="portfolio__placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        </div>
+                    </div>
+                    <div class="portfolio__info">
+                        <h3>Городской портрет</h3>
+                        <p>Портретная съёмка</p>
+                    </div>
+                </div>
+
+                <div class="portfolio__item" data-category="landscape">
+                    <div class="portfolio__img" style="background: linear-gradient(135deg, #c8e6c9, #a5d6a7);">
+                        <div class="portfolio__placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m2 22 10-10 10 10"/><path d="m7 17 5-5 5 5"/><circle cx="17" cy="5" r="2"/></svg>
+                        </div>
+                    </div>
+                    <div class="portfolio__info">
+                        <h3>Горный рассвет</h3>
+                        <p>Пейзажная фотография</p>
+                    </div>
+                </div>
+
+                <div class="portfolio__item" data-category="street">
+                    <div class="portfolio__img" style="background: linear-gradient(135deg, #e1d5e7, #c9b8d4);">
+                        <div class="portfolio__placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                        </div>
+                    </div>
+                    <div class="portfolio__info">
+                        <h3>Улицы Москвы</h3>
+                        <p>Уличная фотография</p>
+                    </div>
+                </div>
+
+                <div class="portfolio__item portfolio__item--wide" data-category="wedding">
+                    <div class="portfolio__img" style="background: linear-gradient(135deg, #fff3e0, #ffe0b2);">
+                        <div class="portfolio__placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                        </div>
+                    </div>
+                    <div class="portfolio__info">
+                        <h3>Осенняя свадьба</h3>
+                        <p>Свадебная фотография</p>
+                    </div>
+                </div>
+
+                <div class="portfolio__item" data-category="portrait">
+                    <div class="portfolio__img" style="background: linear-gradient(135deg, #ffccbc, #ffab91);">
+                        <div class="portfolio__placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        </div>
+                    </div>
+                    <div class="portfolio__info">
+                        <h3>Студийная съёмка</h3>
+                        <p>Портретная съёмка</p>
+                    </div>
+                </div>
+
+                <div class="portfolio__item" data-category="landscape">
+                    <div class="portfolio__img" style="background: linear-gradient(135deg, #b2dfdb, #80cbc4);">
+                        <div class="portfolio__placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m2 22 10-10 10 10"/><path d="m7 17 5-5 5 5"/><circle cx="17" cy="5" r="2"/></svg>
+                        </div>
+                    </div>
+                    <div class="portfolio__info">
+                        <h3>Лесное озеро</h3>
+                        <p>Пейзажная фотография</p>
+                    </div>
+                </div>
+
+                <div class="portfolio__item" data-category="street">
+                    <div class="portfolio__img" style="background: linear-gradient(135deg, #d1c4e9, #b39ddb);">
+                        <div class="portfolio__placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                        </div>
+                    </div>
+                    <div class="portfolio__info">
+                        <h3>Ночной город</h3>
+                        <p>Уличная фотография</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About -->
+    <section class="section about" id="about">
+        <div class="container about__inner">
+            <div class="about__image">
+                <div class="about__image-placeholder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span>Фото автора</span>
+                </div>
+            </div>
+            <div class="about__content">
+                <h2 class="section__title section__title--left">Обо мне</h2>
+                <p class="about__text">Меня зовут Алексей Волков, и я профессиональный фотограф с более чем 10-летним опытом. Моя страсть — находить красоту в каждом моменте и создавать фотографии, которые вызывают эмоции.</p>
+                <p class="about__text">Я специализируюсь на свадебной и портретной фотографии, но также люблю пейзажную и уличную съёмку. Каждый проект для меня — это возможность рассказать уникальную историю через объектив.</p>
+                <div class="about__stats">
+                    <div class="stat">
+                        <span class="stat__number" data-count="500">0</span><span class="stat__plus">+</span>
+                        <span class="stat__label">Фотосессий</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat__number" data-count="10">0</span><span class="stat__plus">+</span>
+                        <span class="stat__label">Лет опыта</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat__number" data-count="200">0</span><span class="stat__plus">+</span>
+                        <span class="stat__label">Свадеб</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services -->
+    <section class="section services" id="services">
+        <div class="container">
+            <h2 class="section__title">Услуги</h2>
+            <p class="section__subtitle">Что я предлагаю</p>
+
+            <div class="services__grid">
+                <div class="service-card">
+                    <div class="service-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    </div>
+                    <h3 class="service-card__title">Свадебная съёмка</h3>
+                    <p class="service-card__text">Полное сопровождение вашего свадебного дня. От утренних сборов до вечернего банкета.</p>
+                    <span class="service-card__price">от 50 000 &#8381;</span>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                    <h3 class="service-card__title">Портретная съёмка</h3>
+                    <p class="service-card__text">Индивидуальные и семейные портреты в студии или на природе.</p>
+                    <span class="service-card__price">от 10 000 &#8381;</span>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                    </div>
+                    <h3 class="service-card__title">Коммерческая съёмка</h3>
+                    <p class="service-card__text">Фотографии для бизнеса: предметная съёмка, корпоративные мероприятия, рекламные кампании.</p>
+                    <span class="service-card__price">от 25 000 &#8381;</span>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-card__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                    </div>
+                    <h3 class="service-card__title">Love Story</h3>
+                    <p class="service-card__text">Романтическая фотосессия для пар. Идеальный подарок или дополнение к свадебному пакету.</p>
+                    <span class="service-card__price">от 15 000 &#8381;</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact -->
+    <section class="section contact" id="contact">
+        <div class="container">
+            <h2 class="section__title">Контакты</h2>
+            <p class="section__subtitle">Давайте создадим что-то прекрасное вместе</p>
+
+            <div class="contact__inner">
+                <form class="contact__form" id="contact-form">
+                    <div class="form-group">
+                        <input type="text" id="name" name="name" placeholder="Ваше имя" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="email" id="email" name="email" placeholder="Email" required>
+                    </div>
+                    <div class="form-group">
+                        <select id="service" name="service">
+                            <option value="" disabled selected>Тип съёмки</option>
+                            <option value="wedding">Свадебная съёмка</option>
+                            <option value="portrait">Портретная съёмка</option>
+                            <option value="commercial">Коммерческая съёмка</option>
+                            <option value="lovestory">Love Story</option>
+                            <option value="other">Другое</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <textarea id="message" name="message" rows="5" placeholder="Расскажите о вашем проекте..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn--full">Отправить</button>
+                </form>
+
+                <div class="contact__info">
+                    <div class="contact__info-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        <div>
+                            <strong>Телефон</strong>
+                            <p>+7 (999) 123-45-67</p>
+                        </div>
+                    </div>
+                    <div class="contact__info-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        <div>
+                            <strong>Email</strong>
+                            <p>hello@alexvolkov.photo</p>
+                        </div>
+                    </div>
+                    <div class="contact__info-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        <div>
+                            <strong>Адрес</strong>
+                            <p>Москва, Россия</p>
+                        </div>
+                    </div>
+                    <div class="contact__socials">
+                        <a href="#" class="social-link" aria-label="Instagram">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                        </a>
+                        <a href="#" class="social-link" aria-label="Telegram">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-8.609 3.33c-2.068.8-4.133 1.598-5.724 2.21a405.15 405.15 0 0 1-2.849 1.09c-.42.147-.99.332-1.473.901-.728.855.044 1.625.399 1.928.312.267.673.46.864.547l3.18 1.239c.244.707 1.112 3.233 1.325 3.892.108.337.28.71.528.936.127.116.278.208.451.27a.94.94 0 0 0 .359.058l.004-.001c.316-.003.566-.138.762-.283l2.084-1.727 3.247 2.458c.086.065.497.361 1.057.361.18 0 .37-.036.558-.112.54-.217.866-.681.996-1.187l3.55-14.616c.15-.62.17-1.198-.09-1.72a1.84 1.84 0 0 0-1.49-.99z"/></svg>
+                        </a>
+                        <a href="#" class="social-link" aria-label="VK">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7h4.2c.6 3.6 2.4 7 4.8 7V7h4v4.2c1.6-.2 3.2-2 3.8-4.2H23c-.4 2.6-2.2 5-4 6 1.8.8 3.8 3 4.4 6h-3.8c-.6-2-2.2-3.8-4.2-4.2V19h-.6C8.4 19 3.4 13.2 3 7z"/></svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container footer__inner">
+            <a href="#" class="logo">AV</a>
+            <p>&copy; 2026 Алексей Волков. Все права защищены.</p>
+        </div>
+    </footer>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox">
+        <button class="lightbox__close" aria-label="Закрыть">&times;</button>
+        <div class="lightbox__content"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
