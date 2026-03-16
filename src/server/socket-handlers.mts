@@ -1,0 +1,289 @@
+import { Server as SocketIOServer, Socket } from 'socket.io';
+import { v4 as uuidv4 } from 'uuid';
+
+interface Player {
+  id: string;
+  socketId: string;
+  nickname: string;
+  isHost: boolean;
+  isConnected: boolean;
+  team?: string;
+}
+
+interface Room {
+  id: string;
+  code: string;
+  hostId: string;
+  players: Map<string, Player>;
+  maxPlayers: number;
+  status: 'lobby' | 'in-game' | 'finished';
+  currentGame: string | null;
+  gameState: Record<string, unknown> | null;
+  tvSocketId: string | null;
+  createdAt: number;
+}
+
+const rooms = new Map<string, Room>();
+const playerRooms = new Map<string, string>();
+
+function generateRoomCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return rooms.has(code) ? generateRoomCode() : code;
+}
+
+function getRoomByCode(code: string): Room | undefined {
+  for (const room of rooms.values()) {
+    if (room.code === code) return room;
+  }
+  return undefined;
+}
+
+function broadcastRoomState(io: SocketIOServer, room: Room) {
+  const players = Array.from(room.players.values()).map(({ socketId, ...rest }) => rest);
+  const state = {
+    id: room.id,
+    code: room.code,
+    hostId: room.hostId,
+    players,
+    maxPlayers: room.maxPlayers,
+    status: room.status,
+    currentGame: room.currentGame,
+    gameState: room.gameState,
+  };
+  io.to(`room:${room.code}`).emit('room:state', state);
+}
+
+export function setupSocketHandlers(io: SocketIOServer) {
+  io.on('connection', (socket: Socket) => {
+    console.log(`[Socket] Connected: ${socket.id}`);
+
+    // Create room
+    socket.on('room:create', (data: { playerId: string; nickname: string }, callback) => {
+      const code = generateRoomCode();
+      const room: Room = {
+        id: uuidv4(),
+        code,
+        hostId: data.playerId,
+        players: new Map(),
+        maxPlayers: 20,
+        status: 'lobby',
+        currentGame: null,
+        gameState: null,
+        tvSocketId: null,
+        createdAt: Date.now(),
+      };
+
+      const player: Player = {
+        id: data.playerId,
+        socketId: socket.id,
+        nickname: data.nickname,
+        isHost: true,
+        isConnected: true,
+      };
+
+      room.players.set(data.playerId, player);
+      rooms.set(room.code, room);
+      playerRooms.set(socket.id, room.code);
+      socket.join(`room:${code}`);
+
+      callback({ success: true, code, roomId: room.id });
+      broadcastRoomState(io, room);
+    });
+
+    // Join room
+    socket.on('room:join', (data: { code: string; playerId: string; nickname: string }, callback) => {
+      const room = getRoomByCode(data.code.toUpperCase());
+      if (!room) {
+        callback({ success: false, error: 'Room not found' });
+        return;
+      }
+      if (room.players.size >= room.maxPlayers) {
+        callback({ success: false, error: 'Room is full' });
+        return;
+      }
+      if (room.status === 'in-game') {
+        callback({ success: false, error: 'Game already in progress' });
+        return;
+      }
+
+      const existingPlayer = room.players.get(data.playerId);
+      if (existingPlayer) {
+        existingPlayer.socketId = socket.id;
+        existingPlayer.isConnected = true;
+      } else {
+        const player: Player = {
+          id: data.playerId,
+          socketId: socket.id,
+          nickname: data.nickname,
+          isHost: false,
+          isConnected: true,
+        };
+        room.players.set(data.playerId, player);
+      }
+
+      playerRooms.set(socket.id, room.code);
+      socket.join(`room:${room.code}`);
+      callback({ success: true, code: room.code, roomId: room.id });
+      broadcastRoomState(io, room);
+    });
+
+    // TV mode join
+    socket.on('tv:join', (data: { code: string }, callback) => {
+      const room = getRoomByCode(data.code.toUpperCase());
+      if (!room) {
+        callback({ success: false, error: 'Room not found' });
+        return;
+      }
+      room.tvSocketId = socket.id;
+      playerRooms.set(socket.id, room.code);
+      socket.join(`room:${room.code}`);
+      callback({ success: true });
+      broadcastRoomState(io, room);
+    });
+
+    // Select game
+    socket.on('game:select', (data: { code: string; gameType: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      room.currentGame = data.gameType;
+      broadcastRoomState(io, room);
+    });
+
+    // Start game
+    socket.on('game:start', (data: { code: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room || !room.currentGame) return;
+      room.status = 'in-game';
+      room.gameState = { type: room.currentGame, status: 'playing', round: 1 };
+      broadcastRoomState(io, room);
+      io.to(`room:${room.code}`).emit('game:started', {
+        gameType: room.currentGame,
+        roomCode: room.code,
+      });
+    });
+
+    // Game action (generic handler for all games)
+    socket.on('game:action', (data: { code: string; action: string; payload: Record<string, unknown> }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+
+      // Broadcast game action to all players in the room
+      io.to(`room:${room.code}`).emit('game:action', {
+        action: data.action,
+        payload: data.payload,
+        from: socket.id,
+      });
+    });
+
+    // Update game state (from host)
+    socket.on('game:state-update', (data: { code: string; gameState: Record<string, unknown> }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      room.gameState = data.gameState;
+      broadcastRoomState(io, room);
+    });
+
+    // End game
+    socket.on('game:end', (data: { code: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      room.status = 'lobby';
+      room.currentGame = null;
+      room.gameState = null;
+      broadcastRoomState(io, room);
+      io.to(`room:${room.code}`).emit('game:ended');
+    });
+
+    // Chat message
+    socket.on('chat:message', (data: { code: string; playerId: string; playerName: string; text: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      io.to(`room:${room.code}`).emit('chat:message', {
+        id: uuidv4(),
+        playerId: data.playerId,
+        playerName: data.playerName,
+        text: data.text,
+        timestamp: Date.now(),
+      });
+    });
+
+    // Kick player
+    socket.on('room:kick', (data: { code: string; playerId: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      const player = room.players.get(data.playerId);
+      if (player) {
+        io.to(player.socketId).emit('room:kicked');
+        room.players.delete(data.playerId);
+        broadcastRoomState(io, room);
+      }
+    });
+
+    // Leave room
+    socket.on('room:leave', () => {
+      handleDisconnect(io, socket);
+    });
+
+    // Disconnect
+    socket.on('disconnect', () => {
+      console.log(`[Socket] Disconnected: ${socket.id}`);
+      handleDisconnect(io, socket);
+    });
+  });
+}
+
+function handleDisconnect(io: SocketIOServer, socket: Socket) {
+  const roomCode = playerRooms.get(socket.id);
+  if (!roomCode) return;
+
+  const room = getRoomByCode(roomCode);
+  if (!room) return;
+
+  // Check if it's a TV socket
+  if (room.tvSocketId === socket.id) {
+    room.tvSocketId = null;
+    playerRooms.delete(socket.id);
+    broadcastRoomState(io, room);
+    return;
+  }
+
+  // Find player by socketId
+  for (const [playerId, player] of room.players.entries()) {
+    if (player.socketId === socket.id) {
+      player.isConnected = false;
+
+      // If host disconnects, assign new host
+      if (player.isHost && room.players.size > 1) {
+        player.isHost = false;
+        for (const [, p] of room.players.entries()) {
+          if (p.id !== playerId && p.isConnected) {
+            p.isHost = true;
+            room.hostId = p.id;
+            break;
+          }
+        }
+      }
+
+      // Remove player after timeout if still disconnected
+      setTimeout(() => {
+        if (!player.isConnected) {
+          room.players.delete(playerId);
+          if (room.players.size === 0) {
+            rooms.delete(roomCode);
+          } else {
+            broadcastRoomState(io, room);
+          }
+        }
+      }, 30000);
+
+      break;
+    }
+  }
+
+  playerRooms.delete(socket.id);
+  broadcastRoomState(io, room);
+}
