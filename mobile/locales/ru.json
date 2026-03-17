@@ -1,0 +1,130 @@
+{
+  "app": {
+    "title": "Party Games Hub",
+    "subtitle": "Игры для весёлой компании",
+    "description": "Собирайтесь с друзьями и играйте в лучшие игры для вечеринок"
+  },
+  "auth": {
+    "title": "Вход",
+    "phone": "Номер телефона",
+    "phonePlaceholder": "+7 (999) 123-45-67",
+    "sendCode": "Получить код",
+    "code": "Код из SMS",
+    "codePlaceholder": "Введите 4-значный код",
+    "verify": "Войти",
+    "back": "Назад",
+    "invalidPhone": "Введите корректный номер телефона",
+    "codeSent": "Код отправлен на ваш номер",
+    "invalidCode": "Неверный код",
+    "welcome": "Добро пожаловать!"
+  },
+  "lobby": {
+    "title": "Лобби",
+    "createRoom": "Создать комнату",
+    "joinRoom": "Присоединиться",
+    "roomCode": "Код комнаты",
+    "scanQR": "Сканируйте QR-код",
+    "orEnterCode": "или введите код",
+    "players": "Игроки",
+    "host": "Ведущий",
+    "waiting": "Ожидание игроков...",
+    "startGame": "Начать игру",
+    "selectGame": "Выбрать игру",
+    "leave": "Покинуть",
+    "kick": "Исключить",
+    "minPlayers": "Минимум игроков",
+    "maxPlayers": "Максимум игроков",
+    "copyCode": "Копировать код",
+    "codeCopied": "Код скопирован!",
+    "nickname": "Ваш никнейм",
+    "nicknamePlaceholder": "Введите никнейм",
+    "join": "Войти",
+    "tvMode": "Режим ТВ",
+    "shareLink": "Поделиться ссылкой"
+  },
+  "game": {
+    "round": "Раунд",
+    "score": "Счёт",
+    "timeLeft": "Осталось",
+    "next": "Далее",
+    "finish": "Завершить",
+    "end": "Завершить",
+    "scoreboard": "Таблица",
+    "results": "Результаты",
+    "winner": "Победитель",
+    "playAgain": "Играть снова",
+    "backToLobby": "В лобби",
+    "correct": "Верно!",
+    "wrong": "Неверно!",
+    "team": "Команда",
+    "pass": "Пропустить",
+    "guess": "Угадать"
+  },
+  "quiz": {
+    "title": "Квиз",
+    "category": "Категория",
+    "question": "Вопрос",
+    "answer": "Ответить"
+  },
+  "hundredToOne": {
+    "title": "100 к 1",
+    "yourAnswer": "Ваш ответ",
+    "reveal": "Открыть",
+    "strike": "Промах!",
+    "popularAnswers": "Популярные ответы"
+  },
+  "crocodile": {
+    "title": "Крокодил",
+    "explain": "Объясняете",
+    "guessing": "Угадывает",
+    "yourWord": "Ваше слово",
+    "guessed": "Угадал!",
+    "nextWord": "Следующее слово"
+  },
+  "truthOrDare": {
+    "title": "Правда или Действие",
+    "truth": "Правда",
+    "dare": "Действие",
+    "choose": "Выберите",
+    "done": "Выполнено",
+    "skip": "Пропустить"
+  },
+  "mafia": {
+    "title": "Мафия",
+    "night": "Наступает ночь...",
+    "day": "Наступает день",
+    "vote": "Голосование",
+    "eliminated": "Выбывает",
+    "mafiaWins": "Мафия победила!",
+    "citizensWin": "Мирные победили!",
+    "yourRole": "Ваша роль",
+    "citizen": "Мирный житель",
+    "mafiaRole": "Мафия",
+    "detective": "Детектив",
+    "doctor": "Доктор"
+  },
+  "whoAmI": {
+    "title": "Кто я?",
+    "yourCharacter": "Ваш персонаж",
+    "askQuestion": "Задайте вопрос",
+    "yes": "Да",
+    "no": "Нет",
+    "iKnow": "Я знаю!",
+    "guessCharacter": "Угадайте персонажа"
+  },
+  "common": {
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "retry": "Повторить",
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "close": "Закрыть",
+    "settings": "Настройки",
+    "language": "Язык",
+    "russian": "Русский",
+    "english": "English",
+    "stats": "Статистика",
+    "history": "История игр",
+    "noGames": "Пока нет игр"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Party Games Hub",
+    "slug": "party-games-hub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "partygameshub",
+    "splash": {
+      "backgroundColor": "#0c0a15"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.partygameshub.app",
+      "buildNumber": "1"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0c0a15"
+      },
+      "package": "com.partygameshub.app"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
