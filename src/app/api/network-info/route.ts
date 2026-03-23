@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
-import os from 'os';
+import { networkInterfaces } from 'os';
+
+export const dynamic = 'force-dynamic';
 
 export function GET() {
-  const nets = os.networkInterfaces();
-  let localIP = 'localhost';
+  const nets = networkInterfaces();
+  let localIP = '';
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] || []) {
       if (net.family === 'IPv4' && !net.internal) {
@@ -11,8 +13,8 @@ export function GET() {
         break;
       }
     }
-    if (localIP !== 'localhost') break;
+    if (localIP) break;
   }
 
-  return NextResponse.json({ ip: localIP });
+  return NextResponse.json({ ip: localIP || 'localhost' });
 }

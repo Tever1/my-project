@@ -101,13 +101,17 @@ export default function LobbyPage() {
   useEffect(() => {
     fetch('/api/network-info')
       .then(res => res.json())
-      .then(data => setNetworkIP(data.ip))
-      .catch(() => {});
+      .then(data => {
+        console.log('[QR] Network IP:', data.ip);
+        setNetworkIP(data.ip);
+      })
+      .catch((err) => console.error('[QR] Failed to fetch network info:', err));
   }, []);
 
   // Use network IP for QR codes so phones on the same Wi-Fi can connect
+  const port = typeof window !== 'undefined' ? (window.location.port || '3000') : '3000';
   const qrOrigin = networkIP && networkIP !== 'localhost'
-    ? `http://${networkIP}:${typeof window !== 'undefined' ? window.location.port : '3000'}`
+    ? `http://${networkIP}:${port}`
     : (typeof window !== 'undefined' ? window.location.origin : '');
 
   const joinUrl = qrOrigin ? `${qrOrigin}/lobby/${roomId}` : '';

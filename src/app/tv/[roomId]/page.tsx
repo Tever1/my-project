@@ -32,8 +32,9 @@ export default function TVPage() {
       .catch(() => {});
   }, []);
 
+  const port = typeof window !== 'undefined' ? (window.location.port || '3000') : '3000';
   const qrOrigin = networkIP && networkIP !== 'localhost'
-    ? `http://${networkIP}:${typeof window !== 'undefined' ? window.location.port : '3000'}`
+    ? `http://${networkIP}:${port}`
     : (typeof window !== 'undefined' ? window.location.origin : '');
 
   const joinUrl = qrOrigin ? `${qrOrigin}/lobby/${roomId}` : '';
