@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
@@ -19,13 +19,15 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (user && user.nickname) {
-    router.push('/');
-    return null;
-  }
+  useEffect(() => {
+    if (user && user.nickname) {
+      router.push('/');
+    } else if (user && !user.nickname) {
+      router.push('/auth/verify');
+    }
+  }, [user, router]);
 
-  if (user && !user.nickname) {
-    router.push('/auth/verify');
+  if (user) {
     return null;
   }
 

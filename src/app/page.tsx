@@ -8,7 +8,7 @@ import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { GAMES } from '@/lib/games-config';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSocket } from '@/lib/use-socket';
 
 export default function Home() {
@@ -19,13 +19,15 @@ export default function Home() {
   const [joinCode, setJoinCode] = useState('');
   const [showJoin, setShowJoin] = useState(false);
 
-  if (!user) {
-    router.push('/auth');
-    return null;
-  }
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth');
+    } else if (!user.nickname) {
+      router.push('/auth/verify');
+    }
+  }, [user, router]);
 
-  if (!user.nickname) {
-    router.push('/auth/verify');
+  if (!user || !user.nickname) {
     return null;
   }
 
