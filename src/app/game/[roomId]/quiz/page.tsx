@@ -160,12 +160,15 @@ export default function QuizPage() {
       router.push(`/lobby/${roomId}`);
     });
 
+    // Request current room state so we get the players list (including isHost)
+    emit('room:get-state', { code: roomId });
+
     return () => {
       unsub1();
       unsub2();
       unsub3();
     };
-  }, [on, router, roomId]);
+  }, [on, emit, router, roomId]);
 
   // ------- Host timer logic -------
 

@@ -169,12 +169,14 @@ export default function HundredToOnePage() {
 
     const unsub3 = on('game:ended', () => router.push(`/lobby/${roomId}`));
 
+    emit('room:get-state', { code: roomId });
+
     return () => {
       unsub1();
       unsub2();
       unsub3();
     };
-  }, [on, router, roomId]);
+  }, [on, emit, router, roomId]);
 
   // ------- Broadcast helper -------
 

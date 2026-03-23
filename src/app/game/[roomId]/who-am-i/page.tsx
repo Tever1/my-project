@@ -137,8 +137,9 @@ export default function WhoAmIPage() {
       const room = data as { players?: Player[] };
       if (room.players) setPlayers(room.players);
     });
+    emit('room:get-state', { code: roomId });
     return cleanup;
-  }, [on]);
+  }, [on, emit, roomId]);
 
   // -----------------------------------------------------------------------
   // Listen for game actions

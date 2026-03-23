@@ -145,6 +145,24 @@ export function setupSocketHandlers(io: SocketIOServer) {
       broadcastRoomState(io, room);
     });
 
+    // Request current room state
+    socket.on('room:get-state', (data: { code: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      const players = Array.from(room.players.values()).map(({ socketId, ...rest }) => rest);
+      const state = {
+        id: room.id,
+        code: room.code,
+        hostId: room.hostId,
+        players,
+        maxPlayers: room.maxPlayers,
+        status: room.status,
+        currentGame: room.currentGame,
+        gameState: room.gameState,
+      };
+      socket.emit('room:state', state);
+    });
+
     // Select game
     socket.on('game:select', (data: { code: string; gameType: string }) => {
       const room = getRoomByCode(data.code);

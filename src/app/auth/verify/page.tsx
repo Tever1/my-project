@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
@@ -14,13 +14,15 @@ export default function SetNicknamePage() {
   const router = useRouter();
   const [nickname, setNickname] = useState(user?.nickname || '');
 
-  if (!user) {
-    router.push('/auth');
-    return null;
-  }
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth');
+    } else if (user.nickname) {
+      router.push('/');
+    }
+  }, [user, router]);
 
-  if (user.nickname) {
-    router.push('/');
+  if (!user || user.nickname) {
     return null;
   }
 
