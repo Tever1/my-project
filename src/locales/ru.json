@@ -112,6 +112,15 @@
     "iKnow": "Я знаю!",
     "guessCharacter": "Угадайте персонажа"
   },
+  "createRoom": {
+    "title": "Создать комнату",
+    "chooseGame": "Выберите игру (необязательно)",
+    "maxPlayers": "Макс. игроков",
+    "create": "Создать",
+    "roomReady": "Комната создана!",
+    "shareWithFriends": "Поделитесь кодом или QR с друзьями",
+    "goToLobby": "Перейти в лобби"
+  },
   "common": {
     "loading": "Загрузка...",
     "error": "Ошибка",

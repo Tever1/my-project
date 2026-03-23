@@ -112,6 +112,15 @@
     "iKnow": "I know!",
     "guessCharacter": "Guess the character"
   },
+  "createRoom": {
+    "title": "Create Room",
+    "chooseGame": "Choose a game (optional)",
+    "maxPlayers": "Max players",
+    "create": "Create",
+    "roomReady": "Room created!",
+    "shareWithFriends": "Share the code or QR with friends",
+    "goToLobby": "Go to Lobby"
+  },
   "common": {
     "loading": "Loading...",
     "error": "Error",
