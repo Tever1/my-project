@@ -9,22 +9,22 @@ import { GlassInput } from '@/components/ui/GlassInput';
 import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { GAMES } from '@/lib/games-config';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useSocket } from '@/lib/use-socket';
 
 export default function Home() {
   const { t, locale } = useTranslation();
   const { user, logout } = useAuth();
   const router = useRouter();
-  const { emit } = useSocket();
+  const { emit, isConnected } = useSocket();
   const [joinCode, setJoinCode] = useState('');
   const [showJoin, setShowJoin] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [maxPlayers, setMaxPlayers] = useState(10);
   const [createdRoomCode, setCreatedRoomCode] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -41,21 +41,30 @@ export default function Home() {
   const handleOpenCreateModal = () => {
     setShowCreateModal(true);
     setCreatedRoomCode(null);
-    setSelectedGame(null);
     setMaxPlayers(10);
     setCodeCopied(false);
+    setCreateError(null);
   };
 
   const handleCreateRoom = () => {
+    if (!isConnected) {
+      setCreateError(locale === 'ru' ? 'Нет подключения к серверу. Проверьте, запущен ли сервер.' : 'No connection to server. Check if the server is running.');
+      return;
+    }
     setCreating(true);
+    setCreateError(null);
+
+    const timeout = setTimeout(() => {
+      setCreating(false);
+      setCreateError(locale === 'ru' ? 'Сервер не отвечает. Попробуйте ещё раз.' : 'Server not responding. Try again.');
+    }, 5000);
+
     emit('room:create', { playerId: user.id, nickname: user.nickname }, (response: unknown) => {
+      clearTimeout(timeout);
       const res = response as { success: boolean; code: string };
       setCreating(false);
       if (res.success) {
         setCreatedRoomCode(res.code);
-        if (selectedGame) {
-          emit('game:select', { roomId: res.code, gameId: selectedGame });
-        }
       }
     });
   };
@@ -211,34 +220,6 @@ export default function Home() {
                   </button>
                 </div>
 
-                {/* Game Selection */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide mb-3">
-                    {t('createRoom.chooseGame')}
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {GAMES.map((game) => (
-                      <div
-                        key={game.id}
-                        onClick={() => setSelectedGame(selectedGame === game.id ? null : game.id)}
-                        className={`glass-card p-3 cursor-pointer transition-all ${
-                          selectedGame === game.id
-                            ? 'ring-2 ring-purple-400 bg-white/15'
-                            : 'hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="text-xl mb-1">{game.icon}</div>
-                        <div className="text-sm font-medium text-white">
-                          {locale === 'ru' ? game.titleRu : game.titleEn}
-                        </div>
-                        <div className="text-xs text-white/40">
-                          {game.minPlayers}-{game.maxPlayers} {locale === 'ru' ? 'игр.' : 'pl.'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Max Players */}
                 <div className="mb-6">
                   <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide mb-3">
@@ -260,6 +241,13 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+
+                {/* Error */}
+                {createError && (
+                  <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+                    {createError}
+                  </div>
+                )}
 
                 {/* Create Button */}
                 <GlassButton
