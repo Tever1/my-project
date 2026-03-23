@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Socket } from 'socket.io-client';
-import { getSocket, connectSocket, disconnectSocket } from './socket';
+import { connectSocket } from './socket';
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -12,22 +12,28 @@ export function useSocket() {
     const socket = connectSocket();
     socketRef.current = socket;
 
-    socket.on('connect', () => setIsConnected(true));
-    socket.on('disconnect', () => setIsConnected(false));
+    // Sync initial state — socket may already be connected
+    setIsConnected(socket.connected);
+
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
     };
   }, []);
 
   const emit = useCallback((event: string, data?: unknown, callback?: (response: unknown) => void) => {
-    if (socketRef.current) {
-      if (callback) {
-        socketRef.current.emit(event, data, callback);
-      } else {
-        socketRef.current.emit(event, data);
-      }
+    const socket = socketRef.current;
+    if (!socket || !socket.connected) return;
+    if (callback) {
+      socket.emit(event, data, callback);
+    } else {
+      socket.emit(event, data);
     }
   }, []);
 
