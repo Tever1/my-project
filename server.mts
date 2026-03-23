@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { Server as SocketIOServer } from 'socket.io';
-import { setupSocketHandlers } from './src/server/socket-handlers.mjs';
+import { setupSocketHandlers } from './src/server/socket-handlers.mts';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
