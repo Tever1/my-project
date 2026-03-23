@@ -96,9 +96,21 @@ export default function LobbyPage() {
     router.push('/');
   };
 
-  const joinUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/lobby/${roomId}`
-    : '';
+  const [networkIP, setNetworkIP] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/network-info')
+      .then(res => res.json())
+      .then(data => setNetworkIP(data.ip))
+      .catch(() => {});
+  }, []);
+
+  // Use network IP for QR codes so phones on the same Wi-Fi can connect
+  const qrOrigin = networkIP && networkIP !== 'localhost'
+    ? `http://${networkIP}:${typeof window !== 'undefined' ? window.location.port : '3000'}`
+    : (typeof window !== 'undefined' ? window.location.origin : '');
+
+  const joinUrl = qrOrigin ? `${qrOrigin}/lobby/${roomId}` : '';
 
   const tvUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/tv/${roomId}`

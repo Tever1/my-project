@@ -23,10 +23,20 @@ export default function TVPage() {
   const { locale } = useTranslation();
   const router = useRouter();
   const [room, setRoom] = useState<RoomState | null>(null);
+  const [networkIP, setNetworkIP] = useState<string | null>(null);
 
-  const joinUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/lobby/${roomId}`
-    : '';
+  useEffect(() => {
+    fetch('/api/network-info')
+      .then(res => res.json())
+      .then(data => setNetworkIP(data.ip))
+      .catch(() => {});
+  }, []);
+
+  const qrOrigin = networkIP && networkIP !== 'localhost'
+    ? `http://${networkIP}:${typeof window !== 'undefined' ? window.location.port : '3000'}`
+    : (typeof window !== 'undefined' ? window.location.origin : '');
+
+  const joinUrl = qrOrigin ? `${qrOrigin}/lobby/${roomId}` : '';
 
   useEffect(() => {
     const unsub = on('room:state', (data: unknown) => {
