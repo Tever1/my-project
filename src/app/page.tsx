@@ -6,7 +6,7 @@ import { LanguageToggle } from '@/components/ui/LanguageToggle';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
-import { QRCode } from '@/components/ui/QRCode';
+import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { GAMES } from '@/lib/games-config';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
@@ -291,7 +291,7 @@ export default function Home() {
 
                   {/* QR Code */}
                   <div className="glass-card p-4 mb-6 inline-block">
-                    <QRCode value={`${typeof window !== 'undefined' ? window.location.origin : ''}/lobby/${createdRoomCode}`} size={180} />
+                    <QRCodeCanvas value={`${typeof window !== 'undefined' ? window.location.origin : ''}/lobby/${createdRoomCode}`} size={180} />
                     <div className="text-xs text-white/40 mt-2">{t('lobby.scanQR')}</div>
                   </div>
 
