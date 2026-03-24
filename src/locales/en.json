@@ -40,6 +40,7 @@
     "nicknamePlaceholder": "Enter nickname",
     "join": "Join",
     "tvMode": "TV Mode",
+    "tvModalText": "Open this link in your TV or computer browser",
     "shareLink": "Share link"
   },
   "game": {

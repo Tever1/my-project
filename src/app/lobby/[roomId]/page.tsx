@@ -32,6 +32,7 @@ export default function LobbyPage() {
   const [selectedGame, setSelectedGame] = useState<GameType | null>(null);
   const [showQR, setShowQR] = useState(true);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [showTvModal, setShowTvModal] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -139,7 +140,7 @@ export default function LobbyPage() {
         </div>
         <div className="flex items-center gap-2">
           <LanguageToggle />
-          <GlassButton size="sm" onClick={() => window.open(tvUrl, '_blank')}>
+          <GlassButton size="sm" onClick={() => setShowTvModal(true)}>
             📺 {t('lobby.tvMode')}
           </GlassButton>
         </div>
@@ -283,6 +284,46 @@ export default function LobbyPage() {
           )}
         </div>
       </div>
+
+      {/* TV Mode Modal */}
+      {showTvModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowTvModal(false)}>
+          <GlassCard className="p-6 max-w-md w-full animate-scale-in" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+            <div className="text-center space-y-4">
+              <span className="text-4xl">📺</span>
+              <p className="text-white text-lg">
+                {t('lobby.tvModalText')}
+              </p>
+              <a
+                href={tvUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-purple-300 hover:text-purple-200 underline break-all text-sm"
+              >
+                {tvUrl}
+              </a>
+              <div className="flex gap-2 pt-2">
+                <GlassButton
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(tvUrl);
+                  }}
+                >
+                  {t('lobby.copyCode')}
+                </GlassButton>
+                <GlassButton
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setShowTvModal(false)}
+                >
+                  {t('common.close')}
+                </GlassButton>
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }
