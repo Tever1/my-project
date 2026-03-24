@@ -120,9 +120,7 @@ export default function LobbyPage() {
 
   const joinUrl = qrOrigin ? `${qrOrigin}/lobby/${roomId}` : '';
 
-  const tvUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/tv/${roomId}`
-    : '';
+  const tvUrl = qrOrigin ? `${qrOrigin}/tv/${roomId}` : '';
 
   const selectedGameInfo = selectedGame ? GAMES.find(g => g.id === selectedGame) : null;
 
