@@ -19,7 +19,7 @@ interface RoomState {
 
 export default function TVPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { emit, on } = useSocket();
+  const { emit, on, isConnected } = useSocket();
   const { locale } = useTranslation();
   const router = useRouter();
   const [room, setRoom] = useState<RoomState | null>(null);
@@ -49,13 +49,17 @@ export default function TVPage() {
       router.push(`/tv/${roomCode}/${gameType}`);
     });
 
-    emit('tv:join', { code: roomId }, () => {});
-
     return () => {
       unsub();
       unsubStarted();
     };
-  }, [roomId, emit, on, router]);
+  }, [roomId, on, router]);
+
+  // Join TV room only when socket is connected
+  useEffect(() => {
+    if (!isConnected) return;
+    emit('tv:join', { code: roomId }, () => {});
+  }, [isConnected, roomId, emit]);
 
   const currentGameInfo = room?.currentGame ? GAMES.find(g => g.id === room.currentGame) : null;
 
