@@ -35,7 +35,7 @@ export default function LobbyPage() {
 
   useEffect(() => {
     if (!user) {
-      router.push('/auth');
+      router.push(`/auth?redirect=/lobby/${roomId}`);
       return;
     }
 

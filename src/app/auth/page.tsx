@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -13,6 +13,8 @@ export default function AuthPage() {
   const { t } = useTranslation();
   const { user, sendCode, verifyCode } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect') || '';
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'code'>('phone');
@@ -21,11 +23,11 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (user && user.nickname) {
-      router.push('/');
+      router.push(redirect || '/');
     } else if (user && !user.nickname) {
-      router.push('/auth/verify');
+      router.push(redirect ? `/auth/verify?redirect=${encodeURIComponent(redirect)}` : '/auth/verify');
     }
-  }, [user, router]);
+  }, [user, router, redirect]);
 
   if (user) {
     return null;
@@ -71,7 +73,7 @@ export default function AuthPage() {
     const success = await verifyCode(digits, code);
     setLoading(false);
     if (success) {
-      router.push('/auth/verify');
+      router.push(redirect ? `/auth/verify?redirect=${encodeURIComponent(redirect)}` : '/auth/verify');
     } else {
       setError(t('auth.invalidCode'));
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -12,15 +12,17 @@ export default function SetNicknamePage() {
   const { t } = useTranslation();
   const { user, updateNickname } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect') || '';
   const [nickname, setNickname] = useState(user?.nickname || '');
 
   useEffect(() => {
     if (!user) {
-      router.push('/auth');
+      router.push(redirect ? `/auth?redirect=${encodeURIComponent(redirect)}` : '/auth');
     } else if (user.nickname) {
-      router.push('/');
+      router.push(redirect || '/');
     }
-  }, [user, router]);
+  }, [user, router, redirect]);
 
   if (!user || user.nickname) {
     return null;
@@ -29,7 +31,7 @@ export default function SetNicknamePage() {
   const handleSubmit = () => {
     if (nickname.trim().length < 2) return;
     updateNickname(nickname.trim());
-    router.push('/');
+    router.push(redirect || '/');
   };
 
   return (
