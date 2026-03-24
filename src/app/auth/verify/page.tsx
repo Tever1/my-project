@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
@@ -9,6 +9,18 @@ import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
 
 export default function SetNicknamePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-main flex flex-col items-center justify-center">
+        <div className="text-5xl mb-4">👋</div>
+      </div>
+    }>
+      <SetNicknameContent />
+    </Suspense>
+  );
+}
+
+function SetNicknameContent() {
   const { t } = useTranslation();
   const { user, updateNickname } = useAuth();
   const router = useRouter();

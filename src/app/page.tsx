@@ -14,7 +14,7 @@ import { useSocket } from '@/lib/use-socket';
 
 export default function Home() {
   const { t, locale } = useTranslation();
-  const { user, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const router = useRouter();
   const { emit, isConnected } = useSocket();
   const [joinCode, setJoinCode] = useState('');
@@ -27,15 +27,22 @@ export default function Home() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isLoading) return;
     if (!user) {
       router.push('/auth');
     } else if (!user.nickname) {
       router.push('/auth/verify');
     }
-  }, [user, router]);
+  }, [user, isLoading, router]);
 
-  if (!user || !user.nickname) {
-    return null;
+  if (isLoading || !user || !user.nickname) {
+    return (
+      <div className="min-h-screen bg-gradient-main flex flex-col items-center justify-center">
+        <div className="text-5xl mb-4">🎮</div>
+        <h1 className="text-3xl font-bold text-white mb-2">Party Games Hub</h1>
+        <p className="text-white/50 animate-pulse mt-4">{isLoading ? '...' : ''}</p>
+      </div>
+    );
   }
 
   const handleOpenCreateModal = () => {

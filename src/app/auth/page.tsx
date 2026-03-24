@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
@@ -10,6 +10,19 @@ import { GlassInput } from '@/components/ui/GlassInput';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
 
 export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-main flex flex-col items-center justify-center">
+        <div className="text-5xl mb-4">🎮</div>
+        <h1 className="text-3xl font-bold text-white">Party Games Hub</h1>
+      </div>
+    }>
+      <AuthPageContent />
+    </Suspense>
+  );
+}
+
+function AuthPageContent() {
   const { t } = useTranslation();
   const { user, sendCode, verifyCode } = useAuth();
   const router = useRouter();
