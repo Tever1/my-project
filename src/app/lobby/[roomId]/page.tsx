@@ -26,7 +26,7 @@ export default function LobbyPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { t, locale } = useTranslation();
   const { user } = useAuth();
-  const { emit, on } = useSocket();
+  const { emit, on, isConnected } = useSocket();
   const router = useRouter();
   const [room, setRoom] = useState<RoomState | null>(null);
   const [selectedGame, setSelectedGame] = useState<GameType | null>(null);
@@ -56,15 +56,18 @@ export default function LobbyPage() {
       router.push('/');
     });
 
-    // Join if not already in room
-    emit('room:join', { code: roomId, playerId: user.id, nickname: user.nickname }, () => {});
-
     return () => {
       unsub();
       unsubStarted();
       unsubKicked();
     };
-  }, [user, roomId, emit, on, router]);
+  }, [user, roomId, on, router]);
+
+  // Join room only when socket is connected and user is ready
+  useEffect(() => {
+    if (!user || !isConnected) return;
+    emit('room:join', { code: roomId, playerId: user.id, nickname: user.nickname }, () => {});
+  }, [user, isConnected, roomId, emit]);
 
   const isHost = room && user && room.hostId === user.id;
 
