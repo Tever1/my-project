@@ -64,79 +64,82 @@ export default function TVPage() {
   const currentGameInfo = room?.currentGame ? GAMES.find(g => g.id === room.currentGame) : null;
 
   return (
-    <div className="min-h-screen bg-gradient-main tv-mode flex flex-col items-center justify-center p-8">
-      {/* Title */}
-      <div className="text-center mb-12 animate-fade-in">
-        <h1 className="text-6xl font-bold text-white mb-2">🎮 Party Games Hub</h1>
+    <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="text-center py-4 flex-shrink-0">
+        <h1 className="text-4xl xl:text-5xl font-bold">🎮 Party Games Hub</h1>
         {room && (
-          <p className="text-3xl text-white/40 font-mono tracking-[0.5em]">
+          <p className="text-2xl xl:text-3xl text-white/40 font-mono tracking-[0.5em] mt-1">
             {room.code}
           </p>
         )}
       </div>
 
-      {/* Waiting for game */}
-      {room?.status === 'lobby' && (
-        <div className="flex flex-col lg:flex-row items-center gap-16 animate-slide-up">
-          {/* QR Code */}
-          <div className="text-center">
-            <div className="bg-white rounded-3xl p-6 shadow-2xl">
-              <QRCodeCanvas value={joinUrl} size={280} />
+      {/* Main content - fills remaining space */}
+      <div className="flex-1 flex items-center justify-center px-8 pb-6 min-h-0">
+        {/* Lobby */}
+        {room?.status === 'lobby' && (
+          <div className="flex flex-row items-center gap-12 xl:gap-20 animate-slide-up w-full max-w-6xl justify-center">
+            {/* QR Code - left side */}
+            <div className="text-center flex-shrink-0">
+              <div className="bg-white rounded-2xl p-4 shadow-2xl inline-block">
+                <QRCodeCanvas value={joinUrl} size={220} />
+              </div>
+              <p className="text-base text-white/50 mt-3">
+                {locale === 'ru' ? 'Сканируйте, чтобы присоединиться' : 'Scan to join'}
+              </p>
             </div>
-            <p className="text-xl text-white/50 mt-4">
-              {locale === 'ru' ? 'Сканируйте, чтобы присоединиться' : 'Scan to join'}
+
+            {/* Players & game info - right side */}
+            <div className="flex-1 min-w-0 max-w-xl">
+              <h2 className="text-2xl xl:text-3xl font-semibold text-white mb-4">
+                {locale === 'ru' ? 'Игроки' : 'Players'} ({room.players.length})
+              </h2>
+              <div className="flex flex-wrap gap-3">
+                {room.players.map((player) => (
+                  <div
+                    key={player.id}
+                    className="glass-card px-4 py-2 flex items-center gap-2"
+                  >
+                    <div className={`w-2.5 h-2.5 rounded-full ${player.isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+                    <span className="text-lg text-white">{player.nickname}</span>
+                    {player.isHost && <span className="text-lg">👑</span>}
+                  </div>
+                ))}
+              </div>
+
+              {currentGameInfo && (
+                <div className="mt-6 glass-card p-4 inline-block">
+                  <p className="text-white/50 text-sm mb-1">
+                    {locale === 'ru' ? 'Выбранная игра' : 'Selected game'}
+                  </p>
+                  <p className="text-2xl text-white font-semibold">
+                    {currentGameInfo.icon} {locale === 'ru' ? currentGameInfo.titleRu : currentGameInfo.titleEn}
+                  </p>
+                </div>
+              )}
+
+              {!currentGameInfo && (
+                <p className="mt-6 text-xl text-white/30 animate-pulse">
+                  {locale === 'ru' ? 'Ожидание выбора игры...' : 'Waiting for game selection...'}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* In-game fallback (shouldn't normally show - game:started navigates away) */}
+        {room?.status === 'in-game' && room.gameState && (
+          <div className="text-center animate-fade-in">
+            <p className="text-4xl text-white font-semibold">
+              {currentGameInfo?.icon} {locale === 'ru' ? currentGameInfo?.titleRu : currentGameInfo?.titleEn}
+            </p>
+            <p className="text-2xl text-white/50 mt-4">
+              {locale === 'ru' ? 'Игра идёт...' : 'Game in progress...'}
             </p>
           </div>
-
-          {/* Players */}
-          <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-semibold text-white mb-6">
-              {locale === 'ru' ? 'Игроки' : 'Players'} ({room.players.length})
-            </h2>
-            <div className="flex flex-wrap gap-4 justify-center lg:justify-start">
-              {room.players.map((player) => (
-                <div
-                  key={player.id}
-                  className="glass-card px-6 py-3 flex items-center gap-3"
-                >
-                  <div className={`w-3 h-3 rounded-full ${player.isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
-                  <span className="text-xl text-white">{player.nickname}</span>
-                  {player.isHost && <span className="text-xl">👑</span>}
-                </div>
-              ))}
-            </div>
-
-            {currentGameInfo && (
-              <div className="mt-8 glass-card p-6 inline-block">
-                <p className="text-white/50 text-lg mb-2">
-                  {locale === 'ru' ? 'Выбранная игра' : 'Selected game'}
-                </p>
-                <p className="text-3xl text-white font-semibold">
-                  {currentGameInfo.icon} {locale === 'ru' ? currentGameInfo.titleRu : currentGameInfo.titleEn}
-                </p>
-              </div>
-            )}
-
-            {!currentGameInfo && (
-              <p className="mt-8 text-2xl text-white/30 animate-pulse">
-                {locale === 'ru' ? 'Ожидание выбора игры...' : 'Waiting for game selection...'}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* In-game state on TV shows game-specific content */}
-      {room?.status === 'in-game' && room.gameState && (
-        <div className="text-center animate-fade-in">
-          <p className="text-4xl text-white font-semibold">
-            {currentGameInfo?.icon} {locale === 'ru' ? currentGameInfo?.titleRu : currentGameInfo?.titleEn}
-          </p>
-          <p className="text-2xl text-white/50 mt-4">
-            {locale === 'ru' ? 'Игра идёт...' : 'Game in progress...'}
-          </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
