@@ -3,6 +3,8 @@ import { QuizQuestion, HundredToOneQuestion } from '@/types/game';
 export const QUIZ_QUESTIONS: QuizQuestion[] = [
   {
     id: 'q1',
+    topic: 'science',
+    difficulty: 'easy',
     questionRu: 'Какая планета Солнечной системы самая большая?',
     questionEn: 'What is the largest planet in our Solar System?',
     options: [
@@ -16,6 +18,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q2',
+    topic: 'history',
+    difficulty: 'easy',
     questionRu: 'В каком году пала Берлинская стена?',
     questionEn: 'In what year did the Berlin Wall fall?',
     options: [
@@ -29,6 +33,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q3',
+    topic: 'science',
+    difficulty: 'easy',
     questionRu: 'Какой химический элемент обозначается символом «Au»?',
     questionEn: 'Which chemical element has the symbol "Au"?',
     options: [
@@ -42,6 +48,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q4',
+    topic: 'history',
+    difficulty: 'easy',
     questionRu: 'Кто написал роман «Мастер и Маргарита»?',
     questionEn: 'Who wrote the novel "The Master and Margarita"?',
     options: [
@@ -55,6 +63,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q5',
+    topic: 'science',
+    difficulty: 'easy',
     questionRu: 'Сколько костей в теле взрослого человека?',
     questionEn: 'How many bones are in an adult human body?',
     options: [
@@ -68,6 +78,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q6',
+    topic: 'history',
+    difficulty: 'easy',
     questionRu: 'Какая столица Австралии?',
     questionEn: 'What is the capital of Australia?',
     options: [
@@ -81,6 +93,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q7',
+    topic: 'pop-culture',
+    difficulty: 'easy',
     questionRu: 'Кто сыграл главную роль в фильме «Титаник» (1997)?',
     questionEn: 'Who played the lead role in the movie "Titanic" (1997)?',
     options: [
@@ -94,6 +108,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q8',
+    topic: 'pop-culture',
+    difficulty: 'easy',
     questionRu: 'Какой вид спорта называют «королевой спорта»?',
     questionEn: 'Which sport is called "the queen of sports"?',
     options: [
@@ -107,6 +123,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q9',
+    topic: 'science',
+    difficulty: 'easy',
     questionRu: 'Как называется самое глубокое озеро в мире?',
     questionEn: 'What is the deepest lake in the world?',
     options: [
@@ -120,6 +138,8 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'q10',
+    topic: 'pop-culture',
+    difficulty: 'easy',
     questionRu: 'Сколько струн у стандартной гитары?',
     questionEn: 'How many strings does a standard guitar have?',
     options: [

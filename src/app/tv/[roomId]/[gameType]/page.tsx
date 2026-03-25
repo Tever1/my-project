@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
-import { QUIZ_QUESTIONS } from '@/lib/game-data';
+import { QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,32 +18,31 @@ interface PlayerInfo {
   isConnected: boolean;
 }
 
+interface QuizQuestionData {
+  questionRu: string;
+  questionEn: string;
+  options: { ru: string; en: string }[];
+  correctIndex: number;
+}
+
+interface QuizConfig {
+  difficulty: string | null;
+  mode: string | null;
+  topic: string | null;
+}
+
 interface QuizState {
-  phase: 'waiting' | 'countdown' | 'question' | 'results' | 'final';
+  phase: string;
+  config: QuizConfig;
   questionIndex: number;
+  totalQuestions: number;
   timeLeft: number;
   answers: Record<string, number>;
   scores: Record<string, number>;
   showCorrect: boolean;
   countdownValue: number;
   correctPlayers: string[];
-}
-
-interface CrocState {
-  phase: 'waiting' | 'explaining' | 'finished';
-  currentWord: string;
-  explainerId: string;
-  timeLeft: number;
-  scores: Record<string, number>;
-  round: number;
-}
-
-interface TodState {
-  phase: 'choosing' | 'challenge' | 'finished';
-  currentPlayerId: string;
-  challengeType: string;
-  challengeText: string;
-  scores: Record<string, number>;
+  currentQuestion: QuizQuestionData | null;
 }
 
 interface GenericGameState {
@@ -71,14 +70,17 @@ export default function TVGamePage() {
 
   const [players, setPlayers] = useState<PlayerInfo[]>([]);
   const [quizState, setQuizState] = useState<QuizState>({
-    phase: 'waiting',
+    phase: 'setup-difficulty',
+    config: { difficulty: null, mode: null, topic: null },
     questionIndex: 0,
+    totalQuestions: 10,
     timeLeft: 15,
     answers: {},
     scores: {},
     showCorrect: false,
     countdownValue: 3,
     correctPlayers: [],
+    currentQuestion: null,
   });
   const [genericState, setGenericState] = useState<GenericGameState>({});
 
@@ -107,11 +109,18 @@ export default function TVGamePage() {
         payload: Record<string, unknown>;
       };
 
-      // Quiz-specific actions
       if (gameType === 'quiz') {
         switch (action) {
           case 'quiz:sync':
             setQuizState((prev) => ({ ...prev, ...(payload as Partial<QuizState>) }));
+            break;
+          case 'quiz:config':
+            setQuizState((prev) => ({
+              ...prev,
+              config: payload.config as QuizConfig,
+              phase: payload.phase as string,
+              totalQuestions: (payload.totalQuestions as number) || prev.totalQuestions,
+            }));
             break;
           case 'quiz:answer': {
             const { playerId, answerIndex } = payload as { playerId: string; answerIndex: number };
@@ -136,12 +145,17 @@ export default function TVGamePage() {
             setQuizState((prev) => ({ ...prev, phase: 'countdown', countdownValue: payload.value as number }));
             break;
           case 'quiz:start-question': {
-            const p = payload as { questionIndex: number; timeLeft: number };
+            const p = payload as {
+              questionIndex: number;
+              timeLeft: number;
+              question: QuizQuestionData;
+            };
             setQuizState((prev) => ({
               ...prev,
               phase: 'question',
               questionIndex: p.questionIndex,
               timeLeft: p.timeLeft,
+              currentQuestion: p.question,
               answers: {},
               showCorrect: false,
               correctPlayers: [],
@@ -154,7 +168,6 @@ export default function TVGamePage() {
         }
       }
 
-      // Generic state tracking for other games
       setGenericState((prev) => ({ ...prev, lastAction: action, ...payload }));
     });
 
@@ -182,11 +195,15 @@ export default function TVGamePage() {
 
   // ===================== QUIZ TV RENDER =====================
   if (gameType === 'quiz') {
-    const currentQuestion = QUIZ_QUESTIONS[quizState.questionIndex];
-    const totalQuestions = QUIZ_QUESTIONS.length;
+    const currentQuestion = quizState.currentQuestion;
     const answeredCount = Object.keys(quizState.answers).length;
     const totalPlayers = players.length;
-    const TIME_PER_QUESTION = 15;
+    const timePerQuestion = quizState.config.difficulty === 'easy' ? 15
+      : quizState.config.difficulty === 'hard' ? 25 : 20;
+
+    const topicInfo = quizState.config.topic ? QUIZ_TOPICS.find((t) => t.id === quizState.config.topic) : null;
+    const diffInfo = quizState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === quizState.config.difficulty) : null;
+    const isSetup = quizState.phase.startsWith('setup-');
 
     return (
       <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
@@ -195,11 +212,21 @@ export default function TVGamePage() {
           <div className="flex items-center gap-4">
             <span className="text-4xl">{gameIcon}</span>
             <h1 className="text-3xl font-bold">{gameTitle}</h1>
+            {diffInfo && (
+              <span className="glass-badge px-3 py-1 text-sm">
+                {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+              </span>
+            )}
+            {topicInfo && (
+              <span className="glass-badge px-3 py-1 text-sm">
+                {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+              </span>
+            )}
           </div>
           {quizState.phase === 'question' && (
             <div className="flex items-center gap-6">
               <span className="text-xl text-white/60">
-                {quizState.questionIndex + 1} / {totalQuestions}
+                {quizState.questionIndex + 1} / {quizState.totalQuestions}
               </span>
               <span className={`text-4xl font-black tabular-nums ${quizState.timeLeft <= 5 ? 'text-red-400' : 'text-white'}`}>
                 {quizState.timeLeft}
@@ -210,14 +237,30 @@ export default function TVGamePage() {
 
         {/* Main content */}
         <div className="flex-1 flex flex-col justify-center px-8 py-4 min-h-0">
-          {/* WAITING */}
-          {quizState.phase === 'waiting' && (
+          {/* SETUP / WAITING */}
+          {(isSetup || quizState.phase === 'waiting') && (
             <div className="text-center animate-fade-in">
               <div className="text-8xl mb-6">{gameIcon}</div>
               <h2 className="text-5xl font-bold mb-4">{gameTitle}</h2>
               <p className="text-2xl text-white/50 animate-pulse">
-                {locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}
+                {isSetup
+                  ? locale === 'ru' ? 'Настройка игры...' : 'Setting up...'
+                  : locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}
               </p>
+              {(diffInfo || topicInfo) && (
+                <div className="mt-6 flex items-center justify-center gap-4">
+                  {diffInfo && (
+                    <span className="glass-badge px-4 py-2 text-lg">
+                      {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+                    </span>
+                  )}
+                  {topicInfo && (
+                    <span className="glass-badge px-4 py-2 text-lg">
+                      {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -242,7 +285,7 @@ export default function TVGamePage() {
                   className={`h-full rounded-full transition-all duration-1000 ease-linear ${
                     quizState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
                   }`}
-                  style={{ width: `${(quizState.timeLeft / TIME_PER_QUESTION) * 100}%` }}
+                  style={{ width: `${(quizState.timeLeft / timePerQuestion) * 100}%` }}
                 />
               </div>
 
@@ -276,10 +319,7 @@ export default function TVGamePage() {
                       <div className="flex items-center gap-4">
                         <span className={`
                           flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black
-                          ${isCorrectRevealed
-                            ? 'bg-green-500/40 text-green-200'
-                            : 'bg-white/10 text-white/70'
-                          }
+                          ${isCorrectRevealed ? 'bg-green-500/40 text-green-200' : 'bg-white/10 text-white/70'}
                         `}>
                           {isCorrectRevealed ? '✓' : OPTION_LABELS[index]}
                         </span>
@@ -353,7 +393,7 @@ export default function TVGamePage() {
           )}
         </div>
 
-        {/* Bottom scoreboard bar (during game) */}
+        {/* Bottom scoreboard bar */}
         {(quizState.phase === 'question' || quizState.phase === 'countdown') && scoreboard.length > 0 && (
           <div className="flex items-center justify-center gap-6 px-8 py-3 bg-black/20 backdrop-blur-sm border-t border-white/10 flex-shrink-0">
             {scoreboard.slice(0, 8).map((entry, i) => (
@@ -371,10 +411,9 @@ export default function TVGamePage() {
     );
   }
 
-  // ===================== GENERIC TV RENDER (for other games) =====================
+  // ===================== GENERIC TV RENDER =====================
   return (
     <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
-      {/* Top bar */}
       <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
         <div className="flex items-center gap-4">
           <span className="text-4xl">{gameIcon}</span>
@@ -391,7 +430,6 @@ export default function TVGamePage() {
         </div>
       </div>
 
-      {/* Main content */}
       <div className="flex-1 flex items-center justify-center px-8">
         <div className="text-center">
           <div className="text-8xl mb-6">{gameIcon}</div>

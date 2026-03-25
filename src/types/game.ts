@@ -23,13 +23,26 @@ export interface GameState {
 }
 
 // Quiz types
+export type QuizDifficulty = 'easy' | 'medium' | 'hard';
+export type QuizTopic = 'science' | 'history' | 'pop-culture';
+export type QuizMode = 'general' | 'special';
+
 export interface QuizQuestion {
   id: string;
+  topic: QuizTopic;
+  difficulty: QuizDifficulty;
   questionRu: string;
   questionEn: string;
   options: { ru: string; en: string }[];
   correctIndex: number;
   timeLimit: number;
+}
+
+export interface QuizTopicInfo {
+  id: QuizTopic;
+  titleRu: string;
+  titleEn: string;
+  icon: string;
 }
 
 export interface QuizState extends GameState {

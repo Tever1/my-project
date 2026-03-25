@@ -8,42 +8,59 @@ import { useSocket } from '@/lib/use-socket';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
-import { QUIZ_QUESTIONS } from '@/lib/game-data';
+import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
+import { getQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Phase = 'waiting' | 'countdown' | 'question' | 'results' | 'final';
+type Phase = 'setup-difficulty' | 'setup-mode' | 'setup-topic' | 'waiting' | 'countdown' | 'question' | 'results' | 'final';
+
+interface QuizConfig {
+  difficulty: QuizDifficulty | null;
+  mode: 'general' | 'special' | null;
+  topic: QuizTopic | null;
+}
 
 interface QuizGameState {
   phase: Phase;
+  config: QuizConfig;
   questionIndex: number;
+  totalQuestions: number;
   timeLeft: number;
-  answers: Record<string, number>; // playerId -> answerIndex
-  scores: Record<string, number>;  // playerId -> total score
+  answers: Record<string, number>;
+  scores: Record<string, number>;
   showCorrect: boolean;
   players: { id: string; nickname: string; isHost: boolean }[];
-  countdownValue: number; // 3-2-1 pre-question countdown
-  correctPlayers: string[]; // ids of players who answered correctly this round
+  countdownValue: number;
+  correctPlayers: string[];
+  // Synced question data (so non-host players see the question)
+  currentQuestion: {
+    questionRu: string;
+    questionEn: string;
+    options: { ru: string; en: string }[];
+    correctIndex: number;
+  } | null;
 }
 
-const TOTAL_QUESTIONS = QUIZ_QUESTIONS.length; // 10
-const TIME_PER_QUESTION = 15;
+const QUESTIONS_PER_GAME = 10;
 
 const INITIAL_STATE: QuizGameState = {
-  phase: 'waiting',
+  phase: 'setup-difficulty',
+  config: { difficulty: null, mode: null, topic: null },
   questionIndex: 0,
-  timeLeft: TIME_PER_QUESTION,
+  totalQuestions: QUESTIONS_PER_GAME,
+  timeLeft: 15,
   answers: {},
   scores: {},
   showCorrect: false,
   players: [],
   countdownValue: 3,
   correctPlayers: [],
+  currentQuestion: null,
 };
 
-// Answer option colors for visual variety
 const OPTION_COLORS = [
   'from-blue-600/20 to-blue-500/5 border-blue-500/20',
   'from-emerald-600/20 to-emerald-500/5 border-emerald-500/20',
@@ -59,7 +76,7 @@ const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
 export default function QuizPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { t, locale } = useTranslation();
+  const { locale } = useTranslation();
   const { user } = useAuth();
   const { emit, on } = useSocket();
   const router = useRouter();
@@ -67,12 +84,18 @@ export default function QuizPage() {
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Host-only state: the actual question objects (not sent to clients, only question data is synced)
+  const questionsRef = useRef<QuizQuestion[]>([]);
+  const shownIdsRef = useRef<Set<string>>(new Set());
+
   const isHost = gameState.players.find((p) => p.id === user?.id)?.isHost ?? false;
-  const currentQuestion = QUIZ_QUESTIONS[gameState.questionIndex];
   const myAnswer = user ? gameState.answers[user.id] : undefined;
   const totalPlayers = gameState.players.length;
   const answeredCount = Object.keys(gameState.answers).length;
   const allAnswered = totalPlayers > 0 && answeredCount >= totalPlayers;
+
+  const timePerQuestion = gameState.config.difficulty === 'easy' ? 15
+    : gameState.config.difficulty === 'hard' ? 25 : 20;
 
   // ------- Socket listeners -------
 
@@ -86,20 +109,24 @@ export default function QuizPage() {
       const { action, payload } = data as {
         action: string;
         payload: Record<string, unknown>;
-        from?: string;
       };
 
       switch (action) {
         case 'quiz:sync':
-          // Full state sync from host
           setGameState((prev) => ({ ...prev, ...(payload as Partial<QuizGameState>) }));
           break;
 
+        case 'quiz:config':
+          setGameState((prev) => ({
+            ...prev,
+            config: payload.config as QuizConfig,
+            phase: payload.phase as Phase,
+            totalQuestions: (payload.totalQuestions as number) || QUESTIONS_PER_GAME,
+          }));
+          break;
+
         case 'quiz:answer': {
-          const { playerId, answerIndex } = payload as {
-            playerId: string;
-            answerIndex: number;
-          };
+          const { playerId, answerIndex } = payload as { playerId: string; answerIndex: number };
           setGameState((prev) => ({
             ...prev,
             answers: { ...prev.answers, [playerId]: answerIndex },
@@ -116,12 +143,7 @@ export default function QuizPage() {
             scores: Record<string, number>;
             correctPlayers: string[];
           };
-          setGameState((prev) => ({
-            ...prev,
-            showCorrect: true,
-            scores,
-            correctPlayers,
-          }));
+          setGameState((prev) => ({ ...prev, showCorrect: true, scores, correctPlayers }));
           break;
         }
 
@@ -137,12 +159,19 @@ export default function QuizPage() {
           const p = payload as {
             questionIndex: number;
             timeLeft: number;
+            question: {
+              questionRu: string;
+              questionEn: string;
+              options: { ru: string; en: string }[];
+              correctIndex: number;
+            };
           };
           setGameState((prev) => ({
             ...prev,
             phase: 'question',
             questionIndex: p.questionIndex,
             timeLeft: p.timeLeft,
+            currentQuestion: p.question,
             answers: {},
             showCorrect: false,
             correctPlayers: [],
@@ -160,7 +189,6 @@ export default function QuizPage() {
       router.push(`/lobby/${roomId}`);
     });
 
-    // Request current room state so we get the players list (including isHost)
     emit('room:get-state', { code: roomId });
 
     return () => {
@@ -176,19 +204,15 @@ export default function QuizPage() {
     if (!isHost) return;
     if (gameState.phase !== 'question' || gameState.showCorrect) return;
 
-    // Clear any existing timer
     if (timerRef.current) clearInterval(timerRef.current);
 
     timerRef.current = setInterval(() => {
       setGameState((prev) => {
         const next = prev.timeLeft - 1;
         if (next <= 0) {
-          // Time is up - trigger results
           if (timerRef.current) clearInterval(timerRef.current);
-          // We handle results in a separate effect to avoid state issues
           return { ...prev, timeLeft: 0 };
         }
-        // Broadcast timer tick
         emit('game:action', {
           code: roomId,
           action: 'quiz:timer',
@@ -203,40 +227,80 @@ export default function QuizPage() {
     };
   }, [isHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, emit, roomId]);
 
-  // ------- Auto-reveal when time runs out or all answered -------
+  // ------- Auto-reveal -------
 
   useEffect(() => {
     if (!isHost || gameState.phase !== 'question' || gameState.showCorrect) return;
-
     if (gameState.timeLeft <= 0 || allAnswered) {
       revealResults();
     }
   }, [gameState.timeLeft, allAnswered, isHost, gameState.phase, gameState.showCorrect]);
 
-  // ------- Actions -------
+  // ------- Setup Actions (host only) -------
+
+  const selectDifficulty = (difficulty: QuizDifficulty) => {
+    const newConfig = { ...gameState.config, difficulty };
+    setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-mode' }));
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:config',
+      payload: { config: newConfig, phase: 'setup-mode' },
+    });
+  };
+
+  const selectMode = (mode: 'general' | 'special') => {
+    const newConfig = { ...gameState.config, mode };
+    if (mode === 'general') {
+      setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-topic' }));
+      emit('game:action', {
+        code: roomId,
+        action: 'quiz:config',
+        payload: { config: newConfig, phase: 'setup-topic' },
+      });
+    }
+    // 'special' — no action yet, placeholder
+  };
+
+  const selectTopic = (topic: QuizTopic) => {
+    const newConfig = { ...gameState.config, topic };
+    // Generate questions for this session
+    const questions = getQuizQuestions(topic, newConfig.difficulty!, shownIdsRef.current);
+    const total = Math.min(QUESTIONS_PER_GAME, questions.length);
+    questionsRef.current = questions.slice(0, total);
+
+    setGameState((prev) => ({
+      ...prev,
+      config: newConfig,
+      phase: 'waiting',
+      totalQuestions: total,
+    }));
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:config',
+      payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
+    });
+  };
+
+  // ------- Game Actions -------
 
   const revealResults = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
-    const question = QUIZ_QUESTIONS[gameState.questionIndex];
+    const question = gameState.currentQuestion;
+    if (!question) return;
+
     const newScores = { ...gameState.scores };
     const correct: string[] = [];
 
     for (const [playerId, answerIdx] of Object.entries(gameState.answers)) {
       if (answerIdx === question.correctIndex) {
-        // Score: base 100 + time bonus (timeLeft * 10)
         const timeBonus = Math.max(gameState.timeLeft, 0) * 10;
         newScores[playerId] = (newScores[playerId] || 0) + 100 + timeBonus;
         correct.push(playerId);
       }
     }
 
-    setGameState((prev) => ({
-      ...prev,
-      showCorrect: true,
-      scores: newScores,
-      correctPlayers: correct,
-    }));
+    setGameState((prev) => ({ ...prev, showCorrect: true, scores: newScores, correctPlayers: correct }));
 
     emit('game:action', {
       code: roomId,
@@ -244,21 +308,16 @@ export default function QuizPage() {
       payload: { scores: newScores, correctPlayers: correct },
     });
 
-    // Also persist to server
     emit('game:state-update', {
       code: roomId,
       gameState: { scores: newScores },
     });
-  }, [gameState.questionIndex, gameState.answers, gameState.scores, gameState.timeLeft, emit, roomId]);
+  }, [gameState.currentQuestion, gameState.answers, gameState.scores, gameState.timeLeft, emit, roomId]);
 
   const runCountdown = useCallback(
     (questionIdx: number) => {
       let count = 3;
-      setGameState((prev) => ({
-        ...prev,
-        phase: 'countdown',
-        countdownValue: count,
-      }));
+      setGameState((prev) => ({ ...prev, phase: 'countdown', countdownValue: count }));
       emit('game:action', {
         code: roomId,
         action: 'quiz:countdown',
@@ -269,19 +328,36 @@ export default function QuizPage() {
         count -= 1;
         if (count <= 0) {
           clearInterval(interval);
-          // Start the question
+          const q = questionsRef.current[questionIdx];
+          if (!q) return;
+
+          // Track shown question
+          shownIdsRef.current.add(q.id);
+
+          const questionData = {
+            questionRu: q.questionRu,
+            questionEn: q.questionEn,
+            options: q.options,
+            correctIndex: q.correctIndex,
+          };
+
           const startPayload = {
             questionIndex: questionIdx,
-            timeLeft: TIME_PER_QUESTION,
+            timeLeft: q.timeLimit,
+            question: questionData,
           };
+
           setGameState((prev) => ({
             ...prev,
             phase: 'question',
-            ...startPayload,
+            questionIndex: questionIdx,
+            timeLeft: q.timeLimit,
+            currentQuestion: questionData,
             answers: {},
             showCorrect: false,
             correctPlayers: [],
           }));
+
           emit('game:action', {
             code: roomId,
             action: 'quiz:start-question',
@@ -301,6 +377,12 @@ export default function QuizPage() {
   );
 
   const startGame = () => {
+    // If host hasn't generated questions yet (e.g., "Play Again"), regenerate
+    if (questionsRef.current.length === 0 && gameState.config.topic && gameState.config.difficulty) {
+      const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
+      questionsRef.current = questions.slice(0, Math.min(QUESTIONS_PER_GAME, questions.length));
+    }
+
     const initialScores: Record<string, number> = {};
     gameState.players.forEach((p) => {
       initialScores[p.id] = 0;
@@ -308,7 +390,6 @@ export default function QuizPage() {
 
     setGameState((prev) => ({ ...prev, scores: initialScores }));
 
-    // Sync initial scores then start countdown
     emit('game:action', {
       code: roomId,
       action: 'quiz:sync',
@@ -320,13 +401,9 @@ export default function QuizPage() {
 
   const startNextQuestion = () => {
     const nextIndex = gameState.questionIndex + 1;
-    if (nextIndex >= TOTAL_QUESTIONS) {
+    if (nextIndex >= gameState.totalQuestions) {
       setGameState((prev) => ({ ...prev, phase: 'final' }));
-      emit('game:action', {
-        code: roomId,
-        action: 'quiz:final',
-        payload: {},
-      });
+      emit('game:action', { code: roomId, action: 'quiz:final', payload: {} });
       return;
     }
     runCountdown(nextIndex);
@@ -346,6 +423,17 @@ export default function QuizPage() {
     }));
   };
 
+  const playAgain = () => {
+    // Regenerate questions (excluding already shown ones)
+    if (gameState.config.topic && gameState.config.difficulty) {
+      const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
+      const total = Math.min(QUESTIONS_PER_GAME, questions.length);
+      questionsRef.current = questions.slice(0, total);
+      setGameState((prev) => ({ ...prev, totalQuestions: total }));
+    }
+    startGame();
+  };
+
   const endGame = () => {
     emit('game:end', { code: roomId });
   };
@@ -359,7 +447,13 @@ export default function QuizPage() {
   const getPlayerName = (id: string) =>
     gameState.players.find((p) => p.id === id)?.nickname || id;
 
+  const currentQuestion = gameState.currentQuestion;
+  const topicInfo = gameState.config.topic ? QUIZ_TOPICS.find((t) => t.id === gameState.config.topic) : null;
+  const diffInfo = gameState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === gameState.config.difficulty) : null;
+
   // ------- Render -------
+
+  const isSetup = gameState.phase.startsWith('setup-');
 
   return (
     <GameLayout
@@ -368,29 +462,195 @@ export default function QuizPage() {
       round={gameState.phase === 'question' || gameState.phase === 'countdown'
         ? gameState.questionIndex + 1
         : gameState.phase === 'final'
-          ? TOTAL_QUESTIONS
+          ? gameState.totalQuestions
           : undefined}
-      totalRounds={gameState.phase !== 'waiting' ? TOTAL_QUESTIONS : undefined}
+      totalRounds={!isSetup && gameState.phase !== 'waiting' ? gameState.totalQuestions : undefined}
       scores={scoreboard}
       onEnd={isHost ? endGame : undefined}
-      showScoreboard={gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
+      showScoreboard={!isSetup && gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
     >
-      {/* ==================== WAITING ==================== */}
-      {gameState.phase === 'waiting' && (
-        <div className="text-center py-12 animate-fade-in">
-          <div className="text-7xl mb-6">🧠</div>
-          <h2 className="text-3xl font-bold text-white mb-3">
+      {/* ==================== SETUP: DIFFICULTY ==================== */}
+      {gameState.phase === 'setup-difficulty' && (
+        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          <div className="text-6xl mb-4">🧠</div>
+          <h2 className="text-2xl font-bold text-white mb-2">
             {locale === 'ru' ? 'Квиз' : 'Quiz'}
           </h2>
+          <p className="text-white/50 mb-8">
+            {locale === 'ru' ? 'Выберите уровень сложности' : 'Choose difficulty level'}
+          </p>
+
+          {isHost ? (
+            <div className="space-y-3">
+              {QUIZ_DIFFICULTIES.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => selectDifficulty(d.id)}
+                  className={`w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br ${d.color}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl">{d.icon}</span>
+                    <div>
+                      <p className="text-lg font-semibold text-white">
+                        {locale === 'ru' ? d.titleRu : d.titleEn}
+                      </p>
+                      <p className="text-sm text-white/50">
+                        {d.id === 'easy'
+                          ? locale === 'ru' ? '15 сек на вопрос' : '15 sec per question'
+                          : d.id === 'medium'
+                            ? locale === 'ru' ? '20 сек на вопрос' : '20 sec per question'
+                            : locale === 'ru' ? '25 сек на вопрос' : '25 sec per question'}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-white/40 italic">
+              {locale === 'ru' ? 'Ведущий выбирает сложность...' : 'Host is choosing difficulty...'}
+            </p>
+          )}
+
+          <p className="text-white/30 text-sm mt-6">
+            {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
+          </p>
+        </div>
+      )}
+
+      {/* ==================== SETUP: MODE ==================== */}
+      {gameState.phase === 'setup-mode' && (
+        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <span className="text-2xl">{diffInfo?.icon}</span>
+            <span className="text-white/60 font-medium">
+              {locale === 'ru' ? diffInfo?.titleRu : diffInfo?.titleEn}
+            </span>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {locale === 'ru' ? 'Выберите тип квиза' : 'Choose quiz type'}
+          </h2>
+          <p className="text-white/50 mb-8">
+            {locale === 'ru' ? 'Общие темы или специальные квизы' : 'General topics or special quizzes'}
+          </p>
+
+          {isHost ? (
+            <div className="space-y-3">
+              <button
+                onClick={() => selectMode('general')}
+                className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-purple-600/20 to-purple-500/5 border-purple-500/30"
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-3xl">📚</span>
+                  <div>
+                    <p className="text-lg font-semibold text-white">
+                      {locale === 'ru' ? 'Общие темы' : 'General Topics'}
+                    </p>
+                    <p className="text-sm text-white/50">
+                      {locale === 'ru' ? 'Наука, история, поп-культура и др.' : 'Science, history, pop culture, etc.'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+              <button
+                disabled
+                className="w-full rounded-2xl border p-5 text-left opacity-40 cursor-not-allowed bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-3xl">🌟</span>
+                  <div>
+                    <p className="text-lg font-semibold text-white">
+                      {locale === 'ru' ? 'Специальные квизы' : 'Special Quizzes'}
+                    </p>
+                    <p className="text-sm text-white/50">
+                      {locale === 'ru' ? 'Скоро!' : 'Coming soon!'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          ) : (
+            <div className="text-white/40 italic">
+              <p>{locale === 'ru' ? 'Ведущий выбирает тип квиза...' : 'Host is choosing quiz type...'}</p>
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <span>{diffInfo?.icon}</span>
+                <span>{locale === 'ru' ? diffInfo?.titleRu : diffInfo?.titleEn}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ==================== SETUP: TOPIC ==================== */}
+      {gameState.phase === 'setup-topic' && (
+        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <span className="text-2xl">{diffInfo?.icon}</span>
+            <span className="text-white/60 font-medium">
+              {locale === 'ru' ? diffInfo?.titleRu : diffInfo?.titleEn}
+            </span>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {locale === 'ru' ? 'Выберите тему' : 'Choose a topic'}
+          </h2>
+          <p className="text-white/50 mb-8">
+            {locale === 'ru' ? '10 вопросов по выбранной теме' : '10 questions on the chosen topic'}
+          </p>
+
+          {isHost ? (
+            <div className="space-y-3">
+              {QUIZ_TOPICS.map((topic) => (
+                <button
+                  key={topic.id}
+                  onClick={() => selectTopic(topic.id)}
+                  className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-indigo-600/20 to-indigo-500/5 border-indigo-500/30"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl">{topic.icon}</span>
+                    <p className="text-lg font-semibold text-white">
+                      {locale === 'ru' ? topic.titleRu : topic.titleEn}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-white/40 italic">
+              <p>{locale === 'ru' ? 'Ведущий выбирает тему...' : 'Host is choosing topic...'}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ==================== WAITING (ready to start) ==================== */}
+      {gameState.phase === 'waiting' && (
+        <div className="text-center py-8 animate-fade-in">
+          <div className="text-6xl mb-4">🧠</div>
+          <h2 className="text-2xl font-bold text-white mb-3">
+            {locale === 'ru' ? 'Квиз' : 'Quiz'}
+          </h2>
+
+          {/* Config badges */}
+          <div className="flex items-center justify-center gap-3 mb-4 flex-wrap">
+            {diffInfo && (
+              <span className="glass-badge px-3 py-1">
+                {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+              </span>
+            )}
+            {topicInfo && (
+              <span className="glass-badge px-3 py-1">
+                {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+              </span>
+            )}
+          </div>
+
           <p className="text-white/50 mb-2 max-w-md mx-auto">
             {locale === 'ru'
-              ? `${TOTAL_QUESTIONS} вопросов с вариантами ответа. Чем быстрее ответите правильно, тем больше очков!`
-              : `${TOTAL_QUESTIONS} multiple-choice questions. The faster you answer correctly, the more points you earn!`}
+              ? `${gameState.totalQuestions} вопросов. Чем быстрее ответите правильно, тем больше очков!`
+              : `${gameState.totalQuestions} questions. The faster you answer correctly, the more points!`}
           </p>
           <p className="text-white/30 text-sm mb-8">
-            {locale === 'ru'
-              ? `Игроков: ${gameState.players.length}`
-              : `Players: ${gameState.players.length}`}
+            {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
           </p>
           {isHost ? (
             <GlassButton variant="primary" size="lg" onClick={startGame}>
@@ -411,10 +671,7 @@ export default function QuizPage() {
             <p className="text-white/50 text-lg mb-4">
               {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}
             </p>
-            <div
-              key={gameState.countdownValue}
-              className="text-8xl font-black text-white animate-bounce"
-            >
+            <div key={gameState.countdownValue} className="text-8xl font-black text-white animate-bounce">
               {gameState.countdownValue}
             </div>
           </div>
@@ -428,13 +685,9 @@ export default function QuizPage() {
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-white/40">
-                {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}/{TOTAL_QUESTIONS}
+                {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}/{gameState.totalQuestions}
               </span>
-              <span
-                className={`text-sm font-bold ${
-                  gameState.timeLeft <= 5 ? 'text-red-400' : 'text-white/70'
-                }`}
-              >
+              <span className={`text-sm font-bold ${gameState.timeLeft <= 5 ? 'text-red-400' : 'text-white/70'}`}>
                 {gameState.timeLeft}s
               </span>
             </div>
@@ -443,9 +696,7 @@ export default function QuizPage() {
                 className={`h-full rounded-full transition-all duration-1000 ease-linear ${
                   gameState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
                 }`}
-                style={{
-                  width: `${(gameState.timeLeft / TIME_PER_QUESTION) * 100}%`,
-                }}
+                style={{ width: `${(gameState.timeLeft / timePerQuestion) * 100}%` }}
               />
             </div>
           </div>
@@ -472,34 +723,29 @@ export default function QuizPage() {
                   onClick={() => submitAnswer(index)}
                   disabled={isDisabled}
                   className={`
-                    relative overflow-hidden rounded-2xl border p-4 text-left
-                    transition-all duration-300
-                    ${
-                      isCorrectRevealed
-                        ? 'border-green-400 bg-green-500/20 ring-2 ring-green-400/50'
-                        : isWrongRevealed
-                          ? 'border-red-400 bg-red-500/20 ring-2 ring-red-400/50'
-                          : isMyAnswer
-                            ? 'border-purple-400 bg-purple-500/15 ring-2 ring-purple-400/50'
-                            : isDisabled
-                              ? 'border-white/5 bg-white/5 opacity-50'
-                              : `bg-gradient-to-br ${OPTION_COLORS[index]} hover:scale-[1.02] active:scale-[0.98] cursor-pointer`
+                    relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-300
+                    ${isCorrectRevealed
+                      ? 'border-green-400 bg-green-500/20 ring-2 ring-green-400/50'
+                      : isWrongRevealed
+                        ? 'border-red-400 bg-red-500/20 ring-2 ring-red-400/50'
+                        : isMyAnswer
+                          ? 'border-purple-400 bg-purple-500/15 ring-2 ring-purple-400/50'
+                          : isDisabled
+                            ? 'border-white/5 bg-white/5 opacity-50'
+                            : `bg-gradient-to-br ${OPTION_COLORS[index]} hover:scale-[1.02] active:scale-[0.98] cursor-pointer`
                     }
                   `}
                 >
                   <div className="flex items-center gap-3">
-                    <span
-                      className={`
-                        flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold
-                        ${
-                          isCorrectRevealed
-                            ? 'bg-green-500/30 text-green-300'
-                            : isWrongRevealed
-                              ? 'bg-red-500/30 text-red-300'
-                              : 'bg-white/10 text-white/60'
-                        }
-                      `}
-                    >
+                    <span className={`
+                      flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold
+                      ${isCorrectRevealed
+                        ? 'bg-green-500/30 text-green-300'
+                        : isWrongRevealed
+                          ? 'bg-red-500/30 text-red-300'
+                          : 'bg-white/10 text-white/60'
+                      }
+                    `}>
                       {isCorrectRevealed ? '✓' : isWrongRevealed ? '✕' : OPTION_LABELS[index]}
                     </span>
                     <span className="text-white font-medium">
@@ -515,18 +761,10 @@ export default function QuizPage() {
           <div className="mt-4 flex items-center justify-between text-sm">
             <p className="text-white/30">
               {myAnswer !== undefined
-                ? locale === 'ru'
-                  ? 'Ответ принят!'
-                  : 'Answer submitted!'
-                : gameState.showCorrect
-                  ? ''
-                  : locale === 'ru'
-                    ? 'Выберите ответ'
-                    : 'Choose an answer'}
+                ? locale === 'ru' ? 'Ответ принят!' : 'Answer submitted!'
+                : gameState.showCorrect ? '' : locale === 'ru' ? 'Выберите ответ' : 'Choose an answer'}
             </p>
-            <p className="text-white/30">
-              {answeredCount}/{totalPlayers}
-            </p>
+            <p className="text-white/30">{answeredCount}/{totalPlayers}</p>
           </div>
 
           {/* Post-question results */}
@@ -540,9 +778,7 @@ export default function QuizPage() {
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {gameState.correctPlayers.map((id) => (
-                        <span key={id} className="glass-badge text-xs">
-                          {getPlayerName(id)}
-                        </span>
+                        <span key={id} className="glass-badge text-xs">{getPlayerName(id)}</span>
                       ))}
                     </div>
                   </>
@@ -556,13 +792,9 @@ export default function QuizPage() {
               {isHost && (
                 <div className="text-center mt-4">
                   <GlassButton variant="primary" size="lg" onClick={startNextQuestion}>
-                    {gameState.questionIndex + 1 < TOTAL_QUESTIONS
-                      ? locale === 'ru'
-                        ? 'Следующий вопрос'
-                        : 'Next Question'
-                      : locale === 'ru'
-                        ? 'Показать результаты'
-                        : 'Show Results'}
+                    {gameState.questionIndex + 1 < gameState.totalQuestions
+                      ? locale === 'ru' ? 'Следующий вопрос' : 'Next Question'
+                      : locale === 'ru' ? 'Показать результаты' : 'Show Results'}
                   </GlassButton>
                 </div>
               )}
@@ -575,22 +807,24 @@ export default function QuizPage() {
       {gameState.phase === 'final' && (
         <div className="max-w-lg mx-auto text-center animate-fade-in py-6">
           <div className="text-6xl mb-4">🏆</div>
-          <h2 className="text-3xl font-bold text-white mb-8">
+          <h2 className="text-3xl font-bold text-white mb-2">
             {locale === 'ru' ? 'Итоги' : 'Final Results'}
           </h2>
+          {topicInfo && diffInfo && (
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <span className="glass-badge text-xs">{diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}</span>
+              <span className="glass-badge text-xs">{topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}</span>
+            </div>
+          )}
 
           <div className="space-y-3">
             {scoreboard.map((entry, i) => (
               <GlassCard
                 key={entry.name}
                 className={`p-4 flex items-center justify-between transition-all ${
-                  i === 0
-                    ? 'ring-2 ring-yellow-400/60 bg-yellow-500/10'
-                    : i === 1
-                      ? 'ring-1 ring-gray-300/30 bg-gray-300/5'
-                      : i === 2
-                        ? 'ring-1 ring-amber-600/30 bg-amber-700/5'
-                        : ''
+                  i === 0 ? 'ring-2 ring-yellow-400/60 bg-yellow-500/10'
+                    : i === 1 ? 'ring-1 ring-gray-300/30 bg-gray-300/5'
+                      : i === 2 ? 'ring-1 ring-amber-600/30 bg-amber-700/5' : ''
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -609,7 +843,7 @@ export default function QuizPage() {
               <GlassButton onClick={endGame}>
                 {locale === 'ru' ? 'В лобби' : 'Back to Lobby'}
               </GlassButton>
-              <GlassButton variant="primary" onClick={startGame}>
+              <GlassButton variant="primary" onClick={playAgain}>
                 {locale === 'ru' ? 'Играть снова' : 'Play Again'}
               </GlassButton>
             </div>
