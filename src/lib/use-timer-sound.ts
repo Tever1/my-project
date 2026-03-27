@@ -3,20 +3,26 @@ import { useRef, useEffect, useCallback } from 'react';
 /**
  * Hook that produces a ticking sound that accelerates as time runs out.
  * Uses the Web Audio API — no external files needed.
+ *
+ * - Last 10s: ticks once per second
+ * - Last 5s: ticks twice per second
+ * - Last 3s: ticks four times per second
  */
 export function useTimerSound() {
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeRef = useRef(false);
+  const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const getCtx = () => {
-    if (!audioCtxRef.current) {
+  const getCtx = useCallback(() => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
       audioCtxRef.current = new AudioContext();
     }
+    if (audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
     return audioCtxRef.current;
-  };
+  }, []);
 
-  const playTick = useCallback((urgent: boolean) => {
+  const playTick = useCallback((frequency: number, volume: number) => {
     try {
       const ctx = getCtx();
       const osc = ctx.createOscillator();
@@ -25,43 +31,56 @@ export function useTimerSound() {
       osc.connect(gain);
       gain.connect(ctx.destination);
 
-      // Higher pitch when urgent
-      osc.frequency.value = urgent ? 880 : 660;
+      osc.frequency.value = frequency;
       osc.type = 'sine';
 
-      gain.gain.setValueAtTime(urgent ? 0.15 : 0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
 
       osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.08);
+      osc.stop(ctx.currentTime + 0.06);
     } catch {
       // Audio not available
+    }
+  }, [getCtx]);
+
+  const stop = useCallback(() => {
+    if (tickIntervalRef.current) {
+      clearInterval(tickIntervalRef.current);
+      tickIntervalRef.current = null;
     }
   }, []);
 
   /**
-   * Call this every render/effect with the current timeLeft and total time.
-   * It will schedule ticks that get faster as time decreases.
+   * Start ticking for the given timeLeft.
+   * Call this each time timeLeft changes.
+   * Automatically manages sub-second ticks for acceleration.
    */
-  const tick = useCallback((timeLeft: number, totalTime: number) => {
-    if (timeLeft <= 0 || timeLeft > totalTime) {
-      return;
+  const tick = useCallback((timeLeft: number, _totalTime: number) => {
+    // Clear any existing sub-tick interval
+    stop();
+
+    if (timeLeft <= 0 || timeLeft > 10) return;
+
+    if (timeLeft <= 3) {
+      // 4 ticks per second, high pitch, louder
+      playTick(980, 0.18);
+      let subTick = 0;
+      tickIntervalRef.current = setInterval(() => {
+        subTick++;
+        if (subTick < 3) playTick(980, 0.18);
+      }, 250);
+    } else if (timeLeft <= 5) {
+      // 2 ticks per second, medium-high pitch
+      playTick(880, 0.14);
+      tickIntervalRef.current = setInterval(() => {
+        playTick(880, 0.14);
+      }, 500);
+    } else {
+      // 1 tick per second, normal pitch
+      playTick(660, 0.08);
     }
-
-    // Only tick in the last 10 seconds
-    if (timeLeft > 10) return;
-
-    const urgent = timeLeft <= 5;
-    playTick(urgent);
-  }, [playTick]);
-
-  const stop = useCallback(() => {
-    activeRef.current = false;
-    if (intervalRef.current) {
-      clearTimeout(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
+  }, [playTick, stop]);
 
   useEffect(() => {
     return () => {

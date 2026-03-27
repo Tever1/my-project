@@ -241,6 +241,19 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
     });
 
+    // Transfer host
+    socket.on('room:transfer-host', (data: { code: string; newHostId: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      const currentHost = room.players.get(room.hostId);
+      const newHost = room.players.get(data.newHostId);
+      if (!currentHost || !newHost) return;
+      currentHost.isHost = false;
+      newHost.isHost = true;
+      room.hostId = data.newHostId;
+      broadcastRoomState(io, room);
+    });
+
     // Leave room
     socket.on('room:leave', () => {
       handleDisconnect(io, socket);

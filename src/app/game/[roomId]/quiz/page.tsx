@@ -11,6 +11,7 @@ import { GlassButton } from '@/components/ui/GlassButton';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
 import { getQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
+import { useBackgroundMusic } from '@/lib/use-background-music';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +87,7 @@ export default function QuizPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { tick: timerTick, stop: stopTimerSound } = useTimerSound();
+  const { start: startMusic, stop: stopMusic } = useBackgroundMusic();
 
   // Host-only state: the actual question objects (not sent to clients, only question data is synced)
   const questionsRef = useRef<QuizQuestion[]>([]);
@@ -230,6 +232,16 @@ export default function QuizPage() {
     };
   }, [isHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, emit, roomId]);
 
+  // ------- Background music -------
+
+  useEffect(() => {
+    if (gameState.phase === 'question' && !gameState.showCorrect) {
+      startMusic();
+    } else {
+      stopMusic();
+    }
+  }, [gameState.phase, gameState.showCorrect, startMusic, stopMusic]);
+
   // ------- Timer sound effect -------
 
   useEffect(() => {
@@ -307,8 +319,7 @@ export default function QuizPage() {
 
     for (const [playerId, answerIdx] of Object.entries(gameState.answers)) {
       if (answerIdx === question.correctIndex) {
-        const timeBonus = Math.max(gameState.timeLeft, 0) * 10;
-        newScores[playerId] = (newScores[playerId] || 0) + 100 + timeBonus;
+        newScores[playerId] = (newScores[playerId] || 0) + 1;
         correct.push(playerId);
       }
     }
@@ -449,6 +460,7 @@ export default function QuizPage() {
 
   const endGame = () => {
     stopTimerSound();
+    stopMusic();
     emit('game:end', { code: roomId });
   };
 

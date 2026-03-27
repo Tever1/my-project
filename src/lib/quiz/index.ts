@@ -12,6 +12,7 @@ export const ALL_QUIZ_QUESTIONS: QuizQuestion[] = [
 
 // Topic metadata
 export const QUIZ_TOPICS: QuizTopicInfo[] = [
+  { id: 'random', titleRu: 'Случайная', titleEn: 'Random', icon: '🎲' },
   { id: 'science', titleRu: 'Наука', titleEn: 'Science', icon: '🔬' },
   { id: 'history', titleRu: 'История', titleEn: 'History', icon: '📜' },
   { id: 'pop-culture', titleRu: 'Поп-культура', titleEn: 'Pop Culture', icon: '🎬' },
@@ -33,9 +34,9 @@ export function getQuizQuestions(
   difficulty: QuizDifficulty,
   excludeIds?: Set<string>,
 ): QuizQuestion[] {
-  let questions = ALL_QUIZ_QUESTIONS.filter(
-    (q) => q.topic === topic && q.difficulty === difficulty,
-  );
+  let questions = topic === 'random'
+    ? ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === difficulty)
+    : ALL_QUIZ_QUESTIONS.filter((q) => q.topic === topic && q.difficulty === difficulty);
 
   // Exclude already-shown questions (if any remain)
   if (excludeIds && excludeIds.size > 0) {
@@ -62,7 +63,7 @@ export function getQuizQuestions(
  * Get count of available questions for a topic+difficulty combo.
  */
 export function getQuestionCount(topic: QuizTopic, difficulty: QuizDifficulty): number {
-  return ALL_QUIZ_QUESTIONS.filter(
-    (q) => q.topic === topic && q.difficulty === difficulty,
-  ).length;
+  return topic === 'random'
+    ? ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === difficulty).length
+    : ALL_QUIZ_QUESTIONS.filter((q) => q.topic === topic && q.difficulty === difficulty).length;
 }

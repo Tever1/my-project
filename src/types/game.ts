@@ -24,7 +24,7 @@ export interface GameState {
 
 // Quiz types
 export type QuizDifficulty = 'easy' | 'medium' | 'hard';
-export type QuizTopic = 'science' | 'history' | 'pop-culture';
+export type QuizTopic = 'science' | 'history' | 'pop-culture' | 'random';
 export type QuizMode = 'general' | 'special';
 
 export interface QuizQuestion {

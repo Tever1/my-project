@@ -95,6 +95,11 @@ export default function LobbyPage() {
     emit('room:kick', { code: room.code, playerId });
   };
 
+  const handleTransferHost = (playerId: string) => {
+    if (!isHost || !room) return;
+    emit('room:transfer-host', { code: room.code, newHostId: playerId });
+  };
+
   const handleLeave = () => {
     emit('room:leave');
     router.push('/');
@@ -201,12 +206,21 @@ export default function LobbyPage() {
                     )}
                   </div>
                   {isHost && !player.isHost && (
-                    <button
-                      onClick={() => handleKick(player.id)}
-                      className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
-                    >
-                      {t('lobby.kick')}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleTransferHost(player.id)}
+                        className="text-xs text-yellow-400/50 hover:text-yellow-400 transition-colors"
+                        title={locale === 'ru' ? 'Передать лидера' : 'Transfer host'}
+                      >
+                        👑
+                      </button>
+                      <button
+                        onClick={() => handleKick(player.id)}
+                        className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
+                      >
+                        {t('lobby.kick')}
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
