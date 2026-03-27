@@ -83,6 +83,7 @@ export default function QuizPage() {
   const router = useRouter();
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { tick: timerTick, stop: stopTimerSound, warmup: warmupSound } = useTimerSound();
@@ -450,6 +451,11 @@ export default function QuizPage() {
   };
 
   const endGame = () => {
+    setShowEndConfirm(true);
+  };
+
+  const confirmEndGame = () => {
+    setShowEndConfirm(false);
     stopTimerSound();
     emit('game:end', { code: roomId });
   };
@@ -703,7 +709,7 @@ export default function QuizPage() {
 
       {/* ==================== QUESTION ==================== */}
       {gameState.phase === 'question' && currentQuestion && (
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {/* Timer bar */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
@@ -871,6 +877,37 @@ export default function QuizPage() {
               </GlassButton>
             </div>
           )}
+        </div>
+      )}
+
+      {/* End game confirmation modal */}
+      {showEndConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setShowEndConfirm(false)}
+        >
+          <div
+            className="glass-card p-6 max-w-sm w-full animate-scale-in text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-white text-lg font-semibold mb-2">
+              {locale === 'ru' ? 'Завершить игру?' : 'End game?'}
+            </p>
+            <p className="text-white/50 text-sm mb-6">
+              {locale === 'ru'
+                ? 'Все игроки вернутся в лобби'
+                : 'All players will return to the lobby'}
+            </p>
+            <div className="flex gap-3">
+              <GlassButton className="flex-1" onClick={() => setShowEndConfirm(false)}>
+                {locale === 'ru' ? 'Отмена' : 'Cancel'}
+              </GlassButton>
+              <GlassButton variant="danger" className="flex-1" onClick={confirmEndGame}>
+                {locale === 'ru' ? 'Завершить' : 'End Game'}
+              </GlassButton>
+            </div>
+          </div>
         </div>
       )}
     </GameLayout>

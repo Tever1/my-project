@@ -37,7 +37,7 @@ export function GameLayout({
     <div className="bg-gradient-main min-h-[100dvh] text-white flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-black/20 border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="w-[90%] max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-2xl flex-shrink-0">{icon}</span>
             <div className="min-w-0">
@@ -106,10 +106,10 @@ export function GameLayout({
       )}
 
       {/* Main content area */}
-      <div className="flex-1 max-w-6xl mx-auto px-4 py-6 w-full">
-        <div className={`flex gap-6 ${showScoreboard && sortedScores.length > 0 ? 'lg:flex-row' : ''} flex-col h-full`}>
+      <div className="flex-1 w-[90%] max-w-7xl mx-auto px-4 py-6">
+        <div className={`flex gap-6 ${showScoreboard && sortedScores.length > 0 ? 'lg:flex-row' : ''} flex-col h-full min-h-[calc(100dvh-5rem)]`}>
           {/* Game content */}
-          <div className="flex-1 min-w-0">{children}</div>
+          <div className="flex-1 min-w-0 flex flex-col justify-center">{children}</div>
 
           {/* Desktop scoreboard sidebar */}
           {showScoreboard && sortedScores.length > 0 && (
