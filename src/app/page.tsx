@@ -6,7 +6,6 @@ import { LanguageToggle } from '@/components/ui/LanguageToggle';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
-import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { GAMES } from '@/lib/games-config';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -20,10 +19,7 @@ export default function Home() {
   const [joinCode, setJoinCode] = useState('');
   const [showJoin, setShowJoin] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [maxPlayers, setMaxPlayers] = useState(10);
-  const [createdRoomCode, setCreatedRoomCode] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [codeCopied, setCodeCopied] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,17 +41,10 @@ export default function Home() {
     );
   }
 
-  const handleOpenCreateModal = () => {
-    setShowCreateModal(true);
-    setCreatedRoomCode(null);
-    setMaxPlayers(10);
-    setCodeCopied(false);
-    setCreateError(null);
-  };
-
   const handleCreateRoom = () => {
     if (!isConnected) {
       setCreateError(locale === 'ru' ? 'Нет подключения к серверу. Проверьте, запущен ли сервер.' : 'No connection to server. Check if the server is running.');
+      setShowCreateModal(true);
       return;
     }
     setCreating(true);
@@ -64,6 +53,7 @@ export default function Home() {
     const timeout = setTimeout(() => {
       setCreating(false);
       setCreateError(locale === 'ru' ? 'Сервер не отвечает. Попробуйте ещё раз.' : 'Server not responding. Try again.');
+      setShowCreateModal(true);
     }, 5000);
 
     emit('room:create', { playerId: user.id, nickname: user.nickname }, (response: unknown) => {
@@ -71,23 +61,9 @@ export default function Home() {
       const res = response as { success: boolean; code: string };
       setCreating(false);
       if (res.success) {
-        setCreatedRoomCode(res.code);
+        router.push(`/lobby/${res.code}`);
       }
     });
-  };
-
-  const handleGoToLobby = () => {
-    if (createdRoomCode) {
-      router.push(`/lobby/${createdRoomCode}`);
-    }
-  };
-
-  const handleCopyCode = () => {
-    if (createdRoomCode) {
-      navigator.clipboard.writeText(createdRoomCode);
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
-    }
   };
 
   const handleJoinRoom = () => {
@@ -142,9 +118,10 @@ export default function Home() {
             variant="primary"
             size="lg"
             className="flex-1"
-            onClick={handleOpenCreateModal}
+            onClick={handleCreateRoom}
+            disabled={creating}
           >
-            {t('lobby.createRoom')}
+            {creating ? t('common.loading') : t('lobby.createRoom')}
           </GlassButton>
           <GlassButton
             size="lg"
@@ -207,111 +184,20 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Create Room Modal */}
-      {showCreateModal && (
+      {/* Error Modal */}
+      {showCreateModal && createError && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-          onClick={(e) => { if (e.target === e.currentTarget && !createdRoomCode) setShowCreateModal(false); }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowCreateModal(false); }}
         >
-          <div className="glass-card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
-            {!createdRoomCode ? (
-              <>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-white">{t('createRoom.title')}</h2>
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    className="text-white/50 hover:text-white text-xl transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Max Players */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide mb-3">
-                    {t('createRoom.maxPlayers')}
-                  </h3>
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => setMaxPlayers(Math.max(2, maxPlayers - 1))}
-                      className="glass-button w-10 h-10 flex items-center justify-center text-lg"
-                    >
-                      −
-                    </button>
-                    <span className="text-2xl font-bold text-white min-w-[3ch] text-center">{maxPlayers}</span>
-                    <button
-                      onClick={() => setMaxPlayers(Math.min(20, maxPlayers + 1))}
-                      className="glass-button w-10 h-10 flex items-center justify-center text-lg"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Error */}
-                {createError && (
-                  <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {createError}
-                  </div>
-                )}
-
-                {/* Create Button */}
-                <GlassButton
-                  variant="primary"
-                  size="lg"
-                  className="w-full"
-                  onClick={handleCreateRoom}
-                  disabled={creating}
-                >
-                  {creating ? t('common.loading') : t('createRoom.create')}
-                </GlassButton>
-              </>
-            ) : (
-              <>
-                {/* Room Created - Share Screen */}
-                <div className="text-center">
-                  <div className="text-4xl mb-3">🎉</div>
-                  <h2 className="text-2xl font-bold text-white mb-2">{t('createRoom.roomReady')}</h2>
-                  <p className="text-white/60 mb-6">{t('createRoom.shareWithFriends')}</p>
-
-                  {/* Room Code */}
-                  <div className="glass-card p-4 mb-4">
-                    <div className="text-xs text-white/50 uppercase tracking-wide mb-1">{t('lobby.roomCode')}</div>
-                    <div className="text-4xl font-bold tracking-[0.3em] text-white mb-3">{createdRoomCode}</div>
-                    <GlassButton size="sm" onClick={handleCopyCode}>
-                      {codeCopied ? t('lobby.codeCopied') : t('lobby.copyCode')}
-                    </GlassButton>
-                  </div>
-
-                  {/* QR Code */}
-                  <div className="glass-card p-4 mb-6 inline-block">
-                    <QRCodeCanvas value={`${typeof window !== 'undefined' ? window.location.origin : ''}/lobby/${createdRoomCode}`} size={180} />
-                    <div className="text-xs text-white/40 mt-2">{t('lobby.scanQR')}</div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-3">
-                    <GlassButton
-                      className="flex-1"
-                      onClick={() => {
-                        setShowCreateModal(false);
-                        setCreatedRoomCode(null);
-                      }}
-                    >
-                      {t('common.close')}
-                    </GlassButton>
-                    <GlassButton
-                      variant="primary"
-                      className="flex-1"
-                      onClick={handleGoToLobby}
-                    >
-                      {t('createRoom.goToLobby')}
-                    </GlassButton>
-                  </div>
-                </div>
-              </>
-            )}
+          <div className="glass-card p-6 w-full max-w-md animate-scale-in">
+            <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+              {createError}
+            </div>
+            <GlassButton className="w-full" onClick={() => setShowCreateModal(false)}>
+              OK
+            </GlassButton>
           </div>
         </div>
       )}

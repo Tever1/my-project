@@ -10,6 +10,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
 import { getQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
+import { useTimerSound } from '@/lib/use-timer-sound';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,6 +84,8 @@ export default function QuizPage() {
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const { tick: timerTick, stop: stopTimerSound } = useTimerSound();
 
   // Host-only state: the actual question objects (not sent to clients, only question data is synced)
   const questionsRef = useRef<QuizQuestion[]>([]);
@@ -226,6 +229,16 @@ export default function QuizPage() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, emit, roomId]);
+
+  // ------- Timer sound effect -------
+
+  useEffect(() => {
+    if (gameState.phase === 'question' && !gameState.showCorrect) {
+      timerTick(gameState.timeLeft, timePerQuestion);
+    } else {
+      stopTimerSound();
+    }
+  }, [gameState.timeLeft, gameState.phase, gameState.showCorrect, timePerQuestion, timerTick, stopTimerSound]);
 
   // ------- Auto-reveal -------
 
@@ -435,6 +448,7 @@ export default function QuizPage() {
   };
 
   const endGame = () => {
+    stopTimerSound();
     emit('game:end', { code: roomId });
   };
 
