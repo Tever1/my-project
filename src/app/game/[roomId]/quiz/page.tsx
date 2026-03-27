@@ -11,7 +11,6 @@ import { GlassButton } from '@/components/ui/GlassButton';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
 import { getQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
-import { useBackgroundMusic } from '@/lib/use-background-music';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,8 +85,7 @@ export default function QuizPage() {
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { tick: timerTick, stop: stopTimerSound } = useTimerSound();
-  const { start: startMusic, stop: stopMusic } = useBackgroundMusic();
+  const { tick: timerTick, stop: stopTimerSound, warmup: warmupSound } = useTimerSound();
 
   // Host-only state: the actual question objects (not sent to clients, only question data is synced)
   const questionsRef = useRef<QuizQuestion[]>([]);
@@ -232,16 +230,6 @@ export default function QuizPage() {
     };
   }, [isHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, emit, roomId]);
 
-  // ------- Background music -------
-
-  useEffect(() => {
-    if (gameState.phase === 'question' && !gameState.showCorrect) {
-      startMusic();
-    } else {
-      stopMusic();
-    }
-  }, [gameState.phase, gameState.showCorrect, startMusic, stopMusic]);
-
   // ------- Timer sound effect -------
 
   useEffect(() => {
@@ -264,6 +252,7 @@ export default function QuizPage() {
   // ------- Setup Actions (host only) -------
 
   const selectDifficulty = (difficulty: QuizDifficulty) => {
+    warmupSound();
     const newConfig = { ...gameState.config, difficulty };
     setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-mode' }));
     emit('game:action', {
@@ -401,6 +390,7 @@ export default function QuizPage() {
   );
 
   const startGame = () => {
+    warmupSound();
     // If host hasn't generated questions yet (e.g., "Play Again"), regenerate
     if (questionsRef.current.length === 0 && gameState.config.topic && gameState.config.difficulty) {
       const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
@@ -434,6 +424,7 @@ export default function QuizPage() {
   };
 
   const submitAnswer = (answerIndex: number) => {
+    warmupSound();
     if (myAnswer !== undefined || gameState.showCorrect || !user) return;
 
     emit('game:action', {
@@ -460,7 +451,6 @@ export default function QuizPage() {
 
   const endGame = () => {
     stopTimerSound();
-    stopMusic();
     emit('game:end', { code: roomId });
   };
 
@@ -633,9 +623,16 @@ export default function QuizPage() {
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-3xl">{topic.icon}</span>
-                    <p className="text-lg font-semibold text-white">
-                      {locale === 'ru' ? topic.titleRu : topic.titleEn}
-                    </p>
+                    <div>
+                      <p className="text-lg font-semibold text-white">
+                        {locale === 'ru' ? topic.titleRu : topic.titleEn}
+                      </p>
+                      {topic.id === 'random' && (
+                        <p className="text-xs text-white/40 mt-0.5">
+                          ({locale === 'ru' ? 'вопрос из любой темы' : 'questions from any topic'})
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </button>
               ))}
@@ -672,8 +669,8 @@ export default function QuizPage() {
 
           <p className="text-white/50 mb-2 max-w-md mx-auto">
             {locale === 'ru'
-              ? `${gameState.totalQuestions} вопросов. Чем быстрее ответите правильно, тем больше очков!`
-              : `${gameState.totalQuestions} questions. The faster you answer correctly, the more points!`}
+              ? `${gameState.totalQuestions} вопросов. 1 очко за правильный ответ!`
+              : `${gameState.totalQuestions} questions. 1 point for each correct answer!`}
           </p>
           <p className="text-white/30 text-sm mb-8">
             {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}

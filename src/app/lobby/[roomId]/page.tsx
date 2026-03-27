@@ -33,6 +33,7 @@ export default function LobbyPage() {
   const [showQR, setShowQR] = useState(true);
   const [codeCopied, setCodeCopied] = useState(false);
   const [showTvModal, setShowTvModal] = useState(false);
+  const [playerMenuId, setPlayerMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -132,7 +133,7 @@ export default function LobbyPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-main flex flex-col">
+    <div className="min-h-screen bg-gradient-main flex flex-col" onClick={() => playerMenuId && setPlayerMenuId(null)}>
       {/* Nav */}
       <nav className="glass-nav flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
@@ -190,35 +191,49 @@ export default function LobbyPage() {
             </h3>
             <div className="space-y-2">
               {room?.players.map((player) => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between glass-badge px-3 py-2 rounded-xl"
-                >
-                  <div className="flex items-center gap-2">
+                <div key={player.id} className="relative">
+                  <div
+                    onClick={() => {
+                      if (isHost && !player.isHost) {
+                        setPlayerMenuId(playerMenuId === player.id ? null : player.id);
+                      }
+                    }}
+                    className={`
+                      flex items-center gap-2 px-3 py-2 rounded-xl transition-all
+                      ${player.isHost
+                        ? 'bg-red-500/10 border border-red-500/40'
+                        : 'glass-badge'
+                      }
+                      ${isHost && !player.isHost ? 'cursor-pointer hover:bg-white/10' : ''}
+                    `}
+                  >
                     <div
-                      className={`w-2 h-2 rounded-full ${
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
                         player.isConnected ? 'bg-green-400' : 'bg-red-400'
                       }`}
                     />
-                    <span className="text-sm text-white/80">{player.nickname}</span>
+                    <span className="text-sm text-white/80 flex-1">{player.nickname}</span>
                     {player.isHost && (
                       <span className="text-xs text-yellow-400/80">👑</span>
                     )}
                   </div>
-                  {isHost && !player.isHost && (
-                    <div className="flex items-center gap-2">
+
+                  {/* Player action menu */}
+                  {playerMenuId === player.id && isHost && !player.isHost && (
+                    <div className="absolute right-0 top-full mt-1 z-20 glass-card rounded-xl overflow-hidden shadow-xl border border-white/10 min-w-[160px]">
                       <button
-                        onClick={() => handleTransferHost(player.id)}
-                        className="text-xs text-yellow-400/50 hover:text-yellow-400 transition-colors"
-                        title={locale === 'ru' ? 'Передать лидера' : 'Transfer host'}
+                        onClick={() => { handleTransferHost(player.id); setPlayerMenuId(null); }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-white/80 hover:bg-white/10 transition-colors flex items-center gap-2"
                       >
-                        👑
+                        <span>👑</span>
+                        <span>{locale === 'ru' ? 'Передать лидера' : 'Transfer host'}</span>
                       </button>
                       <button
-                        onClick={() => handleKick(player.id)}
-                        className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
+                        onClick={() => { handleKick(player.id); setPlayerMenuId(null); }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
                       >
-                        {t('lobby.kick')}
+                        <span>✕</span>
+                        <span>{t('lobby.kick')}</span>
                       </button>
                     </div>
                   )}

@@ -11,20 +11,42 @@ import { useRef, useEffect, useCallback } from 'react';
 export function useTimerSound() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resumedRef = useRef(false);
 
   const getCtx = useCallback(() => {
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
       audioCtxRef.current = new AudioContext();
-    }
-    if (audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
+      resumedRef.current = false;
     }
     return audioCtxRef.current;
   }, []);
 
+  // Must be called from a user gesture (click/touch) to unlock AudioContext
+  const warmup = useCallback(() => {
+    if (resumedRef.current) return;
+    try {
+      const ctx = getCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      // Play a silent buffer to unlock on iOS/Safari
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      resumedRef.current = true;
+    } catch {
+      // ignore
+    }
+  }, [getCtx]);
+
   const playTick = useCallback((frequency: number, volume: number) => {
     try {
       const ctx = getCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
@@ -52,12 +74,10 @@ export function useTimerSound() {
   }, []);
 
   /**
-   * Start ticking for the given timeLeft.
    * Call this each time timeLeft changes.
    * Automatically manages sub-second ticks for acceleration.
    */
   const tick = useCallback((timeLeft: number, _totalTime: number) => {
-    // Clear any existing sub-tick interval
     stop();
 
     if (timeLeft <= 0 || timeLeft > 10) return;
@@ -92,5 +112,5 @@ export function useTimerSound() {
     };
   }, [stop]);
 
-  return { tick, stop };
+  return { tick, stop, warmup };
 }

@@ -12,7 +12,7 @@ export const ALL_QUIZ_QUESTIONS: QuizQuestion[] = [
 
 // Topic metadata
 export const QUIZ_TOPICS: QuizTopicInfo[] = [
-  { id: 'random', titleRu: 'Случайная', titleEn: 'Random', icon: '🎲' },
+  { id: 'random', titleRu: 'Случайные вопросы', titleEn: 'Random Questions', icon: '🎲' },
   { id: 'science', titleRu: 'Наука', titleEn: 'Science', icon: '🔬' },
   { id: 'history', titleRu: 'История', titleEn: 'History', icon: '📜' },
   { id: 'pop-culture', titleRu: 'Поп-культура', titleEn: 'Pop Culture', icon: '🎬' },
