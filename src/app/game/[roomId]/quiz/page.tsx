@@ -709,18 +709,18 @@ export default function QuizPage() {
 
       {/* ==================== QUESTION ==================== */}
       {gameState.phase === 'question' && currentQuestion && (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto w-full">
           {/* Timer bar */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-white/40">
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-white/40">
                 {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}/{gameState.totalQuestions}
               </span>
-              <span className={`text-sm font-bold ${gameState.timeLeft <= 5 ? 'text-red-400' : 'text-white/70'}`}>
+              <span className={`text-lg font-bold ${gameState.timeLeft <= 5 ? 'text-red-400' : 'text-white/70'}`}>
                 {gameState.timeLeft}s
               </span>
             </div>
-            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="w-full h-3 rounded-full bg-white/10 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-1000 ease-linear ${
                   gameState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
@@ -731,14 +731,14 @@ export default function QuizPage() {
           </div>
 
           {/* Question card */}
-          <GlassCard className="p-6 mb-6">
-            <h3 className="text-xl md:text-2xl font-semibold text-white leading-snug">
+          <GlassCard className="p-8 mb-8">
+            <h3 className="text-2xl md:text-3xl lg:text-4xl font-semibold text-white leading-snug">
               {locale === 'ru' ? currentQuestion.questionRu : currentQuestion.questionEn}
             </h3>
           </GlassCard>
 
           {/* Answer options */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {currentQuestion.options.map((option, index) => {
               const isMyAnswer = myAnswer === index;
               const isCorrectAnswer = index === currentQuestion.correctIndex;
@@ -752,7 +752,7 @@ export default function QuizPage() {
                   onClick={() => submitAnswer(index)}
                   disabled={isDisabled}
                   className={`
-                    relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-300
+                    relative overflow-hidden rounded-2xl border p-5 md:p-6 text-left transition-all duration-300
                     ${isCorrectRevealed
                       ? 'border-green-400 bg-green-500/20 ring-2 ring-green-400/50'
                       : isWrongRevealed
@@ -765,9 +765,9 @@ export default function QuizPage() {
                     }
                   `}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     <span className={`
-                      flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold
+                      flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold
                       ${isCorrectRevealed
                         ? 'bg-green-500/30 text-green-300'
                         : isWrongRevealed
@@ -777,7 +777,7 @@ export default function QuizPage() {
                     `}>
                       {isCorrectRevealed ? '✓' : isWrongRevealed ? '✕' : OPTION_LABELS[index]}
                     </span>
-                    <span className="text-white font-medium">
+                    <span className="text-white font-medium text-lg md:text-xl">
                       {locale === 'ru' ? option.ru : option.en}
                     </span>
                   </div>
@@ -787,7 +787,7 @@ export default function QuizPage() {
           </div>
 
           {/* Status bar */}
-          <div className="mt-4 flex items-center justify-between text-sm">
+          <div className="mt-5 flex items-center justify-between text-base">
             <p className="text-white/30">
               {myAnswer !== undefined
                 ? locale === 'ru' ? 'Ответ принят!' : 'Answer submitted!'
@@ -799,7 +799,7 @@ export default function QuizPage() {
           {/* Post-question results */}
           {gameState.showCorrect && (
             <div className="mt-6 animate-fade-in">
-              <GlassCard className="p-4">
+              <GlassCard className="p-5">
                 {gameState.correctPlayers.length > 0 ? (
                   <>
                     <p className="text-green-400 font-medium mb-2">

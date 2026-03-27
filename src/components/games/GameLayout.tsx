@@ -37,7 +37,7 @@ export function GameLayout({
     <div className="bg-gradient-main min-h-[100dvh] text-white flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-black/20 border-b border-white/10">
-        <div className="w-[90%] max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="w-[92%] max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-2xl flex-shrink-0">{icon}</span>
             <div className="min-w-0">
@@ -51,14 +51,33 @@ export function GameLayout({
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Mobile scoreboard toggle */}
+            {/* Inline player scores in header */}
             {showScoreboard && sortedScores.length > 0 && (
-              <button
-                onClick={() => setScoreboardOpen(!scoreboardOpen)}
-                className="lg:hidden glass-button px-3 py-2 text-sm"
-              >
-                🏆 {sortedScores.length}
-              </button>
+              <>
+                {/* Desktop: show all players inline */}
+                <div className="hidden md:flex items-center gap-1.5">
+                  {sortedScores.map((entry, i) => (
+                    <div
+                      key={entry.name}
+                      className="flex items-center gap-1.5 glass-badge px-2.5 py-1 rounded-full text-xs"
+                    >
+                      <span className="w-4 text-center">
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
+                      </span>
+                      <span className="text-white/80 max-w-[80px] truncate">{entry.name}</span>
+                      <span className="text-white font-bold">{entry.score}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Mobile: toggle button */}
+                <button
+                  onClick={() => setScoreboardOpen(!scoreboardOpen)}
+                  className="md:hidden glass-button px-3 py-2 text-sm"
+                >
+                  🏆 {sortedScores.length}
+                </button>
+              </>
             )}
 
             {onEnd && (
@@ -72,7 +91,7 @@ export function GameLayout({
 
       {/* Mobile scoreboard dropdown */}
       {showScoreboard && scoreboardOpen && sortedScores.length > 0 && (
-        <div className="lg:hidden fixed inset-0 z-40" onClick={() => setScoreboardOpen(false)}>
+        <div className="md:hidden fixed inset-0 z-40" onClick={() => setScoreboardOpen(false)}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
             className="absolute top-16 right-4 w-72 z-50"
@@ -105,50 +124,10 @@ export function GameLayout({
         </div>
       )}
 
-      {/* Main content area */}
-      <div className="flex-1 w-[90%] max-w-7xl mx-auto px-4 py-6">
-        <div className={`flex gap-6 ${showScoreboard && sortedScores.length > 0 ? 'lg:flex-row' : ''} flex-col h-full min-h-[calc(100dvh-5rem)]`}>
-          {/* Game content */}
-          <div className="flex-1 min-w-0 flex flex-col justify-center">{children}</div>
-
-          {/* Desktop scoreboard sidebar */}
-          {showScoreboard && sortedScores.length > 0 && (
-            <aside className="hidden lg:block w-72 flex-shrink-0">
-              <div className="sticky top-24">
-                <GlassCard className="p-5">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    🏆 {t('game.scoreboard')}
-                  </h3>
-                  <div className="space-y-2">
-                    {sortedScores.map((entry, i) => (
-                      <div
-                        key={entry.name}
-                        className={`flex items-center justify-between py-2 px-3 rounded-xl transition-all ${
-                          i === 0
-                            ? 'bg-yellow-500/15 border border-yellow-500/20'
-                            : i === 1
-                              ? 'bg-gray-300/10 border border-gray-300/15'
-                              : i === 2
-                                ? 'bg-amber-700/10 border border-amber-700/15'
-                                : 'bg-white/5'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-lg w-6 text-center flex-shrink-0">
-                            {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                          </span>
-                          <span className="font-medium truncate">{entry.name}</span>
-                        </div>
-                        <span className="glass-badge ml-2 flex-shrink-0 text-sm font-bold">
-                          {entry.score}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </GlassCard>
-              </div>
-            </aside>
-          )}
+      {/* Main content area — fills remaining viewport */}
+      <div className="flex-1 w-[92%] max-w-screen-2xl mx-auto px-4 py-4 flex flex-col">
+        <div className="flex-1 flex flex-col justify-center">
+          {children}
         </div>
       </div>
     </div>
