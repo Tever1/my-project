@@ -16,7 +16,7 @@ import { useTimerSound } from '@/lib/use-timer-sound';
 // Types
 // ---------------------------------------------------------------------------
 
-type Phase = 'setup-difficulty' | 'setup-mode' | 'setup-topic' | 'waiting' | 'countdown' | 'question' | 'results' | 'final';
+type Phase = 'setup-difficulty' | 'setup-mode' | 'setup-topic' | 'waiting' | 'countdown' | 'question' | 'results' | 'mid-leaderboard' | 'final';
 
 interface QuizConfig {
   difficulty: QuizDifficulty | null;
@@ -414,6 +414,37 @@ export default function QuizPage() {
     runCountdown(0);
   };
 
+  const startQuestionImmediate = useCallback((questionIdx: number) => {
+    const q = questionsRef.current[questionIdx];
+    if (!q) return;
+
+    shownIdsRef.current.add(q.id);
+
+    const questionData = {
+      questionRu: q.questionRu,
+      questionEn: q.questionEn,
+      options: q.options,
+      correctIndex: q.correctIndex,
+    };
+
+    setGameState((prev) => ({
+      ...prev,
+      phase: 'question',
+      questionIndex: questionIdx,
+      timeLeft: q.timeLimit,
+      currentQuestion: questionData,
+      answers: {},
+      showCorrect: false,
+      correctPlayers: [],
+    }));
+
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:start-question',
+      payload: { questionIndex: questionIdx, timeLeft: q.timeLimit, question: questionData },
+    });
+  }, [emit, roomId]);
+
   const startNextQuestion = () => {
     const nextIndex = gameState.questionIndex + 1;
     if (nextIndex >= gameState.totalQuestions) {
@@ -421,7 +452,13 @@ export default function QuizPage() {
       emit('game:action', { code: roomId, action: 'quiz:final', payload: {} });
       return;
     }
-    runCountdown(nextIndex);
+    // Show mid-game leaderboard after round 5
+    if (nextIndex === 5) {
+      setGameState((prev) => ({ ...prev, phase: 'mid-leaderboard' }));
+      emit('game:action', { code: roomId, action: 'quiz:sync', payload: { phase: 'mid-leaderboard' } });
+      return;
+    }
+    startQuestionImmediate(nextIndex);
   };
 
   const submitAnswer = (answerIndex: number) => {
@@ -654,39 +691,39 @@ export default function QuizPage() {
       {/* ==================== WAITING (ready to start) ==================== */}
       {gameState.phase === 'waiting' && (
         <div className="text-center py-8 animate-fade-in">
-          <div className="text-6xl mb-4">🧠</div>
-          <h2 className="text-2xl font-bold text-white mb-3">
+          <div className="text-[8rem] mb-6">🧠</div>
+          <h2 className="text-5xl font-bold text-white mb-6">
             {locale === 'ru' ? 'Квиз' : 'Quiz'}
           </h2>
 
           {/* Config badges */}
-          <div className="flex items-center justify-center gap-3 mb-4 flex-wrap">
+          <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
             {diffInfo && (
-              <span className="glass-badge px-3 py-1">
+              <span className="glass-badge px-5 py-2.5 text-lg">
                 {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
               </span>
             )}
             {topicInfo && (
-              <span className="glass-badge px-3 py-1">
+              <span className="glass-badge px-5 py-2.5 text-lg">
                 {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
               </span>
             )}
           </div>
 
-          <p className="text-white/50 mb-2 max-w-md mx-auto">
+          <p className="text-white/50 mb-4 max-w-xl mx-auto text-xl">
             {locale === 'ru'
               ? `${gameState.totalQuestions} вопросов. 1 очко за правильный ответ!`
               : `${gameState.totalQuestions} questions. 1 point for each correct answer!`}
           </p>
-          <p className="text-white/30 text-sm mb-8">
+          <p className="text-white/30 text-lg mb-10">
             {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
           </p>
           {isHost ? (
-            <GlassButton variant="primary" size="lg" onClick={startGame}>
+            <GlassButton variant="primary" size="lg" className="text-xl px-12 py-5" onClick={startGame}>
               {locale === 'ru' ? 'Начать игру' : 'Start Game'}
             </GlassButton>
           ) : (
-            <p className="text-white/40 italic">
+            <p className="text-white/40 italic text-xl">
               {locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
             </p>
           )}
@@ -828,6 +865,51 @@ export default function QuizPage() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ==================== MID-GAME LEADERBOARD (after round 5) ==================== */}
+      {gameState.phase === 'mid-leaderboard' && (
+        <div className="max-w-2xl mx-auto text-center animate-fade-in py-6">
+          <div className="text-5xl mb-4">📊</div>
+          <h2 className="text-3xl font-bold text-white mb-2">
+            {locale === 'ru' ? 'Промежуточные результаты' : 'Halftime Results'}
+          </h2>
+          <p className="text-white/50 mb-6">
+            {locale === 'ru' ? `После ${gameState.questionIndex + 1} из ${gameState.totalQuestions} вопросов` : `After ${gameState.questionIndex + 1} of ${gameState.totalQuestions} questions`}
+          </p>
+
+          <div className="space-y-3 mb-8">
+            {scoreboard.map((entry, i) => (
+              <GlassCard
+                key={entry.name}
+                className={`p-4 flex items-center justify-between transition-all ${
+                  i === 0 ? 'ring-2 ring-yellow-400/60 bg-yellow-500/10'
+                    : i === 1 ? 'ring-1 ring-gray-300/30 bg-gray-300/5'
+                      : i === 2 ? 'ring-1 ring-amber-600/30 bg-amber-700/5' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl w-8 text-center">
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
+                  </span>
+                  <span className="text-white font-semibold text-lg">{entry.name}</span>
+                </div>
+                <span className="text-purple-400 font-bold text-xl">{entry.score}</span>
+              </GlassCard>
+            ))}
+          </div>
+
+          {isHost && (
+            <GlassButton variant="primary" size="lg" onClick={() => startQuestionImmediate(5)}>
+              {locale === 'ru' ? 'Продолжить' : 'Continue'}
+            </GlassButton>
+          )}
+          {!isHost && (
+            <p className="text-white/40 italic">
+              {locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
+            </p>
           )}
         </div>
       )}
