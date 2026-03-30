@@ -87,6 +87,9 @@ export default function HundredToOnePage() {
   const [teamChooser, setTeamChooser] = useState(false);
   const [assignModal, setAssignModal] = useState<{ idx: number; pts: number } | null>(null);
   const [reassignModal, setReassignModal] = useState<{ idx: number; pts: number; cur: number } | null>(null);
+  const [bgInput, setBgInput] = useState('');
+  const r4Ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isHost = s.players.find(p => p.id === user?.id)?.isHost ?? false;
   const q = ROUNDS[s.curQ];
@@ -277,6 +280,53 @@ export default function HundredToOnePage() {
 
   const endGame = () => emit('game:end', { code: roomId });
 
+  // ── Round 4 timer (1 min discussion) ──
+  const r4Start = () => {
+    if (r4Ref.current) return;
+    update({ r4Running: true });
+    r4Ref.current = setInterval(() => {
+      setS(prev => {
+        const t = prev.r4Time - 1;
+        if (t <= 10 && t > 0) sndTick();
+        if (t <= 0) { r4Stop(); sndBuzz(); return { ...prev, r4Time: 0, r4Running: false }; }
+        return { ...prev, r4Time: t };
+      });
+    }, 1000);
+  };
+  const r4Pause = () => { if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; } update({ r4Running: false }); };
+  const r4Stop = () => { if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; } };
+  const r4Reset = () => { r4Stop(); update({ r4Time: 60, r4Running: false }); };
+
+  // ── God mode reassign ──
+  const reassignPts = (target: number) => {
+    if (!reassignModal) return;
+    const { idx, pts, cur } = reassignModal;
+    let newT1s = s.t1s, newT2s = s.t2s;
+    const newFund = [...s.roundFund];
+    // Remove from previous
+    if (cur === 1) newT1s -= pts;
+    else if (cur === 2) newT2s -= pts;
+    else if (cur === -1 && s.curQ <= 2) {
+      if ((s.roundPhase[s.curQ] === 'won' || s.roundPhase[s.curQ] === 'showonly') && s.roundWonBy[s.curQ] > 0) {
+        if (s.roundWonBy[s.curQ] === 1) newT1s -= pts; else newT2s -= pts;
+      }
+      newFund[s.curQ] -= pts;
+    }
+    // Assign to new
+    if (target === 1) { newT1s += pts; sndAssign(); }
+    else if (target === 2) { newT2s += pts; sndAssign(); }
+    else if (target === -1 && s.curQ <= 2) {
+      newFund[s.curQ] += pts;
+      if ((s.roundPhase[s.curQ] === 'won' || s.roundPhase[s.curQ] === 'showonly') && s.roundWonBy[s.curQ] > 0) {
+        if (s.roundWonBy[s.curQ] === 1) newT1s += pts; else newT2s += pts;
+      }
+      sndAssign();
+    }
+    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { ...a, to: target } : a) : r);
+    setReassignModal(null);
+    update({ qState: newQState, t1s: newT1s, t2s: newT2s, roundFund: newFund });
+  };
+
   // ── Derived ──
   const scores = [{ name: s.t1n, score: s.t1s }, { name: s.t2n, score: s.t2s }];
   const allRevealed = q ? s.qState[s.curQ]?.every(a => a.rev) : false;
@@ -397,6 +447,20 @@ export default function HundredToOnePage() {
             })}
           </div>
 
+          {/* Round 4 discussion timer */}
+          {isHost && s.curQ === 3 && (
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <span className="text-xs text-white/40 font-bold">ОБСУЖДЕНИЕ:</span>
+              <span className={`font-bold text-2xl min-w-[60px] text-center ${s.r4Time <= 10 && s.r4Time > 0 ? 'text-red-400 animate-pulse' : 'text-yellow-300'}`}>
+                {Math.floor(s.r4Time / 60)}:{(s.r4Time % 60).toString().padStart(2, '0')}
+              </span>
+              {!s.r4Running
+                ? <GlassButton size="sm" onClick={r4Start}>{s.r4Time < 60 ? '▶ ПРОДОЛЖИТЬ' : '▶ СТАРТ'}</GlassButton>
+                : <GlassButton size="sm" onClick={r4Pause}>⏸ ПАУЗА</GlassButton>}
+              <GlassButton size="sm" onClick={r4Reset}>↺</GlassButton>
+            </div>
+          )}
+
           {/* Host controls */}
           {isHost && (
             <div className="flex flex-wrap gap-2 justify-center items-center">
@@ -467,6 +531,25 @@ export default function HundredToOnePage() {
               <GlassButton className="flex-1 !border-red-400 !bg-red-500/10" onClick={() => assignPts(2)}>{s.t2n}</GlassButton>
             </div>
             <button onClick={() => assignPts(0)} className="text-xs text-white/30 hover:text-white/60">Никому</button>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── REASSIGN MODAL (god mode) ── */}
+      {reassignModal && isHost && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+          <GlassCard className="p-6 max-w-sm text-center">
+            <p className="text-yellow-300 font-bold mb-1">⚡ ПЕРЕРАСПРЕДЕЛЕНИЕ</p>
+            <p className="text-3xl font-bold text-yellow-300 mb-2">{reassignModal.pts} очков</p>
+            <p className="text-xs text-white/40 mb-4">
+              {reassignModal.cur === 1 ? `Сейчас: ${s.t1n}` : reassignModal.cur === 2 ? `Сейчас: ${s.t2n}` : reassignModal.cur === -1 ? 'Сейчас: в банке' : 'Сейчас: никому'}
+            </p>
+            <div className="flex gap-2 mb-2">
+              <GlassButton className="flex-1 !border-yellow-400 !bg-yellow-500/10" onClick={() => reassignPts(1)}>{s.t1n}</GlassButton>
+              {s.curQ <= 2 && <GlassButton className="flex-1 !border-yellow-300 !bg-yellow-500/5" onClick={() => reassignPts(-1)}>В банк</GlassButton>}
+              <GlassButton className="flex-1 !border-red-400 !bg-red-500/10" onClick={() => reassignPts(2)}>{s.t2n}</GlassButton>
+            </div>
+            <button onClick={() => setReassignModal(null)} className="text-xs text-white/30 hover:text-white/60">Отмена</button>
           </GlassCard>
         </div>
       )}
