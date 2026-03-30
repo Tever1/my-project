@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
@@ -8,677 +8,485 @@ import { useSocket } from '@/lib/use-socket';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
-import { GlassInput } from '@/components/ui/GlassInput';
-import { HUNDRED_TO_ONE_QUESTIONS } from '@/lib/game-data';
+import { ROUNDS, ROUND_NAMES, ROUND_MULT, REVERSE_PTS, BIG_Q, getDisplayPts } from '@/lib/hundred-to-one/questions';
+import { sndReveal, sndClose, sndAssign, sndBuzz, sndTick, sndWin, sndDup, warmup } from '@/lib/hundred-to-one/sounds';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ── Types ────────────────────────────────────────────────────────────────────
 
-type Phase = 'waiting' | 'playing' | 'steal' | 'round-end' | 'final';
+interface GamePlayer { id: string; nickname: string; isHost: boolean; }
 
-interface GamePlayer {
-  id: string;
-  nickname: string;
-  isHost: boolean;
-}
+// Answer state per cell: rev=revealed, to=assigned team (0=none, 1/2=team, -1=fund)
+interface AnsState { rev: boolean; to: number; }
 
-interface HundredState {
+type Phase = 'title' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
+
+interface GState {
   phase: Phase;
-  questionIndex: number;
-  revealedAnswers: number[]; // indices of revealed answers
-  strikes: number; // current strikes for active team (max 3)
-  teamAScore: number;
-  teamBScore: number;
-  activeTeam: 'A' | 'B';
-  stealTeam: 'A' | 'B' | null; // team attempting to steal
-  roundPoints: number; // points accumulated this round (go to winner)
+  curQ: number; // current round 0-3
+  t1n: string; t2n: string;
+  t1s: number; t2s: number;
+  qState: AnsState[][]; // [round][answerIdx]
+  // Strikes per round per team: strikes[round][teamIdx 0|1]
+  strikes: number[][];
+  roundBusted: boolean[][];
+  roundActiveTeam: number[]; // which team plays (1 or 2, 0=not chosen)
+  roundFund: number[]; // neutral bank per round 0-2
+  roundWonBy: number[]; // 0=none, 1, 2
+  roundPhase: string[]; // 'start'|'switched'|'won'|'showonly'
+  // Round 4 timer
+  r4Time: number;
+  r4Running: boolean;
+  // God mode
+  godMode: boolean;
+  // Big game
+  bgPhase: number; // 0=intro,1=p1,2=check1,3=p2,4=check2,5=result
+  bgP1Ans: string[];
+  bgP2Ans: string[];
+  bgP1Matched: (string | null)[];
+  bgP2Matched: (string | null)[];
+  bgFund: number;
+  bgCurQ: number;
+  bgTimeLeft: number;
+  bgTimerTotal: number;
+  bgTimerPaused: boolean;
+  winTeam: number;
   players: GamePlayer[];
-  lastGuess: string; // last guess submitted (for display)
-  lastGuessResult: 'hit' | 'miss' | null;
 }
 
-const TOTAL_ROUNDS = HUNDRED_TO_ONE_QUESTIONS.length;
-const MAX_STRIKES = 3;
-
-const INITIAL: HundredState = {
-  phase: 'waiting',
-  questionIndex: 0,
-  revealedAnswers: [],
-  strikes: 0,
-  teamAScore: 0,
-  teamBScore: 0,
-  activeTeam: 'A',
-  stealTeam: null,
-  roundPoints: 0,
+const mkInitial = (): GState => ({
+  phase: 'title', curQ: 0,
+  t1n: 'Команда 1', t2n: 'Команда 2',
+  t1s: 0, t2s: 0,
+  qState: ROUNDS.map(r => r.answers.map(() => ({ rev: false, to: 0 }))),
+  strikes: [[0, 0], [0, 0], [0, 0]],
+  roundBusted: [[false, false], [false, false], [false, false]],
+  roundActiveTeam: [0, 0, 0],
+  roundFund: [0, 0, 0],
+  roundWonBy: [0, 0, 0],
+  roundPhase: ['start', 'start', 'start'],
+  r4Time: 60, r4Running: false,
+  godMode: false,
+  bgPhase: 0, bgP1Ans: [], bgP2Ans: [],
+  bgP1Matched: [], bgP2Matched: [],
+  bgFund: 0, bgCurQ: 0,
+  bgTimeLeft: 0, bgTimerTotal: 0, bgTimerPaused: false,
+  winTeam: 0,
   players: [],
-  lastGuess: '',
-  lastGuessResult: null,
-};
+});
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function HundredToOnePage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { t, locale } = useTranslation();
+  const { locale } = useTranslation();
   const { user } = useAuth();
   const { emit, on } = useSocket();
   const router = useRouter();
 
-  const [state, setState] = useState<HundredState>(INITIAL);
-  const [guess, setGuess] = useState('');
+  const [s, setS] = useState<GState>(mkInitial);
+  const [teamChooser, setTeamChooser] = useState(false);
+  const [assignModal, setAssignModal] = useState<{ idx: number; pts: number } | null>(null);
+  const [reassignModal, setReassignModal] = useState<{ idx: number; pts: number; cur: number } | null>(null);
 
-  const isHost = state.players.find((p) => p.id === user?.id)?.isHost ?? false;
-  const question = HUNDRED_TO_ONE_QUESTIONS[state.questionIndex];
+  const isHost = s.players.find(p => p.id === user?.id)?.isHost ?? false;
+  const q = ROUNDS[s.curQ];
 
-  // ------- Socket listeners -------
-
+  // ── Socket ──
   useEffect(() => {
-    const unsub1 = on('room:state', (data: unknown) => {
+    const u1 = on('room:state', (data: unknown) => {
       const room = data as { players: GamePlayer[] };
-      setState((prev) => ({ ...prev, players: room.players }));
+      setS(prev => ({ ...prev, players: room.players }));
     });
-
-    const unsub2 = on('game:action', (data: unknown) => {
-      const { action, payload } = data as {
-        action: string;
-        payload: Record<string, unknown>;
-      };
-
-      switch (action) {
-        case 'h2o:sync':
-          setState((prev) => ({ ...prev, ...(payload as Partial<HundredState>) }));
-          break;
-
-        case 'h2o:reveal': {
-          const { answerIndex, points } = payload as { answerIndex: number; points: number };
-          setState((prev) => ({
-            ...prev,
-            revealedAnswers: [...prev.revealedAnswers, answerIndex],
-            roundPoints: prev.roundPoints + points,
-            lastGuessResult: 'hit',
-          }));
-          break;
-        }
-
-        case 'h2o:strike':
-          setState((prev) => ({
-            ...prev,
-            strikes: (payload.strikes as number) ?? prev.strikes + 1,
-            lastGuessResult: 'miss',
-          }));
-          break;
-
-        case 'h2o:steal':
-          setState((prev) => ({
-            ...prev,
-            phase: 'steal',
-            stealTeam: payload.stealTeam as 'A' | 'B',
-            strikes: 0,
-            lastGuessResult: null,
-            lastGuess: '',
-          }));
-          break;
-
-        case 'h2o:round-end': {
-          const { teamAScore, teamBScore, winner } = payload as {
-            teamAScore: number;
-            teamBScore: number;
-            winner: 'A' | 'B';
-          };
-          setState((prev) => ({
-            ...prev,
-            phase: 'round-end',
-            teamAScore,
-            teamBScore,
-          }));
-          break;
-        }
-
-        case 'h2o:next-round': {
-          const p = payload as Partial<HundredState>;
-          setState((prev) => ({
-            ...prev,
-            ...p,
-            phase: 'playing',
-            revealedAnswers: [],
-            strikes: 0,
-            stealTeam: null,
-            roundPoints: 0,
-            lastGuess: '',
-            lastGuessResult: null,
-          }));
-          break;
-        }
-
-        case 'h2o:guess':
-          setState((prev) => ({
-            ...prev,
-            lastGuess: payload.guess as string,
-            lastGuessResult: null,
-          }));
-          break;
-
-        case 'h2o:final':
-          setState((prev) => ({ ...prev, phase: 'final' }));
-          break;
-      }
+    const u2 = on('game:action', (data: unknown) => {
+      const { action, payload } = data as { action: string; payload: Partial<GState> };
+      if (action === 'h2o:sync') setS(prev => ({ ...prev, ...payload }));
     });
-
-    const unsub3 = on('game:ended', () => router.push(`/lobby/${roomId}`));
-
+    const u3 = on('game:ended', () => router.push(`/lobby/${roomId}`));
     emit('room:get-state', { code: roomId });
-
-    return () => {
-      unsub1();
-      unsub2();
-      unsub3();
-    };
+    return () => { u1(); u2(); u3(); };
   }, [on, emit, router, roomId]);
 
-  // ------- Broadcast helper -------
+  const broadcast = useCallback((payload: Partial<GState>) => {
+    emit('game:action', { code: roomId, action: 'h2o:sync', payload });
+  }, [emit, roomId]);
 
-  const broadcast = useCallback(
-    (action: string, payload: Record<string, unknown>) => {
-      emit('game:action', { code: roomId, action, payload });
-    },
-    [emit, roomId],
-  );
+  const update = useCallback((patch: Partial<GState>) => {
+    setS(prev => ({ ...prev, ...patch }));
+    broadcast(patch);
+  }, [broadcast]);
 
-  // ------- Host actions -------
-
+  // ── Host actions: start game ──
   const startGame = () => {
-    const update: Partial<HundredState> = {
-      phase: 'playing',
-      questionIndex: 0,
-      revealedAnswers: [],
-      strikes: 0,
-      teamAScore: 0,
-      teamBScore: 0,
-      activeTeam: 'A',
-      stealTeam: null,
-      roundPoints: 0,
-      lastGuess: '',
-      lastGuessResult: null,
+    warmup();
+    const init = mkInitial();
+    const patch: Partial<GState> = {
+      ...init, phase: 'playing', players: s.players,
     };
-    setState((prev) => ({ ...prev, ...update }));
-    broadcast('h2o:sync', update);
+    setS(prev => ({ ...prev, ...patch }));
+    broadcast(patch);
+    setTeamChooser(true);
   };
 
-  const revealAnswer = (index: number) => {
-    if (!isHost || state.revealedAnswers.includes(index)) return;
-    const pts = question.answers[index].points;
-
-    setState((prev) => ({
-      ...prev,
-      revealedAnswers: [...prev.revealedAnswers, index],
-      roundPoints: prev.roundPoints + pts,
-      lastGuessResult: 'hit',
-    }));
-    broadcast('h2o:reveal', { answerIndex: index, points: pts });
-  };
-
-  const addStrike = () => {
+  // ── Open/close answer ──
+  const openAns = (idx: number) => {
     if (!isHost) return;
-
-    const newStrikes = state.strikes + 1;
-
-    if (newStrikes >= MAX_STRIKES) {
-      if (state.phase === 'steal') {
-        // Steal failed - points go to the other team
-        awardRound(state.activeTeam);
+    const st = s.qState[s.curQ][idx];
+    if (st.rev) {
+      if (s.godMode) {
+        const pts = getDisplayPts(s.curQ, idx, q.answers[idx].p);
+        setReassignModal({ idx, pts, cur: st.to });
         return;
       }
-      // 3 strikes - other team can steal
-      const stealTeam = state.activeTeam === 'A' ? 'B' : 'A';
-      setState((prev) => ({
-        ...prev,
-        phase: 'steal',
-        stealTeam,
-        strikes: 0,
-        lastGuessResult: null,
-        lastGuess: '',
-      }));
-      broadcast('h2o:steal', { stealTeam });
+      closeAns(idx);
+      return;
+    }
+    sndReveal();
+    const pts = getDisplayPts(s.curQ, idx, q.answers[idx].p);
+    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { ...a, rev: true } : a) : r);
+
+    if (s.curQ <= 2) {
+      // Fund logic for rounds 0-2
+      const phase = s.roundPhase[s.curQ];
+      if (phase === 'showonly' || phase === 'won') {
+        newQState[s.curQ][idx].to = 0;
+        update({ qState: newQState });
+        return;
+      }
+      // Add to fund
+      newQState[s.curQ][idx].to = -1;
+      const newFund = [...s.roundFund];
+      newFund[s.curQ] += pts;
+      sndAssign();
+
+      let newT1s = s.t1s, newT2s = s.t2s;
+      const newPhase = [...s.roundPhase];
+      const newWonBy = [...s.roundWonBy];
+
+      if (phase === 'switched') {
+        // Second team got correct — all fund goes to them
+        const win = s.roundActiveTeam[s.curQ];
+        if (win === 1) newT1s += newFund[s.curQ]; else newT2s += newFund[s.curQ];
+        newPhase[s.curQ] = 'won';
+        newWonBy[s.curQ] = win;
+      } else if (phase === 'start') {
+        const revCount = newQState[s.curQ].filter(a => a.rev).length;
+        if (revCount === 6) {
+          const win = s.roundActiveTeam[s.curQ];
+          if (win === 1) newT1s += newFund[s.curQ]; else newT2s += newFund[s.curQ];
+          newPhase[s.curQ] = 'won';
+          newWonBy[s.curQ] = win;
+        }
+      }
+      update({ qState: newQState, roundFund: newFund, t1s: newT1s, t2s: newT2s, roundPhase: newPhase, roundWonBy: newWonBy });
     } else {
-      setState((prev) => ({
-        ...prev,
-        strikes: newStrikes,
-        lastGuessResult: 'miss',
-      }));
-      broadcast('h2o:strike', { strikes: newStrikes });
+      // Round 4 (наоборот) — show assign modal
+      newQState[s.curQ][idx].rev = true;
+      setS(prev => ({ ...prev, qState: newQState }));
+      broadcast({ qState: newQState });
+      setAssignModal({ idx, pts });
     }
   };
 
-  const awardRound = (winnerTeam: 'A' | 'B') => {
-    const scoreKey = winnerTeam === 'A' ? 'teamAScore' : 'teamBScore';
-    const baseScore = winnerTeam === 'A' ? state.teamAScore : state.teamBScore;
-    const newScore = baseScore + state.roundPoints;
+  const closeAns = (idx: number) => {
+    const st = s.qState[s.curQ][idx];
+    const pts = getDisplayPts(s.curQ, idx, q.answers[idx].p);
+    let newT1s = s.t1s, newT2s = s.t2s;
+    const newFund = [...s.roundFund];
 
-    const update = {
-      teamAScore: winnerTeam === 'A' ? newScore : state.teamAScore,
-      teamBScore: winnerTeam === 'B' ? newScore : state.teamBScore,
-      winner: winnerTeam,
-    };
-
-    setState((prev) => ({
-      ...prev,
-      phase: 'round-end',
-      teamAScore: update.teamAScore,
-      teamBScore: update.teamBScore,
-    }));
-    broadcast('h2o:round-end', update);
-
-    // Persist
-    emit('game:state-update', {
-      code: roomId,
-      gameState: { teamAScore: update.teamAScore, teamBScore: update.teamBScore },
-    });
+    if (s.curQ <= 2) {
+      if (st.to === -1 && (s.roundPhase[s.curQ] === 'start' || s.roundPhase[s.curQ] === 'switched')) {
+        newFund[s.curQ] -= pts;
+      }
+    } else {
+      if (st.to === 1) newT1s -= pts;
+      if (st.to === 2) newT2s -= pts;
+    }
+    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { rev: false, to: 0 } : a) : r);
+    sndClose();
+    update({ qState: newQState, t1s: newT1s, t2s: newT2s, roundFund: newFund });
   };
 
-  const stealSuccess = () => {
-    if (!isHost || !state.stealTeam) return;
-    awardRound(state.stealTeam);
+  const assignPts = (team: number) => {
+    if (!assignModal) return;
+    const { idx, pts } = assignModal;
+    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { ...a, to: team } : a) : r);
+    let newT1s = s.t1s, newT2s = s.t2s;
+    if (team === 1) { newT1s += pts; sndAssign(); }
+    else if (team === 2) { newT2s += pts; sndAssign(); }
+    setAssignModal(null);
+    update({ qState: newQState, t1s: newT1s, t2s: newT2s });
   };
 
-  const stealFail = () => {
-    if (!isHost) return;
-    // Points go to the original team
-    awardRound(state.activeTeam);
-  };
+  // ── Strikes ──
+  const addStrike = (team: number) => {
+    if (!isHost || s.curQ > 2) return;
+    const ti = team - 1;
+    if (s.roundBusted[s.curQ][ti] || s.strikes[s.curQ][ti] >= 3) return;
 
-  const nextRound = () => {
-    const nextIdx = state.questionIndex + 1;
-    if (nextIdx >= TOTAL_ROUNDS) {
-      setState((prev) => ({ ...prev, phase: 'final' }));
-      broadcast('h2o:final', {});
+    const newStrikes = s.strikes.map((r, ri) => ri === s.curQ ? r.map((v, i) => i === ti ? v + 1 : v) : r);
+    sndBuzz();
+
+    let newT1s = s.t1s, newT2s = s.t2s;
+    const newPhase = [...s.roundPhase];
+    const newWonBy = [...s.roundWonBy];
+    const newBusted = s.roundBusted.map((r, ri) => [...r]);
+    const newActive = [...s.roundActiveTeam];
+
+    // Switched phase: strike on active team = fund goes to original team
+    if (s.roundPhase[s.curQ] === 'switched' && team === s.roundActiveTeam[s.curQ]) {
+      const origTeam = team === 1 ? 2 : 1;
+      if (s.roundFund[s.curQ] > 0) {
+        if (origTeam === 1) newT1s += s.roundFund[s.curQ]; else newT2s += s.roundFund[s.curQ];
+      }
+      newPhase[s.curQ] = 'won';
+      newWonBy[s.curQ] = origTeam;
+      update({ strikes: newStrikes, t1s: newT1s, t2s: newT2s, roundPhase: newPhase, roundWonBy: newWonBy });
       return;
     }
 
-    const update: Partial<HundredState> = {
-      questionIndex: nextIdx,
-      activeTeam: state.activeTeam === 'A' ? 'B' : 'A',
-    };
-    setState((prev) => ({
-      ...prev,
-      ...update,
-      phase: 'playing',
-      revealedAnswers: [],
-      strikes: 0,
-      stealTeam: null,
-      roundPoints: 0,
-      lastGuess: '',
-      lastGuessResult: null,
-    }));
-    broadcast('h2o:next-round', update);
+    // 3 strikes in start phase: switch to other team
+    if (newStrikes[s.curQ][ti] >= 3) {
+      newBusted[s.curQ][ti] = true;
+      const otherTeam = team === 1 ? 2 : 1;
+      newActive[s.curQ] = otherTeam;
+      newPhase[s.curQ] = 'switched';
+    }
+
+    update({ strikes: newStrikes, roundBusted: newBusted, roundActiveTeam: newActive, roundPhase: newPhase, roundWonBy: newWonBy, t1s: newT1s, t2s: newT2s });
   };
 
-  const endRoundEarly = () => {
-    // Host can end round early, awarding current points to active team
-    const winner = state.phase === 'steal' ? state.stealTeam || state.activeTeam : state.activeTeam;
-    awardRound(winner);
+  // ── Choose team ──
+  const chooseTeam = (team: number) => {
+    const newActive = [...s.roundActiveTeam];
+    newActive[s.curQ] = team;
+    update({ roundActiveTeam: newActive });
+    setTeamChooser(false);
+  };
+
+  // ── Next / prev round ──
+  const nextRound = () => {
+    const next = s.curQ + 1;
+    if (next >= 4) { update({ phase: 'results' }); return; }
+    update({ curQ: next });
+    if (next <= 2) setTeamChooser(true);
+  };
+
+  const prevRound = () => {
+    if (s.curQ > 0) update({ curQ: s.curQ - 1 });
   };
 
   const endGame = () => emit('game:end', { code: roomId });
 
-  // ------- Player guess submission -------
+  // ── Derived ──
+  const scores = [{ name: s.t1n, score: s.t1s }, { name: s.t2n, score: s.t2s }];
+  const allRevealed = q ? s.qState[s.curQ]?.every(a => a.rev) : false;
+  const canNext = allRevealed || s.roundPhase[s.curQ] === 'won' || s.roundPhase[s.curQ] === 'showonly' || s.roundPhase[s.curQ] === 'switched';
 
-  const submitGuess = () => {
-    if (!guess.trim()) return;
-    broadcast('h2o:guess', { guess: guess.trim(), from: user?.nickname });
-    setGuess('');
-  };
-
-  // ------- Derived data -------
-
-  const scores = [
-    { name: `${locale === 'ru' ? 'Команда' : 'Team'} A`, score: state.teamAScore },
-    { name: `${locale === 'ru' ? 'Команда' : 'Team'} B`, score: state.teamBScore },
-  ];
-
-  const allRevealed = question ? state.revealedAnswers.length >= question.answers.length : false;
-
-  // ------- Render -------
-
+  // ── RENDER ──
   return (
-    <GameLayout
-      title={locale === 'ru' ? '100 к 1' : '100 to 1'}
-      icon="💯"
-      round={state.phase !== 'waiting' && state.phase !== 'final'
-        ? state.questionIndex + 1
-        : undefined}
-      totalRounds={state.phase !== 'waiting' ? TOTAL_ROUNDS : undefined}
-      scores={scores}
-      onEnd={isHost ? endGame : undefined}
-      showScoreboard={state.phase !== 'waiting'}
-    >
-      {/* ==================== WAITING ==================== */}
-      {state.phase === 'waiting' && (
+    <GameLayout title="100 к 1" icon="💯"
+      round={s.phase === 'playing' ? s.curQ + 1 : undefined}
+      totalRounds={s.phase === 'playing' ? 4 : undefined}
+      scores={scores} onEnd={isHost ? endGame : undefined}
+      showScoreboard={s.phase === 'playing' || s.phase === 'results'}>
+
+      {/* ── TITLE ── */}
+      {s.phase === 'title' && (
         <div className="text-center py-12 animate-fade-in">
-          <div className="text-7xl mb-6">💯</div>
-          <h2 className="text-3xl font-bold text-white mb-3">
-            {locale === 'ru' ? '100 к 1' : '100 to 1'}
-          </h2>
-          <p className="text-white/50 mb-2 max-w-md mx-auto">
-            {locale === 'ru'
-              ? 'Угадывайте самые популярные ответы на вопросы! Две команды соревнуются. 3 промаха — и ход переходит к соперникам.'
-              : 'Guess the most popular survey answers! Two teams compete. 3 strikes and the other team can steal.'}
-          </p>
-          <p className="text-white/30 text-sm mb-8">
-            {locale === 'ru'
-              ? `${TOTAL_ROUNDS} раундов | Игроков: ${state.players.length}`
-              : `${TOTAL_ROUNDS} rounds | Players: ${state.players.length}`}
-          </p>
+          <div className="text-8xl mb-6">💯</div>
+          <h2 className="text-4xl font-bold text-white mb-2" style={{ fontFamily: 'Russo One, sans-serif' }}>100 к 1</h2>
+          <p className="text-white/50 mb-8 text-lg">Телеигра</p>
           {isHost ? (
-            <GlassButton variant="primary" size="lg" onClick={startGame}>
-              {locale === 'ru' ? 'Начать игру' : 'Start Game'}
-            </GlassButton>
+            <GlassButton variant="primary" size="lg" onClick={startGame}>НАЧАТЬ ИГРУ</GlassButton>
           ) : (
-            <p className="text-white/40 italic">
-              {locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
-            </p>
+            <p className="text-white/40 italic">Ожидание ведущего...</p>
           )}
         </div>
       )}
 
-      {/* ==================== PLAYING / STEAL ==================== */}
-      {(state.phase === 'playing' || state.phase === 'steal') && question && (
-        <div className="max-w-2xl mx-auto">
-          {/* Team scores & active indicator */}
-          <div className="flex justify-between items-center mb-4">
-            <div
-              className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${
-                state.activeTeam === 'A' && state.phase === 'playing'
-                  ? 'ring-2 ring-blue-400 bg-blue-500/10'
-                  : state.stealTeam === 'A'
-                    ? 'ring-2 ring-yellow-400 bg-yellow-500/10'
-                    : ''
-              }`}
-            >
-              <span className="text-sm text-white/60">
-                {locale === 'ru' ? 'Ком.' : 'Team'} A
-              </span>
-              <span className="font-bold text-white">{state.teamAScore}</span>
+      {/* ── PLAYING ── */}
+      {s.phase === 'playing' && q && (
+        <div className="max-w-3xl mx-auto w-full">
+          {/* Team scores bar */}
+          <div className="flex justify-between items-center mb-3">
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 && s.curQ <= 2 ? 'ring-2 ring-yellow-400 bg-yellow-500/10' : ''}`}>
+              <span className="w-3 h-3 rounded-full bg-yellow-400" />
+              <span className="text-sm text-white/60">{s.t1n}</span>
+              <span className="font-bold text-white text-lg">{s.t1s}</span>
             </div>
-
-            {/* Strikes */}
-            <div className="flex items-center gap-2">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition-all ${
-                    i < state.strikes
-                      ? 'bg-red-500/30 text-red-400 scale-110'
-                      : 'bg-white/5 text-white/15'
-                  }`}
-                >
-                  ✕
-                </div>
-              ))}
+            <div className="text-center">
+              <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
+              <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-
-            <div
-              className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${
-                state.activeTeam === 'B' && state.phase === 'playing'
-                  ? 'ring-2 ring-green-400 bg-green-500/10'
-                  : state.stealTeam === 'B'
-                    ? 'ring-2 ring-yellow-400 bg-yellow-500/10'
-                    : ''
-              }`}
-            >
-              <span className="text-sm text-white/60">
-                {locale === 'ru' ? 'Ком.' : 'Team'} B
-              </span>
-              <span className="font-bold text-white">{state.teamBScore}</span>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 && s.curQ <= 2 ? 'ring-2 ring-red-400 bg-red-500/10' : ''}`}>
+              <span className="font-bold text-white text-lg">{s.t2s}</span>
+              <span className="text-sm text-white/60">{s.t2n}</span>
+              <span className="w-3 h-3 rounded-full bg-red-500" />
             </div>
           </div>
 
-          {/* Steal banner */}
-          {state.phase === 'steal' && (
-            <div className="mb-4 text-center animate-fade-in">
-              <GlassCard className="p-3 border-yellow-400/30 bg-yellow-500/10">
-                <p className="text-yellow-300 font-bold">
-                  {locale === 'ru'
-                    ? `Команда ${state.stealTeam} может украсть ${state.roundPoints} очков!`
-                    : `Team ${state.stealTeam} can steal ${state.roundPoints} points!`}
-                </p>
-              </GlassCard>
+          {/* Round type */}
+          <div className="text-center mb-2">
+            <span className="text-amber-400 font-bold text-sm tracking-widest">{ROUND_NAMES[s.curQ]}</span>
+            {isHost && s.curQ <= 2 && s.roundPhase[s.curQ] === 'start' && s.roundActiveTeam[s.curQ] > 0 && (
+              <button onClick={() => setTeamChooser(true)} className="ml-2 text-xs text-white/40 hover:text-white/80">↺ сменить</button>
+            )}
+          </div>
+
+          {/* Fund (rounds 0-2) */}
+          {s.curQ <= 2 && (
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <span className="text-xs text-white/40 font-bold">БАНК:</span>
+              <span className="font-bold text-yellow-300 text-xl px-3 py-0.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20">{s.roundFund[s.curQ]}</span>
+              {s.roundPhase[s.curQ] === 'switched' && <span className="text-xs text-amber-400 font-bold">Ход → {s.roundActiveTeam[s.curQ] === 1 ? s.t1n : s.t2n}</span>}
+              {s.roundPhase[s.curQ] === 'won' && <span className="text-xs text-green-400 font-bold">✓ Очки начислены!</span>}
+            </div>
+          )}
+
+          {/* Strikes (rounds 0-2) */}
+          {isHost && s.curQ <= 2 && (
+            <div className="flex justify-between items-center mb-2 px-4">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/40 mr-1">{s.t1n}</span>
+                {[0, 1, 2].map(i => (
+                  <button key={i} onClick={() => addStrike(1)}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                      ${i < s.strikes[s.curQ][0] ? 'bg-red-500/30 text-red-400' : 'bg-white/5 text-white/15'}
+                      ${s.roundActiveTeam[s.curQ] === 1 ? 'cursor-pointer hover:bg-red-500/20' : 'opacity-30 cursor-not-allowed'}`}>✕</button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                {[0, 1, 2].map(i => (
+                  <button key={i} onClick={() => addStrike(2)}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                      ${i < s.strikes[s.curQ][1] ? 'bg-red-500/30 text-red-400' : 'bg-white/5 text-white/15'}
+                      ${s.roundActiveTeam[s.curQ] === 2 ? 'cursor-pointer hover:bg-red-500/20' : 'opacity-30 cursor-not-allowed'}`}>✕</button>
+                ))}
+                <span className="text-xs text-white/40 ml-1">{s.t2n}</span>
+              </div>
             </div>
           )}
 
           {/* Question */}
-          <GlassCard className="p-6 mb-6 text-center">
-            <p className="text-xs text-white/30 mb-2">
-              {locale === 'ru' ? 'Вопрос' : 'Question'} {state.questionIndex + 1}/{TOTAL_ROUNDS}
-            </p>
-            <h3 className="text-xl md:text-2xl font-semibold text-white leading-snug">
-              {locale === 'ru' ? question.questionRu : question.questionEn}
-            </h3>
+          <GlassCard className="p-4 mb-3 text-center">
+            <p className="text-lg md:text-xl font-bold text-white">{q.q}</p>
           </GlassCard>
 
-          {/* Answer Board */}
-          <div className="space-y-2 mb-6">
-            {question.answers.map((answer, idx) => {
-              const isRevealed = state.revealedAnswers.includes(idx);
+          {/* Answer board */}
+          <div className="space-y-1.5 mb-3">
+            {q.answers.map((a, idx) => {
+              const revealed = s.qState[s.curQ]?.[idx]?.rev;
+              const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
-                <div
-                  key={idx}
-                  onClick={() => isHost && !isRevealed && revealAnswer(idx)}
-                  className={`
-                    glass-card p-4 flex items-center justify-between transition-all
-                    ${isRevealed ? 'bg-purple-500/10 border-purple-400/20' : ''}
-                    ${isHost && !isRevealed ? 'cursor-pointer hover:bg-white/10 active:scale-[0.99]' : ''}
-                  `}
-                >
-                  <div className="flex items-center gap-4">
-                    <span
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                        isRevealed ? 'bg-purple-500/30 text-purple-300' : 'bg-white/10 text-white/30'
-                      }`}
-                    >
-                      {idx + 1}
-                    </span>
-                    {isRevealed ? (
-                      <span className="text-white font-medium animate-fade-in">
-                        {locale === 'ru' ? answer.textRu : answer.textEn}
-                      </span>
-                    ) : (
-                      <span className="text-white/15 tracking-widest">- - - - -</span>
-                    )}
+                <div key={idx} onClick={() => openAns(idx)}
+                  className={`glass-card p-3 flex items-center justify-between transition-all
+                    ${revealed ? 'bg-blue-600/20 border-blue-400/30' : ''}
+                    ${isHost ? 'cursor-pointer hover:bg-white/10 active:scale-[0.99]' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
+                      ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
+                    {revealed
+                      ? <span className="text-white font-bold uppercase tracking-wide animate-fade-in">{a.t}</span>
+                      : <span className="text-white/15 tracking-[6px]">? ? ?</span>}
                   </div>
-                  {isRevealed ? (
-                    <span className="glass-badge font-bold text-purple-300 animate-fade-in">
-                      {answer.points}
-                    </span>
-                  ) : (
-                    <span className="text-white/10 text-sm">?</span>
-                  )}
+                  {revealed
+                    ? <span className="bg-amber-600/80 rounded-lg px-2.5 py-1 font-bold text-white animate-fade-in">{pts}</span>
+                    : <span className="text-white/10">?</span>}
                 </div>
               );
             })}
           </div>
 
-          {/* Round points tally */}
-          <div className="text-center mb-4">
-            <span className="text-white/40 text-sm">
-              {locale === 'ru' ? 'Очки раунда:' : 'Round points:'}
-            </span>{' '}
-            <span className="text-white font-bold text-lg">{state.roundPoints}</span>
-          </div>
-
-          {/* Last guess display */}
-          {state.lastGuess && (
-            <div className="text-center mb-4 animate-fade-in">
-              <GlassCard className="p-3 inline-block">
-                <span className="text-white/60 text-sm">
-                  {locale === 'ru' ? 'Ответ:' : 'Guess:'}{' '}
-                </span>
-                <span className="text-white font-medium">{state.lastGuess}</span>
-                {state.lastGuessResult === 'hit' && (
-                  <span className="ml-2 text-green-400">✓</span>
-                )}
-                {state.lastGuessResult === 'miss' && (
-                  <span className="ml-2 text-red-400">✕</span>
-                )}
-              </GlassCard>
-            </div>
-          )}
-
-          {/* Player guess input */}
-          {!isHost && (
-            <div className="flex gap-2 mb-6">
-              <GlassInput
-                placeholder={locale === 'ru' ? 'Ваш ответ...' : 'Your guess...'}
-                value={guess}
-                onChange={(e) => setGuess(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
-              />
-              <GlassButton variant="primary" onClick={submitGuess}>
-                {locale === 'ru' ? 'Ответить' : 'Submit'}
-              </GlassButton>
-            </div>
-          )}
-
           {/* Host controls */}
           {isHost && (
-            <div className="flex flex-wrap gap-3 justify-center">
-              {state.phase === 'playing' && (
-                <>
-                  <GlassButton variant="danger" onClick={addStrike}>
-                    ✕ {locale === 'ru' ? 'Промах' : 'Strike'}
-                  </GlassButton>
-                  {allRevealed && (
-                    <GlassButton variant="primary" onClick={() => awardRound(state.activeTeam)}>
-                      {locale === 'ru' ? 'Завершить раунд' : 'End Round'}
-                    </GlassButton>
-                  )}
-                  <GlassButton onClick={endRoundEarly}>
-                    {locale === 'ru' ? 'Следующий' : 'Skip Round'}
-                  </GlassButton>
-                </>
-              )}
-              {state.phase === 'steal' && (
-                <>
-                  <GlassButton
-                    variant="primary"
-                    onClick={stealSuccess}
-                    className="min-w-[140px]"
-                  >
-                    {locale === 'ru' ? 'Угадали!' : 'Correct Steal!'}
-                  </GlassButton>
-                  <GlassButton
-                    variant="danger"
-                    onClick={stealFail}
-                    className="min-w-[140px]"
-                  >
-                    {locale === 'ru' ? 'Не угадали' : 'Wrong Steal'}
-                  </GlassButton>
-                </>
-              )}
+            <div className="flex flex-wrap gap-2 justify-center items-center">
+              {s.curQ > 0 && <GlassButton size="sm" onClick={prevRound}>← Назад</GlassButton>}
+              <GlassButton size="sm" onClick={() => update({ godMode: !s.godMode })}
+                className={s.godMode ? '!border-yellow-400 !text-yellow-300' : ''}>
+                {s.godMode ? '⚡ РЕЖИМ БОГА' : 'Режим бога'}
+              </GlassButton>
+              {canNext && <GlassButton variant="primary" size="sm" onClick={nextRound}>
+                {s.curQ < 3 ? 'Далее →' : 'Итоги →'}
+              </GlassButton>}
             </div>
           )}
         </div>
       )}
 
-      {/* ==================== ROUND END ==================== */}
-      {state.phase === 'round-end' && (
+      {/* ── RESULTS ── */}
+      {s.phase === 'results' && (
         <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
-          <div className="text-5xl mb-4">
-            {state.teamAScore >= state.teamBScore ? '🔵' : '🟢'}
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Раунд завершён!' : 'Round Complete!'}
-          </h2>
-          <p className="text-white/50 mb-6">
-            {locale === 'ru' ? 'Текущий счёт:' : 'Current Score:'}
-          </p>
-
-          <div className="flex gap-4 justify-center mb-8">
-            <GlassCard
-              className={`p-6 flex-1 text-center ${
-                state.teamAScore >= state.teamBScore ? 'ring-2 ring-blue-400/50' : ''
-              }`}
-            >
-              <p className="text-white/60 text-sm mb-1">
-                {locale === 'ru' ? 'Команда' : 'Team'} A
-              </p>
-              <p className="text-3xl font-bold text-white">{state.teamAScore}</p>
+          <h2 className="text-2xl font-bold text-amber-400 mb-6">ИТОГИ РАУНДОВ</h2>
+          <div className="flex gap-4 justify-center mb-4">
+            <GlassCard className={`p-6 flex-1 text-center ${s.t1s >= s.t2s ? 'ring-2 ring-yellow-400/50' : ''}`}>
+              <p className="text-yellow-400 font-bold mb-1">{s.t1n}</p>
+              <p className="text-3xl font-bold text-white">{s.t1s}</p>
+              {s.t1s > s.t2s && <p className="text-xs text-amber-400 mt-1">🏆 Победитель!</p>}
             </GlassCard>
-            <GlassCard
-              className={`p-6 flex-1 text-center ${
-                state.teamBScore > state.teamAScore ? 'ring-2 ring-green-400/50' : ''
-              }`}
-            >
-              <p className="text-white/60 text-sm mb-1">
-                {locale === 'ru' ? 'Команда' : 'Team'} B
-              </p>
-              <p className="text-3xl font-bold text-white">{state.teamBScore}</p>
+            <GlassCard className={`p-6 flex-1 text-center ${s.t2s > s.t1s ? 'ring-2 ring-red-400/50' : ''}`}>
+              <p className="text-red-400 font-bold mb-1">{s.t2n}</p>
+              <p className="text-3xl font-bold text-white">{s.t2s}</p>
+              {s.t2s > s.t1s && <p className="text-xs text-amber-400 mt-1">🏆 Победитель!</p>}
             </GlassCard>
           </div>
-
-          {isHost && (
-            <GlassButton variant="primary" size="lg" onClick={nextRound}>
-              {state.questionIndex + 1 < TOTAL_ROUNDS
-                ? locale === 'ru'
-                  ? 'Следующий раунд'
-                  : 'Next Round'
-                : locale === 'ru'
-                  ? 'Итоги'
-                  : 'Final Results'}
-            </GlassButton>
-          )}
-        </div>
-      )}
-
-      {/* ==================== FINAL ==================== */}
-      {state.phase === 'final' && (
-        <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
-          <div className="text-6xl mb-4">🏆</div>
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Финальный счёт' : 'Final Score'}
-          </h2>
-
-          {state.teamAScore !== state.teamBScore ? (
-            <p className="text-lg text-yellow-300 mb-6">
-              {locale === 'ru'
-                ? `Побеждает ${state.teamAScore > state.teamBScore ? 'Команда A' : 'Команда B'}!`
-                : `${state.teamAScore > state.teamBScore ? 'Team A' : 'Team B'} wins!`}
-            </p>
-          ) : (
-            <p className="text-lg text-yellow-300 mb-6">
-              {locale === 'ru' ? 'Ничья!' : "It's a tie!"}
-            </p>
-          )}
-
-          <div className="flex gap-4 justify-center mb-8">
-            {scores
-              .sort((a, b) => b.score - a.score)
-              .map((s, i) => (
-                <GlassCard
-                  key={s.name}
-                  className={`p-6 flex-1 text-center ${
-                    i === 0 && s.score > 0 ? 'ring-2 ring-yellow-400/60 bg-yellow-500/10' : ''
-                  }`}
-                >
-                  <div className="text-3xl mb-2">{i === 0 && s.score > 0 ? '👑' : ''}</div>
-                  <p className="text-white/60 text-sm mb-1">{s.name}</p>
-                  <p className="text-4xl font-bold text-white">{s.score}</p>
-                </GlassCard>
-              ))}
-          </div>
-
+          <p className="text-white/50 mb-6">Команда «{s.t1s >= s.t2s ? s.t1n : s.t2n}» играет Большую игру!</p>
           {isHost && (
             <div className="flex gap-3 justify-center">
-              <GlassButton onClick={endGame}>
-                {locale === 'ru' ? 'В лобби' : 'Back to Lobby'}
-              </GlassButton>
-              <GlassButton variant="primary" onClick={startGame}>
-                {locale === 'ru' ? 'Играть снова' : 'Play Again'}
+              <GlassButton onClick={endGame}>В лобби</GlassButton>
+              <GlassButton variant="primary" onClick={() => update({ phase: 'bigGame', bgPhase: 0, bgP1Ans: [], bgP2Ans: [], bgP1Matched: [], bgP2Matched: [], bgFund: 0, bgCurQ: 0, winTeam: s.t1s >= s.t2s ? 1 : 2 })}>
+                БОЛЬШАЯ ИГРА →
               </GlassButton>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── TEAM CHOOSER OVERLAY ── */}
+      {teamChooser && isHost && s.curQ <= 2 && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center" onClick={() => setTeamChooser(false)}>
+          <GlassCard className="p-8 max-w-sm text-center" onClick={undefined}>
+            <h3 className="text-xl font-bold text-amber-400 mb-2">КТО НАЧИНАЕТ?</h3>
+            <p className="text-white/50 text-sm mb-6">{ROUND_NAMES[s.curQ]}</p>
+            <div className="flex gap-4">
+              <GlassButton className="flex-1 !border-yellow-400 !bg-yellow-500/10" onClick={() => chooseTeam(1)}>{s.t1n}</GlassButton>
+              <GlassButton className="flex-1 !border-red-400 !bg-red-500/10" onClick={() => chooseTeam(2)}>{s.t2n}</GlassButton>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── ASSIGN MODAL (round 4) ── */}
+      {assignModal && isHost && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+          <GlassCard className="p-6 max-w-sm text-center">
+            <p className="text-amber-400 font-bold mb-1">ОТВЕТ ОТКРЫТ!</p>
+            <p className="text-3xl font-bold text-yellow-300 mb-4">+{assignModal.pts}</p>
+            <p className="text-white/50 text-sm mb-4">Какой команде записать очки?</p>
+            <div className="flex gap-3 mb-2">
+              <GlassButton className="flex-1 !border-yellow-400 !bg-yellow-500/10" onClick={() => assignPts(1)}>{s.t1n}</GlassButton>
+              <GlassButton className="flex-1 !border-red-400 !bg-red-500/10" onClick={() => assignPts(2)}>{s.t2n}</GlassButton>
+            </div>
+            <button onClick={() => assignPts(0)} className="text-xs text-white/30 hover:text-white/60">Никому</button>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── BIG GAME (placeholder — next commit) ── */}
+      {s.phase === 'bigGame' && (
+        <div className="text-center py-12 animate-fade-in">
+          <div className="text-6xl mb-4">⭐</div>
+          <h2 className="text-3xl font-bold text-amber-400 mb-4">БОЛЬШАЯ ИГРА</h2>
+          <p className="text-white/50 mb-6">Скоро будет добавлена</p>
+          {isHost && <GlassButton onClick={endGame}>В лобби</GlassButton>}
+        </div>
+      )}
+
+      {/* ── FINAL (placeholder) ── */}
+      {s.phase === 'final' && (
+        <div className="text-center py-12 animate-fade-in">
+          <div className="text-6xl mb-4">🏆</div>
+          <h2 className="text-3xl font-bold text-amber-400 mb-2">ИГРА ОКОНЧЕНА</h2>
+          {isHost && <GlassButton onClick={endGame}>В лобби</GlassButton>}
         </div>
       )}
     </GameLayout>
