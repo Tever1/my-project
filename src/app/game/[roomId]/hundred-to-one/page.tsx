@@ -327,6 +327,99 @@ export default function HundredToOnePage() {
     update({ qState: newQState, t1s: newT1s, t2s: newT2s, roundFund: newFund });
   };
 
+  // ── Big Game ──
+  const bgStartPlayer = (player: 1 | 2) => {
+    const time = player === 1 ? 30 : 40;
+    update({ bgPhase: player === 1 ? 1 : 3, bgCurQ: 0, bgTimeLeft: time, bgTimerTotal: time, bgTimerPaused: false, ...(player === 1 ? { bgP1Ans: [] } : { bgP2Ans: [] }) });
+    // Start timer
+    if (bgTimerRef.current) clearInterval(bgTimerRef.current);
+    bgTimerRef.current = setInterval(() => {
+      setS(prev => {
+        if (prev.bgTimerPaused) return prev;
+        const t = prev.bgTimeLeft - 1;
+        if (t <= 5 && t > 0) sndTick();
+        if (t <= 0) {
+          if (bgTimerRef.current) { clearInterval(bgTimerRef.current); bgTimerRef.current = null; }
+          sndBuzz();
+          // Fill remaining with '—'
+          const ans = prev.bgPhase === 1 ? [...prev.bgP1Ans] : [...prev.bgP2Ans];
+          while (ans.length < 5) ans.push('—');
+          return { ...prev, bgTimeLeft: 0, bgPhase: prev.bgPhase === 1 ? 2 : 4, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
+        }
+        return { ...prev, bgTimeLeft: t };
+      });
+    }, 1000);
+  };
+
+  const bgSubmitAnswer = () => {
+    const v = bgInput.trim();
+    if (!v) return;
+    // Check duplicate with P1 in phase 3
+    if (s.bgPhase === 3 && s.bgCurQ < 5) {
+      const p1 = s.bgP1Ans[s.bgCurQ] || '';
+      const aLow = v.toLowerCase(), p1Low = p1.toLowerCase();
+      if (aLow === p1Low || (aLow.length > 2 && p1Low.length > 2 && (aLow.includes(p1Low) || p1Low.includes(aLow)))) {
+        sndDup(); setBgInput(''); return;
+      }
+    }
+    setBgInput('');
+    setS(prev => {
+      const ans = prev.bgPhase === 1 ? [...prev.bgP1Ans, v] : [...prev.bgP2Ans, v];
+      const nextQ = prev.bgCurQ + 1;
+      if (nextQ >= 5) {
+        if (bgTimerRef.current) { clearInterval(bgTimerRef.current); bgTimerRef.current = null; }
+        return { ...prev, bgCurQ: nextQ, bgPhase: prev.bgPhase === 1 ? 2 : 4, bgTimeLeft: 0, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
+      }
+      return { ...prev, bgCurQ: nextQ, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
+    });
+  };
+
+  // Check answers against BIG_Q and calculate points
+  const bgCheckAnswers = (answers: string[], isP1: boolean): { matched: (string | null)[]; points: number } => {
+    let total = 0;
+    const matched: (string | null)[] = [];
+    answers.forEach((ans, i) => {
+      const qq = BIG_Q[i];
+      const ansLow = ans.toLowerCase().trim();
+      let match: { t: string; p: number } | null = null;
+      for (const a of qq.answers) {
+        const aLow = a.t.toLowerCase();
+        if (aLow.includes(ansLow) || ansLow.includes(aLow)) {
+          if (!isP1) { const p1Low = (s.bgP1Ans[i] || '').toLowerCase(); if (aLow.includes(p1Low) || p1Low.includes(aLow)) continue; }
+          match = a; break;
+        }
+      }
+      if (match) { total += match.p; matched.push(match.t); } else { matched.push(null); }
+    });
+    return { matched, points: total };
+  };
+
+  const bgDoCheck = (isP1: boolean) => {
+    const ans = isP1 ? s.bgP1Ans : s.bgP2Ans;
+    const { matched, points } = bgCheckAnswers(ans, isP1);
+    const newFund = s.bgFund + points;
+    if (isP1) update({ bgP1Matched: matched, bgFund: newFund });
+    else update({ bgP2Matched: matched, bgFund: newFund });
+  };
+
+  const bgManualCredit = (qIdx: number, ansIdx: number, isP1: boolean) => {
+    const pts = BIG_Q[qIdx].answers[ansIdx].p;
+    const matchedArr = isP1 ? [...s.bgP1Matched] : [...s.bgP2Matched];
+    matchedArr[qIdx] = BIG_Q[qIdx].answers[ansIdx].t;
+    sndAssign();
+    if (isP1) update({ bgP1Matched: matchedArr, bgFund: s.bgFund + pts });
+    else update({ bgP2Matched: matchedArr, bgFund: s.bgFund + pts });
+  };
+
+  const bgShowResult = () => {
+    if (s.bgFund >= 200) sndWin();
+    update({ phase: 'final', bgPhase: 5 });
+  };
+
+  // Pause/resume timer on typing
+  const bgPauseTimer = () => { if (s.bgPhase === 1 || s.bgPhase === 3) setS(prev => ({ ...prev, bgTimerPaused: true })); };
+  const bgResumeTimer = () => { if (s.bgPhase === 1 || s.bgPhase === 3) setS(prev => ({ ...prev, bgTimerPaused: false })); };
+
   // ── Derived ──
   const scores = [{ name: s.t1n, score: s.t1s }, { name: s.t2n, score: s.t2s }];
   const allRevealed = q ? s.qState[s.curQ]?.every(a => a.rev) : false;
@@ -554,22 +647,133 @@ export default function HundredToOnePage() {
         </div>
       )}
 
-      {/* ── BIG GAME (placeholder — next commit) ── */}
+      {/* ── BIG GAME ── */}
       {s.phase === 'bigGame' && (
-        <div className="text-center py-12 animate-fade-in">
-          <div className="text-6xl mb-4">⭐</div>
-          <h2 className="text-3xl font-bold text-amber-400 mb-4">БОЛЬШАЯ ИГРА</h2>
-          <p className="text-white/50 mb-6">Скоро будет добавлена</p>
-          {isHost && <GlassButton onClick={endGame}>В лобби</GlassButton>}
+        <div className="max-w-3xl mx-auto w-full py-4 animate-fade-in">
+          <h2 className="text-2xl font-bold text-amber-400 text-center mb-2">БОЛЬШАЯ ИГРА</h2>
+
+          {/* Intro (bgPhase 0) */}
+          {s.bgPhase === 0 && (
+            <div className="text-center">
+              <p className="text-white/50 mb-6">Команда «{s.winTeam === 1 ? s.t1n : s.t2n}»: выберите 2 игроков.<br/>Игрок 1 — 30 сек, Игрок 2 — 40 сек.<br/>Второй не должен слышать ответы первого!</p>
+              {isHost && <GlassButton variant="primary" onClick={() => bgStartPlayer(1)}>НАЧАТЬ (ИГРОК 1 — 30 сек)</GlassButton>}
+            </div>
+          )}
+
+          {/* Player label */}
+          {s.bgPhase >= 1 && s.bgPhase <= 4 && (
+            <p className="text-center font-bold text-yellow-300 mb-2">
+              {s.bgPhase === 1 ? 'ИГРОК 1 — 30 секунд' : s.bgPhase === 2 ? 'ПРОВЕРКА ОТВЕТОВ ИГРОКА 1' : s.bgPhase === 3 ? 'ИГРОК 2 — 40 секунд' : 'ПРОВЕРКА ОТВЕТОВ ИГРОКА 2'}
+            </p>
+          )}
+
+          {/* Timer */}
+          {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && (
+            <div className="text-center mb-3">
+              <span className={`font-bold text-4xl ${s.bgTimeLeft <= 5 ? 'text-red-400 animate-pulse' : s.bgTimerPaused ? 'text-yellow-300' : 'text-white'}`}>
+                {s.bgTimeLeft}{s.bgTimerPaused ? ' ⏸' : ''}
+              </span>
+            </div>
+          )}
+
+          {/* Questions list */}
+          {s.bgPhase >= 1 && (
+            <div className="space-y-1.5 mb-3">
+              {BIG_Q.map((qq, i) => {
+                const ans = s.bgPhase <= 2 ? s.bgP1Ans[i] : s.bgP2Ans[i];
+                const matched = s.bgPhase <= 2 ? s.bgP1Matched[i] : s.bgP2Matched[i];
+                const isChecked = s.bgPhase === 2 || s.bgPhase === 4;
+                return (
+                  <GlassCard key={i} className="p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-400 font-bold">{i + 1}.</span>
+                      <span className="text-sm font-bold flex-1">{qq.q}</span>
+                      <span className={`text-sm font-bold min-w-[80px] text-right ${ans ? 'text-yellow-300' : 'text-white/30 italic'}`}>
+                        {ans || '...'}
+                      </span>
+                      {isChecked && (
+                        <span className={`font-bold text-sm min-w-[40px] text-right ${matched ? 'text-green-400' : 'text-red-400'}`}>
+                          {matched ? `+${qq.answers.find(a => a.t === matched)?.p || 0}` : '✗'}
+                        </span>
+                      )}
+                    </div>
+                    {/* Show all answers for manual credit in check phase */}
+                    {isChecked && !matched && isHost && (
+                      <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-white/5">
+                        {qq.answers.map((a, ai) => {
+                          const usedByP1 = s.bgPhase === 4 && s.bgP1Matched[i] === a.t;
+                          return (
+                            <button key={ai} disabled={usedByP1}
+                              onClick={() => bgManualCredit(i, ai, s.bgPhase === 2)}
+                              className={`text-xs px-2 py-0.5 rounded border transition-all
+                                ${usedByP1 ? 'opacity-30 line-through border-white/10 text-white/30' : 'border-dashed border-white/20 text-white/50 hover:bg-green-500/20 hover:text-green-400 hover:border-green-400 cursor-pointer'}`}>
+                              {a.t} ({a.p})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </GlassCard>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Input area (during answering) */}
+          {isHost && (s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 && (
+            <div className="text-center mb-3">
+              <input value={bgInput} onChange={e => { setBgInput(e.target.value); bgPauseTimer(); }}
+                onKeyDown={e => { if (e.key === 'Enter') { bgResumeTimer(); bgSubmitAnswer(); } }}
+                placeholder="Ответ → Enter" autoFocus
+                className="w-full max-w-md px-4 py-3 rounded-xl bg-white/5 border border-amber-400/40 text-white text-center font-bold text-lg outline-none focus:border-amber-400" />
+              <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе пока вы печатаете · Enter — отправить</p>
+            </div>
+          )}
+
+          {/* Fund */}
+          {s.bgPhase >= 2 && (
+            <p className={`text-center font-bold text-2xl mb-3 ${s.bgFund >= 200 ? 'text-green-400 animate-pulse' : 'text-yellow-300'}`}>
+              ФОНД: {s.bgFund} очков
+            </p>
+          )}
+
+          {/* Action buttons */}
+          {isHost && s.bgPhase === 2 && (
+            <div className="text-center">
+              {s.bgP1Matched.length === 0 && <GlassButton variant="primary" className="mr-2" onClick={() => bgDoCheck(true)}>ПРОВЕРИТЬ ОТВЕТЫ</GlassButton>}
+              {s.bgP1Matched.length > 0 && <GlassButton variant="primary" onClick={() => bgStartPlayer(2)}>ИГРОК 2 (40 сек) →</GlassButton>}
+            </div>
+          )}
+          {isHost && s.bgPhase === 4 && (
+            <div className="text-center">
+              {s.bgP2Matched.length === 0 && <GlassButton variant="primary" className="mr-2" onClick={() => bgDoCheck(false)}>ПРОВЕРИТЬ ОТВЕТЫ</GlassButton>}
+              {s.bgP2Matched.length > 0 && <GlassButton variant="primary" onClick={bgShowResult}>РЕЗУЛЬТАТ →</GlassButton>}
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── FINAL (placeholder) ── */}
+      {/* ── FINAL ── */}
       {s.phase === 'final' && (
         <div className="text-center py-12 animate-fade-in">
           <div className="text-6xl mb-4">🏆</div>
-          <h2 className="text-3xl font-bold text-amber-400 mb-2">ИГРА ОКОНЧЕНА</h2>
-          {isHost && <GlassButton onClick={endGame}>В лобби</GlassButton>}
+          {s.bgFund >= 200 ? (
+            <>
+              <h2 className="text-3xl font-bold text-green-400 mb-2">ПОБЕДА! 🎉</h2>
+              <p className="text-white/50 mb-6">Фонд: {s.bgFund} очков (≥200). Команда «{s.winTeam === 1 ? s.t1n : s.t2n}» выиграла!</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-3xl font-bold text-amber-400 mb-2">ИГРА ОКОНЧЕНА</h2>
+              <p className="text-white/50 mb-6">Фонд: {s.bgFund} очков. Не хватило до 200. Отличная игра!</p>
+            </>
+          )}
+          {isHost && (
+            <div className="flex gap-3 justify-center">
+              <GlassButton onClick={endGame}>В лобби</GlassButton>
+              <GlassButton variant="primary" onClick={startGame}>ИГРАТЬ СНОВА</GlassButton>
+            </div>
+          )}
         </div>
       )}
     </GameLayout>
