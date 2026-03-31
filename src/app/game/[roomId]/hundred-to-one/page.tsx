@@ -534,8 +534,133 @@ export default function HundredToOnePage() {
         </div>
       )}
 
-      {/* ── PLAYING ── */}
-      {s.phase === 'playing' && q && (
+      {/* ── PLAYING: PLAYER VIEW (team1/team2) ── */}
+      {s.phase === 'playing' && q && (myRole === 'team1' || myRole === 'team2') && (
+        <div className="max-w-3xl mx-auto w-full">
+          {/* Scores */}
+          <div className="flex justify-between items-center mb-3">
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 ${myRole === 'team1' ? 'ring-2 ring-yellow-400 bg-yellow-500/10' : ''}`}>
+              <span className="w-3 h-3 rounded-full bg-yellow-400" />
+              <span className="text-sm text-white/60">{s.t1n}</span>
+              <span className="font-bold text-white text-lg">{s.t1s}</span>
+            </div>
+            <div className="text-center">
+              <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
+              <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
+            </div>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 ${myRole === 'team2' ? 'ring-2 ring-red-400 bg-red-500/10' : ''}`}>
+              <span className="font-bold text-white text-lg">{s.t2s}</span>
+              <span className="text-sm text-white/60">{s.t2n}</span>
+              <span className="w-3 h-3 rounded-full bg-red-500" />
+            </div>
+          </div>
+          <div className="text-center mb-2">
+            <span className="text-amber-400 font-bold text-sm tracking-widest">{ROUND_NAMES[s.curQ]}</span>
+          </div>
+          {/* Strikes for my team */}
+          {s.curQ <= 2 && (
+            <div className="flex items-center justify-center gap-2 mb-2">
+              {[0, 1, 2].map(i => (
+                <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition-all
+                  ${i < s.strikes[s.curQ][myRole === 'team1' ? 0 : 1] ? 'bg-red-500/30 text-red-400 scale-110' : 'bg-white/5 text-white/15'}`}>✕</div>
+              ))}
+            </div>
+          )}
+          {/* Question */}
+          <GlassCard className="p-5 mb-3 text-center">
+            <p className="text-xl md:text-2xl font-bold text-white">{q.q}</p>
+          </GlassCard>
+          {/* Answer board — only revealed answers visible */}
+          <div className="space-y-1.5 mb-3">
+            {q.answers.map((a, idx) => {
+              const revealed = s.qState[s.curQ]?.[idx]?.rev;
+              const pts = getDisplayPts(s.curQ, idx, a.p);
+              return (
+                <div key={idx} className={`glass-card p-3 flex items-center justify-between transition-all ${revealed ? 'bg-blue-600/20 border-blue-400/30' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
+                    {revealed ? <span className="text-white font-bold uppercase tracking-wide">{a.t}</span> : <span className="text-white/15 tracking-[6px]">? ? ?</span>}
+                  </div>
+                  {revealed ? <span className="bg-amber-600/80 rounded-lg px-2.5 py-1 font-bold text-white">{pts}</span> : <span className="text-white/10">?</span>}
+                </div>
+              );
+            })}
+          </div>
+          {/* Fund */}
+          {s.curQ <= 2 && (
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-xs text-white/40 font-bold">БАНК:</span>
+              <span className="font-bold text-yellow-300 text-xl">{s.roundFund[s.curQ]}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PLAYING: TV VIEW ── */}
+      {s.phase === 'playing' && q && myRole === 'tv' && (
+        <div className="max-w-4xl mx-auto w-full">
+          {/* Big scores bar */}
+          <div className="flex justify-between items-center mb-4">
+            <div className={`glass-card px-6 py-3 flex items-center gap-3 ${s.roundActiveTeam[s.curQ] === 1 && s.curQ <= 2 ? 'ring-2 ring-yellow-400 bg-yellow-500/10' : ''}`}>
+              <span className="w-4 h-4 rounded-full bg-yellow-400" />
+              <span className="text-lg font-bold text-white">{s.t1n}</span>
+              <span className="font-bold text-yellow-300 text-3xl ml-2">{s.t1s}</span>
+            </div>
+            <div className="text-center">
+              <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-2xl">{s.curQ + 1}</div>
+              <div className="text-xs text-white/40 mt-1">РАУНД</div>
+            </div>
+            <div className={`glass-card px-6 py-3 flex items-center gap-3 ${s.roundActiveTeam[s.curQ] === 2 && s.curQ <= 2 ? 'ring-2 ring-red-400 bg-red-500/10' : ''}`}>
+              <span className="font-bold text-red-300 text-3xl mr-2">{s.t2s}</span>
+              <span className="text-lg font-bold text-white">{s.t2n}</span>
+              <span className="w-4 h-4 rounded-full bg-red-500" />
+            </div>
+          </div>
+          <div className="text-center mb-2">
+            <span className="text-amber-400 font-bold text-lg tracking-widest">{ROUND_NAMES[s.curQ]}</span>
+          </div>
+          {/* Fund + Strikes */}
+          {s.curQ <= 2 && (
+            <div className="flex items-center justify-center gap-6 mb-3">
+              <div className="flex items-center gap-1">
+                {[0, 1, 2].map(i => <div key={i} className={`w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold ${i < s.strikes[s.curQ][0] ? 'bg-red-500/30 text-red-400' : 'bg-white/5 text-white/15'}`}>✕</div>)}
+              </div>
+              <div className="text-center">
+                <span className="text-xs text-white/40">БАНК</span>
+                <div className="font-bold text-yellow-300 text-2xl">{s.roundFund[s.curQ]}</div>
+              </div>
+              <div className="flex items-center gap-1">
+                {[0, 1, 2].map(i => <div key={i} className={`w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold ${i < s.strikes[s.curQ][1] ? 'bg-red-500/30 text-red-400' : 'bg-white/5 text-white/15'}`}>✕</div>)}
+              </div>
+            </div>
+          )}
+          {/* Question */}
+          <GlassCard className="p-6 mb-4 text-center">
+            <p className="text-2xl md:text-3xl font-bold text-white">{q.q}</p>
+          </GlassCard>
+          {/* Answer board */}
+          <div className="space-y-2 mb-4">
+            {q.answers.map((a, idx) => {
+              const revealed = s.qState[s.curQ]?.[idx]?.rev;
+              const pts = getDisplayPts(s.curQ, idx, a.p);
+              return (
+                <div key={idx} className={`glass-card p-4 flex items-center justify-between transition-all ${revealed ? 'bg-blue-600/20 border-blue-400/30' : ''}`}>
+                  <div className="flex items-center gap-4">
+                    <span className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
+                    {revealed ? <span className="text-xl text-white font-bold uppercase tracking-wide">{a.t}</span> : <span className="text-white/15 tracking-[8px] text-xl">? ? ?</span>}
+                  </div>
+                  {revealed ? <span className="bg-amber-600/80 rounded-lg px-3 py-1.5 font-bold text-white text-xl">{pts}</span> : <span className="text-white/10 text-xl">?</span>}
+                </div>
+              );
+            })}
+          </div>
+          {s.roundPhase[s.curQ] === 'switched' && <p className="text-center text-amber-400 font-bold">Ход → {s.roundActiveTeam[s.curQ] === 1 ? s.t1n : s.t2n}</p>}
+          {s.roundPhase[s.curQ] === 'won' && <p className="text-center text-green-400 font-bold">✓ Очки начислены!</p>}
+        </div>
+      )}
+
+      {/* ── PLAYING: HOST VIEW (ведущий) ── */}
+      {s.phase === 'playing' && q && isGameHost && (
         <div className="max-w-3xl mx-auto w-full">
           {/* Team scores bar */}
           <div className="flex justify-between items-center mb-3">
