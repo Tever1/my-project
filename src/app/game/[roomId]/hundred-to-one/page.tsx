@@ -18,7 +18,8 @@ interface GamePlayer { id: string; nickname: string; isHost: boolean; }
 // Answer state per cell: rev=revealed, to=assigned team (0=none, 1/2=team, -1=fund)
 interface AnsState { rev: boolean; to: number; }
 
-type Phase = 'title' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
+type Phase = 'roleSelect' | 'teamNames' | 'title' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
+type PlayerRole = 'team1' | 'team2' | 'host' | 'tv';
 
 interface GState {
   phase: Phase;
@@ -51,10 +52,11 @@ interface GState {
   bgTimerPaused: boolean;
   winTeam: number;
   players: GamePlayer[];
+  roles: Record<string, PlayerRole>; // playerId -> role
 }
 
 const mkInitial = (): GState => ({
-  phase: 'title', curQ: 0,
+  phase: 'roleSelect', curQ: 0,
   t1n: 'Команда 1', t2n: 'Команда 2',
   t1s: 0, t2s: 0,
   qState: ROUNDS.map(r => r.answers.map(() => ({ rev: false, to: 0 }))),
@@ -72,6 +74,7 @@ const mkInitial = (): GState => ({
   bgTimeLeft: 0, bgTimerTotal: 0, bgTimerPaused: false,
   winTeam: 0,
   players: [],
+  roles: {},
 });
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -92,7 +95,19 @@ export default function HundredToOnePage() {
   const bgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isHost = s.players.find(p => p.id === user?.id)?.isHost ?? false;
+  const myRole: PlayerRole | null = user?.id ? s.roles[user.id] || null : null;
+  const isGameHost = myRole === 'host'; // game host (ведущий), not room host
   const q = ROUNDS[s.curQ];
+
+  // ── Role selection ──
+  const selectRole = (role: PlayerRole) => {
+    if (!user?.id) return;
+    const newRoles = { ...s.roles, [user.id]: role };
+    update({ roles: newRoles });
+  };
+
+  const [teamNameInput1, setTeamNameInput1] = useState('');
+  const [teamNameInput2, setTeamNameInput2] = useState('');
 
   // ── Socket ──
   useEffect(() => {
@@ -118,12 +133,22 @@ export default function HundredToOnePage() {
     broadcast(patch);
   }, [broadcast]);
 
-  // ── Host actions: start game ──
+  // ── Host actions ──
+  const goToTeamNames = () => {
+    update({ phase: 'teamNames' });
+  };
+
+  const confirmTeamNames = () => {
+    const n1 = teamNameInput1.trim() || 'Команда 1';
+    const n2 = teamNameInput2.trim() || 'Команда 2';
+    update({ t1n: n1, t2n: n2, phase: 'title' });
+  };
+
   const startGame = () => {
     warmup();
     const init = mkInitial();
     const patch: Partial<GState> = {
-      ...init, phase: 'playing', players: s.players,
+      ...init, phase: 'playing', players: s.players, roles: s.roles, t1n: s.t1n, t2n: s.t2n,
     };
     setS(prev => ({ ...prev, ...patch }));
     broadcast(patch);
@@ -132,7 +157,7 @@ export default function HundredToOnePage() {
 
   // ── Open/close answer ──
   const openAns = (idx: number) => {
-    if (!isHost) return;
+    if (!isGameHost) return;
     const st = s.qState[s.curQ][idx];
     if (st.rev) {
       if (s.godMode) {
@@ -222,7 +247,7 @@ export default function HundredToOnePage() {
 
   // ── Strikes ──
   const addStrike = (team: number) => {
-    if (!isHost || s.curQ > 2) return;
+    if (!isGameHost || s.curQ > 2) return;
     const ti = team - 1;
     if (s.roundBusted[s.curQ][ti] || s.strikes[s.curQ][ti] >= 3) return;
 
@@ -430,16 +455,78 @@ export default function HundredToOnePage() {
     <GameLayout title="100 к 1" icon="💯"
       round={s.phase === 'playing' ? s.curQ + 1 : undefined}
       totalRounds={s.phase === 'playing' ? 4 : undefined}
-      scores={scores} onEnd={isHost ? endGame : undefined}
+      scores={scores} onEnd={(isHost || isGameHost) ? endGame : undefined}
       showScoreboard={s.phase === 'playing' || s.phase === 'results'}>
+
+      {/* ── ROLE SELECT ── */}
+      {s.phase === 'roleSelect' && (
+        <div className="max-w-lg mx-auto text-center py-8 animate-fade-in">
+          <div className="text-6xl mb-4">💯</div>
+          <h2 className="text-2xl font-bold text-amber-400 mb-6">Выберите свою роль</h2>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <GlassCard hover className={`p-6 cursor-pointer transition-all ${myRole === 'team1' ? 'ring-2 ring-yellow-400 bg-yellow-500/15' : ''}`} onClick={() => selectRole('team1')}>
+              <div className="text-3xl mb-2">🟡</div>
+              <p className="font-bold text-yellow-400">Команда 1</p>
+              <p className="text-xs text-white/40 mt-1">{Object.values(s.roles).filter(r => r === 'team1').length} чел.</p>
+            </GlassCard>
+            <GlassCard hover className={`p-6 cursor-pointer transition-all ${myRole === 'team2' ? 'ring-2 ring-red-400 bg-red-500/15' : ''}`} onClick={() => selectRole('team2')}>
+              <div className="text-3xl mb-2">🔴</div>
+              <p className="font-bold text-red-400">Команда 2</p>
+              <p className="text-xs text-white/40 mt-1">{Object.values(s.roles).filter(r => r === 'team2').length} чел.</p>
+            </GlassCard>
+            <GlassCard hover className={`p-6 cursor-pointer transition-all ${myRole === 'host' ? 'ring-2 ring-amber-400 bg-amber-500/15' : ''}`} onClick={() => selectRole('host')}>
+              <div className="text-3xl mb-2">🎙️</div>
+              <p className="font-bold text-amber-400">Ведущий</p>
+              <p className="text-xs text-white/40 mt-1">{Object.values(s.roles).filter(r => r === 'host').length} чел.</p>
+            </GlassCard>
+            <GlassCard hover className={`p-6 cursor-pointer transition-all ${myRole === 'tv' ? 'ring-2 ring-blue-400 bg-blue-500/15' : ''}`} onClick={() => selectRole('tv')}>
+              <div className="text-3xl mb-2">📺</div>
+              <p className="font-bold text-blue-400">Режим ТВ</p>
+              <p className="text-xs text-white/40 mt-1">{Object.values(s.roles).filter(r => r === 'tv').length} чел.</p>
+            </GlassCard>
+          </div>
+          {isHost && Object.keys(s.roles).length > 0 && (
+            <GlassButton variant="primary" size="lg" onClick={goToTeamNames}>Далее →</GlassButton>
+          )}
+        </div>
+      )}
+
+      {/* ── TEAM NAMES ── */}
+      {s.phase === 'teamNames' && (
+        <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
+          <h2 className="text-2xl font-bold text-amber-400 mb-6">НАЗВАНИЯ КОМАНД</h2>
+          {isGameHost || isHost ? (
+            <>
+              <div className="space-y-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <span className="w-4 h-4 rounded-full bg-yellow-400" />
+                  <input value={teamNameInput1} onChange={e => setTeamNameInput1(e.target.value)}
+                    placeholder="Команда 1" maxLength={20}
+                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-amber-400" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-4 h-4 rounded-full bg-red-500" />
+                  <input value={teamNameInput2} onChange={e => setTeamNameInput2(e.target.value)}
+                    placeholder="Команда 2" maxLength={20}
+                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-amber-400" />
+                </div>
+              </div>
+              <GlassButton variant="primary" size="lg" onClick={confirmTeamNames}>ДАЛЕЕ</GlassButton>
+            </>
+          ) : (
+            <p className="text-white/40 italic">Ведущий вводит названия команд...</p>
+          )}
+        </div>
+      )}
 
       {/* ── TITLE ── */}
       {s.phase === 'title' && (
         <div className="text-center py-12 animate-fade-in">
           <div className="text-8xl mb-6">💯</div>
           <h2 className="text-4xl font-bold text-white mb-2" style={{ fontFamily: 'Russo One, sans-serif' }}>100 к 1</h2>
-          <p className="text-white/50 mb-8 text-lg">Телеигра</p>
-          {isHost ? (
+          <p className="text-white/50 mb-2 text-lg">Телеигра</p>
+          <p className="text-white/30 text-sm mb-8">{s.t1n} vs {s.t2n}</p>
+          {(isHost || isGameHost) ? (
             <GlassButton variant="primary" size="lg" onClick={startGame}>НАЧАТЬ ИГРУ</GlassButton>
           ) : (
             <p className="text-white/40 italic">Ожидание ведущего...</p>
@@ -471,7 +558,7 @@ export default function HundredToOnePage() {
           {/* Round type */}
           <div className="text-center mb-2">
             <span className="text-amber-400 font-bold text-sm tracking-widest">{ROUND_NAMES[s.curQ]}</span>
-            {isHost && s.curQ <= 2 && s.roundPhase[s.curQ] === 'start' && s.roundActiveTeam[s.curQ] > 0 && (
+            {isGameHost && s.curQ <= 2 && s.roundPhase[s.curQ] === 'start' && s.roundActiveTeam[s.curQ] > 0 && (
               <button onClick={() => setTeamChooser(true)} className="ml-2 text-xs text-white/40 hover:text-white/80">↺ сменить</button>
             )}
           </div>
@@ -487,7 +574,7 @@ export default function HundredToOnePage() {
           )}
 
           {/* Strikes (rounds 0-2) */}
-          {isHost && s.curQ <= 2 && (
+          {isGameHost && s.curQ <= 2 && (
             <div className="flex justify-between items-center mb-2 px-4">
               <div className="flex items-center gap-1">
                 <span className="text-xs text-white/40 mr-1">{s.t1n}</span>
@@ -524,7 +611,7 @@ export default function HundredToOnePage() {
                 <div key={idx} onClick={() => openAns(idx)}
                   className={`glass-card p-3 flex items-center justify-between transition-all
                     ${revealed ? 'bg-blue-600/20 border-blue-400/30' : ''}
-                    ${isHost ? 'cursor-pointer hover:bg-white/10 active:scale-[0.99]' : ''}`}>
+                    ${isGameHost ? 'cursor-pointer hover:bg-white/10 active:scale-[0.99]' : ''}`}>
                   <div className="flex items-center gap-3">
                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
                       ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
@@ -541,7 +628,7 @@ export default function HundredToOnePage() {
           </div>
 
           {/* Round 4 discussion timer */}
-          {isHost && s.curQ === 3 && (
+          {isGameHost && s.curQ === 3 && (
             <div className="flex items-center justify-center gap-3 mb-3">
               <span className="text-xs text-white/40 font-bold">ОБСУЖДЕНИЕ:</span>
               <span className={`font-bold text-2xl min-w-[60px] text-center ${s.r4Time <= 10 && s.r4Time > 0 ? 'text-red-400 animate-pulse' : 'text-yellow-300'}`}>
@@ -555,7 +642,7 @@ export default function HundredToOnePage() {
           )}
 
           {/* Host controls */}
-          {isHost && (
+          {isGameHost && (
             <div className="flex flex-wrap gap-2 justify-center items-center">
               {s.curQ > 0 && <GlassButton size="sm" onClick={prevRound}>← Назад</GlassButton>}
               <GlassButton size="sm" onClick={() => update({ godMode: !s.godMode })}
@@ -587,7 +674,7 @@ export default function HundredToOnePage() {
             </GlassCard>
           </div>
           <p className="text-white/50 mb-6">Команда «{s.t1s >= s.t2s ? s.t1n : s.t2n}» играет Большую игру!</p>
-          {isHost && (
+          {isGameHost && (
             <div className="flex gap-3 justify-center">
               <GlassButton onClick={endGame}>В лобби</GlassButton>
               <GlassButton variant="primary" onClick={() => update({ phase: 'bigGame', bgPhase: 0, bgP1Ans: [], bgP2Ans: [], bgP1Matched: [], bgP2Matched: [], bgFund: 0, bgCurQ: 0, winTeam: s.t1s >= s.t2s ? 1 : 2 })}>
@@ -599,7 +686,7 @@ export default function HundredToOnePage() {
       )}
 
       {/* ── TEAM CHOOSER OVERLAY ── */}
-      {teamChooser && isHost && s.curQ <= 2 && (
+      {teamChooser && isGameHost && s.curQ <= 2 && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center" onClick={() => setTeamChooser(false)}>
           <GlassCard className="p-8 max-w-sm text-center" onClick={undefined}>
             <h3 className="text-xl font-bold text-amber-400 mb-2">КТО НАЧИНАЕТ?</h3>
@@ -613,7 +700,7 @@ export default function HundredToOnePage() {
       )}
 
       {/* ── ASSIGN MODAL (round 4) ── */}
-      {assignModal && isHost && (
+      {assignModal && isGameHost && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <GlassCard className="p-6 max-w-sm text-center">
             <p className="text-amber-400 font-bold mb-1">ОТВЕТ ОТКРЫТ!</p>
@@ -629,7 +716,7 @@ export default function HundredToOnePage() {
       )}
 
       {/* ── REASSIGN MODAL (god mode) ── */}
-      {reassignModal && isHost && (
+      {reassignModal && isGameHost && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <GlassCard className="p-6 max-w-sm text-center">
             <p className="text-yellow-300 font-bold mb-1">⚡ ПЕРЕРАСПРЕДЕЛЕНИЕ</p>
@@ -656,7 +743,7 @@ export default function HundredToOnePage() {
           {s.bgPhase === 0 && (
             <div className="text-center">
               <p className="text-white/50 mb-6">Команда «{s.winTeam === 1 ? s.t1n : s.t2n}»: выберите 2 игроков.<br/>Игрок 1 — 30 сек, Игрок 2 — 40 сек.<br/>Второй не должен слышать ответы первого!</p>
-              {isHost && <GlassButton variant="primary" onClick={() => bgStartPlayer(1)}>НАЧАТЬ (ИГРОК 1 — 30 сек)</GlassButton>}
+              {isGameHost && <GlassButton variant="primary" onClick={() => bgStartPlayer(1)}>НАЧАТЬ (ИГРОК 1 — 30 сек)</GlassButton>}
             </div>
           )}
 
@@ -698,7 +785,7 @@ export default function HundredToOnePage() {
                       )}
                     </div>
                     {/* Show all answers for manual credit in check phase */}
-                    {isChecked && !matched && isHost && (
+                    {isChecked && !matched && isGameHost && (
                       <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-white/5">
                         {qq.answers.map((a, ai) => {
                           const usedByP1 = s.bgPhase === 4 && s.bgP1Matched[i] === a.t;
@@ -720,7 +807,7 @@ export default function HundredToOnePage() {
           )}
 
           {/* Input area (during answering) */}
-          {isHost && (s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 && (
+          {isGameHost && (s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 && (
             <div className="text-center mb-3">
               <input value={bgInput} onChange={e => { setBgInput(e.target.value); bgPauseTimer(); }}
                 onKeyDown={e => { if (e.key === 'Enter') { bgResumeTimer(); bgSubmitAnswer(); } }}
@@ -738,13 +825,13 @@ export default function HundredToOnePage() {
           )}
 
           {/* Action buttons */}
-          {isHost && s.bgPhase === 2 && (
+          {isGameHost && s.bgPhase === 2 && (
             <div className="text-center">
               {s.bgP1Matched.length === 0 && <GlassButton variant="primary" className="mr-2" onClick={() => bgDoCheck(true)}>ПРОВЕРИТЬ ОТВЕТЫ</GlassButton>}
               {s.bgP1Matched.length > 0 && <GlassButton variant="primary" onClick={() => bgStartPlayer(2)}>ИГРОК 2 (40 сек) →</GlassButton>}
             </div>
           )}
-          {isHost && s.bgPhase === 4 && (
+          {isGameHost && s.bgPhase === 4 && (
             <div className="text-center">
               {s.bgP2Matched.length === 0 && <GlassButton variant="primary" className="mr-2" onClick={() => bgDoCheck(false)}>ПРОВЕРИТЬ ОТВЕТЫ</GlassButton>}
               {s.bgP2Matched.length > 0 && <GlassButton variant="primary" onClick={bgShowResult}>РЕЗУЛЬТАТ →</GlassButton>}
@@ -768,7 +855,7 @@ export default function HundredToOnePage() {
               <p className="text-white/50 mb-6">Фонд: {s.bgFund} очков. Не хватило до 200. Отличная игра!</p>
             </>
           )}
-          {isHost && (
+          {isGameHost && (
             <div className="flex gap-3 justify-center">
               <GlassButton onClick={endGame}>В лобби</GlassButton>
               <GlassButton variant="primary" onClick={startGame}>ИГРАТЬ СНОВА</GlassButton>
