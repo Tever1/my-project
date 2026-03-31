@@ -18,7 +18,7 @@ interface GamePlayer { id: string; nickname: string; isHost: boolean; }
 // Answer state per cell: rev=revealed, to=assigned team (0=none, 1/2=team, -1=fund)
 interface AnsState { rev: boolean; to: number; }
 
-type Phase = 'roleSelect' | 'teamNames' | 'title' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
+type Phase = 'roleSelect' | 'teamNames' | 'captainSelect' | 'title' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
 type PlayerRole = 'team1' | 'team2' | 'host' | 'tv';
 
 interface GState {
@@ -53,6 +53,8 @@ interface GState {
   winTeam: number;
   players: GamePlayer[];
   roles: Record<string, PlayerRole>; // playerId -> role
+  captains: { team1?: string; team2?: string }; // playerId of captain per team
+  captainConfirmed: { team1: boolean; team2: boolean };
 }
 
 const mkInitial = (): GState => ({
@@ -75,6 +77,8 @@ const mkInitial = (): GState => ({
   winTeam: 0,
   players: [],
   roles: {},
+  captains: {},
+  captainConfirmed: { team1: false, team2: false },
 });
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -108,6 +112,18 @@ export default function HundredToOnePage() {
 
   const [teamNameInput1, setTeamNameInput1] = useState('');
   const [teamNameInput2, setTeamNameInput2] = useState('');
+  const [selectedCaptain, setSelectedCaptain] = useState<string | null>(null); // local selection before confirm
+
+  const myTeam: 'team1' | 'team2' | null = myRole === 'team1' ? 'team1' : myRole === 'team2' ? 'team2' : null;
+
+  const confirmCaptain = () => {
+    if (!myTeam || !selectedCaptain) return;
+    const newCaptains = { ...s.captains, [myTeam]: selectedCaptain };
+    const newConfirmed = { ...s.captainConfirmed, [myTeam]: true };
+    const bothConfirmed = newConfirmed.team1 && newConfirmed.team2;
+    update({ captains: newCaptains, captainConfirmed: newConfirmed, ...(bothConfirmed ? { phase: 'title' } : {}) });
+    setSelectedCaptain(null);
+  };
 
   // ── Socket ──
   useEffect(() => {
@@ -141,7 +157,7 @@ export default function HundredToOnePage() {
   const confirmTeamNames = () => {
     const n1 = teamNameInput1.trim() || 'Команда 1';
     const n2 = teamNameInput2.trim() || 'Команда 2';
-    update({ t1n: n1, t2n: n2, phase: 'title' });
+    update({ t1n: n1, t2n: n2, phase: 'captainSelect', captains: {}, captainConfirmed: { team1: false, team2: false } });
   };
 
   const startGame = () => {
@@ -522,6 +538,81 @@ export default function HundredToOnePage() {
             </>
           ) : (
             <p className="text-white/40 italic">Ведущий вводит названия команд...</p>
+          )}
+        </div>
+      )}
+
+      {/* ── CAPTAIN SELECT ── */}
+      {s.phase === 'captainSelect' && (
+        <div className="max-w-md mx-auto text-center py-6 animate-fade-in">
+          <h2 className="text-2xl font-bold text-amber-400 mb-2">ВЫБОР КАПИТАНА</h2>
+
+          {/* View for team players */}
+          {myTeam && (() => {
+            const myTeamPlayers = s.players.filter(p => s.roles[p.id] === myTeam);
+            const confirmed = s.captainConfirmed[myTeam];
+            const teamColor = myTeam === 'team1' ? 'text-yellow-400' : 'text-red-400';
+            const teamName = myTeam === 'team1' ? s.t1n : s.t2n;
+            return (
+              <div>
+                <p className={`font-bold text-lg mb-4 ${teamColor}`}>{teamName}</p>
+                {confirmed ? (
+                  <div className="text-center py-6">
+                    <div className="text-4xl mb-3">✅</div>
+                    <p className="text-green-400 font-bold">Капитан выбран!</p>
+                    <p className="text-white/40 text-sm mt-1">
+                      {myTeam === 'team1' ? (s.captainConfirmed.team2 ? '' : 'Ждём выбора второй команды...') : (s.captainConfirmed.team1 ? '' : 'Ждём выбора второй команды...')}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-white/50 text-sm mb-4">Нажмите на имя, чтобы выбрать капитана</p>
+                    <div className="space-y-2 mb-6">
+                      {myTeamPlayers.map(p => (
+                        <div key={p.id}
+                          onClick={() => setSelectedCaptain(p.id)}
+                          className={`glass-card p-4 cursor-pointer flex items-center gap-3 transition-all ${selectedCaptain === p.id ? 'ring-2 ring-red-500 bg-red-500/15' : 'hover:bg-white/10'}`}>
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold transition-all ${selectedCaptain === p.id ? 'bg-red-500 text-white' : 'bg-white/10 text-white/50'}`}>
+                            {selectedCaptain === p.id ? '⭐' : p.nickname[0]?.toUpperCase() || '?'}
+                          </div>
+                          <span className={`font-bold ${selectedCaptain === p.id ? 'text-white' : 'text-white/70'}`}>{p.nickname}</span>
+                          {p.id === user?.id && <span className="text-xs text-white/30 ml-auto">вы</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {selectedCaptain && (
+                      <GlassButton variant="primary" size="lg" onClick={confirmCaptain}>
+                        ПОДТВЕРДИТЬ КАПИТАНА
+                      </GlassButton>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* View for host */}
+          {isGameHost && (
+            <div className="mt-4">
+              <p className="text-white/40 text-sm mb-3">Статус выбора капитанов:</p>
+              <div className="flex gap-4 justify-center">
+                <div className={`glass-card px-4 py-2 text-sm ${s.captainConfirmed.team1 ? 'text-green-400' : 'text-white/40'}`}>
+                  {s.t1n}: {s.captainConfirmed.team1 ? '✓ выбран' : '⏳ ждём'}
+                </div>
+                <div className={`glass-card px-4 py-2 text-sm ${s.captainConfirmed.team2 ? 'text-green-400' : 'text-white/40'}`}>
+                  {s.t2n}: {s.captainConfirmed.team2 ? '✓ выбран' : '⏳ ждём'}
+                </div>
+              </div>
+              {/* Host can skip if needed */}
+              <button onClick={() => update({ phase: 'title' })} className="mt-4 text-xs text-white/25 hover:text-white/50">
+                Пропустить →
+              </button>
+            </div>
+          )}
+
+          {/* View for TV/no-role */}
+          {!myTeam && !isGameHost && (
+            <p className="text-white/40 italic mt-4">Команды выбирают капитанов...</p>
           )}
         </div>
       )}
