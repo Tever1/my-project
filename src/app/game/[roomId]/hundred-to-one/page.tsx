@@ -15,8 +15,8 @@ import { sndReveal, sndClose, sndAssign, sndBuzz, sndTick, sndWin, sndDup, warmu
 
 interface GamePlayer { id: string; nickname: string; isHost: boolean; }
 
-// Answer state per cell: rev=revealed, to=assigned team (0=none, 1/2=team, -1=fund)
-interface AnsState { rev: boolean; to: number; }
+// Answer state per cell: rev=revealed to host, pub=published to players, to=assigned team
+interface AnsState { rev: boolean; pub: boolean; to: number; }
 
 type Phase = 'roleSelect' | 'teamNames' | 'captainSelect' | 'title' | 'buzzer' | 'buzzerResult' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
 type PlayerRole = 'team1' | 'team2' | 'host' | 'tv';
@@ -63,7 +63,7 @@ const mkInitial = (): GState => ({
   phase: 'roleSelect', curQ: 0,
   t1n: 'Команда 1', t2n: 'Команда 2',
   t1s: 0, t2s: 0,
-  qState: ROUNDS.map(r => r.answers.map(() => ({ rev: false, to: 0 }))),
+  qState: ROUNDS.map(r => r.answers.map(() => ({ rev: false, pub: false, to: 0 }))),
   strikes: [[0, 0], [0, 0], [0, 0]],
   roundBusted: [[false, false], [false, false], [false, false]],
   roundActiveTeam: [0, 0, 0],
@@ -212,7 +212,7 @@ export default function HundredToOnePage() {
     }
     sndReveal();
     const pts = getDisplayPts(s.curQ, idx, q.answers[idx].p);
-    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { ...a, rev: true } : a) : r);
+    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { ...a, rev: true, pub: true } : a) : r);
 
     if (s.curQ <= 2) {
       // Fund logic for rounds 0-2
@@ -251,6 +251,7 @@ export default function HundredToOnePage() {
     } else {
       // Round 4 (наоборот) — show assign modal
       newQState[s.curQ][idx].rev = true;
+      newQState[s.curQ][idx].pub = true;
       setS(prev => ({ ...prev, qState: newQState }));
       broadcast({ qState: newQState });
       setAssignModal({ idx, pts });
@@ -271,9 +272,16 @@ export default function HundredToOnePage() {
       if (st.to === 1) newT1s -= pts;
       if (st.to === 2) newT2s -= pts;
     }
-    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { rev: false, to: 0 } : a) : r);
+    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { rev: false, pub: false, to: 0 } : a) : r);
     sndClose();
     update({ qState: newQState, t1s: newT1s, t2s: newT2s, roundFund: newFund });
+  };
+
+  // Publish/unpublish answer visibility to players (without affecting game logic)
+  const pubAns = (idx: number) => {
+    if (!isGameHost) return;
+    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { ...a, pub: !a.pub } : a) : r);
+    update({ qState: newQState });
   };
 
   const assignPts = (team: number) => {
@@ -773,16 +781,17 @@ export default function HundredToOnePage() {
             </div>
           )}
           {/* Question */}
-          <GlassCard className="p-5 mb-3 text-center">
+          <GlassCard className="p-5 mb-3 text-center bg-amber-900/25 border-amber-500/50">
+            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1.5">ВОПРОС</p>
             <p className="text-xl md:text-2xl font-bold text-white">{q.q}</p>
           </GlassCard>
-          {/* Answer board — only revealed answers visible */}
+          {/* Answer board — only published answers visible */}
           <div className="space-y-1.5 mb-3">
             {q.answers.map((a, idx) => {
-              const revealed = s.qState[s.curQ]?.[idx]?.rev;
+              const revealed = s.qState[s.curQ]?.[idx]?.pub;
               const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
-                <div key={idx} className={`glass-card p-3 flex items-center justify-between transition-all ${revealed ? 'bg-blue-600/20 border-blue-400/30' : ''}`}>
+                <div key={idx} className={`glass-card p-3 flex items-center justify-between transition-all bg-yellow-900/15 border-yellow-800/30 ${revealed ? 'ring-1 ring-amber-500/40' : ''}`}>
                   <div className="flex items-center gap-3">
                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
                     {revealed ? <span className="text-white font-bold uppercase tracking-wide">{a.t}</span> : <span className="text-white/15 tracking-[6px]">? ? ?</span>}
@@ -841,16 +850,17 @@ export default function HundredToOnePage() {
             </div>
           )}
           {/* Question */}
-          <GlassCard className="p-6 mb-4 text-center">
+          <GlassCard className="p-6 mb-4 text-center bg-amber-900/25 border-amber-500/50">
+            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-2">ВОПРОС</p>
             <p className="text-2xl md:text-3xl font-bold text-white">{q.q}</p>
           </GlassCard>
           {/* Answer board */}
           <div className="space-y-2 mb-4">
             {q.answers.map((a, idx) => {
-              const revealed = s.qState[s.curQ]?.[idx]?.rev;
+              const revealed = s.qState[s.curQ]?.[idx]?.pub;
               const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
-                <div key={idx} className={`glass-card p-4 flex items-center justify-between transition-all ${revealed ? 'bg-blue-600/20 border-blue-400/30' : ''}`}>
+                <div key={idx} className={`glass-card p-4 flex items-center justify-between transition-all bg-yellow-900/15 border-yellow-800/30 ${revealed ? 'ring-1 ring-amber-500/40' : ''}`}>
                   <div className="flex items-center gap-4">
                     <span className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
                     {revealed ? <span className="text-xl text-white font-bold uppercase tracking-wide">{a.t}</span> : <span className="text-white/15 tracking-[8px] text-xl">? ? ?</span>}
@@ -929,30 +939,39 @@ export default function HundredToOnePage() {
           )}
 
           {/* Question */}
-          <GlassCard className="p-4 mb-3 text-center">
+          <GlassCard className="p-4 mb-3 text-center bg-amber-900/25 border-amber-500/50">
+            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1">ВОПРОС</p>
             <p className="text-lg md:text-xl font-bold text-white">{q.q}</p>
           </GlassCard>
 
           {/* Answer board */}
           <div className="space-y-1.5 mb-3">
             {q.answers.map((a, idx) => {
-              const revealed = s.qState[s.curQ]?.[idx]?.rev;
+              const st = s.qState[s.curQ]?.[idx];
+              const revealed = st?.rev;
+              const published = st?.pub;
               const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
-                <div key={idx} onClick={() => openAns(idx)}
-                  className={`glass-card p-3 flex items-center justify-between transition-all
-                    ${revealed ? 'bg-blue-600/20 border-blue-400/30' : ''}
-                    ${isGameHost ? 'cursor-pointer hover:bg-white/10 active:scale-[0.99]' : ''}`}>
+                <div key={idx}
+                  className={`glass-card p-3 flex items-center justify-between transition-all bg-yellow-900/15 border-yellow-800/30
+                    ${revealed ? 'ring-1 ring-amber-500/40' : ''}
+                    ${isGameHost ? 'cursor-pointer hover:bg-yellow-900/25 active:scale-[0.99]' : ''}`}
+                  onClick={() => openAns(idx)}>
                   <div className="flex items-center gap-3">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0
                       ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
-                    {revealed
-                      ? <span className="text-white font-bold uppercase tracking-wide animate-fade-in">{a.t}</span>
-                      : <span className="text-white/15 tracking-[6px]">? ? ?</span>}
+                    <span className={`font-bold uppercase tracking-wide ${revealed ? 'text-white' : 'text-white/50'}`}>{a.t}</span>
                   </div>
-                  {revealed
-                    ? <span className="bg-amber-600/80 rounded-lg px-2.5 py-1 font-bold text-white animate-fade-in">{pts}</span>
-                    : <span className="text-white/10">?</span>}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {revealed && <span className="bg-amber-600/80 rounded-lg px-2.5 py-1 font-bold text-white">{pts}</span>}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); pubAns(idx); }}
+                      className={`w-7 h-7 rounded-md flex items-center justify-center text-sm transition-all border
+                        ${published ? 'bg-green-500/25 text-green-400 border-green-500/40' : 'bg-white/5 text-white/20 border-white/10 hover:bg-white/15 hover:text-white/60'}`}
+                      title={published ? 'Скрыть от игроков' : 'Показать игрокам'}>
+                      👁
+                    </button>
+                  </div>
                 </div>
               );
             })}
