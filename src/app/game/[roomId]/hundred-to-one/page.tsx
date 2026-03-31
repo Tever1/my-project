@@ -464,26 +464,33 @@ export default function HundredToOnePage() {
           <div className="text-6xl mb-4">💯</div>
           <h2 className="text-2xl font-bold text-amber-400 mb-6">Выберите свою роль</h2>
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <GlassCard hover className={`p-6 cursor-pointer transition-all ${myRole === 'team1' ? 'ring-2 ring-yellow-400 bg-yellow-500/15' : ''}`} onClick={() => selectRole('team1')}>
-              <div className="text-3xl mb-2">🟡</div>
-              <p className="font-bold text-yellow-400">Команда 1</p>
-              <p className="text-xs text-white/40 mt-1">{Object.values(s.roles).filter(r => r === 'team1').length} чел.</p>
-            </GlassCard>
-            <GlassCard hover className={`p-6 cursor-pointer transition-all ${myRole === 'team2' ? 'ring-2 ring-red-400 bg-red-500/15' : ''}`} onClick={() => selectRole('team2')}>
-              <div className="text-3xl mb-2">🔴</div>
-              <p className="font-bold text-red-400">Команда 2</p>
-              <p className="text-xs text-white/40 mt-1">{Object.values(s.roles).filter(r => r === 'team2').length} чел.</p>
-            </GlassCard>
-            <GlassCard hover className={`p-6 cursor-pointer transition-all ${myRole === 'host' ? 'ring-2 ring-amber-400 bg-amber-500/15' : ''}`} onClick={() => selectRole('host')}>
-              <div className="text-3xl mb-2">🎙️</div>
-              <p className="font-bold text-amber-400">Ведущий</p>
-              <p className="text-xs text-white/40 mt-1">{Object.values(s.roles).filter(r => r === 'host').length} чел.</p>
-            </GlassCard>
-            <GlassCard hover className={`p-6 cursor-pointer transition-all ${myRole === 'tv' ? 'ring-2 ring-blue-400 bg-blue-500/15' : ''}`} onClick={() => selectRole('tv')}>
-              <div className="text-3xl mb-2">📺</div>
-              <p className="font-bold text-blue-400">Режим ТВ</p>
-              <p className="text-xs text-white/40 mt-1">{Object.values(s.roles).filter(r => r === 'tv').length} чел.</p>
-            </GlassCard>
+            {(['team1', 'team2', 'host', 'tv'] as PlayerRole[]).map(role => {
+              const cfg = {
+                team1: { icon: '🟡', label: 'Команда 1', color: 'yellow', ring: 'ring-yellow-400 bg-yellow-500/15', text: 'text-yellow-400' },
+                team2: { icon: '🔴', label: 'Команда 2', color: 'red', ring: 'ring-red-400 bg-red-500/15', text: 'text-red-400' },
+                host:  { icon: '🎙️', label: 'Ведущий', color: 'amber', ring: 'ring-amber-400 bg-amber-500/15', text: 'text-amber-400' },
+                tv:    { icon: '📺', label: 'Режим ТВ', color: 'blue', ring: 'ring-blue-400 bg-blue-500/15', text: 'text-blue-400' },
+              }[role];
+              const members = s.players.filter(p => s.roles[p.id] === role);
+              return (
+                <GlassCard key={role} hover
+                  className={`p-4 cursor-pointer transition-all ${myRole === role ? `ring-2 ${cfg.ring}` : ''}`}
+                  onClick={() => selectRole(role)}>
+                  <div className="text-2xl mb-1">{cfg.icon}</div>
+                  <p className={`font-bold ${cfg.text}`}>{cfg.label}</p>
+                  {members.length === 0
+                    ? <p className="text-xs text-white/25 mt-1">никого нет</p>
+                    : <div className="mt-1.5 space-y-0.5">
+                        {members.map(p => (
+                          <p key={p.id} className={`text-xs ${myRole === role && p.id === user?.id ? 'text-white font-bold' : 'text-white/50'}`}>
+                            {p.id === user?.id ? '→ ' : ''}{p.nickname || '?'}
+                          </p>
+                        ))}
+                      </div>
+                  }
+                </GlassCard>
+              );
+            })}
           </div>
           {isHost && Object.keys(s.roles).length > 0 && (
             <GlassButton variant="primary" size="lg" onClick={goToTeamNames}>Далее →</GlassButton>
@@ -987,6 +994,22 @@ export default function HundredToOnePage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── FLOATING TV BUTTON — always visible ── */}
+      {myRole !== 'tv' && (
+        <button
+          onClick={() => selectRole('tv')}
+          className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-xl bg-blue-600/80 hover:bg-blue-500 border border-blue-400/50 text-white text-xl backdrop-blur-sm flex items-center justify-center shadow-lg transition-all hover:scale-105"
+          title="Переключиться в режим ТВ"
+        >📺</button>
+      )}
+      {myRole === 'tv' && (
+        <button
+          onClick={() => selectRole('team1')}
+          className="fixed bottom-4 right-4 z-50 px-3 h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white/60 text-xs backdrop-blur-sm flex items-center gap-1.5 shadow-lg transition-all"
+          title="Выйти из режима ТВ"
+        ><span>📺</span><span>ТВ режим</span></button>
       )}
     </GameLayout>
   );
