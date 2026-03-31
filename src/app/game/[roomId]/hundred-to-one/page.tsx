@@ -18,7 +18,7 @@ interface GamePlayer { id: string; nickname: string; isHost: boolean; }
 // Answer state per cell: rev=revealed, to=assigned team (0=none, 1/2=team, -1=fund)
 interface AnsState { rev: boolean; to: number; }
 
-type Phase = 'roleSelect' | 'teamNames' | 'captainSelect' | 'title' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
+type Phase = 'roleSelect' | 'teamNames' | 'captainSelect' | 'title' | 'buzzer' | 'buzzerResult' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
 type PlayerRole = 'team1' | 'team2' | 'host' | 'tv';
 
 interface GState {
@@ -55,6 +55,8 @@ interface GState {
   roles: Record<string, PlayerRole>; // playerId -> role
   captains: { team1?: string; team2?: string }; // playerId of captain per team
   captainConfirmed: { team1: boolean; team2: boolean };
+  buzzerWinner: number; // 0=none, 1=team1, 2=team2
+  buzzerActive: boolean; // can captains press?
 }
 
 const mkInitial = (): GState => ({
@@ -79,6 +81,8 @@ const mkInitial = (): GState => ({
   roles: {},
   captains: {},
   captainConfirmed: { team1: false, team2: false },
+  buzzerWinner: 0,
+  buzzerActive: false,
 });
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -164,11 +168,33 @@ export default function HundredToOnePage() {
     warmup();
     const init = mkInitial();
     const patch: Partial<GState> = {
-      ...init, phase: 'playing', players: s.players, roles: s.roles, t1n: s.t1n, t2n: s.t2n,
+      ...init, phase: 'buzzer', players: s.players, roles: s.roles,
+      t1n: s.t1n, t2n: s.t2n, captains: s.captains,
+      captainConfirmed: s.captainConfirmed, buzzerWinner: 0, buzzerActive: false,
     };
     setS(prev => ({ ...prev, ...patch }));
     broadcast(patch);
-    setTeamChooser(true);
+  };
+
+  const startBuzzer = () => {
+    update({ buzzerActive: true, buzzerWinner: 0 });
+  };
+
+  const buzzerPressed = (team: number) => {
+    if (!s.buzzerActive || s.buzzerWinner !== 0) return;
+    sndBuzz();
+    update({ buzzerWinner: team, buzzerActive: false });
+    // After 3 seconds go to playing, with winning team as active
+    setTimeout(() => {
+      setS(prev => {
+        const newActive = prev.roundActiveTeam.map((v, i) => i === prev.curQ ? team : v);
+        return { ...prev, phase: 'playing', roundActiveTeam: newActive };
+      });
+      broadcast({ phase: 'playing', roundActiveTeam: (() => {
+        const arr = [0, 0, 0];
+        arr[0] = team; return arr;
+      })() });
+    }, 3000);
   };
 
   // ── Open/close answer ──
@@ -628,6 +654,88 @@ export default function HundredToOnePage() {
             <GlassButton variant="primary" size="lg" onClick={startGame}>НАЧАТЬ ИГРУ</GlassButton>
           ) : (
             <p className="text-white/40 italic">Ожидание ведущего...</p>
+          )}
+        </div>
+      )}
+
+      {/* ── BUZZER ── */}
+      {s.phase === 'buzzer' && (
+        <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
+          <h2 className="text-2xl font-bold text-amber-400 mb-2">{ROUND_NAMES[s.curQ]}</h2>
+          <p className="text-white/50 text-sm mb-8">Кто первым нажмёт — та команда начинает раунд!</p>
+
+          {/* Captain view — big red buzzer button */}
+          {myTeam && user?.id === s.captains[myTeam] && (
+            <div className="flex flex-col items-center gap-4">
+              {s.buzzerWinner === 0 ? (
+                <button
+                  onClick={() => buzzerPressed(myTeam === 'team1' ? 1 : 2)}
+                  disabled={!s.buzzerActive}
+                  className={`w-44 h-44 rounded-full font-bold text-white text-2xl shadow-2xl transition-all duration-150 select-none
+                    ${s.buzzerActive
+                      ? 'bg-red-600 hover:bg-red-500 active:scale-95 cursor-pointer animate-pulse shadow-red-500/50 border-4 border-red-400'
+                      : 'bg-red-900/40 border-4 border-red-900/60 cursor-not-allowed text-white/30'
+                    }`}
+                >
+                  {s.buzzerActive ? '🔔' : '⏳'}
+                </button>
+              ) : (
+                <div className={`w-44 h-44 rounded-full flex items-center justify-center text-4xl border-4 transition-all
+                  ${s.buzzerWinner === (myTeam === 'team1' ? 1 : 2)
+                    ? 'bg-green-600/30 border-green-400 text-green-400'
+                    : 'bg-white/5 border-white/10 text-white/20'}`}>
+                  {s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? '✓' : '✕'}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Non-captain team member */}
+          {myTeam && user?.id !== s.captains[myTeam] && (
+            <div className="py-8">
+              {s.buzzerWinner === 0
+                ? <p className="text-white/40 italic">Капитан нажимает кнопку...</p>
+                : <p className={`text-xl font-bold animate-fade-in ${s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? 'text-green-400' : 'text-white/60'}`}>
+                    {s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? `Начинает ${myTeam === 'team1' ? s.t1n : s.t2n}!` : `Начинает ${s.buzzerWinner === 1 ? s.t1n : s.t2n}...`}
+                  </p>
+              }
+            </div>
+          )}
+
+          {/* Result: starting team announcement (3s countdown) */}
+          {s.buzzerWinner !== 0 && (
+            <div className="mt-4 animate-fade-in">
+              <p className="text-xl font-bold text-white">
+                Начинает <span className={s.buzzerWinner === 1 ? 'text-yellow-400' : 'text-red-400'}>
+                  {s.buzzerWinner === 1 ? s.t1n : s.t2n}
+                </span>!
+              </p>
+              <p className="text-white/40 text-sm mt-2">Раунд начинается...</p>
+            </div>
+          )}
+
+          {/* Host controls */}
+          {isGameHost && (
+            <div className="mt-8">
+              {!s.buzzerActive && s.buzzerWinner === 0 && (
+                <GlassButton variant="primary" size="lg" onClick={startBuzzer}>ЗАПУСТИТЬ ЗУММЕР</GlassButton>
+              )}
+              {s.buzzerWinner !== 0 && (
+                <p className="text-white/30 text-sm">Переход к раунду через 3 секунды...</p>
+              )}
+            </div>
+          )}
+
+          {/* TV / other view */}
+          {myRole === 'tv' && (
+            <div className="py-4">
+              {s.buzzerWinner === 0
+                ? <p className="text-white/40">{s.buzzerActive ? 'Капитаны нажимают кнопку...' : 'Ожидание ведущего...'}</p>
+                : <p className="text-2xl font-bold text-white animate-fade-in">
+                    Начинает <span className={s.buzzerWinner === 1 ? 'text-yellow-400' : 'text-red-400'}>{s.buzzerWinner === 1 ? s.t1n : s.t2n}</span>!
+                  </p>
+              }
+            </div>
           )}
         </div>
       )}
