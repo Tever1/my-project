@@ -510,26 +510,26 @@ export default function HundredToOnePage() {
 
       {/* ── ROLE SELECT ── */}
       {s.phase === 'roleSelect' && (
-        <div className="max-w-lg mx-auto text-center py-8 animate-fade-in">
+        <div className="max-w-2xl mx-auto text-center py-8 animate-fade-in">
           <div className="text-6xl mb-4">💯</div>
           <h2 className="text-2xl font-bold text-amber-400 mb-6">Выберите свою роль</h2>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
             {(['team1', 'team2', 'host'] as PlayerRole[]).map(role => {
               const cfg = {
-                team1: { icon: '🟡', label: 'Команда 1', color: 'yellow', ring: 'ring-yellow-400 bg-yellow-500/15', text: 'text-yellow-400' },
-                team2: { icon: '🔴', label: 'Команда 2', color: 'red', ring: 'ring-red-400 bg-red-500/15', text: 'text-red-400' },
-                host:  { icon: '🎙️', label: 'Ведущий', color: 'amber', ring: 'ring-amber-400 bg-amber-500/15', text: 'text-amber-400' },
+                team1: { icon: '🟡', label: 'Команда 1', ring: 'ring-2 ring-yellow-400 bg-yellow-500/15', text: 'text-yellow-400' },
+                team2: { icon: '🔴', label: 'Команда 2', ring: 'ring-2 ring-red-400 bg-red-500/15', text: 'text-red-400' },
+                host:  { icon: '🎙️', label: 'Ведущий', ring: 'ring-2 ring-amber-400 bg-amber-500/15', text: 'text-amber-400' },
               }[role];
               const members = s.players.filter(p => s.roles[p.id] === role);
               return (
                 <GlassCard key={role} hover
-                  className={`p-4 cursor-pointer transition-all ${myRole === role ? `ring-2 ${cfg.ring}` : ''}`}
+                  className={`flex-1 p-5 cursor-pointer transition-all ${myRole === role ? cfg.ring : ''}`}
                   onClick={() => selectRole(role)}>
-                  <div className="text-2xl mb-1">{cfg.icon}</div>
-                  <p className={`font-bold ${cfg.text}`}>{cfg.label}</p>
+                  <div className="text-3xl mb-2">{cfg.icon}</div>
+                  <p className={`font-bold text-lg ${cfg.text}`}>{cfg.label}</p>
                   {members.length === 0
-                    ? <p className="text-xs text-white/25 mt-1">никого нет</p>
-                    : <div className="mt-1.5 space-y-0.5">
+                    ? <p className="text-xs text-white/25 mt-2">никого нет</p>
+                    : <div className="mt-2 space-y-0.5">
                         {members.map(p => (
                           <p key={p.id} className={`text-xs ${myRole === role && p.id === user?.id ? 'text-white font-bold' : 'text-white/50'}`}>
                             {p.id === user?.id ? '→ ' : ''}{p.nickname || '?'}
