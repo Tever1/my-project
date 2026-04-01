@@ -513,7 +513,7 @@ export default function HundredToOnePage() {
         <div className="max-w-lg mx-auto text-center py-8 animate-fade-in">
           <div className="text-6xl mb-4">💯</div>
           <h2 className="text-2xl font-bold text-amber-400 mb-6">Выберите свою роль</h2>
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-3 gap-3 mb-4">
             {(['team1', 'team2', 'host'] as PlayerRole[]).map(role => {
               const cfg = {
                 team1: { icon: '🟡', label: 'Команда 1', color: 'yellow', ring: 'ring-yellow-400 bg-yellow-500/15', text: 'text-yellow-400' },
