@@ -514,12 +514,11 @@ export default function HundredToOnePage() {
           <div className="text-6xl mb-4">💯</div>
           <h2 className="text-2xl font-bold text-amber-400 mb-6">Выберите свою роль</h2>
           <div className="grid grid-cols-2 gap-3 mb-4">
-            {(['team1', 'team2', 'host', 'tv'] as PlayerRole[]).map(role => {
+            {(['team1', 'team2', 'host'] as PlayerRole[]).map(role => {
               const cfg = {
                 team1: { icon: '🟡', label: 'Команда 1', color: 'yellow', ring: 'ring-yellow-400 bg-yellow-500/15', text: 'text-yellow-400' },
                 team2: { icon: '🔴', label: 'Команда 2', color: 'red', ring: 'ring-red-400 bg-red-500/15', text: 'text-red-400' },
                 host:  { icon: '🎙️', label: 'Ведущий', color: 'amber', ring: 'ring-amber-400 bg-amber-500/15', text: 'text-amber-400' },
-                tv:    { icon: '📺', label: 'Режим ТВ', color: 'blue', ring: 'ring-blue-400 bg-blue-500/15', text: 'text-blue-400' },
               }[role];
               const members = s.players.filter(p => s.roles[p.id] === role);
               return (
@@ -1214,21 +1213,6 @@ export default function HundredToOnePage() {
         </div>
       )}
 
-      {/* ── FLOATING TV BUTTON — always visible ── */}
-      {myRole !== 'tv' && (
-        <button
-          onClick={() => selectRole('tv')}
-          className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-xl bg-blue-600/80 hover:bg-blue-500 border border-blue-400/50 text-white text-xl backdrop-blur-sm flex items-center justify-center shadow-lg transition-all hover:scale-105"
-          title="Переключиться в режим ТВ"
-        >📺</button>
-      )}
-      {myRole === 'tv' && (
-        <button
-          onClick={() => selectRole('team1')}
-          className="fixed bottom-4 right-4 z-50 px-3 h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white/60 text-xs backdrop-blur-sm flex items-center gap-1.5 shadow-lg transition-all"
-          title="Выйти из режима ТВ"
-        ><span>📺</span><span>ТВ режим</span></button>
-      )}
     </GameLayout>
   );
 }
