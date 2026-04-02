@@ -37,8 +37,6 @@ interface GState {
   // Round 4 timer
   r4Time: number;
   r4Running: boolean;
-  // God mode
-  godMode: boolean;
   // Big game
   bgPhase: number; // 0=intro,1=p1,2=check1,3=p2,4=check2,5=result
   bgP1Ans: string[];
@@ -57,6 +55,7 @@ interface GState {
   captainConfirmed: { team1: boolean; team2: boolean };
   buzzerWinner: number; // 0=none, 1=team1, 2=team2
   buzzerActive: boolean; // can captains press?
+  buzzerCountdown: number; // 3,2,1,0 — 0 means go!
 }
 
 const mkInitial = (): GState => ({
@@ -71,7 +70,6 @@ const mkInitial = (): GState => ({
   roundWonBy: [0, 0, 0],
   roundPhase: ['start', 'start', 'start'],
   r4Time: 60, r4Running: false,
-  godMode: false,
   bgPhase: 0, bgP1Ans: [], bgP2Ans: [],
   bgP1Matched: [], bgP2Matched: [],
   bgFund: 0, bgCurQ: 0,
@@ -83,6 +81,7 @@ const mkInitial = (): GState => ({
   captainConfirmed: { team1: false, team2: false },
   buzzerWinner: 0,
   buzzerActive: false,
+  buzzerCountdown: -1,
 });
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -97,7 +96,6 @@ export default function HundredToOnePage() {
   const [s, setS] = useState<GState>(mkInitial);
   const [teamChooser, setTeamChooser] = useState(false);
   const [assignModal, setAssignModal] = useState<{ idx: number; pts: number } | null>(null);
-  const [reassignModal, setReassignModal] = useState<{ idx: number; pts: number; cur: number } | null>(null);
   const [bgInput, setBgInput] = useState('');
   const r4Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -125,7 +123,7 @@ export default function HundredToOnePage() {
     const newCaptains = { ...s.captains, [myTeam]: selectedCaptain };
     const newConfirmed = { ...s.captainConfirmed, [myTeam]: true };
     const bothConfirmed = newConfirmed.team1 && newConfirmed.team2;
-    update({ captains: newCaptains, captainConfirmed: newConfirmed, ...(bothConfirmed ? { phase: 'title' } : {}) });
+    update({ captains: newCaptains, captainConfirmed: newConfirmed, ...(bothConfirmed ? { phase: 'teamNames' } : {}) });
     setSelectedCaptain(null);
   };
 
@@ -154,14 +152,14 @@ export default function HundredToOnePage() {
   }, [broadcast]);
 
   // ── Host actions ──
-  const goToTeamNames = () => {
-    update({ phase: 'teamNames' });
+  const goToCaptainSelect = () => {
+    update({ phase: 'captainSelect', captains: {}, captainConfirmed: { team1: false, team2: false } });
   };
 
   const confirmTeamNames = () => {
     const n1 = teamNameInput1.trim() || 'Команда 1';
     const n2 = teamNameInput2.trim() || 'Команда 2';
-    update({ t1n: n1, t2n: n2, phase: 'captainSelect', captains: {}, captainConfirmed: { team1: false, team2: false } });
+    update({ t1n: n1, t2n: n2, phase: 'title' });
   };
 
   const startGame = () => {
@@ -170,14 +168,27 @@ export default function HundredToOnePage() {
     const patch: Partial<GState> = {
       ...init, phase: 'buzzer', players: s.players, roles: s.roles,
       t1n: s.t1n, t2n: s.t2n, captains: s.captains,
-      captainConfirmed: s.captainConfirmed, buzzerWinner: 0, buzzerActive: false,
+      captainConfirmed: s.captainConfirmed, buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1,
     };
     setS(prev => ({ ...prev, ...patch }));
     broadcast(patch);
   };
 
+  const buzzerCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startBuzzer = () => {
-    update({ buzzerActive: true, buzzerWinner: 0 });
+    update({ buzzerCountdown: 3, buzzerActive: false, buzzerWinner: 0 });
+    if (buzzerCountdownRef.current) clearInterval(buzzerCountdownRef.current);
+    let count = 3;
+    buzzerCountdownRef.current = setInterval(() => {
+      count--;
+      if (count <= 0) {
+        if (buzzerCountdownRef.current) clearInterval(buzzerCountdownRef.current);
+        buzzerCountdownRef.current = null;
+        update({ buzzerCountdown: 0, buzzerActive: true });
+      } else {
+        update({ buzzerCountdown: count });
+      }
+    }, 1000);
   };
 
   const buzzerPressed = (team: number) => {
@@ -202,11 +213,6 @@ export default function HundredToOnePage() {
     if (!isGameHost) return;
     const st = s.qState[s.curQ][idx];
     if (st.rev) {
-      if (s.godMode) {
-        const pts = getDisplayPts(s.curQ, idx, q.answers[idx].p);
-        setReassignModal({ idx, pts, cur: st.to });
-        return;
-      }
       closeAns(idx);
       return;
     }
@@ -277,13 +283,6 @@ export default function HundredToOnePage() {
     update({ qState: newQState, t1s: newT1s, t2s: newT2s, roundFund: newFund });
   };
 
-  // Publish/unpublish answer visibility to players (without affecting game logic)
-  const pubAns = (idx: number) => {
-    if (!isGameHost) return;
-    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { ...a, pub: !a.pub } : a) : r);
-    update({ qState: newQState });
-  };
-
   const assignPts = (team: number) => {
     if (!assignModal) return;
     const { idx, pts } = assignModal;
@@ -333,6 +332,27 @@ export default function HundredToOnePage() {
     update({ strikes: newStrikes, roundBusted: newBusted, roundActiveTeam: newActive, roundPhase: newPhase, roundWonBy: newWonBy, t1s: newT1s, t2s: newT2s });
   };
 
+  // ── Reset round ──
+  const resetRound = () => {
+    if (!isGameHost) return;
+    const ri = s.curQ;
+    // Undo scores from this round
+    let newT1s = s.t1s, newT2s = s.t2s;
+    s.qState[ri].forEach((a, idx) => {
+      const pts = getDisplayPts(ri, idx, q.answers[idx].p);
+      if (a.to === 1) newT1s -= pts;
+      else if (a.to === 2) newT2s -= pts;
+    });
+    const newQState = s.qState.map((r, i) => i === ri ? r.map(() => ({ rev: false, pub: false, to: 0 })) : r);
+    const newStrikes = s.strikes.map((r, i) => i === ri ? [0, 0] : r);
+    const newBusted = s.roundBusted.map((r, i) => i === ri ? [false, false] : r);
+    const newActive = s.roundActiveTeam.map((v, i) => i === ri ? 0 : v);
+    const newFund = s.roundFund.map((v, i) => i === ri ? 0 : v);
+    const newWonBy = s.roundWonBy.map((v, i) => i === ri ? 0 : v);
+    const newPhase = s.roundPhase.map((v, i) => i === ri ? 'start' : v);
+    update({ qState: newQState, strikes: newStrikes, roundBusted: newBusted, roundActiveTeam: newActive, roundFund: newFund, roundWonBy: newWonBy, roundPhase: newPhase, t1s: newT1s, t2s: newT2s, phase: 'buzzer', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
+  };
+
   // ── Choose team ──
   const chooseTeam = (team: number) => {
     const newActive = [...s.roundActiveTeam];
@@ -371,36 +391,6 @@ export default function HundredToOnePage() {
   const r4Pause = () => { if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; } update({ r4Running: false }); };
   const r4Stop = () => { if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; } };
   const r4Reset = () => { r4Stop(); update({ r4Time: 60, r4Running: false }); };
-
-  // ── God mode reassign ──
-  const reassignPts = (target: number) => {
-    if (!reassignModal) return;
-    const { idx, pts, cur } = reassignModal;
-    let newT1s = s.t1s, newT2s = s.t2s;
-    const newFund = [...s.roundFund];
-    // Remove from previous
-    if (cur === 1) newT1s -= pts;
-    else if (cur === 2) newT2s -= pts;
-    else if (cur === -1 && s.curQ <= 2) {
-      if ((s.roundPhase[s.curQ] === 'won' || s.roundPhase[s.curQ] === 'showonly') && s.roundWonBy[s.curQ] > 0) {
-        if (s.roundWonBy[s.curQ] === 1) newT1s -= pts; else newT2s -= pts;
-      }
-      newFund[s.curQ] -= pts;
-    }
-    // Assign to new
-    if (target === 1) { newT1s += pts; sndAssign(); }
-    else if (target === 2) { newT2s += pts; sndAssign(); }
-    else if (target === -1 && s.curQ <= 2) {
-      newFund[s.curQ] += pts;
-      if ((s.roundPhase[s.curQ] === 'won' || s.roundPhase[s.curQ] === 'showonly') && s.roundWonBy[s.curQ] > 0) {
-        if (s.roundWonBy[s.curQ] === 1) newT1s += pts; else newT2s += pts;
-      }
-      sndAssign();
-    }
-    const newQState = s.qState.map((r, ri) => ri === s.curQ ? r.map((a, ai) => ai === idx ? { ...a, to: target } : a) : r);
-    setReassignModal(null);
-    update({ qState: newQState, t1s: newT1s, t2s: newT2s, roundFund: newFund });
-  };
 
   // ── Big Game ──
   const bgStartPlayer = (player: 1 | 2) => {
@@ -514,7 +504,7 @@ export default function HundredToOnePage() {
           <div className="text-6xl mb-4">💯</div>
           <h2 className="text-2xl font-bold text-amber-400 mb-6">Выберите свою роль</h2>
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
-            {(['team1', 'team2', 'host'] as PlayerRole[]).map(role => {
+            {(['team1', 'team2', 'host'] as const).map(role => {
               const cfg = {
                 team1: { icon: '🟡', label: 'Команда 1', ring: 'ring-2 ring-yellow-400 bg-yellow-500/15', text: 'text-yellow-400' },
                 team2: { icon: '🔴', label: 'Команда 2', ring: 'ring-2 ring-red-400 bg-red-500/15', text: 'text-red-400' },
@@ -542,7 +532,7 @@ export default function HundredToOnePage() {
             })}
           </div>
           {isHost && Object.keys(s.roles).length > 0 && (
-            <GlassButton variant="primary" size="lg" onClick={goToTeamNames}>Далее →</GlassButton>
+            <GlassButton variant="primary" size="lg" onClick={goToCaptainSelect}>Далее →</GlassButton>
           )}
         </div>
       )}
@@ -637,7 +627,7 @@ export default function HundredToOnePage() {
                 </div>
               </div>
               {/* Host can skip if needed */}
-              <button onClick={() => update({ phase: 'title' })} className="mt-4 text-xs text-white/25 hover:text-white/50">
+              <button onClick={() => update({ phase: 'teamNames' })} className="mt-4 text-xs text-white/25 hover:text-white/50">
                 Пропустить →
               </button>
             </div>
@@ -669,47 +659,56 @@ export default function HundredToOnePage() {
       {s.phase === 'buzzer' && (
         <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
           <h2 className="text-2xl font-bold text-amber-400 mb-2">{ROUND_NAMES[s.curQ]}</h2>
-          <p className="text-white/50 text-sm mb-8">Кто первым нажмёт — та команда начинает раунд!</p>
+          <p className="text-white/60 mb-8">Кто первый из капитанов нажмёт на кнопку,<br/>та команда начинает раунд</p>
 
-          {/* Captain view — big red buzzer button */}
-          {myTeam && user?.id === s.captains[myTeam] && (
+          {/* Buzzer button — visible to captains */}
+          {myTeam && user?.id === s.captains[myTeam] && s.buzzerWinner === 0 && (
             <div className="flex flex-col items-center gap-4">
-              {s.buzzerWinner === 0 ? (
-                <button
-                  onClick={() => buzzerPressed(myTeam === 'team1' ? 1 : 2)}
-                  disabled={!s.buzzerActive}
-                  className={`w-44 h-44 rounded-full font-bold text-white text-2xl shadow-2xl transition-all duration-150 select-none
-                    ${s.buzzerActive
-                      ? 'bg-red-600 hover:bg-red-500 active:scale-95 cursor-pointer animate-pulse shadow-red-500/50 border-4 border-red-400'
-                      : 'bg-red-900/40 border-4 border-red-900/60 cursor-not-allowed text-white/30'
-                    }`}
-                >
-                  {s.buzzerActive ? '🔔' : '⏳'}
-                </button>
-              ) : (
-                <div className={`w-44 h-44 rounded-full flex items-center justify-center text-4xl border-4 transition-all
-                  ${s.buzzerWinner === (myTeam === 'team1' ? 1 : 2)
-                    ? 'bg-green-600/30 border-green-400 text-green-400'
-                    : 'bg-white/5 border-white/10 text-white/20'}`}>
-                  {s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? '✓' : '✕'}
-                </div>
-              )}
+              <button
+                onClick={() => buzzerPressed(myTeam === 'team1' ? 1 : 2)}
+                disabled={!s.buzzerActive}
+                className={`w-44 h-44 rounded-full font-bold text-white shadow-2xl transition-all duration-150 select-none border-4
+                  ${s.buzzerActive
+                    ? 'bg-red-600 hover:bg-red-500 active:scale-95 cursor-pointer animate-pulse shadow-red-500/50 border-red-400'
+                    : s.buzzerCountdown > 0
+                      ? 'bg-red-600/80 border-red-400/60 cursor-not-allowed'
+                      : 'bg-red-900/40 border-red-900/60 cursor-not-allowed text-white/30'
+                  }`}
+              >
+                {s.buzzerCountdown > 0
+                  ? <span className="text-6xl font-bold animate-pulse">{s.buzzerCountdown}</span>
+                  : s.buzzerActive
+                    ? <span className="text-4xl font-bold">ЖМИТЕ!</span>
+                    : <span className="text-2xl">⏳</span>}
+              </button>
+            </div>
+          )}
+
+          {/* Winner result — captain view */}
+          {myTeam && user?.id === s.captains[myTeam] && s.buzzerWinner !== 0 && (
+            <div className={`w-44 h-44 mx-auto rounded-full flex items-center justify-center text-4xl border-4 transition-all
+              ${s.buzzerWinner === (myTeam === 'team1' ? 1 : 2)
+                ? 'bg-green-600/30 border-green-400 text-green-400'
+                : 'bg-white/5 border-white/10 text-white/20'}`}>
+              {s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? '✓' : '✕'}
             </div>
           )}
 
           {/* Non-captain team member */}
           {myTeam && user?.id !== s.captains[myTeam] && (
             <div className="py-8">
-              {s.buzzerWinner === 0
-                ? <p className="text-white/40 italic">Капитан нажимает кнопку...</p>
-                : <p className={`text-xl font-bold animate-fade-in ${s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? 'text-green-400' : 'text-white/60'}`}>
-                    {s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? `Начинает ${myTeam === 'team1' ? s.t1n : s.t2n}!` : `Начинает ${s.buzzerWinner === 1 ? s.t1n : s.t2n}...`}
-                  </p>
+              {s.buzzerCountdown > 0
+                ? <p className="text-4xl font-bold text-red-400 animate-pulse">{s.buzzerCountdown}</p>
+                : s.buzzerWinner === 0
+                  ? <p className="text-white/40 italic">{s.buzzerActive ? 'Капитаны жмут кнопку!' : 'Ожидание...'}</p>
+                  : <p className={`text-xl font-bold animate-fade-in ${s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? 'text-green-400' : 'text-white/60'}`}>
+                      {s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? `Начинает ${myTeam === 'team1' ? s.t1n : s.t2n}!` : `Начинает ${s.buzzerWinner === 1 ? s.t1n : s.t2n}...`}
+                    </p>
               }
             </div>
           )}
 
-          {/* Result: starting team announcement (3s countdown) */}
+          {/* Result: starting team announcement */}
           {s.buzzerWinner !== 0 && (
             <div className="mt-4 animate-fade-in">
               <p className="text-xl font-bold text-white">
@@ -724,24 +723,15 @@ export default function HundredToOnePage() {
           {/* Host controls */}
           {isGameHost && (
             <div className="mt-8">
-              {!s.buzzerActive && s.buzzerWinner === 0 && (
-                <GlassButton variant="primary" size="lg" onClick={startBuzzer}>ЗАПУСТИТЬ ЗУММЕР</GlassButton>
+              {s.buzzerCountdown < 0 && s.buzzerWinner === 0 && (
+                <GlassButton variant="primary" size="lg" onClick={startBuzzer}>ЗАПУСТИТЬ ОТСЧЁТ</GlassButton>
+              )}
+              {s.buzzerCountdown > 0 && (
+                <p className="text-4xl font-bold text-red-400 animate-pulse">{s.buzzerCountdown}</p>
               )}
               {s.buzzerWinner !== 0 && (
                 <p className="text-white/30 text-sm">Переход к раунду через 3 секунды...</p>
               )}
-            </div>
-          )}
-
-          {/* TV / other view */}
-          {myRole === 'tv' && (
-            <div className="py-4">
-              {s.buzzerWinner === 0
-                ? <p className="text-white/40">{s.buzzerActive ? 'Капитаны нажимают кнопку...' : 'Ожидание ведущего...'}</p>
-                : <p className="text-2xl font-bold text-white animate-fade-in">
-                    Начинает <span className={s.buzzerWinner === 1 ? 'text-yellow-400' : 'text-red-400'}>{s.buzzerWinner === 1 ? s.t1n : s.t2n}</span>!
-                  </p>
-              }
             </div>
           )}
         </div>
@@ -790,7 +780,7 @@ export default function HundredToOnePage() {
               const revealed = s.qState[s.curQ]?.[idx]?.pub;
               const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
-                <div key={idx} className={`glass-card p-3 flex items-center justify-between transition-all bg-yellow-900/15 border-yellow-800/30 ${revealed ? 'ring-1 ring-amber-500/40' : ''}`}>
+                <div key={idx} className={`glass-card p-3 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-500/20 border-yellow-500/40' : 'bg-yellow-900/15 border-yellow-800/30'}`}>
                   <div className="flex items-center gap-3">
                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
                     {revealed ? <span className="text-white font-bold uppercase tracking-wide">{a.t}</span> : <span className="text-white/15 tracking-[6px]">? ? ?</span>}
@@ -859,7 +849,7 @@ export default function HundredToOnePage() {
               const revealed = s.qState[s.curQ]?.[idx]?.pub;
               const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
-                <div key={idx} className={`glass-card p-4 flex items-center justify-between transition-all bg-yellow-900/15 border-yellow-800/30 ${revealed ? 'ring-1 ring-amber-500/40' : ''}`}>
+                <div key={idx} className={`glass-card p-4 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-500/20 border-yellow-500/40' : 'bg-yellow-900/15 border-yellow-800/30'}`}>
                   <div className="flex items-center gap-4">
                     <span className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
                     {revealed ? <span className="text-xl text-white font-bold uppercase tracking-wide">{a.t}</span> : <span className="text-white/15 tracking-[8px] text-xl">? ? ?</span>}
@@ -943,17 +933,15 @@ export default function HundredToOnePage() {
             <p className="text-lg md:text-xl font-bold text-white">{q.q}</p>
           </GlassCard>
 
-          {/* Answer board */}
+          {/* Answer board — host sees all, click to open/publish */}
           <div className="space-y-1.5 mb-3">
             {q.answers.map((a, idx) => {
-              const st = s.qState[s.curQ]?.[idx];
-              const revealed = st?.rev;
-              const published = st?.pub;
+              const revealed = s.qState[s.curQ]?.[idx]?.rev;
               const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
                 <div key={idx}
-                  className={`glass-card p-3 flex items-center justify-between transition-all bg-yellow-900/15 border-yellow-800/30
-                    ${revealed ? 'ring-1 ring-amber-500/40' : ''}
+                  className={`glass-card p-3 flex items-center justify-between transition-all
+                    ${revealed ? 'bg-yellow-500/20 border-yellow-500/40' : 'bg-yellow-900/15 border-yellow-800/30'}
                     ${isGameHost ? 'cursor-pointer hover:bg-yellow-900/25 active:scale-[0.99]' : ''}`}
                   onClick={() => openAns(idx)}>
                   <div className="flex items-center gap-3">
@@ -961,16 +949,7 @@ export default function HundredToOnePage() {
                       ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
                     <span className={`font-bold uppercase tracking-wide ${revealed ? 'text-white' : 'text-white/50'}`}>{a.t}</span>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {revealed && <span className="bg-amber-600/80 rounded-lg px-2.5 py-1 font-bold text-white">{pts}</span>}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); pubAns(idx); }}
-                      className={`w-7 h-7 rounded-md flex items-center justify-center text-sm transition-all border
-                        ${published ? 'bg-green-500/25 text-green-400 border-green-500/40' : 'bg-white/5 text-white/20 border-white/10 hover:bg-white/15 hover:text-white/60'}`}
-                      title={published ? 'Скрыть от игроков' : 'Показать игрокам'}>
-                      👁
-                    </button>
-                  </div>
+                  {revealed && <span className="bg-amber-600/80 rounded-lg px-2.5 py-1 font-bold text-white">{pts}</span>}
                 </div>
               );
             })}
@@ -994,10 +973,7 @@ export default function HundredToOnePage() {
           {isGameHost && (
             <div className="flex flex-wrap gap-2 justify-center items-center">
               {s.curQ > 0 && <GlassButton size="sm" onClick={prevRound}>← Назад</GlassButton>}
-              <GlassButton size="sm" onClick={() => update({ godMode: !s.godMode })}
-                className={s.godMode ? '!border-yellow-400 !text-yellow-300' : ''}>
-                {s.godMode ? '⚡ РЕЖИМ БОГА' : 'Режим бога'}
-              </GlassButton>
+              <GlassButton size="sm" onClick={resetRound} className="!border-red-400/50 !text-red-300">↺ Сброс раунда</GlassButton>
               {canNext && <GlassButton variant="primary" size="sm" onClick={nextRound}>
                 {s.curQ < 3 ? 'Далее →' : 'Итоги →'}
               </GlassButton>}
@@ -1060,25 +1036,6 @@ export default function HundredToOnePage() {
               <GlassButton className="flex-1 !border-red-400 !bg-red-500/10" onClick={() => assignPts(2)}>{s.t2n}</GlassButton>
             </div>
             <button onClick={() => assignPts(0)} className="text-xs text-white/30 hover:text-white/60">Никому</button>
-          </GlassCard>
-        </div>
-      )}
-
-      {/* ── REASSIGN MODAL (god mode) ── */}
-      {reassignModal && isGameHost && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-          <GlassCard className="p-6 max-w-sm text-center">
-            <p className="text-yellow-300 font-bold mb-1">⚡ ПЕРЕРАСПРЕДЕЛЕНИЕ</p>
-            <p className="text-3xl font-bold text-yellow-300 mb-2">{reassignModal.pts} очков</p>
-            <p className="text-xs text-white/40 mb-4">
-              {reassignModal.cur === 1 ? `Сейчас: ${s.t1n}` : reassignModal.cur === 2 ? `Сейчас: ${s.t2n}` : reassignModal.cur === -1 ? 'Сейчас: в банке' : 'Сейчас: никому'}
-            </p>
-            <div className="flex gap-2 mb-2">
-              <GlassButton className="flex-1 !border-yellow-400 !bg-yellow-500/10" onClick={() => reassignPts(1)}>{s.t1n}</GlassButton>
-              {s.curQ <= 2 && <GlassButton className="flex-1 !border-yellow-300 !bg-yellow-500/5" onClick={() => reassignPts(-1)}>В банк</GlassButton>}
-              <GlassButton className="flex-1 !border-red-400 !bg-red-500/10" onClick={() => reassignPts(2)}>{s.t2n}</GlassButton>
-            </div>
-            <button onClick={() => setReassignModal(null)} className="text-xs text-white/30 hover:text-white/60">Отмена</button>
           </GlassCard>
         </div>
       )}
