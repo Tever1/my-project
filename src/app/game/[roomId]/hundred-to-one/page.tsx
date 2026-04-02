@@ -199,12 +199,10 @@ export default function HundredToOnePage() {
     setTimeout(() => {
       setS(prev => {
         const newActive = prev.roundActiveTeam.map((v, i) => i === prev.curQ ? team : v);
-        return { ...prev, phase: 'playing', roundActiveTeam: newActive };
+        const patch = { phase: 'playing' as Phase, roundActiveTeam: newActive };
+        broadcast(patch);
+        return { ...prev, ...patch };
       });
-      broadcast({ phase: 'playing', roundActiveTeam: (() => {
-        const arr = [0, 0, 0];
-        arr[0] = team; return arr;
-      })() });
     }, 3000);
   };
 
@@ -365,15 +363,18 @@ export default function HundredToOnePage() {
   const nextRound = () => {
     const next = s.curQ + 1;
     if (next >= 4) { update({ phase: 'results' }); return; }
-    update({ curQ: next });
-    if (next <= 2) setTeamChooser(true);
+    update({ curQ: next, phase: 'buzzer', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
   };
 
   const prevRound = () => {
     if (s.curQ > 0) update({ curQ: s.curQ - 1 });
   };
 
-  const endGame = () => emit('game:end', { code: roomId });
+  const endGame = () => {
+    if (confirm('Завершить игру? Все вернутся в лобби.')) {
+      emit('game:end', { code: roomId });
+    }
+  };
 
   // ── Round 4 timer (1 min discussion) ──
   const r4Start = () => {
@@ -541,26 +542,48 @@ export default function HundredToOnePage() {
       {s.phase === 'teamNames' && (
         <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
           <h2 className="text-2xl font-bold text-amber-400 mb-6">НАЗВАНИЯ КОМАНД</h2>
-          {isGameHost || isHost ? (
+          {/* Captains edit their own team name */}
+          {user?.id === s.captains.team1 && (
+            <div className="flex items-center gap-3 mb-4">
+              <span className="w-4 h-4 rounded-full bg-yellow-400 flex-shrink-0" />
+              <input value={teamNameInput1} onChange={e => setTeamNameInput1(e.target.value)}
+                placeholder="Команда 1" maxLength={20}
+                className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-yellow-400" />
+            </div>
+          )}
+          {user?.id === s.captains.team2 && (
+            <div className="flex items-center gap-3 mb-4">
+              <span className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0" />
+              <input value={teamNameInput2} onChange={e => setTeamNameInput2(e.target.value)}
+                placeholder="Команда 2" maxLength={20}
+                className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-red-400" />
+            </div>
+          )}
+          {/* Host sees both fields and the confirm button */}
+          {(isGameHost || isHost) && (
             <>
-              <div className="space-y-4 mb-6">
-                <div className="flex items-center gap-3">
-                  <span className="w-4 h-4 rounded-full bg-yellow-400" />
+              {user?.id !== s.captains.team1 && (
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-4 h-4 rounded-full bg-yellow-400 flex-shrink-0" />
                   <input value={teamNameInput1} onChange={e => setTeamNameInput1(e.target.value)}
                     placeholder="Команда 1" maxLength={20}
                     className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-amber-400" />
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-4 h-4 rounded-full bg-red-500" />
+              )}
+              {user?.id !== s.captains.team2 && (
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0" />
                   <input value={teamNameInput2} onChange={e => setTeamNameInput2(e.target.value)}
                     placeholder="Команда 2" maxLength={20}
                     className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-amber-400" />
                 </div>
-              </div>
+              )}
               <GlassButton variant="primary" size="lg" onClick={confirmTeamNames}>ДАЛЕЕ</GlassButton>
             </>
-          ) : (
-            <p className="text-white/40 italic">Ведущий вводит названия команд...</p>
+          )}
+          {/* Non-captain, non-host sees waiting message */}
+          {!(isGameHost || isHost) && user?.id !== s.captains.team1 && user?.id !== s.captains.team2 && (
+            <p className="text-white/40 italic">Капитаны вводят названия команд...</p>
           )}
         </div>
       )}
@@ -742,31 +765,41 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* Scores */}
           <div className="flex justify-between items-center mb-3">
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 ${myRole === 'team1' ? 'ring-2 ring-yellow-400 bg-yellow-500/10' : ''}`}>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'ring-2 ring-yellow-400 bg-yellow-500/10' : ''}`}>
               <span className="w-3 h-3 rounded-full bg-yellow-400" />
-              <span className="text-sm text-white/60">{s.t1n}</span>
+              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 1 ? 'text-yellow-300' : 'text-white/60'}`}>{s.t1n}</span>
               <span className="font-bold text-white text-lg">{s.t1s}</span>
             </div>
             <div className="text-center">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 ${myRole === 'team2' ? 'ring-2 ring-red-400 bg-red-500/10' : ''}`}>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'ring-2 ring-red-400 bg-red-500/10' : ''}`}>
               <span className="font-bold text-white text-lg">{s.t2s}</span>
-              <span className="text-sm text-white/60">{s.t2n}</span>
+              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 2 ? 'text-red-300' : 'text-white/60'}`}>{s.t2n}</span>
               <span className="w-3 h-3 rounded-full bg-red-500" />
             </div>
           </div>
           <div className="text-center mb-2">
             <span className="text-amber-400 font-bold text-sm tracking-widest">{ROUND_NAMES[s.curQ]}</span>
           </div>
-          {/* Strikes for my team */}
+          {/* Strikes for BOTH teams */}
           {s.curQ <= 2 && (
-            <div className="flex items-center justify-center gap-2 mb-2">
-              {[0, 1, 2].map(i => (
-                <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition-all
-                  ${i < s.strikes[s.curQ][myRole === 'team1' ? 0 : 1] ? 'bg-red-500/30 text-red-400 scale-110' : 'bg-white/5 text-white/15'}`}>✕</div>
-              ))}
+            <div className="flex justify-between items-center mb-2 px-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-yellow-400/60 mr-1">{s.t1n}</span>
+                {[0, 1, 2].map(i => (
+                  <div key={i} className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                    ${i < s.strikes[s.curQ][0] ? 'bg-red-500/30 text-red-400 scale-110' : 'bg-white/5 text-white/15'}`}>✕</div>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                    ${i < s.strikes[s.curQ][1] ? 'bg-red-500/30 text-red-400 scale-110' : 'bg-white/5 text-white/15'}`}>✕</div>
+                ))}
+                <span className="text-xs text-red-400/60 ml-1">{s.t2n}</span>
+              </div>
             </div>
           )}
           {/* Question */}
@@ -780,7 +813,7 @@ export default function HundredToOnePage() {
               const revealed = s.qState[s.curQ]?.[idx]?.pub;
               const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
-                <div key={idx} className={`glass-card p-3 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-500/20 border-yellow-500/40' : 'bg-yellow-900/15 border-yellow-800/30'}`}>
+                <div key={idx} className={`glass-card p-3 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-300/25 border-yellow-400/50' : 'bg-white/5 border-white/10'}`}>
                   <div className="flex items-center gap-3">
                     <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
                     {revealed ? <span className="text-white font-bold uppercase tracking-wide">{a.t}</span> : <span className="text-white/15 tracking-[6px]">? ? ?</span>}
@@ -795,6 +828,15 @@ export default function HundredToOnePage() {
             <div className="flex items-center justify-center gap-3">
               <span className="text-xs text-white/40 font-bold">БАНК:</span>
               <span className="font-bold text-yellow-300 text-xl">{s.roundFund[s.curQ]}</span>
+            </div>
+          )}
+          {/* Round 4 timer on player screen */}
+          {s.curQ === 3 && (
+            <div className="text-center mt-2">
+              <span className="text-xs text-white/40 font-bold">ОБСУЖДЕНИЕ: </span>
+              <span className={`font-bold text-2xl ${s.r4Time <= 10 && s.r4Time > 0 ? 'text-red-400 animate-pulse' : 'text-yellow-300'}`}>
+                {Math.floor(s.r4Time / 60)}:{(s.r4Time % 60).toString().padStart(2, '0')}
+              </span>
             </div>
           )}
         </div>
@@ -849,7 +891,7 @@ export default function HundredToOnePage() {
               const revealed = s.qState[s.curQ]?.[idx]?.pub;
               const pts = getDisplayPts(s.curQ, idx, a.p);
               return (
-                <div key={idx} className={`glass-card p-4 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-500/20 border-yellow-500/40' : 'bg-yellow-900/15 border-yellow-800/30'}`}>
+                <div key={idx} className={`glass-card p-4 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-300/25 border-yellow-400/50' : 'bg-white/5 border-white/10'}`}>
                   <div className="flex items-center gap-4">
                     <span className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
                     {revealed ? <span className="text-xl text-white font-bold uppercase tracking-wide">{a.t}</span> : <span className="text-white/15 tracking-[8px] text-xl">? ? ?</span>}
@@ -860,7 +902,8 @@ export default function HundredToOnePage() {
             })}
           </div>
           {s.roundPhase[s.curQ] === 'switched' && <p className="text-center text-amber-400 font-bold">Ход → {s.roundActiveTeam[s.curQ] === 1 ? s.t1n : s.t2n}</p>}
-          {s.roundPhase[s.curQ] === 'won' && <p className="text-center text-green-400 font-bold">✓ Очки начислены!</p>}
+          {s.roundPhase[s.curQ] === 'won' && !allRevealed && <p className="text-center text-white/50 italic">проверка оставшихся ответов</p>}
+          {s.roundPhase[s.curQ] === 'won' && allRevealed && <p className="text-center text-green-400 font-bold">✓ Все ответы открыты</p>}
         </div>
       )}
 
@@ -899,7 +942,8 @@ export default function HundredToOnePage() {
               <span className="text-xs text-white/40 font-bold">БАНК:</span>
               <span className="font-bold text-yellow-300 text-xl px-3 py-0.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20">{s.roundFund[s.curQ]}</span>
               {s.roundPhase[s.curQ] === 'switched' && <span className="text-xs text-amber-400 font-bold">Ход → {s.roundActiveTeam[s.curQ] === 1 ? s.t1n : s.t2n}</span>}
-              {s.roundPhase[s.curQ] === 'won' && <span className="text-xs text-green-400 font-bold">✓ Очки начислены!</span>}
+              {s.roundPhase[s.curQ] === 'won' && !allRevealed && <span className="text-xs text-white/50 italic">проверка оставшихся ответов</span>}
+              {s.roundPhase[s.curQ] === 'won' && allRevealed && <span className="text-xs text-green-400 font-bold">✓ Все ответы открыты</span>}
             </div>
           )}
 
@@ -941,7 +985,7 @@ export default function HundredToOnePage() {
               return (
                 <div key={idx}
                   className={`glass-card p-3 flex items-center justify-between transition-all
-                    ${revealed ? 'bg-yellow-500/20 border-yellow-500/40' : 'bg-yellow-900/15 border-yellow-800/30'}
+                    ${revealed ? 'bg-yellow-300/25 border-yellow-400/50' : 'bg-white/5 border-white/10'}
                     ${isGameHost ? 'cursor-pointer hover:bg-yellow-900/25 active:scale-[0.99]' : ''}`}
                   onClick={() => openAns(idx)}>
                   <div className="flex items-center gap-3">
@@ -949,7 +993,7 @@ export default function HundredToOnePage() {
                       ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>{idx + 1}</span>
                     <span className={`font-bold uppercase tracking-wide ${revealed ? 'text-white' : 'text-white/50'}`}>{a.t}</span>
                   </div>
-                  {revealed && <span className="bg-amber-600/80 rounded-lg px-2.5 py-1 font-bold text-white">{pts}</span>}
+                  <span className={`rounded-lg px-2.5 py-1 font-bold ${revealed ? 'bg-amber-600/80 text-white' : 'bg-white/5 text-white/30'}`}>{pts}</span>
                 </div>
               );
             })}
