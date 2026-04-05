@@ -6,6 +6,7 @@ import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
+import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,6 +50,41 @@ interface GenericGameState {
   [key: string]: unknown;
 }
 
+interface H2OAnsState { rev: boolean; pub: boolean; to: number; }
+interface H2OState {
+  phase: string;
+  curQ: number;
+  t1n: string; t2n: string;
+  t1s: number; t2s: number;
+  qState: H2OAnsState[][];
+  strikes: number[][];
+  roundActiveTeam: number[];
+  roundFund: number[];
+  roundPhase: string[];
+  r4Time: number;
+  bgPhase: number;
+  bgP1Ans: string[]; bgP2Ans: string[];
+  bgP1Matched: (string | null)[]; bgP2Matched: (string | null)[];
+  bgFund: number; bgCurQ: number; bgTimeLeft: number;
+  bgP1Id: string; bgP2Id: string;
+  winTeam: number;
+  buzzerWinner: number; buzzerCountdown: number;
+}
+
+const mkH2OInitial = (): H2OState => ({
+  phase: 'roleSelect', curQ: 0,
+  t1n: 'Команда 1', t2n: 'Команда 2', t1s: 0, t2s: 0,
+  qState: H2O_ROUNDS.map(r => r.answers.map(() => ({ rev: false, pub: false, to: 0 }))),
+  strikes: [[0, 0], [0, 0], [0, 0]],
+  roundActiveTeam: [0, 0, 0], roundFund: [0, 0, 0],
+  roundPhase: ['start', 'start', 'start'],
+  r4Time: 60, bgPhase: 0, bgP1Ans: [], bgP2Ans: [],
+  bgP1Matched: [], bgP2Matched: [],
+  bgFund: 0, bgCurQ: 0, bgTimeLeft: 0,
+  bgP1Id: '', bgP2Id: '', winTeam: 0,
+  buzzerWinner: 0, buzzerCountdown: -1,
+});
+
 const OPTION_COLORS_TV = [
   'from-blue-600/30 to-blue-500/10 border-blue-400/40',
   'from-emerald-600/30 to-emerald-500/10 border-emerald-400/40',
@@ -83,6 +119,7 @@ export default function TVGamePage() {
     currentQuestion: null,
   });
   const [genericState, setGenericState] = useState<GenericGameState>({});
+  const [h2oState, setH2OState] = useState<H2OState>(mkH2OInitial);
 
   const gameInfo = GAMES.find((g) => g.id === gameType);
   const gameTitle = gameInfo
@@ -108,6 +145,12 @@ export default function TVGamePage() {
         action: string;
         payload: Record<string, unknown>;
       };
+
+      if (gameType === 'hundred-to-one') {
+        if (action === 'h2o:sync') {
+          setH2OState(prev => ({ ...prev, ...(payload as Partial<H2OState>) }));
+        }
+      }
 
       if (gameType === 'quiz') {
         switch (action) {
@@ -176,6 +219,10 @@ export default function TVGamePage() {
     });
 
     emit('room:get-state', { code: roomId });
+    // Request full 100к1 state so TV catches up if joining late
+    if (gameType === 'hundred-to-one') {
+      emit('game:action', { code: roomId, action: 'h2o:request-state', payload: {} });
+    }
 
     return () => {
       unsub1();
@@ -407,6 +454,233 @@ export default function TVGamePage() {
             ))}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ===================== 100 к 1 TV RENDER =====================
+  if (gameType === 'hundred-to-one') {
+    const h = h2oState;
+    const q = H2O_ROUNDS[h.curQ];
+    const activeTeam = h.roundActiveTeam[h.curQ] || 0;
+
+    return (
+      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-8 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <span className="text-4xl">💯</span>
+            <h1 className="text-3xl font-bold">100 к 1</h1>
+            {(h.phase === 'playing' || h.phase === 'buzzer') && (
+              <span className="glass-badge px-3 py-1 text-sm text-amber-300 font-bold">
+                РАУНД {h.curQ + 1}/4 · {H2O_ROUND_NAMES[h.curQ]}
+              </span>
+            )}
+          </div>
+          {/* Team scores */}
+          <div className="flex items-center gap-4">
+            <div className={`px-5 py-2 rounded-xl border-2 transition-all ${activeTeam === 1 ? 'bg-yellow-500/30 border-yellow-400 shadow-lg shadow-yellow-500/30' : 'bg-white/5 border-white/10 opacity-60'}`}>
+              <span className="text-sm font-bold text-yellow-300 mr-3">{h.t1n}</span>
+              <span className="text-2xl font-black">{h.t1s}</span>
+            </div>
+            <div className={`px-5 py-2 rounded-xl border-2 transition-all ${activeTeam === 2 ? 'bg-red-500/30 border-red-400 shadow-lg shadow-red-500/30' : 'bg-white/5 border-white/10 opacity-60'}`}>
+              <span className="text-sm font-bold text-red-300 mr-3">{h.t2n}</span>
+              <span className="text-2xl font-black">{h.t2s}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 flex flex-col items-center justify-center px-8 py-6 min-h-0 overflow-hidden">
+          {/* Title/waiting phases */}
+          {(h.phase === 'roleSelect' || h.phase === 'teamNames' || h.phase === 'captainSelect' || h.phase === 'title' || h.phase === 'teams' || h.phase === 'rules') && (
+            <div className="text-center animate-fade-in">
+              <div className="text-9xl mb-6">💯</div>
+              <h2 className="text-6xl font-black mb-4">100 К 1</h2>
+              <p className="text-2xl text-white/50 animate-pulse">
+                {h.phase === 'roleSelect' ? 'Распределение ролей...' :
+                 h.phase === 'captainSelect' ? 'Выбор капитанов...' :
+                 h.phase === 'teamNames' ? 'Команды выбирают названия...' :
+                 'Подготовка к игре...'}
+              </p>
+            </div>
+          )}
+
+          {/* Buzzer phase */}
+          {h.phase === 'buzzer' && (
+            <div className="text-center animate-fade-in">
+              <h2 className="text-4xl font-bold text-amber-400 mb-6">КТО БЫСТРЕЕ?</h2>
+              {h.buzzerCountdown > 0 ? (
+                <div className="text-[14rem] font-black leading-none text-red-400 animate-pulse">
+                  {h.buzzerCountdown}
+                </div>
+              ) : h.buzzerCountdown === 0 && h.buzzerWinner === 0 ? (
+                <div className="text-8xl font-black text-green-400 animate-pulse">ЖМИ!</div>
+              ) : h.buzzerWinner !== 0 ? (
+                <div>
+                  <div className="text-7xl font-black mb-3" style={{ color: h.buzzerWinner === 1 ? '#fbbf24' : '#f87171' }}>
+                    {h.buzzerWinner === 1 ? h.t1n : h.t2n}
+                  </div>
+                  <p className="text-2xl text-white/50">Играет первым!</p>
+                </div>
+              ) : (
+                <p className="text-2xl text-white/50">Готовьтесь...</p>
+              )}
+            </div>
+          )}
+
+          {/* Playing phase */}
+          {h.phase === 'playing' && q && (
+            <div className="w-full max-w-6xl flex flex-col items-center">
+              {/* Question */}
+              <div className="glass-card p-6 mb-6 w-full text-center bg-amber-900/25 border-amber-500/50">
+                <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-2">ВОПРОС</p>
+                <p className="text-4xl font-bold">{q.q}</p>
+              </div>
+
+              {/* Answers grid */}
+              <div className="grid grid-cols-2 gap-3 w-full mb-4">
+                {q.answers.map((a, idx) => {
+                  const revealed = h.qState[h.curQ]?.[idx]?.pub;
+                  const pts = h2oGetDisplayPts(h.curQ, idx, a.p);
+                  return (
+                    <div key={idx} className={`rounded-xl border-2 p-4 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-400/25 border-yellow-400/60' : 'bg-white/5 border-white/10'}`}>
+                      <div className="flex items-center gap-4">
+                        <span className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>
+                          {idx + 1}
+                        </span>
+                        {revealed
+                          ? <span className="text-2xl font-bold uppercase tracking-wide">{a.t}</span>
+                          : <span className="text-3xl text-white/15 tracking-[10px]">? ? ?</span>}
+                      </div>
+                      {revealed
+                        ? <span className="bg-amber-600 rounded-lg px-4 py-2 text-2xl font-bold">{pts}</span>
+                        : <span className="text-white/10 text-2xl">?</span>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bottom bar: strikes, fund, timer */}
+              <div className="w-full flex items-center justify-between gap-4">
+                {h.curQ <= 2 && (
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-yellow-300/70 font-bold">{h.t1n}</span>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition-all
+                          ${i < h.strikes[h.curQ][0] ? 'bg-red-500/40 text-red-300 scale-110' : 'bg-white/5 text-white/15'}`}>✕</div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-red-300/70 font-bold">{h.t2n}</span>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition-all
+                          ${i < h.strikes[h.curQ][1] ? 'bg-red-500/40 text-red-300 scale-110' : 'bg-white/5 text-white/15'}`}>✕</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {h.curQ <= 2 && (
+                  <div className="text-center">
+                    <span className="text-xs text-white/40 font-bold">БАНК: </span>
+                    <span className="font-black text-3xl text-yellow-300">{h.roundFund[h.curQ]}</span>
+                  </div>
+                )}
+                {h.curQ === 3 && (
+                  <div className="mx-auto text-center">
+                    <span className="text-xs text-white/40 font-bold">ОБСУЖДЕНИЕ: </span>
+                    <span className={`font-black text-4xl ${h.r4Time <= 10 && h.r4Time > 0 ? 'text-red-400 animate-pulse' : 'text-yellow-300'}`}>
+                      {Math.floor(h.r4Time / 60)}:{(h.r4Time % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Results phase */}
+          {h.phase === 'results' && (
+            <div className="text-center animate-fade-in">
+              <h2 className="text-5xl font-bold text-amber-400 mb-8">ИТОГИ 4 РАУНДОВ</h2>
+              <div className="flex items-center justify-center gap-10 mb-8">
+                <div className="glass-card p-6 border-yellow-400/60 bg-yellow-500/10">
+                  <p className="text-xl text-yellow-300 font-bold mb-2">{h.t1n}</p>
+                  <p className="text-7xl font-black">{h.t1s}</p>
+                </div>
+                <div className="text-4xl text-white/30">VS</div>
+                <div className="glass-card p-6 border-red-400/60 bg-red-500/10">
+                  <p className="text-xl text-red-300 font-bold mb-2">{h.t2n}</p>
+                  <p className="text-7xl font-black">{h.t2s}</p>
+                </div>
+              </div>
+              <p className="text-2xl text-white/50">
+                Побеждает: <span className="font-bold text-amber-300">{h.t1s >= h.t2s ? h.t1n : h.t2n}</span>
+              </p>
+            </div>
+          )}
+
+          {/* Big Game phase */}
+          {h.phase === 'bigGame' && (
+            <div className="w-full max-w-5xl flex flex-col items-center">
+              <h2 className="text-4xl font-bold text-amber-400 mb-2">БОЛЬШАЯ ИГРА</h2>
+              {h.bgPhase >= 1 && h.bgPhase <= 4 && (
+                <p className="text-xl text-yellow-300 font-bold mb-3">
+                  {h.bgPhase === 1 ? 'ИГРОК 1 — 30 СЕК' : h.bgPhase === 2 ? 'ПРОВЕРКА ИГРОКА 1' : h.bgPhase === 3 ? 'ИГРОК 2 — 40 СЕК' : 'ПРОВЕРКА ИГРОКА 2'}
+                </p>
+              )}
+              {(h.bgPhase === 1 || h.bgPhase === 3) && h.bgTimeLeft > 0 && (
+                <div className={`text-7xl font-black mb-3 ${h.bgTimeLeft <= 5 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+                  {h.bgTimeLeft}
+                </div>
+              )}
+              <div className="w-full space-y-2 mb-4">
+                {H2O_BIG_Q.map((qq, i) => {
+                  const ans = h.bgPhase <= 2 ? h.bgP1Ans[i] : h.bgP2Ans[i];
+                  const matched = h.bgPhase <= 2 ? h.bgP1Matched[i] : h.bgP2Matched[i];
+                  const isChecked = h.bgPhase === 2 || h.bgPhase === 4;
+                  return (
+                    <div key={i} className="glass-card p-3 flex items-center gap-3">
+                      <span className="text-amber-400 font-bold text-xl w-8">{i + 1}.</span>
+                      <span className="text-lg font-bold flex-1">{qq.q}</span>
+                      <span className={`text-lg font-bold ${ans ? 'text-yellow-300' : 'text-white/30 italic'}`}>
+                        {ans || '...'}
+                      </span>
+                      {isChecked && (
+                        <span className={`font-bold text-lg min-w-[50px] text-right ${matched ? 'text-green-400' : 'text-red-400'}`}>
+                          {matched ? `+${qq.answers.find(a => a.t === matched)?.p || 0}` : '✗'}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {h.bgPhase >= 2 && (
+                <p className={`text-center font-black text-5xl ${h.bgFund >= 200 ? 'text-green-400 animate-pulse' : 'text-yellow-300'}`}>
+                  ФОНД: {h.bgFund}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Final phase */}
+          {h.phase === 'final' && (
+            <div className="text-center animate-fade-in">
+              <div className="text-9xl mb-6">🏆</div>
+              {h.bgFund >= 200 ? (
+                <>
+                  <h2 className="text-6xl font-black text-green-400 mb-4">ПОБЕДА!</h2>
+                  <p className="text-2xl text-white/60">Фонд: {h.bgFund} · Команда «{h.winTeam === 1 ? h.t1n : h.t2n}»</p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-5xl font-black text-amber-400 mb-4">ИГРА ОКОНЧЕНА</h2>
+                  <p className="text-2xl text-white/60">Фонд: {h.bgFund} — не хватило до 200</p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   }

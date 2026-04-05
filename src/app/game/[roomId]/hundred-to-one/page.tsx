@@ -48,6 +48,8 @@ interface GState {
   bgTimeLeft: number;
   bgTimerTotal: number;
   bgTimerPaused: boolean;
+  bgP1Id: string; // selected player 1 (playerId)
+  bgP2Id: string; // selected player 2 (playerId)
   winTeam: number;
   players: GamePlayer[];
   roles: Record<string, PlayerRole>; // playerId -> role
@@ -56,6 +58,7 @@ interface GState {
   buzzerWinner: number; // 0=none, 1=team1, 2=team2
   buzzerActive: boolean; // can captains press?
   buzzerCountdown: number; // 3,2,1,0 — 0 means go!
+  teamNameConfirmed: { team1: boolean; team2: boolean };
 }
 
 const mkInitial = (): GState => ({
@@ -74,6 +77,7 @@ const mkInitial = (): GState => ({
   bgP1Matched: [], bgP2Matched: [],
   bgFund: 0, bgCurQ: 0,
   bgTimeLeft: 0, bgTimerTotal: 0, bgTimerPaused: false,
+  bgP1Id: '', bgP2Id: '',
   winTeam: 0,
   players: [],
   roles: {},
@@ -82,6 +86,7 @@ const mkInitial = (): GState => ({
   buzzerWinner: 0,
   buzzerActive: false,
   buzzerCountdown: -1,
+  teamNameConfirmed: { team1: false, team2: false },
 });
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -94,6 +99,8 @@ export default function HundredToOnePage() {
   const router = useRouter();
 
   const [s, setS] = useState<GState>(mkInitial);
+  const sRef = useRef<GState>(s);
+  useEffect(() => { sRef.current = s; }, [s]);
   const [teamChooser, setTeamChooser] = useState(false);
   const [assignModal, setAssignModal] = useState<{ idx: number; pts: number } | null>(null);
   const [bgInput, setBgInput] = useState('');
@@ -123,7 +130,7 @@ export default function HundredToOnePage() {
     const newCaptains = { ...s.captains, [myTeam]: selectedCaptain };
     const newConfirmed = { ...s.captainConfirmed, [myTeam]: true };
     const bothConfirmed = newConfirmed.team1 && newConfirmed.team2;
-    update({ captains: newCaptains, captainConfirmed: newConfirmed, ...(bothConfirmed ? { phase: 'teamNames' } : {}) });
+    update({ captains: newCaptains, captainConfirmed: newConfirmed, ...(bothConfirmed ? { phase: 'teamNames', teamNameConfirmed: { team1: false, team2: false } } : {}) });
     setSelectedCaptain(null);
   };
 
@@ -136,11 +143,19 @@ export default function HundredToOnePage() {
     const u2 = on('game:action', (data: unknown) => {
       const { action, payload } = data as { action: string; payload: Partial<GState> };
       if (action === 'h2o:sync') setS(prev => ({ ...prev, ...payload }));
+      else if (action === 'h2o:request-state') {
+        // Only game host responds with full state (for late-joining TV clients)
+        const cur = sRef.current;
+        const myId = user?.id;
+        if (myId && cur.roles[myId] === 'host') {
+          emit('game:action', { code: roomId, action: 'h2o:sync', payload: cur });
+        }
+      }
     });
     const u3 = on('game:ended', () => router.push(`/lobby/${roomId}`));
     emit('room:get-state', { code: roomId });
     return () => { u1(); u2(); u3(); };
-  }, [on, emit, router, roomId]);
+  }, [on, emit, router, roomId, user?.id]);
 
   const broadcast = useCallback((payload: Partial<GState>) => {
     emit('game:action', { code: roomId, action: 'h2o:sync', payload });
@@ -156,10 +171,18 @@ export default function HundredToOnePage() {
     update({ phase: 'captainSelect', captains: {}, captainConfirmed: { team1: false, team2: false } });
   };
 
-  const confirmTeamNames = () => {
-    const n1 = teamNameInput1.trim() || 'Команда 1';
-    const n2 = teamNameInput2.trim() || 'Команда 2';
-    update({ t1n: n1, t2n: n2, phase: 'title' });
+  const confirmMyTeamName = () => {
+    if (!myTeam) return;
+    const input = myTeam === 'team1' ? teamNameInput1.trim() : teamNameInput2.trim();
+    const name = input || (myTeam === 'team1' ? 'Команда 1' : 'Команда 2');
+    const newConfirmed = { ...s.teamNameConfirmed, [myTeam]: true };
+    const bothConfirmed = newConfirmed.team1 && newConfirmed.team2;
+    const patch: Partial<GState> = {
+      teamNameConfirmed: newConfirmed,
+      ...(myTeam === 'team1' ? { t1n: name } : { t2n: name }),
+      ...(bothConfirmed ? { phase: 'title' } : {}),
+    };
+    update(patch);
   };
 
   const startGame = () => {
@@ -348,7 +371,8 @@ export default function HundredToOnePage() {
     const newFund = s.roundFund.map((v, i) => i === ri ? 0 : v);
     const newWonBy = s.roundWonBy.map((v, i) => i === ri ? 0 : v);
     const newPhase = s.roundPhase.map((v, i) => i === ri ? 'start' : v);
-    update({ qState: newQState, strikes: newStrikes, roundBusted: newBusted, roundActiveTeam: newActive, roundFund: newFund, roundWonBy: newWonBy, roundPhase: newPhase, t1s: newT1s, t2s: newT2s, phase: 'buzzer', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
+    const resetPhase: Phase = s.curQ === 3 ? 'playing' : 'buzzer';
+    update({ qState: newQState, strikes: newStrikes, roundBusted: newBusted, roundActiveTeam: newActive, roundFund: newFund, roundWonBy: newWonBy, roundPhase: newPhase, t1s: newT1s, t2s: newT2s, phase: resetPhase, buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
   };
 
   // ── Choose team ──
@@ -363,7 +387,12 @@ export default function HundredToOnePage() {
   const nextRound = () => {
     const next = s.curQ + 1;
     if (next >= 4) { update({ phase: 'results' }); return; }
-    update({ curQ: next, phase: 'buzzer', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
+    // Round 4 (index 3) is a shared/common round — no buzzer, go straight to playing
+    if (next === 3) {
+      update({ curQ: next, phase: 'playing', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
+    } else {
+      update({ curQ: next, phase: 'buzzer', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
+    }
   };
 
   const prevRound = () => {
@@ -384,7 +413,13 @@ export default function HundredToOnePage() {
       setS(prev => {
         const t = prev.r4Time - 1;
         if (t <= 10 && t > 0) sndTick();
-        if (t <= 0) { r4Stop(); sndBuzz(); return { ...prev, r4Time: 0, r4Running: false }; }
+        if (t <= 0) {
+          if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; }
+          sndBuzz();
+          broadcast({ r4Time: 0, r4Running: false });
+          return { ...prev, r4Time: 0, r4Running: false };
+        }
+        broadcast({ r4Time: t, r4Running: true });
         return { ...prev, r4Time: t };
       });
     }, 1000);
@@ -394,6 +429,17 @@ export default function HundredToOnePage() {
   const r4Reset = () => { r4Stop(); update({ r4Time: 60, r4Running: false }); };
 
   // ── Big Game ──
+  const bgSelectPlayer = (slot: 1 | 2, playerId: string) => {
+    if (slot === 1) {
+      // If same player selected as P2, swap
+      if (s.bgP2Id === playerId) update({ bgP1Id: playerId, bgP2Id: s.bgP1Id });
+      else update({ bgP1Id: playerId });
+    } else {
+      if (s.bgP1Id === playerId) update({ bgP2Id: playerId, bgP1Id: s.bgP2Id });
+      else update({ bgP2Id: playerId });
+    }
+  };
+
   const bgStartPlayer = (player: 1 | 2) => {
     const time = player === 1 ? 30 : 40;
     update({ bgPhase: player === 1 ? 1 : 3, bgCurQ: 0, bgTimeLeft: time, bgTimerTotal: time, bgTimerPaused: false, ...(player === 1 ? { bgP1Ans: [] } : { bgP2Ans: [] }) });
@@ -407,11 +453,14 @@ export default function HundredToOnePage() {
         if (t <= 0) {
           if (bgTimerRef.current) { clearInterval(bgTimerRef.current); bgTimerRef.current = null; }
           sndBuzz();
-          // Fill remaining with '—'
+          // Fill remaining with '—' but don't auto-transition — wait for manual button
           const ans = prev.bgPhase === 1 ? [...prev.bgP1Ans] : [...prev.bgP2Ans];
           while (ans.length < 5) ans.push('—');
-          return { ...prev, bgTimeLeft: 0, bgPhase: prev.bgPhase === 1 ? 2 : 4, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
+          const patch = { bgTimeLeft: 0, bgCurQ: 5, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
+          broadcast(patch);
+          return { ...prev, ...patch };
         }
+        broadcast({ bgTimeLeft: t });
         return { ...prev, bgTimeLeft: t };
       });
     }, 1000);
@@ -429,15 +478,27 @@ export default function HundredToOnePage() {
       }
     }
     setBgInput('');
-    setS(prev => {
-      const ans = prev.bgPhase === 1 ? [...prev.bgP1Ans, v] : [...prev.bgP2Ans, v];
-      const nextQ = prev.bgCurQ + 1;
-      if (nextQ >= 5) {
-        if (bgTimerRef.current) { clearInterval(bgTimerRef.current); bgTimerRef.current = null; }
-        return { ...prev, bgCurQ: nextQ, bgPhase: prev.bgPhase === 1 ? 2 : 4, bgTimeLeft: 0, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
-      }
-      return { ...prev, bgCurQ: nextQ, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
-    });
+    const isP1 = s.bgPhase === 1;
+    const ans = isP1 ? [...s.bgP1Ans, v] : [...s.bgP2Ans, v];
+    const nextQ = s.bgCurQ + 1;
+    if (nextQ >= 5) {
+      if (bgTimerRef.current) { clearInterval(bgTimerRef.current); bgTimerRef.current = null; }
+      // Don't auto-transition — wait for manual "ПЕРЕЙТИ К ПРОВЕРКЕ" button
+      update({ bgCurQ: nextQ, bgTimeLeft: 0, ...(isP1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) });
+    } else {
+      update({ bgCurQ: nextQ, ...(isP1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) });
+    }
+  };
+
+  // Manual transition from input to check phase
+  const bgGoToCheck = () => {
+    if (!isGameHost) return;
+    if (bgTimerRef.current) { clearInterval(bgTimerRef.current); bgTimerRef.current = null; }
+    const isP1 = s.bgPhase === 1;
+    const curAns = isP1 ? s.bgP1Ans : s.bgP2Ans;
+    const filled = [...curAns];
+    while (filled.length < 5) filled.push('—');
+    update({ bgPhase: isP1 ? 2 : 4, bgTimeLeft: 0, ...(isP1 ? { bgP1Ans: filled } : { bgP2Ans: filled }) });
   };
 
   // Check answers against BIG_Q and calculate points
@@ -463,18 +524,37 @@ export default function HundredToOnePage() {
   const bgDoCheck = (isP1: boolean) => {
     const ans = isP1 ? s.bgP1Ans : s.bgP2Ans;
     const { matched, points } = bgCheckAnswers(ans, isP1);
-    const newFund = s.bgFund + points;
+    // Subtract previous matched contribution (in case host manually credited first)
+    const prevMatched = isP1 ? s.bgP1Matched : s.bgP2Matched;
+    let prevTotal = 0;
+    prevMatched.forEach((m, i) => {
+      if (m) prevTotal += BIG_Q[i].answers.find(a => a.t === m)?.p || 0;
+    });
+    const newFund = s.bgFund - prevTotal + points;
     if (isP1) update({ bgP1Matched: matched, bgFund: newFund });
     else update({ bgP2Matched: matched, bgFund: newFund });
   };
 
   const bgManualCredit = (qIdx: number, ansIdx: number, isP1: boolean) => {
-    const pts = BIG_Q[qIdx].answers[ansIdx].p;
+    const newAnsText = BIG_Q[qIdx].answers[ansIdx].t;
+    const newPts = BIG_Q[qIdx].answers[ansIdx].p;
     const matchedArr = isP1 ? [...s.bgP1Matched] : [...s.bgP2Matched];
-    matchedArr[qIdx] = BIG_Q[qIdx].answers[ansIdx].t;
+    // Ensure array is length 5
+    while (matchedArr.length < 5) matchedArr.push(null);
+    const prevMatched = matchedArr[qIdx];
+    const prevPts = prevMatched ? (BIG_Q[qIdx].answers.find(a => a.t === prevMatched)?.p || 0) : 0;
+    // Click same = uncredit
+    if (prevMatched === newAnsText) {
+      matchedArr[qIdx] = null;
+      sndAssign();
+      if (isP1) update({ bgP1Matched: matchedArr, bgFund: s.bgFund - prevPts });
+      else update({ bgP2Matched: matchedArr, bgFund: s.bgFund - prevPts });
+      return;
+    }
+    matchedArr[qIdx] = newAnsText;
     sndAssign();
-    if (isP1) update({ bgP1Matched: matchedArr, bgFund: s.bgFund + pts });
-    else update({ bgP2Matched: matchedArr, bgFund: s.bgFund + pts });
+    if (isP1) update({ bgP1Matched: matchedArr, bgFund: s.bgFund - prevPts + newPts });
+    else update({ bgP2Matched: matchedArr, bgFund: s.bgFund - prevPts + newPts });
   };
 
   const bgShowResult = () => {
@@ -482,9 +562,9 @@ export default function HundredToOnePage() {
     update({ phase: 'final', bgPhase: 5 });
   };
 
-  // Pause/resume timer on typing
-  const bgPauseTimer = () => { if (s.bgPhase === 1 || s.bgPhase === 3) setS(prev => ({ ...prev, bgTimerPaused: true })); };
-  const bgResumeTimer = () => { if (s.bgPhase === 1 || s.bgPhase === 3) setS(prev => ({ ...prev, bgTimerPaused: false })); };
+  // Pause/resume timer on typing (broadcast so host's timer pauses)
+  const bgPauseTimer = () => { if ((s.bgPhase === 1 || s.bgPhase === 3) && !s.bgTimerPaused) update({ bgTimerPaused: true }); };
+  const bgResumeTimer = () => { if ((s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimerPaused) update({ bgTimerPaused: false }); };
 
   // ── Derived ──
   const scores = [{ name: s.t1n, score: s.t1s }, { name: s.t2n, score: s.t2s }];
@@ -539,54 +619,76 @@ export default function HundredToOnePage() {
       )}
 
       {/* ── TEAM NAMES ── */}
-      {s.phase === 'teamNames' && (
-        <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
-          <h2 className="text-2xl font-bold text-amber-400 mb-6">НАЗВАНИЯ КОМАНД</h2>
-          {/* Captains edit their own team name */}
-          {user?.id === s.captains.team1 && (
-            <div className="flex items-center gap-3 mb-4">
-              <span className="w-4 h-4 rounded-full bg-yellow-400 flex-shrink-0" />
-              <input value={teamNameInput1} onChange={e => setTeamNameInput1(e.target.value)}
-                placeholder="Команда 1" maxLength={20}
-                className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-yellow-400" />
-            </div>
-          )}
-          {user?.id === s.captains.team2 && (
-            <div className="flex items-center gap-3 mb-4">
-              <span className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0" />
-              <input value={teamNameInput2} onChange={e => setTeamNameInput2(e.target.value)}
-                placeholder="Команда 2" maxLength={20}
-                className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-red-400" />
-            </div>
-          )}
-          {/* Host sees both fields and the confirm button */}
-          {(isGameHost || isHost) && (
-            <>
-              {user?.id !== s.captains.team1 && (
+      {s.phase === 'teamNames' && (() => {
+        const amCaptain = myTeam && user?.id === s.captains[myTeam];
+        const myConfirmed = myTeam ? s.teamNameConfirmed[myTeam] : false;
+        return (
+          <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
+            <h2 className="text-2xl font-bold text-amber-400 mb-6">НАЗВАНИЯ КОМАНД</h2>
+
+            {/* Captain input: only their own team */}
+            {amCaptain && !myConfirmed && myTeam && (
+              <div>
+                <p className={`text-sm mb-3 ${myTeam === 'team1' ? 'text-yellow-400' : 'text-red-400'}`}>Введите название вашей команды</p>
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="w-4 h-4 rounded-full bg-yellow-400 flex-shrink-0" />
-                  <input value={teamNameInput1} onChange={e => setTeamNameInput1(e.target.value)}
-                    placeholder="Команда 1" maxLength={20}
-                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-amber-400" />
+                  <span className={`w-4 h-4 rounded-full flex-shrink-0 ${myTeam === 'team1' ? 'bg-yellow-400' : 'bg-red-500'}`} />
+                  <input
+                    value={myTeam === 'team1' ? teamNameInput1 : teamNameInput2}
+                    onChange={e => myTeam === 'team1' ? setTeamNameInput1(e.target.value) : setTeamNameInput2(e.target.value)}
+                    placeholder={myTeam === 'team1' ? 'Команда 1' : 'Команда 2'} maxLength={20}
+                    className={`flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none ${myTeam === 'team1' ? 'focus:border-yellow-400' : 'focus:border-red-400'}`} />
                 </div>
-              )}
-              {user?.id !== s.captains.team2 && (
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="w-4 h-4 rounded-full bg-red-500 flex-shrink-0" />
-                  <input value={teamNameInput2} onChange={e => setTeamNameInput2(e.target.value)}
-                    placeholder="Команда 2" maxLength={20}
-                    className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none focus:border-amber-400" />
+                <GlassButton variant="primary" size="lg" onClick={confirmMyTeamName}>ПОДТВЕРДИТЬ</GlassButton>
+              </div>
+            )}
+
+            {/* Captain waiting */}
+            {amCaptain && myConfirmed && (
+              <div className="py-6">
+                <div className="text-4xl mb-3">✅</div>
+                <p className="text-green-400 font-bold">Название подтверждено!</p>
+                <p className="text-white/40 text-sm mt-1">
+                  {myTeam && !s.teamNameConfirmed[myTeam === 'team1' ? 'team2' : 'team1'] && 'Ждём вторую команду...'}
+                </p>
+              </div>
+            )}
+
+            {/* Non-captain team member — see status */}
+            {myTeam && user?.id !== s.captains[myTeam] && (
+              <div className="py-4">
+                <p className="text-white/50 mb-3">Капитан вводит название команды</p>
+                <div className="space-y-2">
+                  <div className={`glass-card px-4 py-2 text-sm ${s.teamNameConfirmed.team1 ? 'text-green-400' : 'text-white/40'}`}>
+                    <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block mr-2" />
+                    {s.teamNameConfirmed.team1 ? `✓ ${s.t1n}` : '⏳ Команда 1'}
+                  </div>
+                  <div className={`glass-card px-4 py-2 text-sm ${s.teamNameConfirmed.team2 ? 'text-green-400' : 'text-white/40'}`}>
+                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block mr-2" />
+                    {s.teamNameConfirmed.team2 ? `✓ ${s.t2n}` : '⏳ Команда 2'}
+                  </div>
                 </div>
-              )}
-              <GlassButton variant="primary" size="lg" onClick={confirmTeamNames}>ДАЛЕЕ</GlassButton>
-            </>
-          )}
-          {/* Non-captain, non-host sees waiting message */}
-          {!(isGameHost || isHost) && user?.id !== s.captains.team1 && user?.id !== s.captains.team2 && (
-            <p className="text-white/40 italic">Капитаны вводят названия команд...</p>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+
+            {/* Host — just waits for captains */}
+            {isGameHost && (
+              <div className="py-4">
+                <p className="text-white/50 mb-3">Капитаны вводят названия команд...</p>
+                <div className="space-y-2">
+                  <div className={`glass-card px-4 py-2 text-sm ${s.teamNameConfirmed.team1 ? 'text-green-400' : 'text-white/40'}`}>
+                    <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block mr-2" />
+                    {s.teamNameConfirmed.team1 ? `✓ ${s.t1n}` : '⏳ Команда 1'}
+                  </div>
+                  <div className={`glass-card px-4 py-2 text-sm ${s.teamNameConfirmed.team2 ? 'text-green-400' : 'text-white/40'}`}>
+                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block mr-2" />
+                    {s.teamNameConfirmed.team2 ? `✓ ${s.t2n}` : '⏳ Команда 2'}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── CAPTAIN SELECT ── */}
       {s.phase === 'captainSelect' && (
@@ -765,18 +867,18 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* Scores */}
           <div className="flex justify-between items-center mb-3">
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'ring-2 ring-yellow-400 bg-yellow-500/10' : ''}`}>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'ring-2 ring-yellow-400 bg-yellow-500/30 shadow-lg shadow-yellow-500/20' : 'opacity-60'}`}>
               <span className="w-3 h-3 rounded-full bg-yellow-400" />
-              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 1 ? 'text-yellow-300' : 'text-white/60'}`}>{s.t1n}</span>
+              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 1 ? 'text-yellow-200' : 'text-white/60'}`}>{s.t1n}</span>
               <span className="font-bold text-white text-lg">{s.t1s}</span>
             </div>
             <div className="text-center">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'ring-2 ring-red-400 bg-red-500/10' : ''}`}>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'ring-2 ring-red-400 bg-red-500/30 shadow-lg shadow-red-500/20' : 'opacity-60'}`}>
               <span className="font-bold text-white text-lg">{s.t2s}</span>
-              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 2 ? 'text-red-300' : 'text-white/60'}`}>{s.t2n}</span>
+              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 2 ? 'text-red-200' : 'text-white/60'}`}>{s.t2n}</span>
               <span className="w-3 h-3 rounded-full bg-red-500" />
             </div>
           </div>
@@ -1046,7 +1148,7 @@ export default function HundredToOnePage() {
           {isGameHost && (
             <div className="flex gap-3 justify-center">
               <GlassButton onClick={endGame}>В лобби</GlassButton>
-              <GlassButton variant="primary" onClick={() => update({ phase: 'bigGame', bgPhase: 0, bgP1Ans: [], bgP2Ans: [], bgP1Matched: [], bgP2Matched: [], bgFund: 0, bgCurQ: 0, winTeam: s.t1s >= s.t2s ? 1 : 2 })}>
+              <GlassButton variant="primary" onClick={() => update({ phase: 'bigGame', bgPhase: 0, bgP1Ans: [], bgP2Ans: [], bgP1Matched: [], bgP2Matched: [], bgFund: 0, bgCurQ: 0, bgP1Id: '', bgP2Id: '', winTeam: s.t1s >= s.t2s ? 1 : 2 })}>
                 БОЛЬШАЯ ИГРА →
               </GlassButton>
             </div>
@@ -1089,13 +1191,61 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full py-4 animate-fade-in">
           <h2 className="text-2xl font-bold text-amber-400 text-center mb-2">БОЛЬШАЯ ИГРА</h2>
 
-          {/* Intro (bgPhase 0) */}
-          {s.bgPhase === 0 && (
-            <div className="text-center">
-              <p className="text-white/50 mb-6">Команда «{s.winTeam === 1 ? s.t1n : s.t2n}»: выберите 2 игроков.<br/>Игрок 1 — 30 сек, Игрок 2 — 40 сек.<br/>Второй не должен слышать ответы первого!</p>
-              {isGameHost && <GlassButton variant="primary" onClick={() => bgStartPlayer(1)}>НАЧАТЬ (ИГРОК 1 — 30 сек)</GlassButton>}
-            </div>
-          )}
+          {/* Intro (bgPhase 0) — winning team picks 2 players */}
+          {s.bgPhase === 0 && (() => {
+            const winTeamRole = s.winTeam === 1 ? 'team1' : 'team2';
+            const winTeamName = s.winTeam === 1 ? s.t1n : s.t2n;
+            const winTeamPlayers = s.players.filter(p => s.roles[p.id] === winTeamRole);
+            const captainId = s.winTeam === 1 ? s.captains.team1 : s.captains.team2;
+            const isCaptain = user?.id === captainId;
+            const bothPicked = !!s.bgP1Id && !!s.bgP2Id;
+            const p1Name = s.players.find(p => p.id === s.bgP1Id)?.nickname;
+            const p2Name = s.players.find(p => p.id === s.bgP2Id)?.nickname;
+            return (
+              <div className="text-center">
+                <p className="text-white/50 mb-4">Команда «{winTeamName}»: капитан выбирает 2 игроков.<br/>Игрок 1 — 30 сек, Игрок 2 — 40 сек.<br/><span className="text-amber-400/60">Второй не должен слышать ответы первого!</span></p>
+                {isCaptain ? (
+                  <div className="max-w-xl mx-auto space-y-4 mb-4">
+                    <div>
+                      <p className="text-xs text-yellow-400 font-bold mb-2">ИГРОК 1 (30 СЕК)</p>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {winTeamPlayers.map(p => (
+                          <button key={p.id} onClick={() => bgSelectPlayer(1, p.id)}
+                            className={`px-4 py-2 rounded-lg border transition-all text-sm font-bold
+                              ${s.bgP1Id === p.id ? 'bg-yellow-500/30 border-yellow-400 text-yellow-200' : 'bg-white/5 border-white/20 text-white/60 hover:border-yellow-400/60'}`}>
+                            {p.nickname}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-amber-400 font-bold mb-2">ИГРОК 2 (40 СЕК)</p>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {winTeamPlayers.map(p => (
+                          <button key={p.id} onClick={() => bgSelectPlayer(2, p.id)}
+                            className={`px-4 py-2 rounded-lg border transition-all text-sm font-bold
+                              ${s.bgP2Id === p.id ? 'bg-amber-500/30 border-amber-400 text-amber-200' : 'bg-white/5 border-white/20 text-white/60 hover:border-amber-400/60'}`}>
+                            {p.nickname}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-4 text-sm text-white/50">
+                    <p>Игрок 1: <span className="text-yellow-300 font-bold">{p1Name || '—'}</span></p>
+                    <p>Игрок 2: <span className="text-amber-300 font-bold">{p2Name || '—'}</span></p>
+                    {!bothPicked && <p className="text-xs text-white/30 mt-2">Капитан выбирает игроков...</p>}
+                  </div>
+                )}
+                {isGameHost && (
+                  <GlassButton variant="primary" disabled={!bothPicked} onClick={() => bgStartPlayer(1)}>
+                    {bothPicked ? 'НАЧАТЬ (ИГРОК 1 — 30 сек)' : 'Ждём выбора игроков...'}
+                  </GlassButton>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Player label */}
           {s.bgPhase >= 1 && s.bgPhase <= 4 && (
@@ -1134,16 +1284,21 @@ export default function HundredToOnePage() {
                         </span>
                       )}
                     </div>
-                    {/* Show all answers for manual credit in check phase */}
-                    {isChecked && !matched && isGameHost && (
+                    {/* Show all answers for manual credit in check phase — always visible, allows re-picking */}
+                    {isChecked && isGameHost && (
                       <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-white/5">
                         {qq.answers.map((a, ai) => {
                           const usedByP1 = s.bgPhase === 4 && s.bgP1Matched[i] === a.t;
+                          const isSelected = matched === a.t;
                           return (
-                            <button key={ai} disabled={usedByP1}
+                            <button key={ai} disabled={usedByP1 && !isSelected}
                               onClick={() => bgManualCredit(i, ai, s.bgPhase === 2)}
                               className={`text-xs px-2 py-0.5 rounded border transition-all
-                                ${usedByP1 ? 'opacity-30 line-through border-white/10 text-white/30' : 'border-dashed border-white/20 text-white/50 hover:bg-green-500/20 hover:text-green-400 hover:border-green-400 cursor-pointer'}`}>
+                                ${isSelected
+                                  ? 'bg-green-500/30 text-green-300 border-green-400 font-bold'
+                                  : usedByP1
+                                    ? 'opacity-30 line-through border-white/10 text-white/30'
+                                    : 'border-dashed border-white/20 text-white/50 hover:bg-green-500/20 hover:text-green-400 hover:border-green-400 cursor-pointer'}`}>
                               {a.t} ({a.p})
                             </button>
                           );
@@ -1156,14 +1311,32 @@ export default function HundredToOnePage() {
             </div>
           )}
 
-          {/* Input area (during answering) */}
-          {isGameHost && (s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 && (
+          {/* Input area (during answering) — only on selected player's phone */}
+          {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 && (
+            (s.bgPhase === 1 ? user?.id === s.bgP1Id : user?.id === s.bgP2Id) ? (
+              <div className="text-center mb-3">
+                <input value={bgInput} onChange={e => { setBgInput(e.target.value); bgPauseTimer(); }}
+                  onKeyDown={e => { if (e.key === 'Enter') { bgResumeTimer(); bgSubmitAnswer(); } }}
+                  placeholder="Ответ → Enter" autoFocus
+                  className="w-full max-w-md px-4 py-3 rounded-xl bg-white/5 border border-amber-400/40 text-white text-center font-bold text-lg outline-none focus:border-amber-400" />
+                <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе пока вы печатаете · Enter — отправить</p>
+              </div>
+            ) : (
+              <div className="text-center mb-3">
+                <p className="text-sm text-white/40">
+                  Отвечает: <span className="text-yellow-300 font-bold">
+                    {s.players.find(p => p.id === (s.bgPhase === 1 ? s.bgP1Id : s.bgP2Id))?.nickname || '—'}
+                  </span>
+                </p>
+                <p className="text-xs text-white/30 mt-1">Вопрос {s.bgCurQ + 1}/5</p>
+              </div>
+            )
+          )}
+
+          {/* Manual transition to check phase */}
+          {isGameHost && (s.bgPhase === 1 || s.bgPhase === 3) && (s.bgCurQ >= 5 || s.bgTimeLeft === 0) && (
             <div className="text-center mb-3">
-              <input value={bgInput} onChange={e => { setBgInput(e.target.value); bgPauseTimer(); }}
-                onKeyDown={e => { if (e.key === 'Enter') { bgResumeTimer(); bgSubmitAnswer(); } }}
-                placeholder="Ответ → Enter" autoFocus
-                className="w-full max-w-md px-4 py-3 rounded-xl bg-white/5 border border-amber-400/40 text-white text-center font-bold text-lg outline-none focus:border-amber-400" />
-              <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе пока вы печатаете · Enter — отправить</p>
+              <GlassButton variant="primary" onClick={bgGoToCheck}>ПЕРЕЙТИ К ПРОВЕРКЕ →</GlassButton>
             </div>
           )}
 
@@ -1176,15 +1349,15 @@ export default function HundredToOnePage() {
 
           {/* Action buttons */}
           {isGameHost && s.bgPhase === 2 && (
-            <div className="text-center">
-              {s.bgP1Matched.length === 0 && <GlassButton variant="primary" className="mr-2" onClick={() => bgDoCheck(true)}>ПРОВЕРИТЬ ОТВЕТЫ</GlassButton>}
-              {s.bgP1Matched.length > 0 && <GlassButton variant="primary" onClick={() => bgStartPlayer(2)}>ИГРОК 2 (40 сек) →</GlassButton>}
+            <div className="text-center flex items-center justify-center gap-3">
+              <GlassButton onClick={() => bgDoCheck(true)}>АВТО-ПРОВЕРКА</GlassButton>
+              <GlassButton variant="primary" onClick={() => bgStartPlayer(2)}>ИГРОК 2 (40 сек) →</GlassButton>
             </div>
           )}
           {isGameHost && s.bgPhase === 4 && (
-            <div className="text-center">
-              {s.bgP2Matched.length === 0 && <GlassButton variant="primary" className="mr-2" onClick={() => bgDoCheck(false)}>ПРОВЕРИТЬ ОТВЕТЫ</GlassButton>}
-              {s.bgP2Matched.length > 0 && <GlassButton variant="primary" onClick={bgShowResult}>РЕЗУЛЬТАТ →</GlassButton>}
+            <div className="text-center flex items-center justify-center gap-3">
+              <GlassButton onClick={() => bgDoCheck(false)}>АВТО-ПРОВЕРКА</GlassButton>
+              <GlassButton variant="primary" onClick={bgShowResult}>РЕЗУЛЬТАТ →</GlassButton>
             </div>
           )}
         </div>
