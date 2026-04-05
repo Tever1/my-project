@@ -867,18 +867,18 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* Scores */}
           <div className="flex justify-between items-center mb-3">
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'ring-2 ring-yellow-400 bg-yellow-500/30 shadow-lg shadow-yellow-500/20' : 'opacity-60'}`}>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'ring-4 ring-red-500 bg-red-500/20 shadow-lg shadow-red-500/40' : 'opacity-50'}`}>
               <span className="w-3 h-3 rounded-full bg-yellow-400" />
-              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 1 ? 'text-yellow-200' : 'text-white/60'}`}>{s.t1n}</span>
+              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 1 ? 'text-white' : 'text-white/60'}`}>{s.t1n}</span>
               <span className="font-bold text-white text-lg">{s.t1s}</span>
             </div>
             <div className="text-center">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'ring-2 ring-red-400 bg-red-500/30 shadow-lg shadow-red-500/20' : 'opacity-60'}`}>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'ring-4 ring-red-500 bg-red-500/20 shadow-lg shadow-red-500/40' : 'opacity-50'}`}>
               <span className="font-bold text-white text-lg">{s.t2s}</span>
-              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 2 ? 'text-red-200' : 'text-white/60'}`}>{s.t2n}</span>
+              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 2 ? 'text-white' : 'text-white/60'}`}>{s.t2n}</span>
               <span className="w-3 h-3 rounded-full bg-red-500" />
             </div>
           </div>
@@ -1014,18 +1014,18 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* Team scores bar */}
           <div className="flex justify-between items-center mb-3">
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 && s.curQ <= 2 ? 'ring-2 ring-yellow-400 bg-yellow-500/10' : ''}`}>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'ring-4 ring-red-500 bg-red-500/20 shadow-lg shadow-red-500/40' : 'opacity-50'}`}>
               <span className="w-3 h-3 rounded-full bg-yellow-400" />
-              <span className="text-sm text-white/60">{s.t1n}</span>
+              <span className="text-sm text-white/80">{s.t1n}</span>
               <span className="font-bold text-white text-lg">{s.t1s}</span>
             </div>
             <div className="text-center">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 && s.curQ <= 2 ? 'ring-2 ring-red-400 bg-red-500/10' : ''}`}>
+            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'ring-4 ring-red-500 bg-red-500/20 shadow-lg shadow-red-500/40' : 'opacity-50'}`}>
               <span className="font-bold text-white text-lg">{s.t2s}</span>
-              <span className="text-sm text-white/60">{s.t2n}</span>
+              <span className="text-sm text-white/80">{s.t2n}</span>
               <span className="w-3 h-3 rounded-full bg-red-500" />
             </div>
           </div>
