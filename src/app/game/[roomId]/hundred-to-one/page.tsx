@@ -18,7 +18,7 @@ interface GamePlayer { id: string; nickname: string; isHost: boolean; }
 // Answer state per cell: rev=revealed to host, pub=published to players, to=assigned team
 interface AnsState { rev: boolean; pub: boolean; to: number; }
 
-type Phase = 'roleSelect' | 'teamNames' | 'captainSelect' | 'title' | 'buzzer' | 'buzzerResult' | 'teams' | 'rules' | 'playing' | 'results' | 'bigGame' | 'final';
+type Phase = 'roleSelect' | 'teamNames' | 'captainSelect' | 'title' | 'buzzer' | 'buzzerResult' | 'teams' | 'rules' | 'playing' | 'r4rules' | 'results' | 'bigGame' | 'final';
 type PlayerRole = 'team1' | 'team2' | 'host' | 'tv';
 
 interface GState {
@@ -387,9 +387,9 @@ export default function HundredToOnePage() {
   const nextRound = () => {
     const next = s.curQ + 1;
     if (next >= 4) { update({ phase: 'results' }); return; }
-    // Round 4 (index 3) is a shared/common round — no buzzer, go straight to playing
+    // Round 4 (index 3) — show rules first, then play
     if (next === 3) {
-      update({ curQ: next, phase: 'playing', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
+      update({ curQ: next, phase: 'r4rules', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
     } else {
       update({ curQ: next, phase: 'buzzer', buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1 });
     }
@@ -862,34 +862,57 @@ export default function HundredToOnePage() {
         </div>
       )}
 
+      {/* ── ROUND 4 RULES ── */}
+      {s.phase === 'r4rules' && (
+        <div className="max-w-2xl mx-auto text-center py-8 animate-fade-in">
+          <div className="text-5xl mb-4">🔄</div>
+          <h2 className="text-3xl font-bold text-amber-400 mb-4">ИГРА НАОБОРОТ</h2>
+          <GlassCard className="p-6 mb-6 text-left space-y-3">
+            <p className="text-white/80">В этом раунде правила меняются:</p>
+            <ul className="space-y-2 text-white/70 text-sm">
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">1.</span> Обе команды отвечают на один и тот же вопрос</li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">2.</span> Команды обсуждают ответ <span className="text-yellow-300 font-bold">60 секунд</span></li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">3.</span> Нужно найти <span className="text-red-400 font-bold">самый редкий</span> ответ</li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">4.</span> Чем ниже ответ в списке — тем больше очков!</li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">5.</span> Очки: 15, 30, 60, 120, 180, 240</li>
+            </ul>
+          </GlassCard>
+          {isGameHost && (
+            <GlassButton variant="primary" size="lg" onClick={() => update({ phase: 'playing' })}>
+              НАЧАТЬ РАУНД 4
+            </GlassButton>
+          )}
+          {!isGameHost && <p className="text-white/40 text-sm animate-pulse">Ведущий начнёт раунд...</p>}
+        </div>
+      )}
+
       {/* ── PLAYING: PLAYER VIEW (team1/team2) ── */}
       {s.phase === 'playing' && q && (myRole === 'team1' || myRole === 'team2') && (
         <div className="max-w-3xl mx-auto w-full">
           {/* Scores */}
-          <div className="flex justify-between items-center mb-3">
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
-              <span className="w-3 h-3 rounded-full bg-yellow-400" />
-              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 1 ? 'text-white' : 'text-white/60'}`}>{s.t1n}</span>
-              <span className="font-bold text-white text-lg">{s.t1s}</span>
+          <div className="flex justify-between items-center gap-2 mb-3">
+            <div className={`glass-card px-3 py-2 flex items-center gap-2 max-w-[40%] min-w-0 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+              <span className="w-3 h-3 rounded-full bg-yellow-400 shrink-0" />
+              <span className={`text-sm font-bold truncate ${s.roundActiveTeam[s.curQ] === 1 ? 'text-white' : 'text-white/60'}`}>{s.t1n}</span>
+              <span className="font-bold text-white text-lg shrink-0">{s.t1s}</span>
             </div>
-            <div className="text-center">
+            <div className="text-center shrink-0">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
-              <span className="font-bold text-white text-lg">{s.t2s}</span>
-              <span className={`text-sm font-bold ${s.roundActiveTeam[s.curQ] === 2 ? 'text-white' : 'text-white/60'}`}>{s.t2n}</span>
-              <span className="w-3 h-3 rounded-full bg-red-500" />
+            <div className={`glass-card px-3 py-2 flex items-center gap-2 max-w-[40%] min-w-0 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+              <span className="font-bold text-white text-lg shrink-0">{s.t2s}</span>
+              <span className={`text-sm font-bold truncate ${s.roundActiveTeam[s.curQ] === 2 ? 'text-white' : 'text-white/60'}`}>{s.t2n}</span>
+              <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
             </div>
           </div>
           <div className="text-center mb-2">
             <span className="text-amber-400 font-bold text-sm tracking-widest">{ROUND_NAMES[s.curQ]}</span>
           </div>
-          {/* Strikes for BOTH teams */}
+          {/* Strikes for BOTH teams (no team names on phones) */}
           {s.curQ <= 2 && (
             <div className="flex justify-between items-center mb-2 px-2">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-yellow-400/60 mr-1">{s.t1n}</span>
                 {[0, 1, 2].map(i => (
                   <div key={i} className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-all
                     ${i < s.strikes[s.curQ][0] ? 'bg-red-500/30 text-red-400 scale-110' : 'bg-white/5 text-white/15'}`}>✕</div>
@@ -900,7 +923,6 @@ export default function HundredToOnePage() {
                   <div key={i} className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-all
                     ${i < s.strikes[s.curQ][1] ? 'bg-red-500/30 text-red-400 scale-110' : 'bg-white/5 text-white/15'}`}>✕</div>
                 ))}
-                <span className="text-xs text-red-400/60 ml-1">{s.t2n}</span>
               </div>
             </div>
           )}
@@ -1013,20 +1035,20 @@ export default function HundredToOnePage() {
       {s.phase === 'playing' && q && isGameHost && (
         <div className="max-w-3xl mx-auto w-full">
           {/* Team scores bar */}
-          <div className="flex justify-between items-center mb-3">
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
-              <span className="w-3 h-3 rounded-full bg-yellow-400" />
-              <span className="text-sm text-white/80">{s.t1n}</span>
-              <span className="font-bold text-white text-lg">{s.t1s}</span>
+          <div className="flex justify-between items-center gap-2 mb-3">
+            <div className={`glass-card px-3 py-2 flex items-center gap-2 max-w-[40%] min-w-0 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+              <span className="w-3 h-3 rounded-full bg-yellow-400 shrink-0" />
+              <span className="text-sm text-white/80 truncate">{s.t1n}</span>
+              <span className="font-bold text-white text-lg shrink-0">{s.t1s}</span>
             </div>
-            <div className="text-center">
+            <div className="text-center shrink-0">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
-              <span className="font-bold text-white text-lg">{s.t2s}</span>
-              <span className="text-sm text-white/80">{s.t2n}</span>
-              <span className="w-3 h-3 rounded-full bg-red-500" />
+            <div className={`glass-card px-3 py-2 flex items-center gap-2 max-w-[40%] min-w-0 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+              <span className="font-bold text-white text-lg shrink-0">{s.t2s}</span>
+              <span className="text-sm text-white/80 truncate">{s.t2n}</span>
+              <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
             </div>
           </div>
 
@@ -1263,74 +1285,87 @@ export default function HundredToOnePage() {
             </div>
           )}
 
-          {/* Questions list */}
-          {s.bgPhase >= 1 && (
-            <div className="space-y-1.5 mb-3">
-              {BIG_Q.map((qq, i) => {
-                const ans = s.bgPhase <= 2 ? s.bgP1Ans[i] : s.bgP2Ans[i];
-                const matched = s.bgPhase <= 2 ? s.bgP1Matched[i] : s.bgP2Matched[i];
-                const isChecked = s.bgPhase === 2 || s.bgPhase === 4;
-                return (
-                  <GlassCard key={i} className="p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-amber-400 font-bold">{i + 1}.</span>
-                      <span className="text-sm font-bold flex-1">{qq.q}</span>
-                      <span className={`text-sm font-bold min-w-[80px] text-right ${ans ? 'text-yellow-300' : 'text-white/30 italic'}`}>
-                        {ans || '...'}
-                      </span>
-                      {isChecked && (
-                        <span className={`font-bold text-sm min-w-[40px] text-right ${matched ? 'text-green-400' : 'text-red-400'}`}>
-                          {matched ? `+${qq.answers.find(a => a.t === matched)?.p || 0}` : '✗'}
-                        </span>
-                      )}
-                    </div>
-                    {/* Show all answers for manual credit in check phase — always visible, allows re-picking */}
-                    {isChecked && isGameHost && (
-                      <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-white/5">
-                        {qq.answers.map((a, ai) => {
-                          const usedByP1 = s.bgPhase === 4 && s.bgP1Matched[i] === a.t;
-                          const isSelected = matched === a.t;
-                          return (
-                            <button key={ai} disabled={usedByP1 && !isSelected}
-                              onClick={() => bgManualCredit(i, ai, s.bgPhase === 2)}
-                              className={`text-xs px-2 py-0.5 rounded border transition-all
-                                ${isSelected
-                                  ? 'bg-green-500/30 text-green-300 border-green-400 font-bold'
-                                  : usedByP1
-                                    ? 'opacity-30 line-through border-white/10 text-white/30'
-                                    : 'border-dashed border-white/20 text-white/50 hover:bg-green-500/20 hover:text-green-400 hover:border-green-400 cursor-pointer'}`}>
-                              {a.t} ({a.p})
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </GlassCard>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Input area (during answering) — only on selected player's phone */}
-          {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 && (
-            (s.bgPhase === 1 ? user?.id === s.bgP1Id : user?.id === s.bgP2Id) ? (
-              <div className="text-center mb-3">
+          {/* Active player input: show only current question */}
+          {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 &&
+            (s.bgPhase === 1 ? user?.id === s.bgP1Id : user?.id === s.bgP2Id) && (
+            <div className="mb-3">
+              <GlassCard className="p-5 mb-3 text-center bg-amber-900/25 border-amber-500/50">
+                <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1.5">ВОПРОС {s.bgCurQ + 1} ИЗ 5</p>
+                <p className="text-xl md:text-2xl font-bold text-white">{BIG_Q[s.bgCurQ].q}</p>
+              </GlassCard>
+              <div className="text-center">
                 <input value={bgInput} onChange={e => { setBgInput(e.target.value); bgPauseTimer(); }}
                   onKeyDown={e => { if (e.key === 'Enter') { bgResumeTimer(); bgSubmitAnswer(); } }}
                   placeholder="Ответ → Enter" autoFocus
                   className="w-full max-w-md px-4 py-3 rounded-xl bg-white/5 border border-amber-400/40 text-white text-center font-bold text-lg outline-none focus:border-amber-400" />
                 <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе пока вы печатаете · Enter — отправить</p>
               </div>
-            ) : (
-              <div className="text-center mb-3">
-                <p className="text-sm text-white/40">
-                  Отвечает: <span className="text-yellow-300 font-bold">
-                    {s.players.find(p => p.id === (s.bgPhase === 1 ? s.bgP1Id : s.bgP2Id))?.nickname || '—'}
-                  </span>
-                </p>
-                <p className="text-xs text-white/30 mt-1">Вопрос {s.bgCurQ + 1}/5</p>
+            </div>
+          )}
+
+          {/* Everyone else (non-active player): questions list + status */}
+          {!(
+            (s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 &&
+            (s.bgPhase === 1 ? user?.id === s.bgP1Id : user?.id === s.bgP2Id)
+          ) && s.bgPhase >= 1 && (
+            <>
+              <div className="space-y-1.5 mb-3">
+                {BIG_Q.map((qq, i) => {
+                  const ans = s.bgPhase <= 2 ? s.bgP1Ans[i] : s.bgP2Ans[i];
+                  const matched = s.bgPhase <= 2 ? s.bgP1Matched[i] : s.bgP2Matched[i];
+                  const isChecked = s.bgPhase === 2 || s.bgPhase === 4;
+                  return (
+                    <GlassCard key={i} className="p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-400 font-bold">{i + 1}.</span>
+                        <span className="text-sm font-bold flex-1">{qq.q}</span>
+                        <span className={`text-sm font-bold min-w-[80px] text-right ${ans ? 'text-yellow-300' : 'text-white/30 italic'}`}>
+                          {ans || '...'}
+                        </span>
+                        {isChecked && (
+                          <span className={`font-bold text-sm min-w-[40px] text-right ${matched ? 'text-green-400' : 'text-red-400'}`}>
+                            {matched ? `+${qq.answers.find(a => a.t === matched)?.p || 0}` : '✗'}
+                          </span>
+                        )}
+                      </div>
+                      {/* Show all answers for manual credit in check phase — always visible, allows re-picking */}
+                      {isChecked && isGameHost && (
+                        <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-white/5">
+                          {qq.answers.map((a, ai) => {
+                            const usedByP1 = s.bgPhase === 4 && s.bgP1Matched[i] === a.t;
+                            const isSelected = matched === a.t;
+                            return (
+                              <button key={ai} disabled={usedByP1 && !isSelected}
+                                onClick={() => bgManualCredit(i, ai, s.bgPhase === 2)}
+                                className={`text-xs px-2 py-0.5 rounded border transition-all
+                                  ${isSelected
+                                    ? 'bg-green-500/30 text-green-300 border-green-400 font-bold'
+                                    : usedByP1
+                                      ? 'opacity-30 line-through border-white/10 text-white/30'
+                                      : 'border-dashed border-white/20 text-white/50 hover:bg-green-500/20 hover:text-green-400 hover:border-green-400 cursor-pointer'}`}>
+                                {a.t} ({a.p})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </GlassCard>
+                  );
+                })}
               </div>
-            )
+
+              {/* Non-active player waiting status during input phase */}
+              {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 && (
+                <div className="text-center mb-3">
+                  <p className="text-sm text-white/40">
+                    Отвечает: <span className="text-yellow-300 font-bold">
+                      {s.players.find(p => p.id === (s.bgPhase === 1 ? s.bgP1Id : s.bgP2Id))?.nickname || '—'}
+                    </span>
+                  </p>
+                  <p className="text-xs text-white/30 mt-1">Вопрос {s.bgCurQ + 1}/5</p>
+                </div>
+              )}
+            </>
           )}
 
           {/* Manual transition to check phase */}
