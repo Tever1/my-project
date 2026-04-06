@@ -104,6 +104,7 @@ export default function HundredToOnePage() {
   const [teamChooser, setTeamChooser] = useState(false);
   const [assignModal, setAssignModal] = useState<{ idx: number; pts: number } | null>(null);
   const [bgInput, setBgInput] = useState('');
+  const [bgDupMsg, setBgDupMsg] = useState(false);
   const r4Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -469,17 +470,27 @@ export default function HundredToOnePage() {
   const bgSubmitAnswer = () => {
     const v = bgInput.trim();
     if (!v) return;
-    // Check duplicate with P1 in phase 3
+    const aLow = v.toLowerCase();
+    const isP1 = s.bgPhase === 1;
+    const myAns = isP1 ? s.bgP1Ans : s.bgP2Ans;
+    const showDup = () => { sndDup(); setBgInput(''); setBgDupMsg(true); setTimeout(() => setBgDupMsg(false), 2000); };
+    // Check duplicate with own previous answers
+    if (myAns.some(a => {
+      const prev = a.toLowerCase();
+      return prev === aLow || (prev.length > 2 && aLow.length > 2 && (prev.includes(aLow) || aLow.includes(prev)));
+    })) {
+      showDup(); return;
+    }
+    // Check duplicate with P1 in phase 3 (same question index)
     if (s.bgPhase === 3 && s.bgCurQ < 5) {
       const p1 = s.bgP1Ans[s.bgCurQ] || '';
-      const aLow = v.toLowerCase(), p1Low = p1.toLowerCase();
-      if (aLow === p1Low || (aLow.length > 2 && p1Low.length > 2 && (aLow.includes(p1Low) || p1Low.includes(aLow)))) {
-        sndDup(); setBgInput(''); return;
+      const p1Low = p1.toLowerCase();
+      if (p1Low && (aLow === p1Low || (aLow.length > 2 && p1Low.length > 2 && (aLow.includes(p1Low) || p1Low.includes(aLow))))) {
+        showDup(); return;
       }
     }
     setBgInput('');
-    const isP1 = s.bgPhase === 1;
-    const ans = isP1 ? [...s.bgP1Ans, v] : [...s.bgP2Ans, v];
+    const ans = [...myAns, v];
     const nextQ = s.bgCurQ + 1;
     if (nextQ >= 5) {
       if (bgTimerRef.current) { clearInterval(bgTimerRef.current); bgTimerRef.current = null; }
@@ -635,7 +646,7 @@ export default function HundredToOnePage() {
                   <input
                     value={myTeam === 'team1' ? teamNameInput1 : teamNameInput2}
                     onChange={e => myTeam === 'team1' ? setTeamNameInput1(e.target.value) : setTeamNameInput2(e.target.value)}
-                    placeholder={myTeam === 'team1' ? 'Команда 1' : 'Команда 2'} maxLength={20}
+                    placeholder={myTeam === 'team1' ? 'Команда 1' : 'Команда 2'} maxLength={10}
                     className={`flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none ${myTeam === 'team1' ? 'focus:border-yellow-400' : 'focus:border-red-400'}`} />
                 </div>
                 <GlassButton variant="primary" size="lg" onClick={confirmMyTeamName}>ПОДТВЕРДИТЬ</GlassButton>
@@ -891,18 +902,18 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* Scores */}
           <div className="flex justify-between items-center gap-2 mb-3">
-            <div className={`glass-card px-3 py-2 flex items-center gap-2 max-w-[40%] min-w-0 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
               <span className="w-3 h-3 rounded-full bg-yellow-400 shrink-0" />
-              <span className={`text-sm font-bold truncate ${s.roundActiveTeam[s.curQ] === 1 ? 'text-white' : 'text-white/60'}`}>{s.t1n}</span>
-              <span className="font-bold text-white text-lg shrink-0">{s.t1s}</span>
+              <span className={`text-xs font-bold ${s.roundActiveTeam[s.curQ] === 1 ? 'text-white' : 'text-white/60'}`}>{s.t1n}</span>
+              <span className="font-bold text-white text-base shrink-0">{s.t1s}</span>
             </div>
             <div className="text-center shrink-0">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-3 py-2 flex items-center gap-2 max-w-[40%] min-w-0 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
-              <span className="font-bold text-white text-lg shrink-0">{s.t2s}</span>
-              <span className={`text-sm font-bold truncate ${s.roundActiveTeam[s.curQ] === 2 ? 'text-white' : 'text-white/60'}`}>{s.t2n}</span>
+            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+              <span className="font-bold text-white text-base shrink-0">{s.t2s}</span>
+              <span className={`text-xs font-bold ${s.roundActiveTeam[s.curQ] === 2 ? 'text-white' : 'text-white/60'}`}>{s.t2n}</span>
               <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
             </div>
           </div>
@@ -1036,18 +1047,18 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* Team scores bar */}
           <div className="flex justify-between items-center gap-2 mb-3">
-            <div className={`glass-card px-3 py-2 flex items-center gap-2 max-w-[40%] min-w-0 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
               <span className="w-3 h-3 rounded-full bg-yellow-400 shrink-0" />
-              <span className="text-sm text-white/80 truncate">{s.t1n}</span>
-              <span className="font-bold text-white text-lg shrink-0">{s.t1s}</span>
+              <span className="text-xs text-white/80">{s.t1n}</span>
+              <span className="font-bold text-white text-base shrink-0">{s.t1s}</span>
             </div>
             <div className="text-center shrink-0">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-3 py-2 flex items-center gap-2 max-w-[40%] min-w-0 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
-              <span className="font-bold text-white text-lg shrink-0">{s.t2s}</span>
-              <span className="text-sm text-white/80 truncate">{s.t2n}</span>
+            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+              <span className="font-bold text-white text-base shrink-0">{s.t2s}</span>
+              <span className="text-xs text-white/80">{s.t2n}</span>
               <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
             </div>
           </div>
@@ -1298,7 +1309,9 @@ export default function HundredToOnePage() {
                   onKeyDown={e => { if (e.key === 'Enter') { bgResumeTimer(); bgSubmitAnswer(); } }}
                   placeholder="Ответ → Enter" autoFocus
                   className="w-full max-w-md px-4 py-3 rounded-xl bg-white/5 border border-amber-400/40 text-white text-center font-bold text-lg outline-none focus:border-amber-400" />
-                <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе пока вы печатаете · Enter — отправить</p>
+                {bgDupMsg
+                  ? <p className="text-sm text-red-400 font-bold mt-1 animate-pulse">Этот ответ уже был!</p>
+                  : <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе пока вы печатаете · Enter — отправить</p>}
               </div>
             </div>
           )}
