@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
@@ -120,6 +120,11 @@ export default function TVGamePage() {
   });
   const [genericState, setGenericState] = useState<GenericGameState>({});
   const [h2oState, setH2OState] = useState<H2OState>(mkH2OInitial);
+  const [spyState, setSpyState] = useState<{ phase: string; mode: string; word: string; spyId: string; drawerId: string }>({
+    phase: 'modeSelect', mode: 'guess', word: '', spyId: '', drawerId: '',
+  });
+  const spyCanvasRef = useRef<HTMLCanvasElement>(null);
+  const spyCanvasSizeRef = useRef({ w: 0, h: 0 });
 
   const gameInfo = GAMES.find((g) => g.id === gameType);
   const gameTitle = gameInfo
@@ -145,6 +150,37 @@ export default function TVGamePage() {
         action: string;
         payload: Record<string, unknown>;
       };
+
+      if (gameType === 'spy') {
+        if (action === 'spy:sync') {
+          setSpyState(prev => ({ ...prev, ...(payload as Partial<typeof prev>) }));
+        }
+        if (action === 'spy:stroke') {
+          const { x1, y1, x2, y2 } = payload as unknown as { x1: number; y1: number; x2: number; y2: number };
+          const canvas = spyCanvasRef.current;
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            const { w, h } = spyCanvasSizeRef.current;
+            if (ctx && w > 0) {
+              ctx.strokeStyle = '#fbbf24';
+              ctx.lineWidth = 4;
+              ctx.lineCap = 'round';
+              ctx.lineJoin = 'round';
+              ctx.beginPath();
+              ctx.moveTo(x1 * w, y1 * h);
+              ctx.lineTo(x2 * w, y2 * h);
+              ctx.stroke();
+            }
+          }
+        }
+        if (action === 'spy:clear') {
+          const canvas = spyCanvasRef.current;
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+          }
+        }
+      }
 
       if (gameType === 'hundred-to-one') {
         if (action === 'h2o:sync') {
@@ -678,6 +714,77 @@ export default function TVGamePage() {
                   <p className="text-2xl text-white/60">Фонд: {h.bgFund} — не хватило до 200</p>
                 </>
               )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ===================== SPY TV RENDER =====================
+  if (gameType === 'spy') {
+    const sp = spyState;
+    const drawerName = players.find(p => p.id === sp.drawerId)?.nickname || '???';
+
+    // Init canvas on first render
+    const initSpyCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+      if (!canvas) return;
+      spyCanvasRef.current = canvas;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * 2;
+      canvas.height = rect.height * 2;
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.scale(2, 2);
+      spyCanvasSizeRef.current = { w: rect.width, h: rect.height };
+    }, []);
+
+    return (
+      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <span className="text-4xl">🕵️‍♂️</span>
+            <h1 className="text-3xl font-bold">Шпион</h1>
+            {sp.phase === 'playing' && (
+              <span className="glass-badge px-3 py-1 text-sm font-bold">
+                {sp.mode === 'guess' ? '💬 Угадай слово' : '🎨 Нарисуй'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 flex flex-col items-center justify-center px-8 py-6 min-h-0 overflow-hidden">
+          {sp.phase === 'modeSelect' && (
+            <div className="text-center animate-fade-in">
+              <div className="text-9xl mb-6">🕵️‍♂️</div>
+              <h2 className="text-6xl font-black mb-4">ШПИОН</h2>
+              <p className="text-2xl text-white/50 animate-pulse">Выбор режима...</p>
+            </div>
+          )}
+
+          {sp.phase === 'playing' && sp.mode === 'guess' && (
+            <div className="text-center animate-fade-in">
+              <p className="text-xl text-white/50 mb-4">Игра идёт — слушайте и наблюдайте!</p>
+              <div className="text-9xl mb-6">💬</div>
+              <h2 className="text-5xl font-bold text-amber-400">Угадай слово</h2>
+              <p className="text-2xl text-white/40 mt-4">Кто же шпион?</p>
+            </div>
+          )}
+
+          {sp.phase === 'playing' && sp.mode === 'draw' && (
+            <div className="flex flex-col items-center w-full max-w-3xl">
+              {/* Drawer label */}
+              <p className="text-2xl mb-4">
+                <span className="text-white/50">Рисует: </span>
+                <span className="font-bold text-amber-400">{drawerName}</span>
+              </p>
+
+              {/* Synced canvas */}
+              <canvas
+                ref={initSpyCanvas}
+                className="w-full aspect-square rounded-2xl bg-black/30 border-2 border-white/10"
+              />
             </div>
           )}
         </div>
