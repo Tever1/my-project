@@ -8,7 +8,8 @@ import { useSocket } from '@/lib/use-socket';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
-import { ROUNDS, ROUND_NAMES, ROUND_MULT, REVERSE_PTS, BIG_Q, getDisplayPts } from '@/lib/hundred-to-one/questions';
+import { TOPICS, ROUND_NAMES, ROUND_MULT, REVERSE_PTS, getDisplayPts } from '@/lib/hundred-to-one/questions';
+import type { H2OQuestion } from '@/lib/hundred-to-one/questions';
 import { sndReveal, sndClose, sndAssign, sndBuzz, sndTick, sndWin, sndDup, warmup } from '@/lib/hundred-to-one/sounds';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -18,11 +19,12 @@ interface GamePlayer { id: string; nickname: string; isHost: boolean; }
 // Answer state per cell: rev=revealed to host, pub=published to players, to=assigned team
 interface AnsState { rev: boolean; pub: boolean; to: number; }
 
-type Phase = 'roleSelect' | 'teamNames' | 'captainSelect' | 'title' | 'buzzer' | 'buzzerResult' | 'teams' | 'rules' | 'playing' | 'r4rules' | 'results' | 'bigGame' | 'final';
+type Phase = 'topicSelect' | 'roleSelect' | 'teamNames' | 'captainSelect' | 'title' | 'buzzer' | 'buzzerResult' | 'teams' | 'rules' | 'playing' | 'r4rules' | 'results' | 'bigGame' | 'final';
 type PlayerRole = 'team1' | 'team2' | 'host' | 'tv';
 
 interface GState {
   phase: Phase;
+  topicId: string;
   curQ: number; // current round 0-3
   t1n: string; t2n: string;
   t1s: number; t2s: number;
@@ -62,10 +64,10 @@ interface GState {
 }
 
 const mkInitial = (): GState => ({
-  phase: 'roleSelect', curQ: 0,
+  phase: 'topicSelect', topicId: 'general', curQ: 0,
   t1n: 'Команда 1', t2n: 'Команда 2',
   t1s: 0, t2s: 0,
-  qState: ROUNDS.map(r => r.answers.map(() => ({ rev: false, pub: false, to: 0 }))),
+  qState: TOPICS[0].rounds.map(r => r.answers.map(() => ({ rev: false, pub: false, to: 0 }))),
   strikes: [[0, 0], [0, 0], [0, 0]],
   roundBusted: [[false, false], [false, false], [false, false]],
   roundActiveTeam: [0, 0, 0],
@@ -111,6 +113,9 @@ export default function HundredToOnePage() {
   const isHost = s.players.find(p => p.id === user?.id)?.isHost ?? false;
   const myRole: PlayerRole | null = user?.id ? s.roles[user.id] || null : null;
   const isGameHost = myRole === 'host'; // game host (ведущий), not room host
+  const topic = TOPICS.find(t => t.id === s.topicId) || TOPICS[0];
+  const ROUNDS = topic.rounds;
+  const BIG_Q = topic.bigQ;
   const q = ROUNDS[s.curQ];
 
   // ── Role selection ──
@@ -188,11 +193,13 @@ export default function HundredToOnePage() {
 
   const startGame = () => {
     warmup();
+    const selTopic = TOPICS.find(t => t.id === s.topicId) || TOPICS[0];
     const init = mkInitial();
     const patch: Partial<GState> = {
-      ...init, phase: 'buzzer', players: s.players, roles: s.roles,
+      ...init, phase: 'buzzer', topicId: s.topicId, players: s.players, roles: s.roles,
       t1n: s.t1n, t2n: s.t2n, captains: s.captains,
       captainConfirmed: s.captainConfirmed, buzzerWinner: 0, buzzerActive: false, buzzerCountdown: -1,
+      qState: selTopic.rounds.map(r => r.answers.map(() => ({ rev: false, pub: false, to: 0 }))),
     };
     setS(prev => ({ ...prev, ...patch }));
     broadcast(patch);
@@ -589,6 +596,27 @@ export default function HundredToOnePage() {
       totalRounds={s.phase === 'playing' ? 4 : undefined}
       scores={scores} onEnd={(isHost || isGameHost) ? endGame : undefined}
       showScoreboard={s.phase === 'playing' || s.phase === 'results'}>
+
+      {/* ── TOPIC SELECT ── */}
+      {s.phase === 'topicSelect' && (
+        <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
+          <div className="text-5xl mb-3">💯</div>
+          <h2 className="text-2xl font-bold text-white mb-2">100 к 1</h2>
+          <p className="text-white/50 text-sm mb-6">Выберите тему игры</p>
+          {isHost ? (
+            <div className="space-y-3">
+              {TOPICS.map(t => (
+                <GlassButton key={t.id} variant="primary" size="lg" className="w-full"
+                  onClick={() => update({ topicId: t.id, phase: 'roleSelect', qState: t.rounds.map(r => r.answers.map(() => ({ rev: false, pub: false, to: 0 }))) })}>
+                  <span className="text-2xl mr-2">{t.icon}</span> {t.name}
+                </GlassButton>
+              ))}
+            </div>
+          ) : (
+            <p className="text-white/40 text-sm animate-pulse">Хост выбирает тему...</p>
+          )}
+        </div>
+      )}
 
       {/* ── ROLE SELECT ── */}
       {s.phase === 'roleSelect' && (
@@ -1296,7 +1324,7 @@ export default function HundredToOnePage() {
             </div>
           )}
 
-          {/* Active player input: show only current question */}
+          {/* Active player input: show only current question + timer */}
           {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 &&
             (s.bgPhase === 1 ? user?.id === s.bgP1Id : user?.id === s.bgP2Id) && (
             <div className="mb-3">
@@ -1311,7 +1339,13 @@ export default function HundredToOnePage() {
                   className="w-full max-w-md px-4 py-3 rounded-xl bg-white/5 border border-amber-400/40 text-white text-center font-bold text-lg outline-none focus:border-amber-400" />
                 {bgDupMsg
                   ? <p className="text-sm text-red-400 font-bold mt-1 animate-pulse">Этот ответ уже был!</p>
-                  : <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе пока вы печатаете · Enter — отправить</p>}
+                  : <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе · Enter — отправить</p>}
+                {/* Timer pinned near input so it's visible with keyboard open */}
+                <div className="mt-2">
+                  <span className={`font-bold text-2xl ${s.bgTimeLeft <= 5 ? 'text-red-400 animate-pulse' : s.bgTimerPaused ? 'text-yellow-300' : 'text-white'}`}>
+                    {s.bgTimeLeft}{s.bgTimerPaused ? ' ⏸' : ''}
+                  </span>
+                </div>
               </div>
             </div>
           )}
