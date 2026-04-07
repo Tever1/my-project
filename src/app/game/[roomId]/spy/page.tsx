@@ -21,8 +21,13 @@ interface SpyGameState {
   mode: SpyMode;
   word: string;
   spyId: string;
+  drawerId: string; // current drawer's playerId
   usedWords: number[];
   players: GamePlayer[];
+}
+
+interface DrawStroke {
+  x1: number; y1: number; x2: number; y2: number; // normalized 0-1
 }
 
 const mkInitial = (): SpyGameState => ({
@@ -30,48 +35,49 @@ const mkInitial = (): SpyGameState => ({
   mode: 'guess',
   word: '',
   spyId: '',
+  drawerId: '',
   usedWords: [],
   players: [],
 });
 
-// ── Drawing canvas component ──
+// ── Synced Drawing Canvas ──
 
-function DrawCanvas() {
+interface DrawCanvasProps {
+  canDraw: boolean;
+  onStroke: (stroke: DrawStroke) => void;
+  onClear: () => void;
+}
+
+function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
+  const sizeRef = useRef({ w: 0, h: 0 });
 
-  const getPos = (e: React.TouchEvent | React.MouseEvent) => {
+  const getNormPos = (e: React.TouchEvent | React.MouseEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     if ('touches' in e) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+      return { x: (e.touches[0].clientX - rect.left) / rect.width, y: (e.touches[0].clientY - rect.top) / rect.height };
     }
-    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+    return { x: ((e as React.MouseEvent).clientX - rect.left) / rect.width, y: ((e as React.MouseEvent).clientY - rect.top) / rect.height };
   };
 
   const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!canDraw) return;
     e.preventDefault();
     drawing.current = true;
-    lastPos.current = getPos(e);
+    lastPos.current = getNormPos(e);
   };
 
   const moveDraw = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!canDraw) return;
     e.preventDefault();
     if (!drawing.current || !lastPos.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!ctx || !canvas) return;
-    const pos = getPos(e);
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(lastPos.current.x, lastPos.current.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
+    const pos = getNormPos(e);
+    onStroke({ x1: lastPos.current.x, y1: lastPos.current.y, x2: pos.x, y2: pos.y });
+    drawLine(lastPos.current.x, lastPos.current.y, pos.x, pos.y);
     lastPos.current = pos;
   };
 
@@ -80,14 +86,30 @@ function DrawCanvas() {
     lastPos.current = null;
   };
 
-  const clearCanvas = () => {
+  const drawLine = useCallback((x1: number, y1: number, x2: number, y2: number) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !canvas) return;
+    const w = sizeRef.current.w;
+    const h = sizeRef.current.h;
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1 * w, y1 * h);
+    ctx.lineTo(x2 * w, y2 * h);
+    ctx.stroke();
+  }, []);
+
+  const clearAll = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!ctx || !canvas) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
+  }, []);
 
-  // Set canvas resolution on mount
+  // Init canvas resolution
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -96,20 +118,39 @@ function DrawCanvas() {
     canvas.height = rect.height * 2;
     const ctx = canvas.getContext('2d');
     if (ctx) ctx.scale(2, 2);
+    sizeRef.current = { w: rect.width, h: rect.height };
   }, []);
+
+  // Expose methods via ref-like pattern using data attributes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    (canvas as unknown as { _drawLine: typeof drawLine; _clearAll: typeof clearAll })._drawLine = drawLine;
+    (canvas as unknown as { _clearAll: typeof clearAll })._clearAll = clearAll;
+  }, [drawLine, clearAll]);
+
+  // Expose ref for parent
+  const canvasElRef = canvasRef;
+  (DrawCanvas as unknown as { canvasRef: typeof canvasElRef }).canvasRef = canvasElRef;
 
   return (
     <div className="relative">
       <canvas
         ref={canvasRef}
-        className="w-full aspect-square rounded-xl bg-black/30 border border-white/10 touch-none"
+        id="spy-canvas"
+        className={`w-full aspect-square rounded-xl bg-black/30 border transition-all touch-none ${canDraw ? 'border-amber-400/40' : 'border-white/10'}`}
         onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onMouseLeave={endDraw}
         onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw}
       />
-      <button onClick={clearCanvas}
-        className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-white/10 text-white/50 text-xs hover:bg-white/20">
-        Очистить
-      </button>
+      {canDraw && (
+        <button onClick={() => { clearAll(); onClear(); }}
+          className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-white/10 text-white/50 text-xs hover:bg-white/20">
+          Очистить
+        </button>
+      )}
+      {!canDraw && (
+        <div className="absolute inset-0 rounded-xl" /> /* transparent overlay blocks interaction */
+      )}
     </div>
   );
 }
@@ -126,7 +167,8 @@ export default function SpyGamePage() {
 
   const isHost = s.players.find(p => p.id === user?.id)?.isHost ?? false;
   const isSpy = user?.id === s.spyId;
-  const spyName = s.players.find(p => p.id === s.spyId)?.nickname || '???';
+  const isDrawer = user?.id === s.drawerId;
+  const drawerName = s.players.find(p => p.id === s.drawerId)?.nickname || '???';
 
   // ── Socket ──
   useEffect(() => {
@@ -135,8 +177,25 @@ export default function SpyGamePage() {
       setS(prev => ({ ...prev, players: room.players }));
     });
     const u2 = on('game:action', (data: unknown) => {
-      const { action, payload } = data as { action: string; payload: Partial<SpyGameState> };
-      if (action === 'spy:sync') setS(prev => ({ ...prev, ...payload }));
+      const { action, payload } = data as { action: string; payload: Record<string, unknown> };
+      if (action === 'spy:sync') setS(prev => ({ ...prev, ...(payload as Partial<SpyGameState>) }));
+      // Remote draw stroke
+      if (action === 'spy:stroke') {
+        const { x1, y1, x2, y2 } = payload as unknown as DrawStroke;
+        const canvas = document.getElementById('spy-canvas') as HTMLCanvasElement | null;
+        if (canvas) {
+          const el = canvas as unknown as { _drawLine?: (x1: number, y1: number, x2: number, y2: number) => void };
+          el._drawLine?.(x1, y1, x2, y2);
+        }
+      }
+      // Remote clear
+      if (action === 'spy:clear') {
+        const canvas = document.getElementById('spy-canvas') as HTMLCanvasElement | null;
+        if (canvas) {
+          const el = canvas as unknown as { _clearAll?: () => void };
+          el._clearAll?.();
+        }
+      }
     });
     const u3 = on('game:ended', () => router.push(`/lobby/${roomId}`));
     emit('room:get-state', { code: roomId });
@@ -152,11 +211,18 @@ export default function SpyGamePage() {
     broadcast(patch);
   }, [broadcast]);
 
+  const sendStroke = useCallback((stroke: DrawStroke) => {
+    emit('game:action', { code: roomId, action: 'spy:stroke', payload: stroke });
+  }, [emit, roomId]);
+
+  const sendClear = useCallback(() => {
+    emit('game:action', { code: roomId, action: 'spy:clear', payload: {} });
+  }, [emit, roomId]);
+
   // ── Actions ──
   const pickRandomWord = (used: number[]): { word: string; idx: number } => {
     const available = SPY_WORDS.map((w, i) => ({ w, i })).filter(x => !used.includes(x.i));
     if (available.length === 0) {
-      // Reset pool
       const idx = Math.floor(Math.random() * SPY_WORDS.length);
       return { word: SPY_WORDS[idx], idx };
     }
@@ -169,6 +235,10 @@ export default function SpyGamePage() {
     return playerIds[Math.floor(Math.random() * playerIds.length)];
   };
 
+  const getFirstDrawer = (players: GamePlayer[]): string => {
+    return players.length > 0 ? players[0].id : '';
+  };
+
   const startGame = (mode: SpyMode) => {
     if (!isHost) return;
     const { word, idx } = pickRandomWord([]);
@@ -178,6 +248,7 @@ export default function SpyGamePage() {
       mode,
       word,
       spyId,
+      drawerId: mode === 'draw' ? getFirstDrawer(s.players) : '',
       usedWords: [idx],
     });
   };
@@ -187,7 +258,23 @@ export default function SpyGamePage() {
     const { word, idx } = pickRandomWord(s.usedWords);
     const spyId = pickRandomSpy();
     const newUsed = s.usedWords.length >= SPY_WORDS.length - 1 ? [idx] : [...s.usedWords, idx];
-    update({ word, spyId, usedWords: newUsed });
+    // Clear canvas on all devices
+    sendClear();
+    setTimeout(() => {
+      const canvas = document.getElementById('spy-canvas') as HTMLCanvasElement | null;
+      if (canvas) {
+        const el = canvas as unknown as { _clearAll?: () => void };
+        el._clearAll?.();
+      }
+    }, 50);
+    update({ word, spyId, drawerId: s.mode === 'draw' ? getFirstDrawer(s.players) : '', usedWords: newUsed });
+  };
+
+  const passTurn = () => {
+    if (!isDrawer) return;
+    const idx = s.players.findIndex(p => p.id === s.drawerId);
+    const nextIdx = (idx + 1) % s.players.length;
+    update({ drawerId: s.players[nextIdx].id });
   };
 
   const endGame = () => {
@@ -234,7 +321,7 @@ export default function SpyGamePage() {
           </div>
 
           {/* Card — spy or word */}
-          <GlassCard className={`p-8 mb-5 text-center ${isSpy ? 'border-red-500/50 bg-red-900/20' : 'border-amber-500/50 bg-amber-900/20'}`}>
+          <GlassCard className={`p-8 mb-4 text-center ${isSpy ? 'border-red-500/50 bg-red-900/20' : 'border-amber-500/50 bg-amber-900/20'}`}>
             {isSpy ? (
               <>
                 <div className="text-5xl mb-3">🕵️‍♂️</div>
@@ -250,10 +337,29 @@ export default function SpyGamePage() {
             )}
           </GlassCard>
 
+          {/* Current drawer indicator (draw mode) */}
+          {s.mode === 'draw' && (
+            <p className="text-center text-sm mb-3">
+              <span className="text-white/40">Рисует: </span>
+              <span className={`font-bold ${isDrawer ? 'text-amber-400' : 'text-white'}`}>
+                {isDrawer ? 'Ты' : drawerName}
+              </span>
+            </p>
+          )}
+
           {/* Drawing canvas (draw mode only) */}
           {s.mode === 'draw' && (
-            <div className="mb-5">
-              <DrawCanvas />
+            <div className="mb-4">
+              <DrawCanvas canDraw={isDrawer} onStroke={sendStroke} onClear={sendClear} />
+            </div>
+          )}
+
+          {/* Pass turn button (current drawer only, draw mode) */}
+          {s.mode === 'draw' && isDrawer && (
+            <div className="text-center mb-4">
+              <GlassButton onClick={passTurn}>
+                Передать ход →
+              </GlassButton>
             </div>
           )}
 
@@ -266,7 +372,7 @@ export default function SpyGamePage() {
             </div>
           )}
 
-          {/* Non-host sees smaller info */}
+          {/* Non-host info */}
           {!isHost && (
             <p className="text-center text-xs text-white/30 mt-2">Хост нажмёт «Следующее слово» когда будете готовы</p>
           )}
