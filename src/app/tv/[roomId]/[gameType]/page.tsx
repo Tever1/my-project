@@ -773,18 +773,21 @@ export default function TVGamePage() {
           )}
 
           {sp.phase === 'playing' && sp.mode === 'draw' && (
-            <div className="flex flex-col items-center w-full max-w-3xl">
+            <div className="flex flex-col items-center w-full h-full min-h-0">
               {/* Drawer label */}
-              <p className="text-2xl mb-4">
+              <p className="text-2xl mb-3 shrink-0">
                 <span className="text-white/50">Рисует: </span>
                 <span className="font-bold text-amber-400">{drawerName}</span>
               </p>
 
-              {/* Synced canvas */}
-              <canvas
-                ref={initSpyCanvas}
-                className="w-full aspect-square rounded-2xl bg-black/30 border-2 border-white/10"
-              />
+              {/* Synced canvas — constrained to available height */}
+              <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+                <canvas
+                  ref={initSpyCanvas}
+                  className="rounded-2xl bg-black/30 border-2 border-white/10"
+                  style={{ width: 'min(100%, calc(100vh - 10rem))', aspectRatio: '1' }}
+                />
+              </div>
             </div>
           )}
         </div>
