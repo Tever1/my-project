@@ -1,4 +1,4 @@
-export type GameType = 'quiz' | 'hundred-to-one' | 'crocodile' | 'truth-or-dare' | 'mafia' | 'who-am-i';
+export type GameType = 'quiz' | 'hundred-to-one' | 'crocodile' | 'spy' | 'mafia' | 'who-am-i';
 
 export type GameStatus = 'waiting' | 'playing' | 'paused' | 'finished';
 
@@ -90,14 +90,15 @@ export interface CrocodileState extends GameState {
   };
 }
 
-// Truth or Dare types
-export interface TruthOrDareState extends GameState {
-  type: 'truth-or-dare';
+// Spy types
+export type SpyMode = 'guess' | 'draw';
+
+export interface SpyState extends GameState {
+  type: 'spy';
   data: {
-    currentPlayerId: string;
-    choice: 'truth' | 'dare' | null;
-    currentChallenge: { ru: string; en: string } | null;
-    difficulty: 'easy' | 'medium' | 'hard';
+    mode: SpyMode;
+    spyId: string;
+    currentWord: string;
   };
 }
 
