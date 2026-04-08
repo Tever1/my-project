@@ -930,18 +930,18 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* Scores */}
           <div className="flex justify-between items-center gap-2 mb-3">
-            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 || s.curQ === 3 ? '' : 'opacity-50'}`}>
               <span className="w-3 h-3 rounded-full bg-yellow-400 shrink-0" />
-              <span className={`text-xs font-bold ${s.roundActiveTeam[s.curQ] === 1 ? 'text-white' : 'text-white/60'}`}>{s.t1n}</span>
+              <span className={`text-xs font-bold ${s.roundActiveTeam[s.curQ] === 1 || s.curQ === 3 ? 'text-white' : 'text-white/60'}`}>{s.t1n}</span>
               <span className="font-bold text-white text-base shrink-0">{s.t1s}</span>
             </div>
             <div className="text-center shrink-0">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 || s.curQ === 3 ? '' : 'opacity-50'}`}>
               <span className="font-bold text-white text-base shrink-0">{s.t2s}</span>
-              <span className={`text-xs font-bold ${s.roundActiveTeam[s.curQ] === 2 ? 'text-white' : 'text-white/60'}`}>{s.t2n}</span>
+              <span className={`text-xs font-bold ${s.roundActiveTeam[s.curQ] === 2 || s.curQ === 3 ? 'text-white' : 'text-white/60'}`}>{s.t2n}</span>
               <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
             </div>
           </div>
@@ -1075,7 +1075,7 @@ export default function HundredToOnePage() {
         <div className="max-w-3xl mx-auto w-full">
           {/* Team scores bar */}
           <div className="flex justify-between items-center gap-2 mb-3">
-            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 1 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 || s.curQ === 3 ? '' : 'opacity-50'}`}>
               <span className="w-3 h-3 rounded-full bg-yellow-400 shrink-0" />
               <span className="text-xs text-white/80">{s.t1n}</span>
               <span className="font-bold text-white text-base shrink-0">{s.t1s}</span>
@@ -1084,7 +1084,7 @@ export default function HundredToOnePage() {
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
               <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
             </div>
-            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 ? '' : 'opacity-50'}`}>
+            <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 || s.curQ === 3 ? '' : 'opacity-50'}`}>
               <span className="font-bold text-white text-base shrink-0">{s.t2s}</span>
               <span className="text-xs text-white/80">{s.t2n}</span>
               <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
@@ -1315,13 +1315,11 @@ export default function HundredToOnePage() {
             </p>
           )}
 
-          {/* Timer */}
-          {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && (
-            <div className="text-center mb-3">
-              <span className={`font-bold text-4xl ${s.bgTimeLeft <= 5 ? 'text-red-400 animate-pulse' : s.bgTimerPaused ? 'text-yellow-300' : 'text-white'}`}>
-                {s.bgTimeLeft}{s.bgTimerPaused ? ' ⏸' : ''}
-              </span>
-            </div>
+          {/* Fund */}
+          {s.bgPhase >= 1 && (
+            <p className={`text-center font-bold text-3xl mb-3 ${s.bgFund >= 200 ? 'text-green-400 animate-pulse' : 'text-yellow-300'}`}>
+              ФОНД: {s.bgFund}
+            </p>
           )}
 
           {/* Active player input: show only current question + timer */}
@@ -1375,13 +1373,13 @@ export default function HundredToOnePage() {
                           </span>
                         )}
                       </div>
-                      {/* Show all answers for manual credit in check phase — always visible, allows re-picking */}
-                      {isChecked && isGameHost && (
+                      {/* Show all answers in check phase — host can click, players read-only */}
+                      {isChecked && (
                         <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-white/5">
                           {qq.answers.map((a, ai) => {
                             const usedByP1 = s.bgPhase === 4 && s.bgP1Matched[i] === a.t;
                             const isSelected = matched === a.t;
-                            return (
+                            return isGameHost ? (
                               <button key={ai} disabled={usedByP1 && !isSelected}
                                 onClick={() => bgManualCredit(i, ai, s.bgPhase === 2)}
                                 className={`text-xs px-2 py-0.5 rounded border transition-all
@@ -1392,6 +1390,16 @@ export default function HundredToOnePage() {
                                       : 'border-dashed border-white/20 text-white/50 hover:bg-green-500/20 hover:text-green-400 hover:border-green-400 cursor-pointer'}`}>
                                 {a.t} ({a.p})
                               </button>
+                            ) : (
+                              <span key={ai}
+                                className={`text-xs px-2 py-0.5 rounded border transition-all
+                                  ${isSelected
+                                    ? 'bg-green-500/30 text-green-300 border-green-400 font-bold'
+                                    : usedByP1
+                                      ? 'opacity-30 line-through border-white/10 text-white/30'
+                                      : 'border-white/10 text-white/40'}`}>
+                                {a.t} ({a.p})
+                              </span>
                             );
                           })}
                         </div>
@@ -1420,13 +1428,6 @@ export default function HundredToOnePage() {
             <div className="text-center mb-3">
               <GlassButton variant="primary" onClick={bgGoToCheck}>ПЕРЕЙТИ К ПРОВЕРКЕ →</GlassButton>
             </div>
-          )}
-
-          {/* Fund */}
-          {s.bgPhase >= 2 && (
-            <p className={`text-center font-bold text-2xl mb-3 ${s.bgFund >= 200 ? 'text-green-400 animate-pulse' : 'text-yellow-300'}`}>
-              ФОНД: {s.bgFund} очков
-            </p>
           )}
 
           {/* Action buttons */}
