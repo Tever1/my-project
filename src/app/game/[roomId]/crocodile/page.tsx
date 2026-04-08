@@ -100,8 +100,9 @@ export default function CrocodilePage() {
       if (d.players) setPlayers(d.players);
       if (d.hostId) setHostId(d.hostId);
     });
+    emit('room:get-state', { code: roomId });
     return cleanup;
-  }, [on]);
+  }, [on, emit, roomId]);
 
   // ------------------------------------------------------------------
   // Broadcast helper (host -> all via game:action)
