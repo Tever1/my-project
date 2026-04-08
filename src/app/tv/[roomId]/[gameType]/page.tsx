@@ -7,6 +7,7 @@ import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
+import { CROCODILE_WORDS } from '@/lib/game-data';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -125,6 +126,11 @@ export default function TVGamePage() {
   });
   const spyCanvasRef = useRef<HTMLCanvasElement>(null);
   const spyCanvasSizeRef = useRef({ w: 0, h: 0 });
+  const [crocState, setCrocState] = useState<{
+    phase: string; explainerId: string; currentWordIndex: number;
+    timeLeft: number; scores: Record<string, number>; wordsGuessed: number;
+    playersOrder: string[]; completedExplainers: string[];
+  }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, playersOrder: [], completedExplainers: [] });
 
   const gameInfo = GAMES.find((g) => g.id === gameType);
   const gameTitle = gameInfo
@@ -179,6 +185,15 @@ export default function TVGamePage() {
             const ctx = canvas.getContext('2d');
             if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
           }
+        }
+      }
+
+      if (gameType === 'crocodile') {
+        if (action === 'croc:state') {
+          setCrocState(prev => ({ ...prev, ...(payload as Partial<typeof prev>) }));
+        }
+        if (action === 'croc:tick') {
+          setCrocState(prev => ({ ...prev, timeLeft: (payload as unknown as { timeLeft: number }).timeLeft }));
         }
       }
 
@@ -787,6 +802,124 @@ export default function TVGamePage() {
                   className="rounded-2xl bg-black/30 border-2 border-white/10"
                   style={{ width: 'min(100%, calc(100vh - 10rem))', aspectRatio: '1' }}
                 />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ===================== CROCODILE TV RENDER =====================
+  if (gameType === 'crocodile') {
+    const explainerName = getPlayerName(crocState.explainerId);
+    const currentRound = crocState.completedExplainers.length + 1;
+    const totalRounds = crocState.playersOrder.length || players.length;
+    const sortedScores = Object.entries(crocState.scores)
+      .map(([id, score]) => ({ id, name: getPlayerName(id), score }))
+      .sort((a, b) => b.score - a.score);
+    const currentWord = crocState.currentWordIndex >= 0 ? CROCODILE_WORDS[crocState.currentWordIndex] : null;
+
+    return (
+      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <span className="text-4xl">🐊</span>
+            <h1 className="text-3xl font-bold">{locale === 'ru' ? 'Крокодил' : 'Crocodile'}</h1>
+          </div>
+          {crocState.phase === 'explaining' && (
+            <div className="flex items-center gap-3">
+              <span className="text-white/50 text-lg">Ход {currentRound} / {totalRounds}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
+          {/* WAITING */}
+          {crocState.phase === 'waiting' && (
+            <div className="text-center">
+              <div className="text-8xl mb-6">🐊</div>
+              <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}</h2>
+              <div className="mt-6 flex items-center justify-center gap-4 flex-wrap">
+                {players.map(p => (
+                  <div key={p.id} className="glass-card px-6 py-3">
+                    <span className="text-xl">{p.nickname}</span>
+                    {p.isHost && <span className="ml-2">👑</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* EXPLAINING */}
+          {crocState.phase === 'explaining' && (
+            <>
+              {/* Timer */}
+              <div className="text-center">
+                <span className={`font-bold text-8xl tabular-nums ${crocState.timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+                  {crocState.timeLeft}
+                </span>
+              </div>
+
+              {/* Timer bar */}
+              <div className="w-full max-w-2xl h-3 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000 linear"
+                  style={{
+                    width: `${(crocState.timeLeft / 60) * 100}%`,
+                    background: crocState.timeLeft <= 10 ? 'linear-gradient(90deg, #f87171, #ef4444)' : 'linear-gradient(90deg, #a855f7, #6366f1)',
+                  }}
+                />
+              </div>
+
+              {/* Explainer + word */}
+              <div className="glass-card px-12 py-8 text-center">
+                <p className="text-white/50 text-xl mb-2">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
+                <p className="text-4xl font-bold text-amber-400 mb-4">🎤 {explainerName}</p>
+                {currentWord && (
+                  <>
+                    <p className="text-white/40 text-lg mb-1">{locale === 'ru' ? 'Слово' : 'Word'}</p>
+                    <p className="text-5xl font-extrabold text-white">{locale === 'ru' ? currentWord.ru : currentWord.en}</p>
+                  </>
+                )}
+              </div>
+
+              {/* Words guessed this turn */}
+              <p className="text-2xl text-white/60">
+                {locale === 'ru' ? 'Угадано в этом ходе:' : 'Guessed this turn:'}{' '}
+                <span className="font-bold text-green-400">{crocState.wordsGuessed}</span>
+              </p>
+
+              {/* Scoreboard */}
+              <div className="w-full max-w-xl">
+                <div className="grid grid-cols-2 gap-3">
+                  {sortedScores.map(({ id, name, score }) => (
+                    <div key={id} className={`glass-card px-5 py-3 flex items-center justify-between ${id === crocState.explainerId ? 'outline outline-2 outline-amber-400' : ''}`}>
+                      <span className="text-lg font-bold">{name} {id === crocState.explainerId && '🎤'}</span>
+                      <span className="text-2xl font-bold text-amber-400">{score}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* FINISHED */}
+          {crocState.phase === 'finished' && (
+            <div className="text-center">
+              <div className="text-8xl mb-4">🏆</div>
+              <h2 className="text-4xl font-bold text-amber-400 mb-6">{locale === 'ru' ? 'Игра окончена!' : 'Game Over!'}</h2>
+              <div className="w-full max-w-xl mx-auto space-y-3">
+                {sortedScores.map(({ id, name, score }, idx) => (
+                  <div key={id} className={`glass-card px-8 py-4 flex items-center justify-between ${idx === 0 ? 'outline outline-2 outline-amber-400 bg-amber-500/10' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`}</span>
+                      <span className="text-2xl font-bold">{name}</span>
+                    </div>
+                    <span className="text-3xl font-bold text-amber-400">{score}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
