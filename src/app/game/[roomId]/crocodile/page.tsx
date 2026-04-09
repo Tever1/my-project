@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -60,6 +60,7 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 export default function CrocodilePage() {
   const { roomId } = useParams<{ roomId: string }>();
+  const router = useRouter();
   const { emit, on } = useSocket();
   const { user } = useAuth();
   const { t, locale } = useTranslation();
@@ -120,7 +121,7 @@ export default function CrocodilePage() {
   // ------------------------------------------------------------------
 
   useEffect(() => {
-    const cleanup = on(
+    const unsub1 = on(
       'game:action',
       (data: unknown) => {
         const { action, payload } = data as {
@@ -143,8 +144,9 @@ export default function CrocodilePage() {
         }
       },
     );
-    return cleanup;
-  }, [on]);
+    const unsub2 = on('game:ended', () => router.push(`/lobby/${roomId}`));
+    return () => { unsub1(); unsub2(); };
+  }, [on, router, roomId]);
 
   // ------------------------------------------------------------------
   // Host: timer management
@@ -324,16 +326,9 @@ export default function CrocodilePage() {
   // ------------------------------------------------------------------
 
   const endGame = useCallback(() => {
-    if (!gameState) return;
     if (timerRef.current) clearInterval(timerRef.current);
-    const finished: CrocodileGameState = {
-      ...gameState,
-      phase: 'finished',
-      timeLeft: 0,
-    };
-    setGameState(finished);
-    broadcast('croc:state', finished);
-  }, [gameState, broadcast]);
+    emit('game:end', { code: roomId });
+  }, [emit, roomId]);
 
   // ------------------------------------------------------------------
   // Scores for GameLayout
@@ -429,41 +424,26 @@ export default function CrocodilePage() {
         <div className="flex-1 flex flex-col items-center gap-4">
           {/* Timer */}
           <div className="w-full max-w-md">
-            <GlassCard className="p-4 text-center">
-              <div className="flex items-center justify-between mb-2">
-                <span
-                  className="text-sm font-medium"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  {locale === 'ru' ? 'Объясняет' : 'Explaining'}
-                </span>
-                <span
-                  className={`text-3xl font-bold tabular-nums ${
-                    gameState.timeLeft <= 10
-                      ? 'text-red-400 animate-pulse'
-                      : ''
-                  }`}
-                  style={
-                    gameState.timeLeft > 10
-                      ? { color: 'var(--text-primary)' }
-                      : undefined
-                  }
-                >
-                  {gameState.timeLeft}s
-                </span>
-              </div>
-
-              {/* Timer bar */}
-              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-1000 linear"
-                  style={{
-                    width: `${(gameState.timeLeft / TURN_DURATION) * 100}%`,
-                    background: 'var(--accent-gradient)',
-                  }}
-                />
-              </div>
-            </GlassCard>
+            <div className="text-center mb-2">
+              <span
+                className={`text-5xl font-bold tabular-nums ${
+                  gameState.timeLeft <= 10
+                    ? 'text-red-400 animate-pulse'
+                    : 'text-white'
+                }`}
+              >
+                {gameState.timeLeft}
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-1000 linear"
+                style={{
+                  width: `${(gameState.timeLeft / TURN_DURATION) * 100}%`,
+                  background: gameState.timeLeft <= 10 ? 'linear-gradient(90deg, #f87171, #ef4444)' : 'var(--accent-gradient)',
+                }}
+              />
+            </div>
           </div>
 
           {/* Explainer name */}
