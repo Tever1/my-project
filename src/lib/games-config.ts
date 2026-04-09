@@ -42,6 +42,16 @@ export const GAMES: GameInfo[] = [
     icon: '🕵️‍♂️',
   },
   {
+    id: 'alias',
+    titleRu: 'Угадай слово',
+    titleEn: 'Guess the Word',
+    descriptionRu: 'Объясняйте слова за ограниченное время! Чем больше угадаете — тем больше очков.',
+    descriptionEn: 'Explain words before time runs out! The more you guess, the more points you earn.',
+    minPlayers: 4,
+    maxPlayers: 20,
+    icon: '💬',
+  },
+  {
     id: 'mafia',
     titleRu: 'Мафия',
     titleEn: 'Mafia',

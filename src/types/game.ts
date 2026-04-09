@@ -1,4 +1,4 @@
-export type GameType = 'quiz' | 'hundred-to-one' | 'crocodile' | 'spy' | 'mafia' | 'who-am-i';
+export type GameType = 'quiz' | 'hundred-to-one' | 'crocodile' | 'spy' | 'mafia' | 'who-am-i' | 'alias';
 
 export type GameStatus = 'waiting' | 'playing' | 'paused' | 'finished';
 

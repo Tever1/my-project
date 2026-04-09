@@ -7,7 +7,7 @@ import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
-import { CROCODILE_WORDS } from '@/lib/game-data';
+import { CROCODILE_WORDS, ALIAS_WORDS } from '@/lib/game-data';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,6 +131,17 @@ export default function TVGamePage() {
     timeLeft: number; scores: Record<string, number>; wordsGuessed: number;
     playersOrder: string[]; completedExplainers: string[];
   }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, playersOrder: [], completedExplainers: [] });
+  const [aliasState, setAliasState] = useState<{
+    phase: string; teams: { id: string; name: string; playerIds: string[]; score: number }[];
+    activeTeamIndex: number; explainerIndex: number; currentWordIndex: number;
+    timeLeft: number; wordsGuessed: number; wordsSkipped: number;
+    round: number; totalRounds: number;
+    turnHistory: { word: { ru: string; en: string }; guessed: boolean }[];
+  }>({
+    phase: 'waiting', teams: [], activeTeamIndex: 0, explainerIndex: 0,
+    currentWordIndex: -1, timeLeft: 60, wordsGuessed: 0, wordsSkipped: 0,
+    round: 1, totalRounds: 4, turnHistory: [],
+  });
 
   const gameInfo = GAMES.find((g) => g.id === gameType);
   const gameTitle = gameInfo
@@ -194,6 +205,15 @@ export default function TVGamePage() {
         }
         if (action === 'croc:tick') {
           setCrocState(prev => ({ ...prev, timeLeft: (payload as unknown as { timeLeft: number }).timeLeft }));
+        }
+      }
+
+      if (gameType === 'alias') {
+        if (action === 'alias:state') {
+          setAliasState(prev => ({ ...prev, ...(payload as Partial<typeof prev>) }));
+        }
+        if (action === 'alias:tick') {
+          setAliasState(prev => ({ ...prev, timeLeft: (payload as unknown as { timeLeft: number }).timeLeft }));
         }
       }
 
@@ -918,6 +938,209 @@ export default function TVGamePage() {
                       <span className="text-2xl font-bold">{name}</span>
                     </div>
                     <span className="text-3xl font-bold text-amber-400">{score}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ===================== ALIAS TV RENDER =====================
+  if (gameType === 'alias') {
+    const activeTeam = aliasState.teams[aliasState.activeTeamIndex];
+    const explainerId = activeTeam
+      ? activeTeam.playerIds[aliasState.explainerIndex % activeTeam.playerIds.length]
+      : '';
+    const explainerName = getPlayerName(explainerId);
+    const currentWord = aliasState.currentWordIndex >= 0 ? ALIAS_WORDS[aliasState.currentWordIndex] : null;
+
+    return (
+      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <span className="text-4xl">💬</span>
+            <h1 className="text-3xl font-bold">{locale === 'ru' ? 'Угадай слово' : 'Guess the Word'}</h1>
+          </div>
+          {aliasState.phase === 'explaining' && (
+            <span className="text-white/50 text-lg">
+              {locale === 'ru' ? 'Раунд' : 'Round'} {aliasState.round} / {aliasState.totalRounds}
+            </span>
+          )}
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
+          {/* WAITING — no game yet */}
+          {(aliasState.phase === 'waiting' && aliasState.teams.length === 0) && (
+            <div className="text-center">
+              <div className="text-8xl mb-6">💬</div>
+              <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}</h2>
+              <div className="mt-6 flex items-center justify-center gap-4 flex-wrap">
+                {players.map(p => (
+                  <div key={p.id} className="glass-card px-6 py-3">
+                    <span className="text-xl">{p.nickname}</span>
+                    {p.isHost && <span className="ml-2">👑</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* WAITING for explainer to start turn */}
+          {aliasState.phase === 'waiting' && aliasState.teams.length > 0 && (
+            <>
+              {/* Team cards */}
+              <div className="flex gap-8 w-full max-w-3xl">
+                {aliasState.teams.map((team, ti) => (
+                  <div
+                    key={team.id}
+                    className={`flex-1 glass-card px-8 py-6 text-center ${
+                      ti === aliasState.activeTeamIndex ? 'outline outline-2 outline-purple-400' : 'opacity-50'
+                    }`}
+                  >
+                    <p className="text-2xl font-bold mb-2">{team.name}</p>
+                    <p className="text-5xl font-bold text-amber-400 mb-3">{team.score}</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {team.playerIds.map(id => {
+                        const isExp = ti === aliasState.activeTeamIndex && id === explainerId;
+                        return (
+                          <span key={id} className={`glass-badge text-lg px-3 py-1 ${isExp ? 'outline outline-1 outline-amber-400' : ''}`}>
+                            {getPlayerName(id)} {isExp && '🎤'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-2xl text-white/50">
+                {locale === 'ru' ? `${explainerName} начинает ход...` : `${explainerName} starting turn...`}
+              </p>
+            </>
+          )}
+
+          {/* EXPLAINING */}
+          {aliasState.phase === 'explaining' && (
+            <>
+              {/* Timer */}
+              <div className="text-center">
+                <span className={`font-bold text-8xl tabular-nums ${aliasState.timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+                  {aliasState.timeLeft}
+                </span>
+              </div>
+              <div className="w-full max-w-2xl h-3 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000 linear"
+                  style={{
+                    width: `${(aliasState.timeLeft / 60) * 100}%`,
+                    background: aliasState.timeLeft <= 10
+                      ? 'linear-gradient(90deg, #f87171, #ef4444)'
+                      : 'linear-gradient(90deg, #a855f7, #6366f1)',
+                  }}
+                />
+              </div>
+
+              {/* Explainer + word */}
+              <div className="glass-card px-12 py-8 text-center">
+                <p className="text-white/50 text-xl mb-2">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
+                <p className="text-4xl font-bold text-amber-400 mb-4">🎤 {explainerName}</p>
+                {currentWord && (
+                  <>
+                    <p className="text-white/40 text-lg mb-1">{locale === 'ru' ? 'Слово' : 'Word'}</p>
+                    <p className="text-5xl font-extrabold text-white">{locale === 'ru' ? currentWord.ru : currentWord.en}</p>
+                  </>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="flex gap-8 text-2xl">
+                <span className="text-green-400">✅ {aliasState.wordsGuessed}</span>
+                <span className="text-red-400">❌ {aliasState.wordsSkipped}</span>
+              </div>
+
+              {/* Team scores */}
+              <div className="flex gap-8 w-full max-w-2xl">
+                {aliasState.teams.map((team, ti) => (
+                  <div
+                    key={team.id}
+                    className={`flex-1 glass-card px-5 py-3 flex items-center justify-between ${
+                      ti === aliasState.activeTeamIndex ? 'outline outline-2 outline-purple-400' : 'opacity-50'
+                    }`}
+                  >
+                    <span className="text-lg font-bold">{team.name}</span>
+                    <span className="text-2xl font-bold text-amber-400">{team.score}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* TURN RESULT */}
+          {aliasState.phase === 'turnResult' && (
+            <>
+              <div className="text-center">
+                <p className="text-4xl font-bold text-amber-400 mb-4">
+                  {locale === 'ru' ? 'Время вышло!' : "Time's up!"}
+                </p>
+                <p className="text-6xl font-bold mb-2">
+                  {activeTeam?.name}: {(aliasState.wordsGuessed - aliasState.wordsSkipped) > 0 ? '+' : ''}{aliasState.wordsGuessed - aliasState.wordsSkipped}
+                </p>
+                <div className="flex gap-8 justify-center text-2xl mt-4">
+                  <span className="text-green-400">✅ {locale === 'ru' ? 'Угадано' : 'Guessed'}: {aliasState.wordsGuessed}</span>
+                  <span className="text-red-400">❌ {locale === 'ru' ? 'Пропущено' : 'Skipped'}: {aliasState.wordsSkipped}</span>
+                </div>
+              </div>
+
+              {/* Word history */}
+              {aliasState.turnHistory.length > 0 && (
+                <div className="w-full max-w-2xl grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                  {aliasState.turnHistory.map((item, i) => (
+                    <div
+                      key={i}
+                      className={`glass-card px-4 py-2 flex items-center justify-between ${
+                        item.guessed ? 'bg-green-500/10' : 'bg-red-500/10'
+                      }`}
+                    >
+                      <span className="text-lg">{locale === 'ru' ? item.word.ru : item.word.en}</span>
+                      <span className="text-xl">{item.guessed ? '✅' : '❌'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Team scores */}
+              <div className="flex gap-8 w-full max-w-2xl">
+                {aliasState.teams.map((team) => (
+                  <div key={team.id} className="flex-1 glass-card px-5 py-4 text-center">
+                    <p className="text-xl font-bold mb-1">{team.name}</p>
+                    <p className="text-4xl font-bold text-amber-400">{team.score}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* FINISHED */}
+          {aliasState.phase === 'finished' && (
+            <div className="text-center">
+              <div className="text-8xl mb-4">🏆</div>
+              <h2 className="text-4xl font-bold text-amber-400 mb-6">{locale === 'ru' ? 'Игра окончена!' : 'Game Over!'}</h2>
+              <div className="w-full max-w-xl mx-auto space-y-3">
+                {[...aliasState.teams].sort((a, b) => b.score - a.score).map((team, idx) => (
+                  <div
+                    key={team.id}
+                    className={`glass-card px-8 py-4 flex items-center justify-between ${
+                      idx === 0 ? 'outline outline-2 outline-amber-400 bg-amber-500/10' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{idx === 0 ? '🥇' : '🥈'}</span>
+                      <span className="text-2xl font-bold">{team.name}</span>
+                    </div>
+                    <span className="text-3xl font-bold text-amber-400">{team.score}</span>
                   </div>
                 ))}
               </div>
