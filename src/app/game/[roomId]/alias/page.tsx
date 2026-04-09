@@ -22,8 +22,11 @@ interface Team {
   score: number;
 }
 
+type AliasMode = 'classic' | 'letter';
+
 interface AliasGameState {
-  phase: 'teamSetup' | 'waiting' | 'explaining' | 'turnResult' | 'finished';
+  phase: 'modeSelect' | 'waiting' | 'explaining' | 'turnResult' | 'finished';
+  mode: AliasMode;
   teams: Team[];
   activeTeamIndex: number;        // which team is playing
   explainerIndex: number;         // index inside team's player list
@@ -35,6 +38,7 @@ interface AliasGameState {
   totalRounds: number;
   usedWordIndices: number[];
   turnHistory: { word: { ru: string; en: string }; guessed: boolean }[];
+  currentLetter: string;          // letter mode: the letter to use for explanations
 }
 
 const TURN_DURATION = 60;
@@ -52,6 +56,14 @@ function pickRandomWordIndex(usedIndices: number[]): number {
     return Math.floor(Math.random() * ALIAS_WORDS.length);
   }
   return available[Math.floor(Math.random() * available.length)];
+}
+
+const RU_LETTERS = 'АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЭЮЯ'.split('');
+const EN_LETTERS = 'ABCDEFGHIJKLMNOPRSTUVW'.split('');
+
+function pickRandomLetter(locale: string): string {
+  const letters = locale === 'ru' ? RU_LETTERS : EN_LETTERS;
+  return letters[Math.floor(Math.random() * letters.length)];
 }
 
 function splitIntoTeams(playerIds: string[]): [string[], string[]] {
@@ -74,6 +86,7 @@ export default function AliasPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [hostId, setHostId] = useState<string>('');
   const [gameState, setGameState] = useState<AliasGameState | null>(null);
+  const [selectedMode, setSelectedMode] = useState<AliasMode | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -179,7 +192,7 @@ export default function AliasPage() {
   // Host: start game
   // ------------------------------------------------------------------
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback((mode: AliasMode) => {
     if (!isHost || players.length < 4) return;
 
     const [t1Ids, t2Ids] = splitIntoTeams(players.map((p) => p.id));
@@ -187,6 +200,7 @@ export default function AliasPage() {
 
     const initial: AliasGameState = {
       phase: 'waiting',
+      mode,
       teams: [
         { id: 'team-1', name: locale === 'ru' ? 'Команда 1' : 'Team 1', playerIds: t1Ids, score: 0 },
         { id: 'team-2', name: locale === 'ru' ? 'Команда 2' : 'Team 2', playerIds: t2Ids, score: 0 },
@@ -201,6 +215,7 @@ export default function AliasPage() {
       totalRounds: DEFAULT_ROUNDS,
       usedWordIndices: [firstWord],
       turnHistory: [],
+      currentLetter: mode === 'letter' ? pickRandomLetter(locale) : '',
     };
 
     setGameState(initial);
@@ -220,10 +235,11 @@ export default function AliasPage() {
       wordsGuessed: 0,
       wordsSkipped: 0,
       turnHistory: [],
+      currentLetter: gameState.mode === 'letter' ? pickRandomLetter(locale) : gameState.currentLetter,
     };
     setGameState(updated);
     broadcast('alias:state', updated);
-  }, [gameState, broadcast]);
+  }, [gameState, broadcast, locale]);
 
   // ------------------------------------------------------------------
   // Host: finish turn (time's up)
@@ -294,6 +310,7 @@ export default function AliasPage() {
       wordsSkipped: 0,
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
       turnHistory: [],
+      currentLetter: gameState.currentLetter,
     };
     setGameState(next);
     broadcast('alias:state', next);
@@ -357,14 +374,19 @@ export default function AliasPage() {
   useEffect(() => {
     if (!isHost) return;
     const cleanup = on('game:action', (data: unknown) => {
-      const { action } = data as { action: string; payload: unknown; from: string };
+      const { action, payload } = data as { action: string; payload: Record<string, unknown>; from: string };
       if (action === 'alias:guessed') handleGuessed();
       if (action === 'alias:skip') handleSkip();
       if (action === 'alias:begin-turn') beginTurn();
       if (action === 'alias:next-turn') nextTurn();
+      if (action === 'alias:select-mode') {
+        const mode = payload.mode as AliasMode;
+        setSelectedMode(mode);
+        broadcast('alias:state', { phase: 'modeSelect', mode } as unknown as AliasGameState);
+      }
     });
     return cleanup;
-  }, [isHost, on, handleGuessed, handleSkip, beginTurn, nextTurn]);
+  }, [isHost, on, handleGuessed, handleSkip, beginTurn, nextTurn, broadcast]);
 
   // ------------------------------------------------------------------
   // End game
@@ -400,46 +422,96 @@ export default function AliasPage() {
       onEnd={isHost ? endGame : undefined}
       showScoreboard={gameState?.phase === 'finished'}
     >
-      {/* ---- TEAM SETUP / NOT STARTED ---- */}
-      {!gameState && (
+      {/* ---- MODE SELECT ---- */}
+      {(!gameState || gameState.phase === 'modeSelect') && (
         <div className="flex-1 flex flex-col items-center justify-center gap-6">
-          <GlassCard className="w-full max-w-md p-6 text-center">
-            <p className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-              💬 {locale === 'ru' ? 'Угадай слово' : 'Guess the Word'}
-            </p>
-            <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
-              {locale === 'ru'
-                ? 'Разделитесь на 2 команды. Объясняйте слова за 60 секунд! +1 за угаданное, −1 за пропуск.'
-                : 'Split into 2 teams. Explain words in 60 seconds! +1 for guessed, −1 for skipped.'}
-            </p>
+          <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            💬 {locale === 'ru' ? 'Угадай слово' : 'Guess the Word'}
+          </p>
 
-            <div className="mb-4">
-              <p className="text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-                {locale === 'ru' ? 'Игроки' : 'Players'} ({players.length})
-              </p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {players.map((p) => (
-                  <span key={p.id} className="glass-badge">{p.nickname}</span>
-                ))}
+          {/* Mode cards */}
+          <div className="w-full max-w-md flex flex-col gap-3">
+            {/* Classic */}
+            <GlassCard
+              className={`p-5 cursor-pointer transition-all ${
+                selectedMode === 'classic' ? 'outline outline-2 outline-purple-400' : 'opacity-70 hover:opacity-100'
+              }`}
+              onClick={() => {
+                setSelectedMode('classic');
+                if (!isHost) emit('game:action', { code: roomId, action: 'alias:select-mode', payload: { mode: 'classic' } });
+              }}
+            >
+              <div className="flex items-center gap-4">
+                <span className="text-3xl">📖</span>
+                <div>
+                  <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {locale === 'ru' ? 'Классические правила' : 'Classic Rules'}
+                  </p>
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {locale === 'ru'
+                      ? 'Объясняйте слова любыми словами, не называя само слово'
+                      : 'Explain words using any words, without saying the word itself'}
+                  </p>
+                </div>
               </div>
-            </div>
+            </GlassCard>
 
-            {isHost ? (
-              <GlassButton
-                variant="primary"
-                size="lg"
-                className="w-full"
-                onClick={startGame}
-                disabled={players.length < 4}
-              >
-                {locale === 'ru' ? 'Начать игру' : 'Start Game'}
-              </GlassButton>
-            ) : (
-              <p className="text-sm italic" style={{ color: 'var(--text-secondary)' }}>
-                {locale === 'ru' ? 'Ожидание хоста...' : 'Waiting for host...'}
-              </p>
-            )}
-          </GlassCard>
+            {/* Letter mode */}
+            <GlassCard
+              className={`p-5 cursor-pointer transition-all ${
+                selectedMode === 'letter' ? 'outline outline-2 outline-purple-400' : 'opacity-70 hover:opacity-100'
+              }`}
+              onClick={() => {
+                setSelectedMode('letter');
+                if (!isHost) emit('game:action', { code: roomId, action: 'alias:select-mode', payload: { mode: 'letter' } });
+              }}
+            >
+              <div className="flex items-center gap-4">
+                <span className="text-3xl">🔤</span>
+                <div>
+                  <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {locale === 'ru' ? 'Объясни на букву' : 'Letter Mode'}
+                  </p>
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {locale === 'ru'
+                      ? 'Объясняйте слова, используя только слова на определённую букву'
+                      : 'Explain words using only words starting with a specific letter'}
+                  </p>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Players */}
+          <div className="w-full max-w-md">
+            <p className="text-sm font-medium mb-2 text-center" style={{ color: 'var(--text-secondary)' }}>
+              {locale === 'ru' ? 'Игроки' : 'Players'} ({players.length})
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {players.map((p) => (
+                <span key={p.id} className="glass-badge">{p.nickname}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Start */}
+          {isHost ? (
+            <GlassButton
+              variant="primary"
+              size="lg"
+              className="w-full max-w-md"
+              onClick={() => selectedMode && startGame(selectedMode)}
+              disabled={players.length < 4 || !selectedMode}
+            >
+              {locale === 'ru' ? 'Начать игру' : 'Start Game'}
+            </GlassButton>
+          ) : (
+            <p className="text-sm italic" style={{ color: 'var(--text-secondary)' }}>
+              {selectedMode
+                ? locale === 'ru' ? 'Ожидание хоста...' : 'Waiting for host...'
+                : locale === 'ru' ? 'Хост выбирает режим...' : 'Host is choosing mode...'}
+            </p>
+          )}
         </div>
       )}
 
@@ -563,15 +635,33 @@ export default function AliasPage() {
           {/* Word card */}
           {isExplainer && currentWord ? (
             <GlassCard className="w-full max-w-md p-8 text-center">
-              <p className="text-sm uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>
-                {locale === 'ru' ? 'Объясните это слово' : 'Explain this word'}
-              </p>
+              {gameState.mode === 'letter' && gameState.currentLetter && (
+                <div className="mb-3">
+                  <p className="text-sm uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>
+                    {locale === 'ru' ? 'Объясняй словами на букву' : 'Use words starting with'}
+                  </p>
+                  <p className="text-5xl font-black text-purple-400">{gameState.currentLetter}</p>
+                </div>
+              )}
+              {gameState.mode === 'classic' && (
+                <p className="text-sm uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  {locale === 'ru' ? 'Объясните это слово' : 'Explain this word'}
+                </p>
+              )}
               <p className="text-3xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
                 {locale === 'ru' ? currentWord.ru : currentWord.en}
               </p>
             </GlassCard>
           ) : (
             <GlassCard className="w-full max-w-md p-8 text-center">
+              {gameState.mode === 'letter' && gameState.currentLetter && isMyTeamActive && (
+                <div className="mb-2">
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {locale === 'ru' ? 'Буква' : 'Letter'}
+                  </p>
+                  <p className="text-4xl font-black text-purple-400">{gameState.currentLetter}</p>
+                </div>
+              )}
               <p className="text-lg" style={{ color: 'var(--text-secondary)' }}>
                 {isMyTeamActive
                   ? locale === 'ru'
@@ -581,7 +671,7 @@ export default function AliasPage() {
                   ? 'Ход другой команды...'
                   : "Other team's turn..."}
               </p>
-              <p className="text-5xl mt-2">{isMyTeamActive ? '🤔' : '⏳'}</p>
+              {!isMyTeamActive && <p className="text-5xl mt-2">⏳</p>}
             </GlassCard>
           )}
 
@@ -594,14 +684,18 @@ export default function AliasPage() {
                 className="flex-1"
                 onClick={() => (isHost ? handleGuessed() : emitAction('alias:guessed'))}
               >
-                {locale === 'ru' ? 'Угадали! +1' : 'Guessed! +1'}
+                {gameState.mode === 'letter'
+                  ? (locale === 'ru' ? 'Далее ✓' : 'Next ✓')
+                  : (locale === 'ru' ? 'Угадали! +1' : 'Guessed! +1')}
               </GlassButton>
               <GlassButton
                 size="lg"
                 className="flex-1"
                 onClick={() => (isHost ? handleSkip() : emitAction('alias:skip'))}
               >
-                {locale === 'ru' ? 'Пропуск −1' : 'Skip −1'}
+                {gameState.mode === 'letter'
+                  ? (locale === 'ru' ? 'Пропустить' : 'Skip')
+                  : (locale === 'ru' ? 'Пропуск −1' : 'Skip −1')}
               </GlassButton>
             </div>
           )}
@@ -695,7 +789,7 @@ export default function AliasPage() {
               ))}
           </GlassCard>
           {isHost && (
-            <GlassButton variant="primary" size="lg" onClick={startGame}>
+            <GlassButton variant="primary" size="lg" onClick={() => startGame(gameState.mode)}>
               {locale === 'ru' ? 'Играть снова' : 'Play Again'}
             </GlassButton>
           )}

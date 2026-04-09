@@ -132,15 +132,16 @@ export default function TVGamePage() {
     playersOrder: string[]; completedExplainers: string[];
   }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, playersOrder: [], completedExplainers: [] });
   const [aliasState, setAliasState] = useState<{
-    phase: string; teams: { id: string; name: string; playerIds: string[]; score: number }[];
+    phase: string; mode: string; teams: { id: string; name: string; playerIds: string[]; score: number }[];
     activeTeamIndex: number; explainerIndex: number; currentWordIndex: number;
     timeLeft: number; wordsGuessed: number; wordsSkipped: number;
     round: number; totalRounds: number;
     turnHistory: { word: { ru: string; en: string }; guessed: boolean }[];
+    currentLetter: string;
   }>({
-    phase: 'waiting', teams: [], activeTeamIndex: 0, explainerIndex: 0,
+    phase: 'waiting', mode: 'classic', teams: [], activeTeamIndex: 0, explainerIndex: 0,
     currentWordIndex: -1, timeLeft: 60, wordsGuessed: 0, wordsSkipped: 0,
-    round: 1, totalRounds: 4, turnHistory: [],
+    round: 1, totalRounds: 4, turnHistory: [], currentLetter: '',
   });
 
   const gameInfo = GAMES.find((g) => g.id === gameType);
@@ -963,7 +964,14 @@ export default function TVGamePage() {
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
             <span className="text-4xl">💬</span>
-            <h1 className="text-3xl font-bold">{locale === 'ru' ? 'Угадай слово' : 'Guess the Word'}</h1>
+            <h1 className="text-3xl font-bold">
+              {locale === 'ru' ? 'Угадай слово' : 'Guess the Word'}
+              {aliasState.mode === 'letter' && (
+                <span className="text-lg text-purple-300 ml-3">
+                  {locale === 'ru' ? '(на букву)' : '(letter mode)'}
+                </span>
+              )}
+            </h1>
           </div>
           {aliasState.phase === 'explaining' && (
             <span className="text-white/50 text-lg">
@@ -973,8 +981,8 @@ export default function TVGamePage() {
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
-          {/* WAITING — no game yet */}
-          {(aliasState.phase === 'waiting' && aliasState.teams.length === 0) && (
+          {/* WAITING / MODE SELECT — no game yet */}
+          {(aliasState.phase === 'modeSelect' || (aliasState.phase === 'waiting' && aliasState.teams.length === 0)) && (
             <div className="text-center">
               <div className="text-8xl mb-6">💬</div>
               <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}</h2>
@@ -1043,10 +1051,16 @@ export default function TVGamePage() {
                 />
               </div>
 
-              {/* Explainer + word */}
+              {/* Explainer + letter + word */}
               <div className="glass-card px-12 py-8 text-center">
                 <p className="text-white/50 text-xl mb-2">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
                 <p className="text-4xl font-bold text-amber-400 mb-4">🎤 {explainerName}</p>
+                {aliasState.mode === 'letter' && aliasState.currentLetter && (
+                  <div className="mb-4">
+                    <p className="text-white/40 text-lg mb-1">{locale === 'ru' ? 'Буква' : 'Letter'}</p>
+                    <p className="text-7xl font-black text-purple-400">{aliasState.currentLetter}</p>
+                  </div>
+                )}
                 {currentWord && (
                   <>
                     <p className="text-white/40 text-lg mb-1">{locale === 'ru' ? 'Слово' : 'Word'}</p>
