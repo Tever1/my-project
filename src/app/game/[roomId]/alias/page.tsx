@@ -193,18 +193,34 @@ export default function AliasPage() {
   // ------------------------------------------------------------------
 
   const startGame = useCallback((mode: AliasMode) => {
-    if (!isHost || players.length < 4) return;
+    const minPlayers = mode === 'classic' ? 4 : 2;
+    if (!isHost || players.length < minPlayers) return;
 
-    const [t1Ids, t2Ids] = splitIntoTeams(players.map((p) => p.id));
+    const pIds = players.map((p) => p.id);
     const firstWord = pickRandomWordIndex([]);
+
+    let teams: Team[];
+    if (mode === 'letter' && players.length < 4) {
+      // Individual play for letter mode with few players
+      const shuffled = [...pIds].sort(() => Math.random() - 0.5);
+      teams = shuffled.map((id, i) => ({
+        id: `player-${i}`,
+        name: players.find((p) => p.id === id)?.nickname ?? `Player ${i + 1}`,
+        playerIds: [id],
+        score: 0,
+      }));
+    } else {
+      const [t1Ids, t2Ids] = splitIntoTeams(pIds);
+      teams = [
+        { id: 'team-1', name: locale === 'ru' ? 'Команда 1' : 'Team 1', playerIds: t1Ids, score: 0 },
+        { id: 'team-2', name: locale === 'ru' ? 'Команда 2' : 'Team 2', playerIds: t2Ids, score: 0 },
+      ];
+    }
 
     const initial: AliasGameState = {
       phase: 'waiting',
       mode,
-      teams: [
-        { id: 'team-1', name: locale === 'ru' ? 'Команда 1' : 'Team 1', playerIds: t1Ids, score: 0 },
-        { id: 'team-2', name: locale === 'ru' ? 'Команда 2' : 'Team 2', playerIds: t2Ids, score: 0 },
-      ],
+      teams,
       activeTeamIndex: 0,
       explainerIndex: 0,
       currentWordIndex: firstWord,
@@ -271,8 +287,9 @@ export default function AliasPage() {
   const nextTurn = useCallback(() => {
     if (!gameState) return;
 
-    // Alternate teams. After both teams played, increment round.
-    const nextTeamIndex = gameState.activeTeamIndex === 0 ? 1 : 0;
+    // Cycle through all teams; increment round when we wrap back to team 0
+    const teamCount = gameState.teams.length;
+    const nextTeamIndex = (gameState.activeTeamIndex + 1) % teamCount;
     const newRound = nextTeamIndex === 0 ? gameState.round + 1 : gameState.round;
 
     // Check if game is over
@@ -283,17 +300,7 @@ export default function AliasPage() {
       return;
     }
 
-    // Advance explainer within the next team
     const nextTeam = gameState.teams[nextTeamIndex];
-    const nextExplainerIdx =
-      nextTeamIndex === gameState.activeTeamIndex
-        ? (gameState.explainerIndex + 1) % nextTeam.playerIds.length
-        : // If switching teams, advance that team's explainer count too
-          Math.floor(
-            (newRound - 1) * (nextTeamIndex === 0 ? 1 : 1)
-          ) % nextTeam.playerIds.length;
-
-    // Simpler: just track explainer per team
     const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
 
     const next: AliasGameState = {
@@ -452,6 +459,9 @@ export default function AliasPage() {
                       ? 'Объясняйте слова любыми словами, не называя само слово'
                       : 'Explain words using any words, without saying the word itself'}
                   </p>
+                  <span className="inline-block mt-1 text-xs glass-badge">
+                    {locale === 'ru' ? '4–20 игроков' : '4–20 players'}
+                  </span>
                 </div>
               </div>
             </GlassCard>
@@ -477,6 +487,9 @@ export default function AliasPage() {
                       ? 'Объясняйте слова, используя только слова на определённую букву'
                       : 'Explain words using only words starting with a specific letter'}
                   </p>
+                  <span className="inline-block mt-1 text-xs glass-badge">
+                    {locale === 'ru' ? '2–20 игроков' : '2–20 players'}
+                  </span>
                 </div>
               </div>
             </GlassCard>
@@ -501,7 +514,7 @@ export default function AliasPage() {
               size="lg"
               className="w-full max-w-md"
               onClick={() => selectedMode && startGame(selectedMode)}
-              disabled={players.length < 4 || !selectedMode}
+              disabled={!selectedMode || players.length < (selectedMode === 'classic' ? 4 : 2)}
             >
               {locale === 'ru' ? 'Начать игру' : 'Start Game'}
             </GlassButton>
