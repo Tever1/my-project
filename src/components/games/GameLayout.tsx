@@ -26,8 +26,9 @@ export function GameLayout({
   onEnd,
   showScoreboard = false,
 }: GameLayoutProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
   const sortedScores = scores
     ? [...scores].sort((a, b) => b.score - a.score)
@@ -81,7 +82,7 @@ export function GameLayout({
             )}
 
             {onEnd && (
-              <GlassButton variant="danger" size="sm" onClick={onEnd}>
+              <GlassButton variant="danger" size="sm" onClick={() => setEndConfirmOpen(true)}>
                 {t('game.end')}
               </GlassButton>
             )}
@@ -130,6 +131,52 @@ export function GameLayout({
           {children}
         </div>
       </div>
+
+      {/* End game confirmation modal */}
+      {endConfirmOpen && onEnd && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setEndConfirmOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative z-10 w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GlassCard className="p-6 text-center">
+              <p className="text-4xl mb-3">⚠️</p>
+              <h3 className="text-xl font-bold mb-2">
+                {locale === 'ru' ? 'Завершить игру?' : 'End the game?'}
+              </h3>
+              <p className="text-sm text-white/60 mb-6">
+                {locale === 'ru'
+                  ? 'Все игроки вернутся в лобби. Прогресс будет потерян.'
+                  : 'All players will return to the lobby. Progress will be lost.'}
+              </p>
+              <div className="flex gap-3">
+                <GlassButton
+                  size="md"
+                  className="flex-1"
+                  onClick={() => setEndConfirmOpen(false)}
+                >
+                  {locale === 'ru' ? 'Отмена' : 'Cancel'}
+                </GlassButton>
+                <GlassButton
+                  variant="danger"
+                  size="md"
+                  className="flex-1"
+                  onClick={() => {
+                    setEndConfirmOpen(false);
+                    onEnd();
+                  }}
+                >
+                  {locale === 'ru' ? 'Завершить' : 'End Game'}
+                </GlassButton>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

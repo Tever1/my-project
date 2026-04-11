@@ -341,10 +341,11 @@ export default function AliasPage() {
         ...gameState.turnHistory,
         { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: true },
       ],
+      currentLetter: gameState.mode === 'letter' ? pickRandomLetter(locale) : gameState.currentLetter,
     };
     setGameState(updated);
     broadcast('alias:state', updated);
-  }, [isHost, gameState, broadcast]);
+  }, [isHost, gameState, broadcast, locale]);
 
   // ------------------------------------------------------------------
   // Host: word skipped (-1)
@@ -363,10 +364,11 @@ export default function AliasPage() {
         ...gameState.turnHistory,
         { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: false },
       ],
+      currentLetter: gameState.mode === 'letter' ? pickRandomLetter(locale) : gameState.currentLetter,
     };
     setGameState(updated);
     broadcast('alias:state', updated);
-  }, [isHost, gameState, broadcast]);
+  }, [isHost, gameState, broadcast, locale]);
 
   // ------------------------------------------------------------------
   // Non-host actions forwarded to host
