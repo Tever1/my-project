@@ -1043,7 +1043,7 @@ export default function TVGamePage() {
                 <div
                   className="h-full rounded-full transition-all duration-1000 linear"
                   style={{
-                    width: `${(aliasState.timeLeft / 60) * 100}%`,
+                    width: `${(aliasState.timeLeft / (aliasState.mode === 'letter' ? 90 : 60)) * 100}%`,
                     background: aliasState.timeLeft <= 10
                       ? 'linear-gradient(90deg, #f87171, #ef4444)'
                       : 'linear-gradient(90deg, #a855f7, #6366f1)',

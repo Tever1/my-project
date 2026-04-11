@@ -41,7 +41,8 @@ interface AliasGameState {
   currentLetter: string;          // letter mode: the letter to use for explanations
 }
 
-const TURN_DURATION = 60;
+const TURN_DURATION_CLASSIC = 60;
+const TURN_DURATION_LETTER = 90;
 const DEFAULT_ROUNDS = 4; // each team plays this many turns
 
 // ---------------------------------------------------------------------------
@@ -224,7 +225,7 @@ export default function AliasPage() {
       activeTeamIndex: 0,
       explainerIndex: 0,
       currentWordIndex: firstWord,
-      timeLeft: TURN_DURATION,
+      timeLeft: mode === 'letter' ? TURN_DURATION_LETTER : TURN_DURATION_CLASSIC,
       wordsGuessed: 0,
       wordsSkipped: 0,
       round: 1,
@@ -247,7 +248,7 @@ export default function AliasPage() {
     const updated: AliasGameState = {
       ...gameState,
       phase: 'explaining',
-      timeLeft: TURN_DURATION,
+      timeLeft: gameState.mode === 'letter' ? TURN_DURATION_LETTER : TURN_DURATION_CLASSIC,
       wordsGuessed: 0,
       wordsSkipped: 0,
       turnHistory: [],
@@ -312,7 +313,7 @@ export default function AliasPage() {
         : gameState.explainerIndex,
       currentWordIndex: nextWordIdx,
       round: newRound,
-      timeLeft: TURN_DURATION,
+      timeLeft: gameState.mode === 'letter' ? TURN_DURATION_LETTER : TURN_DURATION_CLASSIC,
       wordsGuessed: 0,
       wordsSkipped: 0,
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
@@ -441,7 +442,7 @@ export default function AliasPage() {
             {/* Classic */}
             <GlassCard
               className={`p-5 cursor-pointer transition-all ${
-                selectedMode === 'classic' ? 'outline outline-2 outline-purple-400' : 'opacity-70 hover:opacity-100'
+                selectedMode === 'classic' ? 'outline outline-2 outline-purple-400' : ''
               }`}
               onClick={() => {
                 setSelectedMode('classic');
@@ -469,7 +470,7 @@ export default function AliasPage() {
             {/* Letter mode */}
             <GlassCard
               className={`p-5 cursor-pointer transition-all ${
-                selectedMode === 'letter' ? 'outline outline-2 outline-purple-400' : 'opacity-70 hover:opacity-100'
+                selectedMode === 'letter' ? 'outline outline-2 outline-purple-400' : ''
               }`}
               onClick={() => {
                 setSelectedMode('letter');
@@ -604,7 +605,7 @@ export default function AliasPage() {
               <div
                 className="h-full rounded-full transition-all duration-1000 linear"
                 style={{
-                  width: `${(gameState.timeLeft / TURN_DURATION) * 100}%`,
+                  width: `${(gameState.timeLeft / (gameState.mode === 'letter' ? TURN_DURATION_LETTER : TURN_DURATION_CLASSIC)) * 100}%`,
                   background:
                     gameState.timeLeft <= 10
                       ? 'linear-gradient(90deg, #f87171, #ef4444)'
