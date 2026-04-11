@@ -89,6 +89,10 @@ export default function AliasPage() {
   const [gameState, setGameState] = useState<AliasGameState | null>(null);
   const [selectedMode, setSelectedMode] = useState<AliasMode | null>(null);
 
+  // Letter-mode guesser UI state
+  const [guessInput, setGuessInput] = useState('');
+  const [guessFlash, setGuessFlash] = useState<'none' | 'correct' | 'wrong'>('none');
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isHost = user?.id === hostId;
@@ -145,6 +149,7 @@ export default function AliasPage() {
       switch (action) {
         case 'alias:state':
           setGameState(payload);
+          setGuessInput('');
           break;
         case 'alias:tick':
           setGameState((prev) =>
@@ -152,6 +157,10 @@ export default function AliasPage() {
               ? { ...prev, timeLeft: (payload as unknown as { timeLeft: number }).timeLeft }
               : prev,
           );
+          break;
+        case 'alias:correct':
+          setGuessFlash('correct');
+          setTimeout(() => setGuessFlash('none'), 800);
           break;
       }
     });
@@ -201,8 +210,8 @@ export default function AliasPage() {
     const firstWord = pickRandomWordIndex([]);
 
     let teams: Team[];
-    if (mode === 'letter' && players.length < 4) {
-      // Individual play for letter mode with few players
+    if (mode === 'letter') {
+      // Individual play for letter mode (scoring is per-player)
       const shuffled = [...pIds].sort(() => Math.random() - 0.5);
       teams = shuffled.map((id, i) => ({
         id: `player-${i}`,
@@ -264,10 +273,16 @@ export default function AliasPage() {
 
   const finishTurn = useCallback(
     (prev: AliasGameState) => {
-      const turnScore = prev.wordsGuessed - prev.wordsSkipped;
-      const updatedTeams = prev.teams.map((t, i) =>
-        i === prev.activeTeamIndex ? { ...t, score: t.score + turnScore } : t,
-      );
+      // Letter mode: scores are already awarded live to guessers.
+      // Classic mode: apply wordsGuessed - wordsSkipped to the active team.
+      const updatedTeams =
+        prev.mode === 'letter'
+          ? prev.teams
+          : prev.teams.map((t, i) =>
+              i === prev.activeTeamIndex
+                ? { ...t, score: t.score + (prev.wordsGuessed - prev.wordsSkipped) }
+                : t,
+            );
 
       const result: AliasGameState = {
         ...prev,
@@ -331,17 +346,21 @@ export default function AliasPage() {
   const handleGuessed = useCallback(() => {
     if (!isHost || !gameState || gameState.phase !== 'explaining') return;
 
+    const isLetter = gameState.mode === 'letter';
     const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
     const updated: AliasGameState = {
       ...gameState,
       currentWordIndex: nextWordIdx,
-      wordsGuessed: gameState.wordsGuessed + 1,
+      // Letter mode: explainer just advances word, no score counter change
+      wordsGuessed: isLetter ? gameState.wordsGuessed : gameState.wordsGuessed + 1,
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
-      turnHistory: [
-        ...gameState.turnHistory,
-        { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: true },
-      ],
-      currentLetter: gameState.mode === 'letter' ? pickRandomLetter(locale) : gameState.currentLetter,
+      turnHistory: isLetter
+        ? gameState.turnHistory
+        : [
+            ...gameState.turnHistory,
+            { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: true },
+          ],
+      currentLetter: isLetter ? pickRandomLetter(locale) : gameState.currentLetter,
     };
     setGameState(updated);
     broadcast('alias:state', updated);
@@ -354,21 +373,58 @@ export default function AliasPage() {
   const handleSkip = useCallback(() => {
     if (!isHost || !gameState || gameState.phase !== 'explaining') return;
 
+    const isLetter = gameState.mode === 'letter';
     const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
     const updated: AliasGameState = {
       ...gameState,
       currentWordIndex: nextWordIdx,
-      wordsSkipped: gameState.wordsSkipped + 1,
+      // Letter mode: no score penalty for explainer skip
+      wordsSkipped: isLetter ? gameState.wordsSkipped : gameState.wordsSkipped + 1,
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
-      turnHistory: [
-        ...gameState.turnHistory,
-        { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: false },
-      ],
-      currentLetter: gameState.mode === 'letter' ? pickRandomLetter(locale) : gameState.currentLetter,
+      turnHistory: isLetter
+        ? gameState.turnHistory
+        : [
+            ...gameState.turnHistory,
+            { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: false },
+          ],
+      currentLetter: isLetter ? pickRandomLetter(locale) : gameState.currentLetter,
     };
     setGameState(updated);
     broadcast('alias:state', updated);
   }, [isHost, gameState, broadcast, locale]);
+
+  // ------------------------------------------------------------------
+  // Host: correct guess submitted by a non-explainer player (letter mode)
+  // ------------------------------------------------------------------
+
+  const handleCorrectGuess = useCallback(
+    (guesserId: string) => {
+      if (!isHost || !gameState || gameState.phase !== 'explaining') return;
+      if (gameState.mode !== 'letter') return;
+
+      const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
+      const updatedTeams = gameState.teams.map((t) =>
+        t.playerIds.includes(guesserId) ? { ...t, score: t.score + 1 } : t,
+      );
+
+      const updated: AliasGameState = {
+        ...gameState,
+        currentWordIndex: nextWordIdx,
+        wordsGuessed: gameState.wordsGuessed + 1,
+        teams: updatedTeams,
+        usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
+        turnHistory: [
+          ...gameState.turnHistory,
+          { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: true },
+        ],
+        currentLetter: pickRandomLetter(locale),
+      };
+      setGameState(updated);
+      broadcast('alias:state', updated);
+      broadcast('alias:correct', { guesserId });
+    },
+    [isHost, gameState, broadcast, locale],
+  );
 
   // ------------------------------------------------------------------
   // Non-host actions forwarded to host
@@ -381,10 +437,37 @@ export default function AliasPage() {
     [emit, roomId],
   );
 
+  // ------------------------------------------------------------------
+  // Guesser: submit a guess attempt (letter mode only)
+  // ------------------------------------------------------------------
+
+  const submitGuess = useCallback(() => {
+    const text = guessInput.trim();
+    if (!text || !gameState || gameState.phase !== 'explaining') return;
+    if (gameState.mode !== 'letter') return;
+    if (isExplainer) return;
+
+    if (isHost && currentWord) {
+      const target = (locale === 'ru' ? currentWord.ru : currentWord.en).trim().toLowerCase();
+      if (text.toLowerCase() === target) {
+        handleCorrectGuess(myId);
+        setGuessInput('');
+        return;
+      }
+      setGuessFlash('wrong');
+      setTimeout(() => setGuessFlash('none'), 600);
+      setGuessInput('');
+      return;
+    }
+
+    emit('game:action', { code: roomId, action: 'alias:guess-attempt', payload: { text } });
+    setGuessInput('');
+  }, [guessInput, gameState, isExplainer, isHost, currentWord, locale, handleCorrectGuess, myId, emit, roomId]);
+
   useEffect(() => {
     if (!isHost) return;
     const cleanup = on('game:action', (data: unknown) => {
-      const { action, payload } = data as { action: string; payload: Record<string, unknown>; from: string };
+      const { action, payload, from } = data as { action: string; payload: Record<string, unknown>; from: string };
       if (action === 'alias:guessed') handleGuessed();
       if (action === 'alias:skip') handleSkip();
       if (action === 'alias:begin-turn') beginTurn();
@@ -394,9 +477,16 @@ export default function AliasPage() {
         setSelectedMode(mode);
         broadcast('alias:state', { phase: 'modeSelect', mode } as unknown as AliasGameState);
       }
+      if (action === 'alias:guess-attempt' && gameState && currentWord && gameState.mode === 'letter') {
+        const guess = String(payload.text ?? '').trim().toLowerCase();
+        const target = (locale === 'ru' ? currentWord.ru : currentWord.en).trim().toLowerCase();
+        if (guess && guess === target && from !== explainer?.id) {
+          handleCorrectGuess(from);
+        }
+      }
     });
     return cleanup;
-  }, [isHost, on, handleGuessed, handleSkip, beginTurn, nextTurn, broadcast]);
+  }, [isHost, on, handleGuessed, handleSkip, beginTurn, nextTurn, broadcast, gameState, currentWord, locale, explainer, handleCorrectGuess]);
 
   // ------------------------------------------------------------------
   // End game
@@ -642,7 +732,11 @@ export default function AliasPage() {
               🎤 {explainer?.nickname ?? '...'}
             </p>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {locale === 'ru'
+              {gameState.mode === 'letter'
+                ? locale === 'ru'
+                  ? `Угадано: ${gameState.wordsGuessed}`
+                  : `Guessed: ${gameState.wordsGuessed}`
+                : locale === 'ru'
                 ? `Угадано: ${gameState.wordsGuessed} | Пропущено: ${gameState.wordsSkipped}`
                 : `Guessed: ${gameState.wordsGuessed} | Skipped: ${gameState.wordsSkipped}`}
             </p>
@@ -668,16 +762,64 @@ export default function AliasPage() {
                 {locale === 'ru' ? currentWord.ru : currentWord.en}
               </p>
             </GlassCard>
-          ) : (
-            <GlassCard className="w-full max-w-md p-8 text-center">
-              {gameState.mode === 'letter' && gameState.currentLetter && isMyTeamActive && (
-                <div className="mb-2">
-                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          ) : gameState.mode === 'letter' ? (
+            <GlassCard
+              className={`w-full max-w-md p-6 text-center transition-all ${
+                guessFlash === 'correct'
+                  ? 'outline outline-2 outline-green-400'
+                  : guessFlash === 'wrong'
+                  ? 'outline outline-2 outline-red-400'
+                  : ''
+              }`}
+            >
+              {gameState.currentLetter && (
+                <div className="mb-3">
+                  <p className="text-xs uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
                     {locale === 'ru' ? 'Буква' : 'Letter'}
                   </p>
                   <p className="text-4xl font-black text-purple-400">{gameState.currentLetter}</p>
                 </div>
               )}
+              <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
+                {locale === 'ru' ? 'Введите ваш ответ:' : 'Type your guess:'}
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitGuess();
+                }}
+                className="flex gap-2"
+              >
+                <input
+                  type="text"
+                  value={guessInput}
+                  onChange={(e) => setGuessInput(e.target.value)}
+                  placeholder={locale === 'ru' ? 'Ваше слово...' : 'Your word...'}
+                  className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-purple-400 text-lg"
+                  autoFocus
+                />
+                <GlassButton
+                  variant="primary"
+                  size="md"
+                  type="submit"
+                  disabled={!guessInput.trim()}
+                >
+                  →
+                </GlassButton>
+              </form>
+              {guessFlash === 'correct' && (
+                <p className="text-green-400 text-sm mt-2">
+                  {locale === 'ru' ? '✓ Правильно!' : '✓ Correct!'}
+                </p>
+              )}
+              {guessFlash === 'wrong' && (
+                <p className="text-red-400 text-sm mt-2">
+                  {locale === 'ru' ? '✗ Неверно' : '✗ Wrong'}
+                </p>
+              )}
+            </GlassCard>
+          ) : (
+            <GlassCard className="w-full max-w-md p-8 text-center">
               <p className="text-lg" style={{ color: 'var(--text-secondary)' }}>
                 {isMyTeamActive
                   ? locale === 'ru'
@@ -725,14 +867,24 @@ export default function AliasPage() {
             <p className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
               {locale === 'ru' ? 'Время вышло!' : "Time's up!"}
             </p>
-            <p className="text-3xl font-bold text-amber-400 mb-4">
-              {activeTeam?.name}: {gameState.wordsGuessed - gameState.wordsSkipped > 0 ? '+' : ''}
-              {gameState.wordsGuessed - gameState.wordsSkipped}
-            </p>
-            <div className="text-sm space-y-1 mb-4" style={{ color: 'var(--text-secondary)' }}>
-              <p>✅ {locale === 'ru' ? 'Угадано' : 'Guessed'}: {gameState.wordsGuessed}</p>
-              <p>❌ {locale === 'ru' ? 'Пропущено' : 'Skipped'}: {gameState.wordsSkipped}</p>
-            </div>
+            {gameState.mode === 'letter' ? (
+              <p className="text-base mb-4" style={{ color: 'var(--text-secondary)' }}>
+                {locale === 'ru'
+                  ? `Угадано слов: ${gameState.wordsGuessed}`
+                  : `Words guessed: ${gameState.wordsGuessed}`}
+              </p>
+            ) : (
+              <>
+                <p className="text-3xl font-bold text-amber-400 mb-4">
+                  {activeTeam?.name}: {gameState.wordsGuessed - gameState.wordsSkipped > 0 ? '+' : ''}
+                  {gameState.wordsGuessed - gameState.wordsSkipped}
+                </p>
+                <div className="text-sm space-y-1 mb-4" style={{ color: 'var(--text-secondary)' }}>
+                  <p>✅ {locale === 'ru' ? 'Угадано' : 'Guessed'}: {gameState.wordsGuessed}</p>
+                  <p>❌ {locale === 'ru' ? 'Пропущено' : 'Skipped'}: {gameState.wordsSkipped}</p>
+                </div>
+              </>
+            )}
 
             {/* Turn history */}
             {gameState.turnHistory.length > 0 && (
