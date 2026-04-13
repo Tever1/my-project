@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /**
- * Generate an image via OpenRouter -> Nano Banana (Gemini 2.5 Flash Image).
+ * Generate a themed quiz background via OpenRouter -> Nano Banana.
  *
- * Usage:
- *   node scripts/generate-image.mjs "<prompt>" [output-filename]
+ * Usage (simple, recommended):
+ *   npm run gen-image -- --theme "harry potter"
+ *   npm run gen-image -- --theme "marvel" --name marvel-1
  *
- * Example:
- *   node scripts/generate-image.mjs "Dark gothic Hogwarts castle at night" hogwarts.png
+ * Usage (custom prompt):
+ *   npm run gen-image -- --prompt "Dark gothic castle at night" --name hogwarts
  *
- * The image is saved to public/backgrounds/<filename>.
+ * If --name is omitted, the file is named after the theme (or timestamped).
+ * The image is saved to public/backgrounds/<name>.png.
  * Requires OPENROUTER_API_KEY in .env.local.
  */
 
@@ -37,7 +39,64 @@ function loadEnv() {
   }
 }
 
-async function generateImage(prompt, outputName) {
+// Shared style guidelines that every background should follow.
+const BASE_STYLE = [
+  'cinematic wide landscape orientation',
+  'atmospheric lighting',
+  'rich colors',
+  'high detail',
+  'digital painting',
+  'no text',
+  'no watermark',
+  'no characters in foreground',
+  'empty negative space in the center for overlaid quiz content',
+].join(', ');
+
+// Theme presets: short name -> detailed scene description.
+const THEMES = {
+  'harry potter': 'magical castle Hogwarts at night, tall gothic towers, moonlight, mist drifting through courtyards, floating candles glowing, starry sky, mysterious fantasy atmosphere',
+  'marvel': 'futuristic superhero city skyline at dusk, glowing neon accents, dramatic clouds, comic book aesthetic, dynamic cinematic perspective, heroic mood',
+  'star wars': 'alien desert planet with twin suns setting, distant spaceships in the sky, sand dunes, sci-fi atmosphere, cinematic widescreen',
+  'lord of the rings': 'vast Middle-earth landscape, rolling green hills, distant snowy mountains, epic fantasy atmosphere, warm golden hour lighting',
+  'game of thrones': 'medieval castle on a cliff by the sea, stormy clouds, dramatic lighting, dark fantasy mood, northern cold tones',
+  'disney': 'enchanted fairytale castle on a hilltop, soft pastel sky, magical sparkles, dreamy whimsical atmosphere, warm colors',
+  'anime': 'vibrant anime cityscape at sunset, cherry blossoms, colorful sky, studio ghibli inspired, dreamy wide shot',
+  'cyberpunk': 'neon-lit futuristic cyberpunk city at night, rain, holographic billboards, dark moody atmosphere, blade runner vibe',
+  'sci-fi': 'deep space scene with distant nebulae and planets, stars, cosmic dust, science fiction atmosphere, wide cinematic shot',
+  'nature': 'breathtaking mountain landscape with a lake reflection, sunrise, mist, peaceful serene mood, photorealistic',
+  'history': 'ancient historical ruins, dramatic sky, warm golden light, epic archaeological atmosphere, cinematic',
+  'sports': 'modern sports stadium interior at night, dramatic floodlights, empty field, energetic anticipation, wide shot',
+  'music': 'concert stage with colorful lights and smoke, empty stage from audience perspective, energetic cinematic atmosphere',
+  'food': 'abstract stylized food ingredients artfully arranged on a wooden table, warm lighting, appetizing cinematic still life',
+  'space': 'breathtaking view of Earth from orbit with milky way galaxy in the background, cosmic beauty, cinematic',
+  'halloween': 'spooky haunted mansion at night, full moon, fog, glowing jack-o-lanterns, eerie atmosphere, dark fantasy',
+  'christmas': 'cozy winter village at night, snow falling, warm glowing windows, christmas lights, festive atmosphere',
+};
+
+function parseArgs(argv) {
+  const args = { theme: null, prompt: null, name: null };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--theme' || a === '-t') args.theme = argv[++i];
+    else if (a === '--prompt' || a === '-p') args.prompt = argv[++i];
+    else if (a === '--name' || a === '-n') args.name = argv[++i];
+    else if (!args.prompt && !args.theme) args.prompt = a; // positional fallback
+    else if (!args.name) args.name = a;
+  }
+  return args;
+}
+
+function buildPromptFromTheme(theme) {
+  const key = theme.toLowerCase().trim();
+  const scene = THEMES[key] ?? `${theme} themed scene, vivid and atmospheric`;
+  return `${scene}. Style: ${BASE_STYLE}.`;
+}
+
+function slugify(text) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `image-${Date.now()}`;
+}
+
+async function generateImage({ prompt, outputName }) {
   loadEnv();
 
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -46,7 +105,7 @@ async function generateImage(prompt, outputName) {
     process.exit(1);
   }
 
-  console.log(`🎨 Generating image for prompt: "${prompt}"`);
+  console.log(`🎨 Prompt: "${prompt}"`);
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -119,13 +178,35 @@ async function generateImage(prompt, outputName) {
   }
 }
 
-const [, , promptArg, outputArg] = process.argv;
-if (!promptArg) {
-  console.error('Usage: node scripts/generate-image.mjs "<prompt>" [output-filename]');
+function printUsage() {
+  console.log(`
+Usage:
+  npm run gen-image -- --theme "<theme>" [--name <filename>]
+  npm run gen-image -- --prompt "<custom prompt>" [--name <filename>]
+
+Examples:
+  npm run gen-image -- --theme "harry potter"
+  npm run gen-image -- --theme "marvel" --name marvel-1
+  npm run gen-image -- --prompt "Dark gothic castle at night" --name hogwarts
+
+Available preset themes:
+${Object.keys(THEMES).map((t) => `  • ${t}`).join('\n')}
+
+Any other theme works too — just pass any phrase after --theme.
+`);
+}
+
+const args = parseArgs(process.argv.slice(2));
+
+if (!args.theme && !args.prompt) {
+  printUsage();
   process.exit(1);
 }
 
-generateImage(promptArg, outputArg).catch((err) => {
+const finalPrompt = args.prompt ?? buildPromptFromTheme(args.theme);
+const finalName = args.name ?? (args.theme ? slugify(args.theme) : null);
+
+generateImage({ prompt: finalPrompt, outputName: finalName }).catch((err) => {
   console.error('❌ Unexpected error:', err);
   process.exit(1);
 });

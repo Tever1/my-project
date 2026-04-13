@@ -6,7 +6,8 @@
     "dev": "tsx server.mts",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "gen-image": "node scripts/generate-image.mjs"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",
