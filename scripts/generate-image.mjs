@@ -55,7 +55,7 @@ const BASE_STYLE = [
 // Theme presets: short name -> detailed scene description.
 const THEMES = {
   'harry potter': 'magical castle Hogwarts at night, tall gothic towers, moonlight, mist drifting through courtyards, floating candles glowing, starry sky, mysterious fantasy atmosphere',
-  'marvel': 'futuristic superhero city skyline at dusk, glowing neon accents, dramatic clouds, comic book aesthetic, dynamic cinematic perspective, heroic mood',
+  'marvel': 'cinematic realistic scene, Avengers Tower skyline at twilight, Iron Man red-and-gold repulsor glow in the sky, Captain America shield embedded in rubble, Thor-style lightning in distant storm clouds, Hulk silhouette on a rooftop, photorealistic digital painting, dramatic movie poster lighting, NOT cartoon, NOT comic book style, live-action film aesthetic',
   'star wars': 'alien desert planet with twin suns setting, distant spaceships in the sky, sand dunes, sci-fi atmosphere, cinematic widescreen',
   'lord of the rings': 'vast Middle-earth landscape, rolling green hills, distant snowy mountains, epic fantasy atmosphere, warm golden hour lighting',
   'game of thrones': 'medieval castle on a cliff by the sea, stormy clouds, dramatic lighting, dark fantasy mood, northern cold tones',
@@ -96,7 +96,7 @@ function slugify(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `image-${Date.now()}`;
 }
 
-async function generateImage({ prompt, outputName }) {
+async function generateImage({ prompt, outputName, theme }) {
   loadEnv();
 
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -116,7 +116,7 @@ async function generateImage({ prompt, outputName }) {
       'X-Title': process.env.OPENROUTER_APP_NAME ?? 'party-games-hub',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash-image-preview',
+      model: 'google/gemini-3.1-flash-image-preview',
       messages: [
         {
           role: 'user',
@@ -135,6 +135,7 @@ async function generateImage({ prompt, outputName }) {
   }
 
   const data = await response.json();
+  const generationId = data.id;
 
   // The image comes back either in choices[0].message.images[] or as a data URL
   const message = data.choices?.[0]?.message;
@@ -172,10 +173,54 @@ async function generateImage({ prompt, outputName }) {
   console.log(`   Size: ${sizeKb} KB`);
   console.log(`   Public URL: /backgrounds/${finalName}`);
 
-  // Print usage info if available
-  if (data.usage) {
-    console.log(`   Tokens: ${data.usage.total_tokens ?? '?'} (cost ≈ $${((data.usage.total_tokens ?? 0) / 1_000_000 * 30).toFixed(4)})`);
+  // Append to generation log for later cost reconciliation
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    name: finalName.replace(/\.png$/, ''),
+    theme: theme ?? null,
+    generation_id: generationId ?? null,
+    file: `public/backgrounds/${finalName}`,
+  };
+  const logPath = path.join(outputDir, '.generation-log.jsonl');
+  fs.appendFileSync(logPath, JSON.stringify(logEntry) + '\n');
+
+  // Fetch real cost from OpenRouter generation endpoint
+  await printRealCost(generationId, apiKey);
+}
+
+async function printRealCost(generationId, apiKey) {
+  if (!generationId) {
+    console.log('   Real cost: unavailable (no generation id in response)');
+    return;
   }
+
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(`https://openrouter.ai/api/v1/generation?id=${generationId}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+
+      if (res.ok) {
+        const gen = await res.json();
+        if (gen.data?.total_cost != null) {
+          const cost = gen.data.total_cost;
+          const prompt_tokens = gen.data.tokens_prompt ?? '?';
+          const completion_tokens = gen.data.tokens_completion ?? '?';
+          console.log(`   Real cost: $${cost.toFixed(4)} (prompt: ${prompt_tokens} tokens, completion: ${completion_tokens} tokens)`);
+          return;
+        }
+      }
+    } catch {
+      // ignore fetch errors, will retry
+    }
+
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  console.log('   Real cost: unavailable right now (check OpenRouter dashboard: https://openrouter.ai/activity)');
 }
 
 function printUsage() {
@@ -206,7 +251,7 @@ if (!args.theme && !args.prompt) {
 const finalPrompt = args.prompt ?? buildPromptFromTheme(args.theme);
 const finalName = args.name ?? (args.theme ? slugify(args.theme) : null);
 
-generateImage({ prompt: finalPrompt, outputName: finalName }).catch((err) => {
+generateImage({ prompt: finalPrompt, outputName: finalName, theme: args.theme }).catch((err) => {
   console.error('❌ Unexpected error:', err);
   process.exit(1);
 });
