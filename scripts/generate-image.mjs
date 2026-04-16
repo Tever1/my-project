@@ -55,7 +55,7 @@ const BASE_STYLE = [
 // Theme presets: short name -> detailed scene description.
 const THEMES = {
   'harry potter': 'magical castle Hogwarts at night, tall gothic towers, moonlight, mist drifting through courtyards, floating candles glowing, starry sky, mysterious fantasy atmosphere',
-  'marvel': 'cinematic realistic scene, Avengers Tower skyline at twilight, Iron Man red-and-gold repulsor glow in the sky, Captain America shield embedded in rubble, Thor-style lightning in distant storm clouds, Hulk silhouette on a rooftop, photorealistic digital painting, dramatic movie poster lighting, NOT cartoon, NOT comic book style, live-action film aesthetic',
+  'marvel': 'cinematic superhero city at twilight, dramatic skyscrapers lit by energy beams and explosions, armored figures silhouetted against stormy sky, lightning over the skyline, rubble and debris in the foreground, photorealistic digital painting, dramatic movie poster lighting, dark heroic atmosphere, NOT cartoon, NOT comic book style',
   'star wars': 'alien desert planet with twin suns setting, distant spaceships in the sky, sand dunes, sci-fi atmosphere, cinematic widescreen',
   'lord of the rings': 'vast Middle-earth landscape, rolling green hills, distant snowy mountains, epic fantasy atmosphere, warm golden hour lighting',
   'game of thrones': 'medieval castle on a cliff by the sea, stormy clouds, dramatic lighting, dark fantasy mood, northern cold tones',
