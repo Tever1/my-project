@@ -140,18 +140,45 @@ script просто возьмёт её как есть и обернёт в с�
       Nano Banana, с 17 пресет-темами.
 - [x] `.env.local.example` с шаблоном переменных окружения.
 - [x] `npm run gen-image` в `package.json`.
+- [x] **Обновлена модель image gen** на `google/gemini-3.1-flash-image-preview`
+      (Nano Banana 2), старая `gemini-2.5-flash-image-preview` снята с OpenRouter
+      (коммит `5fd7960`). Цена ~$0.068/картинка.
+- [x] **Реальный cost tracking** через `GET /api/v1/generation?id=<id>` (3 retry,
+      2s delay). При неудаче — fallback на ссылку дашборда. Лог генераций
+      в `public/backgrounds/.generation-log.jsonl` (gitignored).
+- [x] Сгенерированы и закоммичены два тематических фона:
+      `public/backgrounds/harry-potter.png` и `public/backgrounds/marvel.png`.
+      Промпт marvel несколько раз переписан из-за `IMAGE_PROHIBITED_CONTENT` —
+      финальный без имён персонажей и торговых марок (коммит `e7af1bf`).
+- [x] **Интеграция фонов в UI квиза** (коммит `2223965`):
+      - `QuizTopic` расширен: `'harry-potter' | 'marvel'` (`src/types/game.ts`)
+      - `QuizTopicInfo` получил `backgroundUrl?: string`
+      - В `QUIZ_TOPICS` (`src/lib/quiz/index.ts`) добавлены две темы с фонами
+      - В `getQuizQuestions` добавлен fallback: если у тематической темы 0 вопросов
+        (пока их нет) — берём общий пул по сложности
+      - `GameLayout` получил проп `backgroundUrl?`, рендерит картинку + overlay
+        `bg-black/60` для читаемости текста
+      - TV-режим (`src/app/tv/[roomId]/[gameType]/page.tsx`) — своя реализация
+        поверх корневого `<div>` квизового блока (TV НЕ использует `GameLayout`)
 
-### В работе — тематические квизы с авто-сгенерированными фонами
+### В работе — валидация UI и тематические вопросы
 
-План:
-1. Сгенерировать тестовую картинку (`npm run gen-image -- --theme "harry potter"`) —
-   убедиться, что OpenRouter работает end-to-end. **Это нужно делать в среде
-   с интернетом — т.е. НЕ в облачном sandbox'е.**
-2. Добавить поле `backgroundUrl?: string` в `QuizTopicInfo` (`src/types/game.ts`).
-3. Обновить `GameLayout` (или эквивалент) — поддержать background-image слой.
-4. Создать отдельные наборы вопросов для тематических квизов (Harry Potter,
-   Marvel и т.д.) в `src/lib/quiz/themed/`.
-5. Добавить UI выбора темы с превью фона.
+1. ✅ Код интеграции фонов запушен в `claude/party-games-hub-etqfF`.
+2. 🟡 Визуальная проверка в браузере (localhost:3000) — нужно создать комнату,
+   выбрать Quiz → Harry Potter / Marvel, убедиться что фон видно и текст читаем.
+3. ⬜ Создать отдельные наборы вопросов для тематических квизов
+   (`src/lib/quiz/themed/harry-potter.ts`, `marvel.ts`).
+4. ⬜ UI превью фона в setup-экране выбора темы (опционально).
+
+---
+
+## Рабочий процесс в этом чате (договорённость от 2026-04-17)
+
+После каждого выполненного шага:
+1. **Обновлять этот `CLAUDE.md`** — фиксировать что сделано, в каком коммите,
+   какие файлы затронуты.
+2. **Комментировать в issue #3** (`tever1/my-project`) — чтобы облачный Claude
+   был в курсе прогресса.
 
 ---
 
