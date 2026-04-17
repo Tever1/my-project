@@ -160,14 +160,31 @@ script просто возьмёт её как есть и обернёт в с�
         `bg-black/60` для читаемости текста
       - TV-режим (`src/app/tv/[roomId]/[gameType]/page.tsx`) — своя реализация
         поверх корневого `<div>` квизового блока (TV НЕ использует `GameLayout`)
+- [x] **Реструктуризация setup-флоу квиза** (коммит `994217d`):
+      - Новый порядок: выбор режима (general/special) → для general: сложность → тема;
+        для special: выбор квиза (без сложности).
+      - Добавлен тип `SpecialQuizInfo` (`src/types/game.ts`) с полями
+        `id/theme/number/titleRu/titleEn/icon/backgroundUrl`.
+      - `QuizTopic` откатан к `'science' | 'history' | 'pop-culture' | 'random'` —
+        harry-potter/marvel убраны из общих тем.
+      - Добавлен реестр `SPECIAL_QUIZZES` с `harry-potter-1` и `marvel-1`
+        (подпись `#1` в названии — заготовка под будущие `#2`, `#3`).
+      - Функция `getSpecialQuizQuestions()` + константа `SPECIAL_QUIZ_TIME_LIMIT = 20`
+        (пока фолбэк на пул medium-вопросов; заменится на тематические банки).
+      - `QuizConfig` получил поле `specialQuizId: string | null`.
+      - Обе страницы (`src/app/game/.../quiz/page.tsx`, `src/app/tv/.../page.tsx`):
+        фазы `setup-mode | setup-difficulty | setup-topic | setup-special`,
+        бейджи условно показывают `specialQuizInfo` либо `diffInfo + topicInfo`,
+        `backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl`.
 
 ### В работе — валидация UI и тематические вопросы
 
-1. ✅ Код интеграции фонов запушен в `claude/party-games-hub-etqfF`.
-2. 🟡 Визуальная проверка в браузере (localhost:3000) — нужно создать комнату,
-   выбрать Quiz → Harry Potter / Marvel, убедиться что фон видно и текст читаем.
-3. ⬜ Создать отдельные наборы вопросов для тематических квизов
-   (`src/lib/quiz/themed/harry-potter.ts`, `marvel.ts`).
+1. ✅ Код интеграции фонов и рестракт setup-флоу запушены в `claude/party-games-hub-etqfF`.
+2. 🟡 Визуальная проверка в браузере (localhost:3000) — создать комнату, пройти
+   флоу Special → Harry Potter #1 / Marvel #1, убедиться что фон виден и бейджи корректны.
+3. ⬜ Создать отдельные наборы тематических вопросов
+   (`src/lib/quiz/themed/harry-potter.ts`, `marvel.ts`) и заменить fallback
+   в `getSpecialQuizQuestions`.
 4. ⬜ UI превью фона в setup-экране выбора темы (опционально).
 
 ---
