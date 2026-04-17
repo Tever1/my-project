@@ -9,19 +9,20 @@ import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
-import { getQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
+import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Phase = 'setup-difficulty' | 'setup-mode' | 'setup-topic' | 'waiting' | 'countdown' | 'question' | 'results' | 'mid-leaderboard' | 'final';
+type Phase = 'setup-mode' | 'setup-difficulty' | 'setup-topic' | 'setup-special' | 'waiting' | 'countdown' | 'question' | 'results' | 'mid-leaderboard' | 'final';
 
 interface QuizConfig {
-  difficulty: QuizDifficulty | null;
   mode: 'general' | 'special' | null;
+  difficulty: QuizDifficulty | null;
   topic: QuizTopic | null;
+  specialQuizId: string | null;
 }
 
 interface QuizGameState {
@@ -48,8 +49,8 @@ interface QuizGameState {
 const QUESTIONS_PER_GAME = 10;
 
 const INITIAL_STATE: QuizGameState = {
-  phase: 'setup-difficulty',
-  config: { difficulty: null, mode: null, topic: null },
+  phase: 'setup-mode',
+  config: { mode: null, difficulty: null, topic: null, specialQuizId: null },
   questionIndex: 0,
   totalQuestions: QUESTIONS_PER_GAME,
   timeLeft: 15,
@@ -252,34 +253,51 @@ export default function QuizPage() {
 
   // ------- Setup Actions (host only) -------
 
-  const selectDifficulty = (difficulty: QuizDifficulty) => {
+  const selectMode = (mode: 'general' | 'special') => {
     warmupSound();
-    const newConfig = { ...gameState.config, difficulty };
-    setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-mode' }));
+    const newConfig = { ...gameState.config, mode };
+    const nextPhase: Phase = mode === 'general' ? 'setup-difficulty' : 'setup-special';
+    setGameState((prev) => ({ ...prev, config: newConfig, phase: nextPhase }));
     emit('game:action', {
       code: roomId,
       action: 'quiz:config',
-      payload: { config: newConfig, phase: 'setup-mode' },
+      payload: { config: newConfig, phase: nextPhase },
     });
   };
 
-  const selectMode = (mode: 'general' | 'special') => {
-    const newConfig = { ...gameState.config, mode };
-    if (mode === 'general') {
-      setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-topic' }));
-      emit('game:action', {
-        code: roomId,
-        action: 'quiz:config',
-        payload: { config: newConfig, phase: 'setup-topic' },
-      });
-    }
-    // 'special' — no action yet, placeholder
+  const selectDifficulty = (difficulty: QuizDifficulty) => {
+    const newConfig = { ...gameState.config, difficulty };
+    setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-topic' }));
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:config',
+      payload: { config: newConfig, phase: 'setup-topic' },
+    });
   };
 
   const selectTopic = (topic: QuizTopic) => {
     const newConfig = { ...gameState.config, topic };
     // Generate questions for this session
     const questions = getQuizQuestions(topic, newConfig.difficulty!, shownIdsRef.current);
+    const total = Math.min(QUESTIONS_PER_GAME, questions.length);
+    questionsRef.current = questions.slice(0, total);
+
+    setGameState((prev) => ({
+      ...prev,
+      config: newConfig,
+      phase: 'waiting',
+      totalQuestions: total,
+    }));
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:config',
+      payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
+    });
+  };
+
+  const selectSpecialQuiz = (quizId: string) => {
+    const newConfig = { ...gameState.config, specialQuizId: quizId };
+    const questions = getSpecialQuizQuestions(quizId, shownIdsRef.current);
     const total = Math.min(QUESTIONS_PER_GAME, questions.length);
     questionsRef.current = questions.slice(0, total);
 
@@ -393,9 +411,14 @@ export default function QuizPage() {
   const startGame = () => {
     warmupSound();
     // If host hasn't generated questions yet (e.g., "Play Again"), regenerate
-    if (questionsRef.current.length === 0 && gameState.config.topic && gameState.config.difficulty) {
-      const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
-      questionsRef.current = questions.slice(0, Math.min(QUESTIONS_PER_GAME, questions.length));
+    if (questionsRef.current.length === 0) {
+      if (gameState.config.mode === 'special' && gameState.config.specialQuizId) {
+        const questions = getSpecialQuizQuestions(gameState.config.specialQuizId, shownIdsRef.current);
+        questionsRef.current = questions.slice(0, Math.min(QUESTIONS_PER_GAME, questions.length));
+      } else if (gameState.config.topic && gameState.config.difficulty) {
+        const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
+        questionsRef.current = questions.slice(0, Math.min(QUESTIONS_PER_GAME, questions.length));
+      }
     }
 
     const initialScores: Record<string, number> = {};
@@ -478,7 +501,12 @@ export default function QuizPage() {
 
   const playAgain = () => {
     // Regenerate questions (excluding already shown ones)
-    if (gameState.config.topic && gameState.config.difficulty) {
+    if (gameState.config.mode === 'special' && gameState.config.specialQuizId) {
+      const questions = getSpecialQuizQuestions(gameState.config.specialQuizId, shownIdsRef.current);
+      const total = Math.min(QUESTIONS_PER_GAME, questions.length);
+      questionsRef.current = questions.slice(0, total);
+      setGameState((prev) => ({ ...prev, totalQuestions: total }));
+    } else if (gameState.config.topic && gameState.config.difficulty) {
       const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
       const total = Math.min(QUESTIONS_PER_GAME, questions.length);
       questionsRef.current = questions.slice(0, total);
@@ -509,6 +537,8 @@ export default function QuizPage() {
   const currentQuestion = gameState.currentQuestion;
   const topicInfo = gameState.config.topic ? QUIZ_TOPICS.find((t) => t.id === gameState.config.topic) : null;
   const diffInfo = gameState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === gameState.config.difficulty) : null;
+  const specialQuizInfo = gameState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === gameState.config.specialQuizId) : null;
+  const backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
 
   // ------- Render -------
 
@@ -527,21 +557,81 @@ export default function QuizPage() {
       scores={scoreboard}
       onEnd={isHost ? endGame : undefined}
       showScoreboard={!isSetup && gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
-      backgroundUrl={topicInfo?.backgroundUrl}
+      backgroundUrl={backgroundUrl}
     >
-      {/* ==================== SETUP: DIFFICULTY ==================== */}
-      {gameState.phase === 'setup-difficulty' && (
+      {/* ==================== SETUP: MODE (first step) ==================== */}
+      {gameState.phase === 'setup-mode' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
           <div className="text-6xl mb-4">🧠</div>
           <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Квиз' : 'Quiz'}
+            {locale === 'ru' ? 'Выберите тип квиза' : 'Choose quiz type'}
           </h2>
           <p className="text-white/50 mb-8">
-            {locale === 'ru' ? 'Выберите уровень сложности' : 'Choose difficulty level'}
+            {locale === 'ru' ? 'Общие темы или специальные квизы' : 'General topics or special quizzes'}
           </p>
 
           {isHost ? (
             <div className="space-y-3">
+              <button
+                onClick={() => selectMode('general')}
+                className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-purple-600/20 to-purple-500/5 border-purple-500/30"
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-3xl">📚</span>
+                  <div>
+                    <p className="text-lg font-semibold text-white">
+                      {locale === 'ru' ? 'Общие темы' : 'General Topics'}
+                    </p>
+                    <p className="text-sm text-white/50">
+                      {locale === 'ru' ? 'Наука, история, поп-культура и др.' : 'Science, history, pop culture, etc.'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+              <button
+                onClick={() => selectMode('special')}
+                className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-3xl">🌟</span>
+                  <div>
+                    <p className="text-lg font-semibold text-white">
+                      {locale === 'ru' ? 'Специальные квизы' : 'Special Quizzes'}
+                    </p>
+                    <p className="text-sm text-white/50">
+                      {locale === 'ru' ? 'Тематические подборки без уровней сложности' : 'Themed sets, no difficulty levels'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          ) : (
+            <p className="text-white/40 italic">
+              {locale === 'ru' ? 'Ведущий выбирает тип квиза...' : 'Host is choosing quiz type...'}
+            </p>
+          )}
+
+          <p className="text-white/30 text-sm mt-6">
+            {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
+          </p>
+        </div>
+      )}
+
+      {/* ==================== SETUP: DIFFICULTY (after mode=general) ==================== */}
+      {gameState.phase === 'setup-difficulty' && (
+        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <span className="text-2xl">📚</span>
+            <span className="text-white/60 font-medium">
+              {locale === 'ru' ? 'Общие темы' : 'General Topics'}
+            </span>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {locale === 'ru' ? 'Выберите уровень сложности' : 'Choose difficulty level'}
+          </h2>
+
+          {isHost ? (
+            <div className="space-y-3 mt-8">
               {QUIZ_DIFFICULTIES.map((d) => (
                 <button
                   key={d.id}
@@ -571,72 +661,48 @@ export default function QuizPage() {
               {locale === 'ru' ? 'Ведущий выбирает сложность...' : 'Host is choosing difficulty...'}
             </p>
           )}
-
-          <p className="text-white/30 text-sm mt-6">
-            {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
-          </p>
         </div>
       )}
 
-      {/* ==================== SETUP: MODE ==================== */}
-      {gameState.phase === 'setup-mode' && (
+      {/* ==================== SETUP: SPECIAL QUIZ (after mode=special) ==================== */}
+      {gameState.phase === 'setup-special' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
           <div className="flex items-center justify-center gap-2 mb-6">
-            <span className="text-2xl">{diffInfo?.icon}</span>
+            <span className="text-2xl">🌟</span>
             <span className="text-white/60 font-medium">
-              {locale === 'ru' ? diffInfo?.titleRu : diffInfo?.titleEn}
+              {locale === 'ru' ? 'Специальные квизы' : 'Special Quizzes'}
             </span>
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Выберите тип квиза' : 'Choose quiz type'}
+            {locale === 'ru' ? 'Выберите квиз' : 'Choose a quiz'}
           </h2>
           <p className="text-white/50 mb-8">
-            {locale === 'ru' ? 'Общие темы или специальные квизы' : 'General topics or special quizzes'}
+            {locale === 'ru' ? 'Тематическая подборка, без уровней сложности' : 'Themed set, no difficulty levels'}
           </p>
 
           {isHost ? (
             <div className="space-y-3">
-              <button
-                onClick={() => selectMode('general')}
-                className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-purple-600/20 to-purple-500/5 border-purple-500/30"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">📚</span>
-                  <div>
-                    <p className="text-lg font-semibold text-white">
-                      {locale === 'ru' ? 'Общие темы' : 'General Topics'}
-                    </p>
-                    <p className="text-sm text-white/50">
-                      {locale === 'ru' ? 'Наука, история, поп-культура и др.' : 'Science, history, pop culture, etc.'}
-                    </p>
+              {SPECIAL_QUIZZES.map((q) => (
+                <button
+                  key={q.id}
+                  onClick={() => selectSpecialQuiz(q.id)}
+                  className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl">{q.icon}</span>
+                    <div>
+                      <p className="text-lg font-semibold text-white">
+                        {locale === 'ru' ? q.titleRu : q.titleEn}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </button>
-              <button
-                disabled
-                className="w-full rounded-2xl border p-5 text-left opacity-40 cursor-not-allowed bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">🌟</span>
-                  <div>
-                    <p className="text-lg font-semibold text-white">
-                      {locale === 'ru' ? 'Специальные квизы' : 'Special Quizzes'}
-                    </p>
-                    <p className="text-sm text-white/50">
-                      {locale === 'ru' ? 'Скоро!' : 'Coming soon!'}
-                    </p>
-                  </div>
-                </div>
-              </button>
+                </button>
+              ))}
             </div>
           ) : (
-            <div className="text-white/40 italic">
-              <p>{locale === 'ru' ? 'Ведущий выбирает тип квиза...' : 'Host is choosing quiz type...'}</p>
-              <div className="mt-4 flex items-center justify-center gap-2">
-                <span>{diffInfo?.icon}</span>
-                <span>{locale === 'ru' ? diffInfo?.titleRu : diffInfo?.titleEn}</span>
-              </div>
-            </div>
+            <p className="text-white/40 italic">
+              {locale === 'ru' ? 'Ведущий выбирает квиз...' : 'Host is choosing a quiz...'}
+            </p>
           )}
         </div>
       )}
@@ -699,15 +765,23 @@ export default function QuizPage() {
 
           {/* Config badges */}
           <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
-            {diffInfo && (
+            {specialQuizInfo ? (
               <span className="glass-badge px-5 py-2.5 text-lg">
-                {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+                {specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
               </span>
-            )}
-            {topicInfo && (
-              <span className="glass-badge px-5 py-2.5 text-lg">
-                {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
-              </span>
+            ) : (
+              <>
+                {diffInfo && (
+                  <span className="glass-badge px-5 py-2.5 text-lg">
+                    {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+                  </span>
+                )}
+                {topicInfo && (
+                  <span className="glass-badge px-5 py-2.5 text-lg">
+                    {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+                  </span>
+                )}
+              </>
             )}
           </div>
 
@@ -922,12 +996,16 @@ export default function QuizPage() {
           <h2 className="text-3xl font-bold text-white mb-2">
             {locale === 'ru' ? 'Итоги' : 'Final Results'}
           </h2>
-          {topicInfo && diffInfo && (
+          {specialQuizInfo ? (
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <span className="glass-badge text-xs">{specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}</span>
+            </div>
+          ) : topicInfo && diffInfo ? (
             <div className="flex items-center justify-center gap-2 mb-6">
               <span className="glass-badge text-xs">{diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}</span>
               <span className="glass-badge text-xs">{topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}</span>
             </div>
-          )}
+          ) : null}
 
           <div className="space-y-3">
             {scoreboard.map((entry, i) => (

@@ -1,4 +1,4 @@
-import { QuizQuestion, QuizDifficulty, QuizTopic, QuizTopicInfo } from '@/types/game';
+import { QuizQuestion, QuizDifficulty, QuizTopic, QuizTopicInfo, SpecialQuizInfo } from '@/types/game';
 import { SCIENCE_QUESTIONS } from './science';
 import { HISTORY_QUESTIONS } from './history';
 import { POP_CULTURE_QUESTIONS } from './pop-culture';
@@ -10,15 +10,23 @@ export const ALL_QUIZ_QUESTIONS: QuizQuestion[] = [
   ...POP_CULTURE_QUESTIONS,
 ];
 
-// Topic metadata
+// Topic metadata (general quizzes — split by difficulty)
 export const QUIZ_TOPICS: QuizTopicInfo[] = [
   { id: 'random', titleRu: 'Случайные вопросы', titleEn: 'Random Questions', icon: '🎲' },
   { id: 'science', titleRu: 'Наука', titleEn: 'Science', icon: '🔬' },
   { id: 'history', titleRu: 'История', titleEn: 'History', icon: '📜' },
   { id: 'pop-culture', titleRu: 'Поп-культура', titleEn: 'Pop Culture', icon: '🎬' },
-  { id: 'harry-potter', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter', icon: '⚡', backgroundUrl: '/backgrounds/harry-potter.png' },
-  { id: 'marvel',       titleRu: 'Marvel',        titleEn: 'Marvel',       icon: '🦸', backgroundUrl: '/backgrounds/marvel.png' },
 ];
+
+// Special quizzes — themed, no difficulty levels.
+// Each theme can have multiple quizzes differentiated by #number.
+export const SPECIAL_QUIZZES: SpecialQuizInfo[] = [
+  { id: 'harry-potter-1', theme: 'harry-potter', number: 1, titleRu: 'Гарри Поттер #1', titleEn: 'Harry Potter #1', icon: '⚡', backgroundUrl: '/backgrounds/harry-potter.png' },
+  { id: 'marvel-1',       theme: 'marvel',       number: 1, titleRu: 'Marvel #1',        titleEn: 'Marvel #1',       icon: '🦸', backgroundUrl: '/backgrounds/marvel.png' },
+];
+
+// Default time-per-question for special quizzes (no difficulty to derive from).
+export const SPECIAL_QUIZ_TIME_LIMIT = 20;
 
 // Difficulty metadata
 export const QUIZ_DIFFICULTIES: { id: QuizDifficulty; titleRu: string; titleEn: string; icon: string; color: string }[] = [
@@ -39,11 +47,6 @@ export function getQuizQuestions(
   let questions = topic === 'random'
     ? ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === difficulty)
     : ALL_QUIZ_QUESTIONS.filter((q) => q.topic === topic && q.difficulty === difficulty);
-
-  // Fallback for themed topics that don't have their own questions yet (e.g. harry-potter, marvel)
-  if (questions.length === 0) {
-    questions = ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === difficulty);
-  }
 
   // Exclude already-shown questions (if any remain)
   if (excludeIds && excludeIds.size > 0) {
@@ -73,4 +76,32 @@ export function getQuestionCount(topic: QuizTopic, difficulty: QuizDifficulty): 
   return topic === 'random'
     ? ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === difficulty).length
     : ALL_QUIZ_QUESTIONS.filter((q) => q.topic === topic && q.difficulty === difficulty).length;
+}
+
+/**
+ * Get questions for a special quiz.
+ * For now (no themed question sets yet), falls back to a shuffled pool of medium-difficulty general questions,
+ * with timeLimit overridden to SPECIAL_QUIZ_TIME_LIMIT.
+ * TODO: replace with per-quiz themed question banks when they are authored.
+ */
+export function getSpecialQuizQuestions(
+  _quizId: string,
+  excludeIds?: Set<string>,
+): QuizQuestion[] {
+  let questions = ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === 'medium');
+
+  if (excludeIds && excludeIds.size > 0) {
+    const filtered = questions.filter((q) => !excludeIds.has(q.id));
+    if (filtered.length > 0) questions = filtered;
+  }
+
+  // Shuffle
+  const shuffled = [...questions];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  // Override timeLimit so clients use the special-quiz default
+  return shuffled.map((q) => ({ ...q, timeLimit: SPECIAL_QUIZ_TIME_LIMIT }));
 }

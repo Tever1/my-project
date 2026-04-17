@@ -24,7 +24,7 @@ export interface GameState {
 
 // Quiz types
 export type QuizDifficulty = 'easy' | 'medium' | 'hard';
-export type QuizTopic = 'science' | 'history' | 'pop-culture' | 'random' | 'harry-potter' | 'marvel';
+export type QuizTopic = 'science' | 'history' | 'pop-culture' | 'random';
 export type QuizMode = 'general' | 'special';
 
 export interface QuizQuestion {
@@ -44,6 +44,18 @@ export interface QuizTopicInfo {
   titleEn: string;
   icon: string;
   backgroundUrl?: string;
+}
+
+// Special quizzes — themed, no difficulty levels.
+// Multiple quizzes can share a theme; the number differentiates them within the theme (e.g. "Harry Potter #1", "#2", ...).
+export interface SpecialQuizInfo {
+  id: string;          // unique id, e.g. 'harry-potter-1'
+  theme: string;       // grouping key, e.g. 'harry-potter' | 'marvel'
+  number: number;      // #1, #2, ...
+  titleRu: string;     // 'Гарри Поттер #1'
+  titleEn: string;     // 'Harry Potter #1'
+  icon: string;
+  backgroundUrl: string;
 }
 
 export interface QuizState extends GameState {

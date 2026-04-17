@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
-import { QUIZ_TOPICS, QUIZ_DIFFICULTIES } from '@/lib/quiz';
+import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import { CROCODILE_WORDS, ALIAS_WORDS } from '@/lib/game-data';
 
@@ -28,9 +28,10 @@ interface QuizQuestionData {
 }
 
 interface QuizConfig {
-  difficulty: string | null;
   mode: string | null;
+  difficulty: string | null;
   topic: string | null;
+  specialQuizId: string | null;
 }
 
 interface QuizState {
@@ -107,8 +108,8 @@ export default function TVGamePage() {
 
   const [players, setPlayers] = useState<PlayerInfo[]>([]);
   const [quizState, setQuizState] = useState<QuizState>({
-    phase: 'setup-difficulty',
-    config: { difficulty: null, mode: null, topic: null },
+    phase: 'setup-mode',
+    config: { mode: null, difficulty: null, topic: null, specialQuizId: null },
     questionIndex: 0,
     totalQuestions: 10,
     timeLeft: 15,
@@ -322,14 +323,16 @@ export default function TVGamePage() {
 
     const topicInfo = quizState.config.topic ? QUIZ_TOPICS.find((t) => t.id === quizState.config.topic) : null;
     const diffInfo = quizState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === quizState.config.difficulty) : null;
+    const specialQuizInfo = quizState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === quizState.config.specialQuizId) : null;
+    const backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
     const isSetup = quizState.phase.startsWith('setup-');
 
     return (
       <div
         className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden relative"
-        style={topicInfo?.backgroundUrl ? { backgroundImage: `url(${topicInfo.backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+        style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
       >
-        {topicInfo?.backgroundUrl && (
+        {backgroundUrl && (
           <div className="absolute inset-0 z-0 bg-black/60 pointer-events-none" />
         )}
         {/* Top bar */}
@@ -337,15 +340,23 @@ export default function TVGamePage() {
           <div className="flex items-center gap-4">
             <span className="text-4xl">{gameIcon}</span>
             <h1 className="text-3xl font-bold">{gameTitle}</h1>
-            {diffInfo && (
+            {specialQuizInfo ? (
               <span className="glass-badge px-3 py-1 text-sm">
-                {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+                {specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
               </span>
-            )}
-            {topicInfo && (
-              <span className="glass-badge px-3 py-1 text-sm">
-                {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
-              </span>
+            ) : (
+              <>
+                {diffInfo && (
+                  <span className="glass-badge px-3 py-1 text-sm">
+                    {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+                  </span>
+                )}
+                {topicInfo && (
+                  <span className="glass-badge px-3 py-1 text-sm">
+                    {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+                  </span>
+                )}
+              </>
             )}
           </div>
           {quizState.phase === 'question' && (
@@ -372,7 +383,13 @@ export default function TVGamePage() {
                   ? locale === 'ru' ? 'Настройка игры...' : 'Setting up...'
                   : locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}
               </p>
-              {(diffInfo || topicInfo) && (
+              {specialQuizInfo ? (
+                <div className="mt-6 flex items-center justify-center gap-4">
+                  <span className="glass-badge px-4 py-2 text-lg">
+                    {specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
+                  </span>
+                </div>
+              ) : (diffInfo || topicInfo) && (
                 <div className="mt-6 flex items-center justify-center gap-4">
                   {diffInfo && (
                     <span className="glass-badge px-4 py-2 text-lg">
