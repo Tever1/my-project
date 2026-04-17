@@ -14,6 +14,7 @@ interface GameLayoutProps {
   scores?: { name: string; score: number }[];
   onEnd?: () => void;
   showScoreboard?: boolean;
+  backgroundUrl?: string;
 }
 
 export function GameLayout({
@@ -25,6 +26,7 @@ export function GameLayout({
   scores,
   onEnd,
   showScoreboard = false,
+  backgroundUrl,
 }: GameLayoutProps) {
   const { t, locale } = useTranslation();
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
@@ -35,7 +37,13 @@ export function GameLayout({
     : [];
 
   return (
-    <div className="bg-gradient-main min-h-[100dvh] text-white flex flex-col">
+    <div
+      className="bg-gradient-main min-h-[100dvh] text-white flex flex-col relative"
+      style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+    >
+      {backgroundUrl && (
+        <div className="absolute inset-0 z-0 bg-black/60 pointer-events-none" />
+      )}
       {/* Header */}
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-black/20 border-b border-white/10">
         <div className="w-[92%] max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">

@@ -325,7 +325,13 @@ export default function TVGamePage() {
     const isSetup = quizState.phase.startsWith('setup-');
 
     return (
-      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      <div
+        className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden relative"
+        style={topicInfo?.backgroundUrl ? { backgroundImage: `url(${topicInfo.backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+      >
+        {topicInfo?.backgroundUrl && (
+          <div className="absolute inset-0 z-0 bg-black/60 pointer-events-none" />
+        )}
         {/* Top bar */}
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">

@@ -527,6 +527,7 @@ export default function QuizPage() {
       scores={scoreboard}
       onEnd={isHost ? endGame : undefined}
       showScoreboard={!isSetup && gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
+      backgroundUrl={topicInfo?.backgroundUrl}
     >
       {/* ==================== SETUP: DIFFICULTY ==================== */}
       {gameState.phase === 'setup-difficulty' && (

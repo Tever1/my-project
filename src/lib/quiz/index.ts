@@ -16,6 +16,8 @@ export const QUIZ_TOPICS: QuizTopicInfo[] = [
   { id: 'science', titleRu: 'Наука', titleEn: 'Science', icon: '🔬' },
   { id: 'history', titleRu: 'История', titleEn: 'History', icon: '📜' },
   { id: 'pop-culture', titleRu: 'Поп-культура', titleEn: 'Pop Culture', icon: '🎬' },
+  { id: 'harry-potter', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter', icon: '⚡', backgroundUrl: '/backgrounds/harry-potter.png' },
+  { id: 'marvel',       titleRu: 'Marvel',        titleEn: 'Marvel',       icon: '🦸', backgroundUrl: '/backgrounds/marvel.png' },
 ];
 
 // Difficulty metadata
@@ -37,6 +39,11 @@ export function getQuizQuestions(
   let questions = topic === 'random'
     ? ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === difficulty)
     : ALL_QUIZ_QUESTIONS.filter((q) => q.topic === topic && q.difficulty === difficulty);
+
+  // Fallback for themed topics that don't have their own questions yet (e.g. harry-potter, marvel)
+  if (questions.length === 0) {
+    questions = ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === difficulty);
+  }
 
   // Exclude already-shown questions (if any remain)
   if (excludeIds && excludeIds.size > 0) {
