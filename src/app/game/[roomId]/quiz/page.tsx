@@ -1082,7 +1082,6 @@ export default function QuizPage() {
       {/* ==================== MID-GAME LEADERBOARD (after round 5) ==================== */}
       {gameState.phase === 'mid-leaderboard' && (
         <div className="max-w-2xl mx-auto text-center animate-fade-in py-6">
-          <div className="text-5xl mb-4">📊</div>
           <h2 className="text-3xl font-bold text-white mb-2">
             {locale === 'ru' ? 'Промежуточные результаты' : 'Halftime Results'}
           </h2>
@@ -1092,12 +1091,13 @@ export default function QuizPage() {
 
           <div className="space-y-3 mb-8">
             {scoreboard.map((entry, i) => (
-              <GlassCard
+              <div
                 key={entry.name}
-                className={`p-4 flex items-center justify-between transition-all ${
-                  i === 0 ? 'ring-2 ring-yellow-400/60 bg-yellow-500/10'
-                    : i === 1 ? 'ring-1 ring-gray-300/30 bg-gray-300/5'
-                      : i === 2 ? 'ring-1 ring-amber-600/30 bg-amber-700/5' : ''
+                className={`p-4 flex items-center justify-between rounded-2xl border backdrop-blur-md transition-all ${
+                  i === 0 ? 'bg-black/60 border-yellow-400/60 ring-2 ring-yellow-400/40'
+                    : i === 1 ? 'bg-black/60 border-white/20 ring-1 ring-white/20'
+                      : i === 2 ? 'bg-black/60 border-amber-600/40 ring-1 ring-amber-600/30'
+                        : 'bg-black/50 border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -1107,7 +1107,7 @@ export default function QuizPage() {
                   <span className="text-white font-semibold text-lg">{entry.name}</span>
                 </div>
                 <span className="text-purple-400 font-bold text-xl">{entry.score}</span>
-              </GlassCard>
+              </div>
             ))}
           </div>
 
@@ -1144,12 +1144,13 @@ export default function QuizPage() {
 
           <div className="space-y-3">
             {scoreboard.map((entry, i) => (
-              <GlassCard
+              <div
                 key={entry.name}
-                className={`p-4 flex items-center justify-between transition-all ${
-                  i === 0 ? 'ring-2 ring-yellow-400/60 bg-yellow-500/10'
-                    : i === 1 ? 'ring-1 ring-gray-300/30 bg-gray-300/5'
-                      : i === 2 ? 'ring-1 ring-amber-600/30 bg-amber-700/5' : ''
+                className={`p-4 flex items-center justify-between rounded-2xl border backdrop-blur-md transition-all ${
+                  i === 0 ? 'bg-black/60 border-yellow-400/60 ring-2 ring-yellow-400/40'
+                    : i === 1 ? 'bg-black/60 border-white/20 ring-1 ring-white/20'
+                      : i === 2 ? 'bg-black/60 border-amber-600/40 ring-1 ring-amber-600/30'
+                        : 'bg-black/50 border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -1159,7 +1160,7 @@ export default function QuizPage() {
                   <span className="text-white font-semibold text-lg">{entry.name}</span>
                 </div>
                 <span className="text-purple-400 font-bold text-xl">{entry.score}</span>
-              </GlassCard>
+              </div>
             ))}
           </div>
 
