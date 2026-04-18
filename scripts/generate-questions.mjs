@@ -136,7 +136,7 @@ async function callLLM(prompt, apiKey) {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'https://github.com/Tever1/my-project',
-      'X-Title': 'Party Games Hub — Question Generator',
+      'X-Title': 'Party Games Hub - Question Generator',
     },
     body: JSON.stringify({
       model,
