@@ -287,6 +287,15 @@ export default function QuizPage() {
         newConfig = { ...newConfig, specialTheme: null, specialQuizId: null };
         prevPhase = 'setup-special-theme';
         break;
+      case 'waiting':
+        if (newConfig.mode === 'special') {
+          newConfig = { ...newConfig, specialQuizId: null };
+          prevPhase = 'setup-special-quiz';
+        } else {
+          newConfig = { ...newConfig, topic: null };
+          prevPhase = 'setup-topic';
+        }
+        break;
       default:
         return;
     }
@@ -871,8 +880,12 @@ export default function QuizPage() {
 
       {/* ==================== WAITING (ready to start) ==================== */}
       {gameState.phase === 'waiting' && (
-        <div className="text-center py-8 animate-fade-in">
-          <div className="text-[8rem] mb-6">🧠</div>
+        <div className="text-center pt-2 pb-8 animate-fade-in">
+          {isHost && (
+            <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-8 mx-auto transition-colors">
+              ← {locale === 'ru' ? 'Назад' : 'Back'}
+            </button>
+          )}
           <h2 className="text-5xl font-bold text-white mb-6">
             {locale === 'ru' ? 'Квиз' : 'Quiz'}
           </h2>
