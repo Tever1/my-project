@@ -1,4 +1,4 @@
-import { QuizQuestion, QuizDifficulty, QuizTopic, QuizTopicInfo, SpecialQuizInfo } from '@/types/game';
+import { QuizQuestion, QuizDifficulty, QuizTopic, QuizTopicInfo, SpecialQuizInfo, SpecialQuizThemeInfo } from '@/types/game';
 import { SCIENCE_QUESTIONS } from './science';
 import { HISTORY_QUESTIONS } from './history';
 import { POP_CULTURE_QUESTIONS } from './pop-culture';
@@ -18,12 +18,25 @@ export const QUIZ_TOPICS: QuizTopicInfo[] = [
   { id: 'pop-culture', titleRu: 'Поп-культура', titleEn: 'Pop Culture', icon: '🎬' },
 ];
 
+// Special quiz theme groups. Each theme contains one or more numbered quizzes (#1, #2, ...).
+export const SPECIAL_QUIZ_THEMES: SpecialQuizThemeInfo[] = [
+  { id: 'harry-potter', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter', icon: '⚡', backgroundUrl: '/backgrounds/harry-potter.png' },
+  { id: 'marvel',       titleRu: 'Marvel',        titleEn: 'Marvel',       icon: '🦸', backgroundUrl: '/backgrounds/marvel.png' },
+];
+
 // Special quizzes — themed, no difficulty levels.
 // Each theme can have multiple quizzes differentiated by #number.
 export const SPECIAL_QUIZZES: SpecialQuizInfo[] = [
   { id: 'harry-potter-1', theme: 'harry-potter', number: 1, titleRu: 'Гарри Поттер #1', titleEn: 'Harry Potter #1', icon: '⚡', backgroundUrl: '/backgrounds/harry-potter.png' },
   { id: 'marvel-1',       theme: 'marvel',       number: 1, titleRu: 'Marvel #1',        titleEn: 'Marvel #1',       icon: '🦸', backgroundUrl: '/backgrounds/marvel.png' },
 ];
+
+/** Return all special quizzes belonging to a theme, sorted by number. */
+export function getSpecialQuizzesByTheme(themeId: string): SpecialQuizInfo[] {
+  return SPECIAL_QUIZZES
+    .filter((q) => q.theme === themeId)
+    .sort((a, b) => a.number - b.number);
+}
 
 // Default time-per-question for special quizzes (no difficulty to derive from).
 export const SPECIAL_QUIZ_TIME_LIMIT = 20;

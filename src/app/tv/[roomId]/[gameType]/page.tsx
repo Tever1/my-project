@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
-import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES } from '@/lib/quiz';
+import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import { CROCODILE_WORDS, ALIAS_WORDS } from '@/lib/game-data';
 
@@ -31,6 +31,7 @@ interface QuizConfig {
   mode: string | null;
   difficulty: string | null;
   topic: string | null;
+  specialTheme: string | null;
   specialQuizId: string | null;
 }
 
@@ -109,7 +110,7 @@ export default function TVGamePage() {
   const [players, setPlayers] = useState<PlayerInfo[]>([]);
   const [quizState, setQuizState] = useState<QuizState>({
     phase: 'setup-mode',
-    config: { mode: null, difficulty: null, topic: null, specialQuizId: null },
+    config: { mode: null, difficulty: null, topic: null, specialTheme: null, specialQuizId: null },
     questionIndex: 0,
     totalQuestions: 10,
     timeLeft: 15,
@@ -324,17 +325,15 @@ export default function TVGamePage() {
     const topicInfo = quizState.config.topic ? QUIZ_TOPICS.find((t) => t.id === quizState.config.topic) : null;
     const diffInfo = quizState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === quizState.config.difficulty) : null;
     const specialQuizInfo = quizState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === quizState.config.specialQuizId) : null;
-    const backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
+    const specialThemeInfo = quizState.config.specialTheme ? SPECIAL_QUIZ_THEMES.find((t) => t.id === quizState.config.specialTheme) : null;
+    const backgroundUrl = specialQuizInfo?.backgroundUrl ?? specialThemeInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
     const isSetup = quizState.phase.startsWith('setup-');
 
     return (
       <div
-        className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden relative"
-        style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+        className={`h-screen bg-gradient-main text-white flex flex-col overflow-hidden relative ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
+        style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : undefined}
       >
-        {backgroundUrl && (
-          <div className="absolute inset-0 z-0 bg-black/60 pointer-events-none" />
-        )}
         {/* Top bar */}
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -343,6 +342,10 @@ export default function TVGamePage() {
             {specialQuizInfo ? (
               <span className="glass-badge px-3 py-1 text-sm">
                 {specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
+              </span>
+            ) : specialThemeInfo ? (
+              <span className="glass-badge px-3 py-1 text-sm">
+                {specialThemeInfo.icon} {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
               </span>
             ) : (
               <>
@@ -387,6 +390,12 @@ export default function TVGamePage() {
                 <div className="mt-6 flex items-center justify-center gap-4">
                   <span className="glass-badge px-4 py-2 text-lg">
                     {specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
+                  </span>
+                </div>
+              ) : specialThemeInfo ? (
+                <div className="mt-6 flex items-center justify-center gap-4">
+                  <span className="glass-badge px-4 py-2 text-lg">
+                    {specialThemeInfo.icon} {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
                   </span>
                 </div>
               ) : (diffInfo || topicInfo) && (

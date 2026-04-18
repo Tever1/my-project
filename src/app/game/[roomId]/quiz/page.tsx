@@ -9,19 +9,20 @@ import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
-import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES } from '@/lib/quiz';
+import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getSpecialQuizzesByTheme } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Phase = 'setup-mode' | 'setup-difficulty' | 'setup-topic' | 'setup-special' | 'waiting' | 'countdown' | 'question' | 'results' | 'mid-leaderboard' | 'final';
+type Phase = 'setup-mode' | 'setup-difficulty' | 'setup-topic' | 'setup-special-theme' | 'setup-special-quiz' | 'waiting' | 'countdown' | 'question' | 'results' | 'mid-leaderboard' | 'final';
 
 interface QuizConfig {
   mode: 'general' | 'special' | null;
   difficulty: QuizDifficulty | null;
   topic: QuizTopic | null;
+  specialTheme: string | null;
   specialQuizId: string | null;
 }
 
@@ -50,7 +51,7 @@ const QUESTIONS_PER_GAME = 10;
 
 const INITIAL_STATE: QuizGameState = {
   phase: 'setup-mode',
-  config: { mode: null, difficulty: null, topic: null, specialQuizId: null },
+  config: { mode: null, difficulty: null, topic: null, specialTheme: null, specialQuizId: null },
   questionIndex: 0,
   totalQuestions: QUESTIONS_PER_GAME,
   timeLeft: 15,
@@ -256,12 +257,22 @@ export default function QuizPage() {
   const selectMode = (mode: 'general' | 'special') => {
     warmupSound();
     const newConfig = { ...gameState.config, mode };
-    const nextPhase: Phase = mode === 'general' ? 'setup-difficulty' : 'setup-special';
+    const nextPhase: Phase = mode === 'general' ? 'setup-difficulty' : 'setup-special-theme';
     setGameState((prev) => ({ ...prev, config: newConfig, phase: nextPhase }));
     emit('game:action', {
       code: roomId,
       action: 'quiz:config',
       payload: { config: newConfig, phase: nextPhase },
+    });
+  };
+
+  const selectSpecialTheme = (themeId: string) => {
+    const newConfig = { ...gameState.config, specialTheme: themeId };
+    setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-special-quiz' }));
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:config',
+      payload: { config: newConfig, phase: 'setup-special-quiz' },
     });
   };
 
@@ -538,7 +549,8 @@ export default function QuizPage() {
   const topicInfo = gameState.config.topic ? QUIZ_TOPICS.find((t) => t.id === gameState.config.topic) : null;
   const diffInfo = gameState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === gameState.config.difficulty) : null;
   const specialQuizInfo = gameState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === gameState.config.specialQuizId) : null;
-  const backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
+  const specialThemeInfo = gameState.config.specialTheme ? SPECIAL_QUIZ_THEMES.find((t) => t.id === gameState.config.specialTheme) : null;
+  const backgroundUrl = specialQuizInfo?.backgroundUrl ?? specialThemeInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
 
   // ------- Render -------
 
@@ -566,7 +578,7 @@ export default function QuizPage() {
           <h2 className="text-2xl font-bold text-white mb-2">
             {locale === 'ru' ? 'Выберите тип квиза' : 'Choose quiz type'}
           </h2>
-          <p className="text-white/50 mb-8">
+          <p className="text-white/80 mb-8">
             {locale === 'ru' ? 'Общие темы или специальные квизы' : 'General topics or special quizzes'}
           </p>
 
@@ -582,7 +594,7 @@ export default function QuizPage() {
                     <p className="text-lg font-semibold text-white">
                       {locale === 'ru' ? 'Общие темы' : 'General Topics'}
                     </p>
-                    <p className="text-sm text-white/50">
+                    <p className="text-sm text-white/80">
                       {locale === 'ru' ? 'Наука, история, поп-культура и др.' : 'Science, history, pop culture, etc.'}
                     </p>
                   </div>
@@ -598,7 +610,7 @@ export default function QuizPage() {
                     <p className="text-lg font-semibold text-white">
                       {locale === 'ru' ? 'Специальные квизы' : 'Special Quizzes'}
                     </p>
-                    <p className="text-sm text-white/50">
+                    <p className="text-sm text-white/80">
                       {locale === 'ru' ? 'Тематические подборки без уровней сложности' : 'Themed sets, no difficulty levels'}
                     </p>
                   </div>
@@ -644,7 +656,7 @@ export default function QuizPage() {
                       <p className="text-lg font-semibold text-white">
                         {locale === 'ru' ? d.titleRu : d.titleEn}
                       </p>
-                      <p className="text-sm text-white/50">
+                      <p className="text-sm text-white/80">
                         {d.id === 'easy'
                           ? locale === 'ru' ? '15 сек на вопрос' : '15 sec per question'
                           : d.id === 'medium'
@@ -664,32 +676,80 @@ export default function QuizPage() {
         </div>
       )}
 
-      {/* ==================== SETUP: SPECIAL QUIZ (after mode=special) ==================== */}
-      {gameState.phase === 'setup-special' && (
+      {/* ==================== SETUP: SPECIAL THEME (after mode=special) ==================== */}
+      {gameState.phase === 'setup-special-theme' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
           <div className="flex items-center justify-center gap-2 mb-6">
             <span className="text-2xl">🌟</span>
-            <span className="text-white/60 font-medium">
+            <span className="text-white/80 font-medium">
               {locale === 'ru' ? 'Специальные квизы' : 'Special Quizzes'}
             </span>
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Выберите квиз' : 'Choose a quiz'}
+            {locale === 'ru' ? 'Выберите тему' : 'Choose a theme'}
           </h2>
-          <p className="text-white/50 mb-8">
+          <p className="text-white/80 mb-8">
             {locale === 'ru' ? 'Тематическая подборка, без уровней сложности' : 'Themed set, no difficulty levels'}
           </p>
 
           {isHost ? (
             <div className="space-y-3">
-              {SPECIAL_QUIZZES.map((q) => (
+              {SPECIAL_QUIZ_THEMES.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => selectSpecialTheme(theme.id)}
+                  className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl">{theme.icon}</span>
+                    <div>
+                      <p className="text-lg font-semibold text-white">
+                        {locale === 'ru' ? theme.titleRu : theme.titleEn}
+                      </p>
+                      <p className="text-sm text-white/70">
+                        {(() => {
+                          const n = getSpecialQuizzesByTheme(theme.id).length;
+                          return locale === 'ru'
+                            ? `${n} ${n === 1 ? 'квиз' : n < 5 ? 'квиза' : 'квизов'}`
+                            : `${n} ${n === 1 ? 'quiz' : 'quizzes'}`;
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-white/70 italic">
+              {locale === 'ru' ? 'Ведущий выбирает тему...' : 'Host is choosing a theme...'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ==================== SETUP: SPECIAL QUIZ (after theme chosen) ==================== */}
+      {gameState.phase === 'setup-special-quiz' && specialThemeInfo && (
+        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <span className="text-2xl">{specialThemeInfo.icon}</span>
+            <span className="text-white/80 font-medium">
+              {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
+            </span>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {locale === 'ru' ? 'Выберите квиз' : 'Choose a quiz'}
+          </h2>
+
+          {isHost ? (
+            <div className="space-y-3 mt-6">
+              {getSpecialQuizzesByTheme(specialThemeInfo.id).map((q) => (
                 <button
                   key={q.id}
                   onClick={() => selectSpecialQuiz(q.id)}
                   className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
                 >
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">{q.icon}</span>
+                    <span className="text-3xl">#{q.number}</span>
                     <div>
                       <p className="text-lg font-semibold text-white">
                         {locale === 'ru' ? q.titleRu : q.titleEn}
@@ -700,7 +760,7 @@ export default function QuizPage() {
               ))}
             </div>
           ) : (
-            <p className="text-white/40 italic">
+            <p className="text-white/70 italic">
               {locale === 'ru' ? 'Ведущий выбирает квиз...' : 'Host is choosing a quiz...'}
             </p>
           )}
@@ -719,7 +779,7 @@ export default function QuizPage() {
           <h2 className="text-2xl font-bold text-white mb-2">
             {locale === 'ru' ? 'Выберите тему' : 'Choose a topic'}
           </h2>
-          <p className="text-white/50 mb-8">
+          <p className="text-white/80 mb-8">
             {locale === 'ru' ? '10 вопросов по выбранной теме' : '10 questions on the chosen topic'}
           </p>
 
@@ -785,12 +845,12 @@ export default function QuizPage() {
             )}
           </div>
 
-          <p className="text-white/50 mb-4 max-w-xl mx-auto text-xl">
+          <p className="text-white mb-4 max-w-xl mx-auto text-xl">
             {locale === 'ru'
               ? `${gameState.totalQuestions} вопросов. 1 очко за правильный ответ!`
               : `${gameState.totalQuestions} questions. 1 point for each correct answer!`}
           </p>
-          <p className="text-white/30 text-lg mb-10">
+          <p className="text-white/80 text-lg mb-10">
             {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
           </p>
           {isHost ? (
@@ -809,7 +869,7 @@ export default function QuizPage() {
       {gameState.phase === 'countdown' && (
         <div className="flex items-center justify-center py-24 animate-fade-in">
           <div className="text-center">
-            <p className="text-white/50 text-lg mb-4">
+            <p className="text-white/80 text-lg mb-4">
               {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}
             </p>
             <div key={gameState.countdownValue} className="text-8xl font-black text-white animate-bounce">
@@ -951,7 +1011,7 @@ export default function QuizPage() {
           <h2 className="text-3xl font-bold text-white mb-2">
             {locale === 'ru' ? 'Промежуточные результаты' : 'Halftime Results'}
           </h2>
-          <p className="text-white/50 mb-6">
+          <p className="text-white/80 mb-6">
             {locale === 'ru' ? `После ${gameState.questionIndex + 1} из ${gameState.totalQuestions} вопросов` : `After ${gameState.questionIndex + 1} of ${gameState.totalQuestions} questions`}
           </p>
 
@@ -1055,7 +1115,7 @@ export default function QuizPage() {
             <p className="text-white text-lg font-semibold mb-2">
               {locale === 'ru' ? 'Завершить игру?' : 'End game?'}
             </p>
-            <p className="text-white/50 text-sm mb-6">
+            <p className="text-white/80 text-sm mb-6">
               {locale === 'ru'
                 ? 'Все игроки вернутся в лобби'
                 : 'All players will return to the lobby'}

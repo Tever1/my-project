@@ -58,6 +58,15 @@ export interface SpecialQuizInfo {
   backgroundUrl: string;
 }
 
+// Theme groups for special quizzes. Each theme contains one or more numbered quizzes.
+export interface SpecialQuizThemeInfo {
+  id: string;          // 'harry-potter' | 'marvel'
+  titleRu: string;
+  titleEn: string;
+  icon: string;
+  backgroundUrl: string;
+}
+
 export interface QuizState extends GameState {
   type: 'quiz';
   data: {
