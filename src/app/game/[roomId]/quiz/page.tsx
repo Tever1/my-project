@@ -1093,11 +1093,11 @@ export default function QuizPage() {
             {scoreboard.map((entry, i) => (
               <div
                 key={entry.name}
-                className={`p-4 flex items-center justify-between rounded-2xl border backdrop-blur-md transition-all ${
-                  i === 0 ? 'bg-black/60 border-yellow-400/60 ring-2 ring-yellow-400/40'
-                    : i === 1 ? 'bg-black/60 border-white/20 ring-1 ring-white/20'
-                      : i === 2 ? 'bg-black/60 border-amber-600/40 ring-1 ring-amber-600/30'
-                        : 'bg-black/50 border-white/10'
+                className={`p-4 flex items-center justify-between rounded-2xl border backdrop-blur-2xl transition-all ${
+                  i === 0 ? 'bg-white/10 border-yellow-400/50 ring-2 ring-yellow-400/30'
+                    : i === 1 ? 'bg-white/10 border-white/15 ring-1 ring-white/15'
+                      : i === 2 ? 'bg-white/10 border-amber-600/30 ring-1 ring-amber-600/20'
+                        : 'bg-white/10 border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -1146,11 +1146,11 @@ export default function QuizPage() {
             {scoreboard.map((entry, i) => (
               <div
                 key={entry.name}
-                className={`p-4 flex items-center justify-between rounded-2xl border backdrop-blur-md transition-all ${
-                  i === 0 ? 'bg-black/60 border-yellow-400/60 ring-2 ring-yellow-400/40'
-                    : i === 1 ? 'bg-black/60 border-white/20 ring-1 ring-white/20'
-                      : i === 2 ? 'bg-black/60 border-amber-600/40 ring-1 ring-amber-600/30'
-                        : 'bg-black/50 border-white/10'
+                className={`p-4 flex items-center justify-between rounded-2xl border backdrop-blur-2xl transition-all ${
+                  i === 0 ? 'bg-white/10 border-yellow-400/50 ring-2 ring-yellow-400/30'
+                    : i === 1 ? 'bg-white/10 border-white/15 ring-1 ring-white/15'
+                      : i === 2 ? 'bg-white/10 border-amber-600/30 ring-1 ring-amber-600/20'
+                        : 'bg-white/10 border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-3">
