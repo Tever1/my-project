@@ -766,9 +766,12 @@ export default function QuizPage() {
                   onClick={() => selectSpecialQuiz(q.id)}
                   className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
                 >
-                  <p className="text-lg font-semibold text-white">
-                    {locale === 'ru' ? q.titleRu : q.titleEn}
-                  </p>
+                  <div className="flex items-center gap-4">
+                    <span className="text-3xl font-black text-white">#{q.number}</span>
+                    <p className="text-lg font-semibold text-white">
+                      {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
+                    </p>
+                  </div>
                 </button>
               ))}
             </div>
