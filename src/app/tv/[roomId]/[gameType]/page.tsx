@@ -930,12 +930,6 @@ export default function TVGamePage() {
               <div className="glass-card px-12 py-8 text-center">
                 <p className="text-white/50 text-xl mb-2">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
                 <p className="text-4xl font-bold text-amber-400 mb-4">🎤 {explainerName}</p>
-                {currentWord && (
-                  <>
-                    <p className="text-white/40 text-lg mb-1">{locale === 'ru' ? 'Слово' : 'Word'}</p>
-                    <p className="text-5xl font-extrabold text-white">{locale === 'ru' ? currentWord.ru : currentWord.en}</p>
-                  </>
-                )}
               </div>
 
               {/* Words guessed this turn */}
@@ -1092,12 +1086,6 @@ export default function TVGamePage() {
                     <p className="text-white/40 text-lg mb-1">{locale === 'ru' ? 'Буква' : 'Letter'}</p>
                     <p className="text-7xl font-black text-purple-400">{aliasState.currentLetter}</p>
                   </div>
-                )}
-                {currentWord && (
-                  <>
-                    <p className="text-white/40 text-lg mb-1">{locale === 'ru' ? 'Слово' : 'Word'}</p>
-                    <p className="text-5xl font-extrabold text-white">{locale === 'ru' ? currentWord.ru : currentWord.en}</p>
-                  </>
                 )}
               </div>
 
