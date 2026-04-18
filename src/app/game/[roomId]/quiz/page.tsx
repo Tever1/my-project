@@ -1001,14 +1001,14 @@ export default function QuizPage() {
                   className={`
                     relative overflow-hidden rounded-2xl border p-5 md:p-6 text-left transition-all duration-300
                     ${isCorrectRevealed
-                      ? 'border-green-400 bg-green-500/20 ring-2 ring-green-400/50'
+                      ? 'border-green-400 bg-green-500/40 ring-2 ring-green-400/50 backdrop-blur-2xl'
                       : isWrongRevealed
-                        ? 'border-red-400 bg-red-500/20 ring-2 ring-red-400/50'
+                        ? 'border-red-400 bg-red-500/40 ring-2 ring-red-400/50 backdrop-blur-2xl'
                         : isMyAnswer
-                          ? 'border-purple-400 bg-purple-500/15 ring-2 ring-purple-400/50'
+                          ? 'border-purple-400 bg-purple-500/40 ring-2 ring-purple-400/50 backdrop-blur-2xl'
                           : isDisabled
-                            ? 'border-white/5 bg-white/5 opacity-50'
-                            : `bg-gradient-to-br ${OPTION_COLORS[index]} hover:scale-[1.02] active:scale-[0.98] cursor-pointer`
+                            ? 'border-white/15 bg-white/10 backdrop-blur-2xl opacity-70'
+                            : `bg-gradient-to-br ${OPTION_COLORS[index]} backdrop-blur-xl hover:scale-[1.02] active:scale-[0.98] cursor-pointer`
                     }
                   `}
                 >
