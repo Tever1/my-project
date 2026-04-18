@@ -3,6 +3,7 @@ import { SCIENCE_QUESTIONS } from './science';
 import { HISTORY_QUESTIONS } from './history';
 import { POP_CULTURE_QUESTIONS } from './pop-culture';
 import { HARRY_POTTER_1_QUESTIONS } from './themed/harry-potter';
+import { MARVEL_1_QUESTIONS } from './themed/marvel';
 
 // All general quiz questions combined
 export const ALL_QUIZ_QUESTIONS: QuizQuestion[] = [
@@ -95,6 +96,7 @@ export function getQuestionCount(topic: QuizTopic, difficulty: QuizDifficulty): 
 /** Per-quiz question banks. Key = quiz id from SPECIAL_QUIZZES. */
 const SPECIAL_QUIZ_BANKS: Record<string, QuizQuestion[]> = {
   'harry-potter-1': HARRY_POTTER_1_QUESTIONS,
+  'marvel-1': MARVEL_1_QUESTIONS,
 };
 
 /**
