@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "gen-image": "node scripts/generate-image.mjs"
+    "gen-image": "node scripts/generate-image.mjs",
+    "gen-questions": "node scripts/generate-questions.mjs"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",
