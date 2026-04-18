@@ -806,7 +806,7 @@ export default function QuizPage() {
                 <button
                   key={q.id}
                   onClick={() => selectSpecialQuiz(q.id)}
-                  className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
+                  className="w-full rounded-2xl border-2 p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-700/70 to-amber-600/50 border-amber-400/80"
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-3xl font-black text-white">#{q.number}</span>
