@@ -1046,7 +1046,11 @@ export default function QuizPage() {
           {/* Post-question results */}
           {gameState.showCorrect && (
             <div className="mt-6 animate-fade-in">
-              <GlassCard className="p-5">
+              <div className={`p-5 rounded-2xl border backdrop-blur-2xl ${
+                gameState.correctPlayers.length > 0
+                  ? 'bg-green-900/40 border-green-400/40'
+                  : 'bg-red-900/40 border-red-400/40'
+              }`}>
                 {gameState.correctPlayers.length > 0 ? (
                   <>
                     <p className="text-green-400 font-medium mb-2">
@@ -1063,7 +1067,7 @@ export default function QuizPage() {
                     {locale === 'ru' ? 'Никто не ответил правильно!' : 'Nobody answered correctly!'}
                   </p>
                 )}
-              </GlassCard>
+              </div>
 
               {isHost && (
                 <div className="text-center mt-4">
