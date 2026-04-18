@@ -266,13 +266,36 @@ export default function QuizPage() {
     });
   };
 
-  const goBackToThemes = () => {
-    const newConfig = { ...gameState.config, specialTheme: null, specialQuizId: null };
-    setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-special-theme' }));
+  const goBack = () => {
+    let newConfig = { ...gameState.config };
+    let prevPhase: Phase = 'setup-mode';
+
+    switch (gameState.phase) {
+      case 'setup-difficulty':
+        newConfig = { ...newConfig, mode: null };
+        prevPhase = 'setup-mode';
+        break;
+      case 'setup-topic':
+        newConfig = { ...newConfig, difficulty: null };
+        prevPhase = 'setup-difficulty';
+        break;
+      case 'setup-special-theme':
+        newConfig = { ...newConfig, mode: null };
+        prevPhase = 'setup-mode';
+        break;
+      case 'setup-special-quiz':
+        newConfig = { ...newConfig, specialTheme: null, specialQuizId: null };
+        prevPhase = 'setup-special-theme';
+        break;
+      default:
+        return;
+    }
+
+    setGameState((prev) => ({ ...prev, config: newConfig, phase: prevPhase }));
     emit('game:action', {
       code: roomId,
       action: 'quiz:config',
-      payload: { config: newConfig, phase: 'setup-special-theme' },
+      payload: { config: newConfig, phase: prevPhase },
     });
   };
 
@@ -642,6 +665,11 @@ export default function QuizPage() {
       {/* ==================== SETUP: DIFFICULTY (after mode=general) ==================== */}
       {gameState.phase === 'setup-difficulty' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          {isHost && (
+            <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
+              ← {locale === 'ru' ? 'Назад' : 'Back'}
+            </button>
+          )}
           <div className="flex items-center justify-center gap-2 mb-6">
             <span className="text-2xl">📚</span>
             <span className="text-white/60 font-medium">
@@ -689,6 +717,11 @@ export default function QuizPage() {
       {/* ==================== SETUP: SPECIAL THEME (after mode=special) ==================== */}
       {gameState.phase === 'setup-special-theme' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          {isHost && (
+            <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
+              ← {locale === 'ru' ? 'Назад' : 'Back'}
+            </button>
+          )}
           <div className="flex items-center justify-center gap-2 mb-6">
             <span className="text-2xl">🌟</span>
             <span className="text-white/80 font-medium">
@@ -743,10 +776,10 @@ export default function QuizPage() {
           {/* Back button */}
           {isHost && (
             <button
-              onClick={goBackToThemes}
+              onClick={goBack}
               className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
             >
-              ← {locale === 'ru' ? 'Назад к темам' : 'Back to themes'}
+              ← {locale === 'ru' ? 'Назад' : 'Back'}
             </button>
           )}
 
@@ -786,6 +819,11 @@ export default function QuizPage() {
       {/* ==================== SETUP: TOPIC ==================== */}
       {gameState.phase === 'setup-topic' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          {isHost && (
+            <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
+              ← {locale === 'ru' ? 'Назад' : 'Back'}
+            </button>
+          )}
           <div className="flex items-center justify-center gap-2 mb-6">
             <span className="text-2xl">{diffInfo?.icon}</span>
             <span className="text-white/60 font-medium">
