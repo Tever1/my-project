@@ -2,6 +2,7 @@ import { QuizQuestion, QuizDifficulty, QuizTopic, QuizTopicInfo, SpecialQuizInfo
 import { SCIENCE_QUESTIONS } from './science';
 import { HISTORY_QUESTIONS } from './history';
 import { POP_CULTURE_QUESTIONS } from './pop-culture';
+import { HARRY_POTTER_1_QUESTIONS } from './themed/harry-potter';
 
 // All general quiz questions combined
 export const ALL_QUIZ_QUESTIONS: QuizQuestion[] = [
@@ -91,17 +92,22 @@ export function getQuestionCount(topic: QuizTopic, difficulty: QuizDifficulty): 
     : ALL_QUIZ_QUESTIONS.filter((q) => q.topic === topic && q.difficulty === difficulty).length;
 }
 
+/** Per-quiz question banks. Key = quiz id from SPECIAL_QUIZZES. */
+const SPECIAL_QUIZ_BANKS: Record<string, QuizQuestion[]> = {
+  'harry-potter-1': HARRY_POTTER_1_QUESTIONS,
+};
+
 /**
  * Get questions for a special quiz.
- * For now (no themed question sets yet), falls back to a shuffled pool of medium-difficulty general questions,
- * with timeLimit overridden to SPECIAL_QUIZ_TIME_LIMIT.
- * TODO: replace with per-quiz themed question banks when they are authored.
+ * Uses the dedicated question bank if available, otherwise falls back to
+ * a shuffled pool of medium-difficulty general questions.
  */
 export function getSpecialQuizQuestions(
-  _quizId: string,
+  quizId: string,
   excludeIds?: Set<string>,
 ): QuizQuestion[] {
-  let questions = ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === 'medium');
+  let questions = SPECIAL_QUIZ_BANKS[quizId]
+    ?? ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === 'medium');
 
   if (excludeIds && excludeIds.size > 0) {
     const filtered = questions.filter((q) => !excludeIds.has(q.id));
@@ -115,6 +121,5 @@ export function getSpecialQuizQuestions(
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
 
-  // Override timeLimit so clients use the special-quiz default
   return shuffled.map((q) => ({ ...q, timeLimit: SPECIAL_QUIZ_TIME_LIMIT }));
 }
