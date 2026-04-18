@@ -65,10 +65,10 @@ const INITIAL_STATE: QuizGameState = {
 };
 
 const OPTION_COLORS = [
-  'from-blue-600/20 to-blue-500/5 border-blue-500/20',
-  'from-emerald-600/20 to-emerald-500/5 border-emerald-500/20',
-  'from-amber-600/20 to-amber-500/5 border-amber-500/20',
-  'from-pink-600/20 to-pink-500/5 border-pink-500/20',
+  'from-blue-600/60 to-blue-500/40 border-blue-400/60',
+  'from-emerald-600/60 to-emerald-500/40 border-emerald-400/60',
+  'from-amber-600/60 to-amber-500/40 border-amber-400/60',
+  'from-pink-600/60 to-pink-500/40 border-pink-400/60',
 ];
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
