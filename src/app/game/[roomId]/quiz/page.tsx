@@ -616,6 +616,14 @@ export default function QuizPage() {
       {/* ==================== SETUP: MODE (first step) ==================== */}
       {gameState.phase === 'setup-mode' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
+          {isHost && (
+            <button
+              onClick={() => router.push(`/lobby/${roomId}`)}
+              className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
+            >
+              ← {locale === 'ru' ? 'В лобби' : 'Back to Lobby'}
+            </button>
+          )}
           <div className="text-6xl mb-4">🧠</div>
           <h2 className="text-2xl font-bold text-white mb-2">
             {locale === 'ru' ? 'Выберите тип квиза' : 'Choose quiz type'}
