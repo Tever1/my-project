@@ -266,6 +266,16 @@ export default function QuizPage() {
     });
   };
 
+  const goBackToThemes = () => {
+    const newConfig = { ...gameState.config, specialTheme: null, specialQuizId: null };
+    setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-special-theme' }));
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:config',
+      payload: { config: newConfig, phase: 'setup-special-theme' },
+    });
+  };
+
   const selectSpecialTheme = (themeId: string) => {
     const newConfig = { ...gameState.config, specialTheme: themeId };
     setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-special-quiz' }));
@@ -730,32 +740,35 @@ export default function QuizPage() {
       {/* ==================== SETUP: SPECIAL QUIZ (after theme chosen) ==================== */}
       {gameState.phase === 'setup-special-quiz' && specialThemeInfo && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <span className="text-2xl">{specialThemeInfo.icon}</span>
-            <span className="text-white/80 font-medium">
-              {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Выберите квиз' : 'Choose a quiz'}
+          {/* Back button */}
+          {isHost && (
+            <button
+              onClick={goBackToThemes}
+              className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
+            >
+              ← {locale === 'ru' ? 'Назад к темам' : 'Back to themes'}
+            </button>
+          )}
+
+          {/* Theme heading — large, no emoji */}
+          <h2 className="text-4xl font-bold text-white mb-1">
+            {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
           </h2>
+          <p className="text-white/70 mb-8">
+            {locale === 'ru' ? 'Выберите квиз' : 'Choose a quiz'}
+          </p>
 
           {isHost ? (
-            <div className="space-y-3 mt-6">
+            <div className="space-y-3">
               {getSpecialQuizzesByTheme(specialThemeInfo.id).map((q) => (
                 <button
                   key={q.id}
                   onClick={() => selectSpecialQuiz(q.id)}
                   className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="text-3xl">#{q.number}</span>
-                    <div>
-                      <p className="text-lg font-semibold text-white">
-                        {locale === 'ru' ? q.titleRu : q.titleEn}
-                      </p>
-                    </div>
-                  </div>
+                  <p className="text-lg font-semibold text-white">
+                    {locale === 'ru' ? q.titleRu : q.titleEn}
+                  </p>
                 </button>
               ))}
             </div>
