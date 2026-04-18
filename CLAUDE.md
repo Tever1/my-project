@@ -160,6 +160,17 @@ script просто возьмёт её как есть и обернёт в с�
         `bg-black/60` для читаемости текста
       - TV-режим (`src/app/tv/[roomId]/[gameType]/page.tsx`) — своя реализация
         поверх корневого `<div>` квизового блока (TV НЕ использует `GameLayout`)
+- [x] **Двухшаговый спец-флоу + читаемость текста** (коммит `7e3b288`):
+      - Special → Тема (Harry Potter / Marvel) → Квиз (#1, #2, …) → Waiting.
+      - Добавлен `SpecialQuizThemeInfo` и реестр `SPECIAL_QUIZ_THEMES`, хелпер
+        `getSpecialQuizzesByTheme(themeId)`.
+      - `QuizConfig` получил `specialTheme`; фазы `setup-special-theme` /
+        `setup-special-quiz` (вместо единой `setup-special`).
+      - `backgroundUrl` теперь резолвится цепочкой `specialQuiz → specialTheme →
+        topic` — фон темы показывается уже на шаге выбора номера.
+      - Убран `bg-black/60` overlay на страницах с фоном. Вместо затемнения —
+        `text-shadow` на корневом элементе (наследуется всеми потомками).
+      - Белёсая копия `text-white/50` поднята до `text-white/80` в сетапе/ожидании.
 - [x] **Реструктуризация setup-флоу квиза** (коммит `994217d`):
       - Новый порядок: выбор режима (general/special) → для general: сложность → тема;
         для special: выбор квиза (без сложности).
