@@ -6,7 +6,7 @@ import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES } from '@/lib/quiz';
-import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
+import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import { CROCODILE_WORDS, ALIAS_WORDS } from '@/lib/game-data';
 
 // ---------------------------------------------------------------------------
@@ -57,6 +57,7 @@ interface H2OAnsState { rev: boolean; pub: boolean; to: number; }
 interface H2OState {
   phase: string;
   curQ: number;
+  topicId: string;
   t1n: string; t2n: string;
   t1s: number; t2s: number;
   qState: H2OAnsState[][];
@@ -75,7 +76,7 @@ interface H2OState {
 }
 
 const mkH2OInitial = (): H2OState => ({
-  phase: 'roleSelect', curQ: 0,
+  phase: 'roleSelect', curQ: 0, topicId: 'general',
   t1n: 'Команда 1', t2n: 'Команда 2', t1s: 0, t2s: 0,
   qState: H2O_ROUNDS.map(r => r.answers.map(() => ({ rev: false, pub: false, to: 0 }))),
   strikes: [[0, 0], [0, 0], [0, 0]],
@@ -123,25 +124,30 @@ export default function TVGamePage() {
   });
   const [genericState, setGenericState] = useState<GenericGameState>({});
   const [h2oState, setH2OState] = useState<H2OState>(mkH2OInitial);
-  const [spyState, setSpyState] = useState<{ phase: string; mode: string; word: string; spyId: string; drawerId: string }>({
+  const [spyState, setSpyState] = useState<{
+    phase: string; mode: string; word: string; spyId: string; drawerId: string;
+    playerOrder: string[]; playerOrderIdx: number; timerLeft: number; timerRunning: boolean;
+  }>({
     phase: 'modeSelect', mode: 'guess', word: '', spyId: '', drawerId: '',
+    playerOrder: [], playerOrderIdx: 0, timerLeft: 300, timerRunning: false,
   });
   const spyCanvasRef = useRef<HTMLCanvasElement>(null);
   const spyCanvasSizeRef = useRef({ w: 0, h: 0 });
   const [crocState, setCrocState] = useState<{
     phase: string; explainerId: string; currentWordIndex: number;
-    timeLeft: number; scores: Record<string, number>; wordsGuessed: number;
+    timeLeft: number; scores: Record<string, number>; wordsGuessed: number; wordsSkipped: number;
     playersOrder: string[]; completedExplainers: string[];
-  }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, playersOrder: [], completedExplainers: [] });
+  }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, wordsSkipped: 0, playersOrder: [], completedExplainers: [] });
   const [aliasState, setAliasState] = useState<{
     phase: string; mode: string; teams: { id: string; name: string; playerIds: string[]; score: number }[];
-    activeTeamIndex: number; explainerIndex: number; currentWordIndex: number;
+    activeTeamIndex: number; explainerIndex: number; explainerIndices: number[]; currentWordIndex: number;
     timeLeft: number; wordsGuessed: number; wordsSkipped: number;
     round: number; totalRounds: number;
     turnHistory: { word: { ru: string; en: string }; guessed: boolean }[];
     currentLetter: string;
   }>({
     phase: 'waiting', mode: 'classic', teams: [], activeTeamIndex: 0, explainerIndex: 0,
+    explainerIndices: [],
     currentWordIndex: -1, timeLeft: 60, wordsGuessed: 0, wordsSkipped: 0,
     round: 1, totalRounds: 4, turnHistory: [], currentLetter: '',
   });
@@ -418,10 +424,10 @@ export default function TVGamePage() {
           {/* COUNTDOWN */}
           {quizState.phase === 'countdown' && (
             <div className="text-center animate-fade-in">
-              <p className="text-3xl text-white/50 mb-6">
+              <p className="text-2xl text-white/50 mb-4">
                 {locale === 'ru' ? 'Вопрос' : 'Question'} {quizState.questionIndex + 1}
               </p>
-              <div key={quizState.countdownValue} className="text-[12rem] font-black leading-none animate-bounce">
+              <div key={quizState.countdownValue} className="text-[clamp(5rem,18vh,12rem)] font-black leading-none animate-bounce">
                 {quizState.countdownValue}
               </div>
             </div>
@@ -441,14 +447,14 @@ export default function TVGamePage() {
               </div>
 
               {/* Question */}
-              <div className="glass-card p-8 mb-6 flex-shrink-0">
-                <h3 className="text-3xl xl:text-4xl font-bold text-center leading-snug">
+              <div className="glass-card p-6 mb-4 flex-shrink-0">
+                <h3 className="text-2xl xl:text-3xl font-bold text-center leading-snug line-clamp-3">
                   {locale === 'ru' ? currentQuestion.questionRu : currentQuestion.questionEn}
                 </h3>
               </div>
 
               {/* Options grid */}
-              <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+              <div className="grid grid-cols-2 gap-3 flex-shrink-0">
                 {currentQuestion.options.map((option, index) => {
                   const isCorrectAnswer = index === currentQuestion.correctIndex;
                   const isCorrectRevealed = quizState.showCorrect && isCorrectAnswer;
@@ -458,7 +464,7 @@ export default function TVGamePage() {
                     <div
                       key={index}
                       className={`
-                        rounded-2xl border-2 p-5 transition-all duration-500
+                        rounded-2xl border-2 p-4 transition-all duration-500
                         ${isCorrectRevealed
                           ? 'border-green-400 bg-green-500/25 ring-4 ring-green-400/30 scale-105'
                           : isWrongRevealed
@@ -467,14 +473,14 @@ export default function TVGamePage() {
                         }
                       `}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         <span className={`
-                          flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black
+                          flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black
                           ${isCorrectRevealed ? 'bg-green-500/40 text-green-200' : 'bg-white/10 text-white/70'}
                         `}>
                           {isCorrectRevealed ? '✓' : OPTION_LABELS[index]}
                         </span>
-                        <span className="text-2xl font-semibold">
+                        <span className="text-xl font-semibold line-clamp-2 leading-tight">
                           {locale === 'ru' ? option.ru : option.en}
                         </span>
                       </div>
@@ -516,11 +522,11 @@ export default function TVGamePage() {
               <h2 className="text-5xl font-bold mb-8">
                 {locale === 'ru' ? 'Итоги' : 'Final Results'}
               </h2>
-              <div className="max-w-2xl mx-auto space-y-3">
+              <div className="w-full max-w-3xl mx-auto space-y-3">
                 {scoreboard.map((entry, i) => (
                   <div
                     key={entry.id}
-                    className={`flex items-center justify-between py-4 px-8 rounded-2xl transition-all ${
+                    className={`flex items-center justify-between py-3 px-6 rounded-2xl transition-all ${
                       i === 0
                         ? 'bg-yellow-500/20 border-2 border-yellow-400/40 scale-105'
                         : i === 1
@@ -530,13 +536,13 @@ export default function TVGamePage() {
                             : 'bg-white/5 border border-white/10'
                     }`}
                   >
-                    <div className="flex items-center gap-4">
-                      <span className="text-4xl w-12 text-center">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <span className="text-3xl w-10 text-center flex-shrink-0">
                         {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
                       </span>
-                      <span className="text-2xl font-bold">{entry.name}</span>
+                      <span className="text-xl font-bold truncate">{entry.name}</span>
                     </div>
-                    <span className="text-3xl font-black text-purple-400">{entry.score}</span>
+                    <span className="text-2xl font-black text-purple-400 flex-shrink-0">{entry.score}</span>
                   </div>
                 ))}
               </div>
@@ -565,7 +571,8 @@ export default function TVGamePage() {
   // ===================== 100 к 1 TV RENDER =====================
   if (gameType === 'hundred-to-one') {
     const h = h2oState;
-    const q = H2O_ROUNDS[h.curQ];
+    const activeRounds = H2O_TOPICS.find(t => t.id === h.topicId)?.rounds ?? H2O_ROUNDS;
+    const q = activeRounds[h.curQ];
     const activeTeam = h.roundActiveTeam[h.curQ] || 0;
 
     return (
@@ -615,7 +622,7 @@ export default function TVGamePage() {
             <div className="text-center animate-fade-in">
               <h2 className="text-4xl font-bold text-amber-400 mb-6">КТО БЫСТРЕЕ?</h2>
               {h.buzzerCountdown > 0 ? (
-                <div className="text-[14rem] font-black leading-none text-red-400 animate-pulse">
+                <div className="text-[clamp(5rem,22vh,14rem)] font-black leading-none text-red-400 animate-pulse">
                   {h.buzzerCountdown}
                 </div>
               ) : h.buzzerCountdown === 0 && h.buzzerWinner === 0 ? (
@@ -648,18 +655,18 @@ export default function TVGamePage() {
                   const revealed = h.qState[h.curQ]?.[idx]?.pub;
                   const pts = h2oGetDisplayPts(h.curQ, idx, a.p);
                   return (
-                    <div key={idx} className={`rounded-xl border-2 p-4 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-400/25 border-yellow-400/60' : 'bg-white/5 border-white/10'}`}>
-                      <div className="flex items-center gap-4">
-                        <span className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>
+                    <div key={idx} className={`rounded-xl border-2 p-3 flex items-center justify-between transition-all ${revealed ? 'bg-yellow-400/25 border-yellow-400/60' : 'bg-white/5 border-white/10'}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center text-xl font-bold ${revealed ? 'bg-amber-500 text-black' : 'bg-white/10 text-white/30'}`}>
                           {idx + 1}
                         </span>
                         {revealed
-                          ? <span className="text-2xl font-bold uppercase tracking-wide">{a.t}</span>
-                          : <span className="text-3xl text-white/15 tracking-[10px]">? ? ?</span>}
+                          ? <span className="text-xl font-bold uppercase tracking-wide line-clamp-1">{a.t}</span>
+                          : <span className="text-2xl text-white/15 tracking-[8px]">? ? ?</span>}
                       </div>
                       {revealed
-                        ? <span className="bg-amber-600 rounded-lg px-4 py-2 text-2xl font-bold">{pts}</span>
-                        : <span className="text-white/10 text-2xl">?</span>}
+                        ? <span className="bg-amber-600 rounded-lg px-3 py-1.5 text-xl font-bold flex-shrink-0">{pts}</span>
+                        : <span className="text-white/10 text-xl flex-shrink-0">?</span>}
                     </div>
                   );
                 })}
@@ -744,10 +751,10 @@ export default function TVGamePage() {
                   const matched = h.bgPhase <= 2 ? h.bgP1Matched[i] : h.bgP2Matched[i];
                   const isChecked = h.bgPhase === 2 || h.bgPhase === 4;
                   return (
-                    <div key={i} className="glass-card p-3 flex items-center gap-3">
-                      <span className="text-amber-400 font-bold text-xl w-8">{i + 1}.</span>
-                      <span className="text-lg font-bold flex-1">{qq.q}</span>
-                      <span className={`text-lg font-bold ${ans ? 'text-yellow-300' : 'text-white/30 italic'}`}>
+                    <div key={i} className="glass-card p-2.5 flex items-center gap-3">
+                      <span className="text-amber-400 font-bold text-lg w-6 flex-shrink-0">{i + 1}.</span>
+                      <span className="text-base font-bold flex-1 line-clamp-1">{qq.q}</span>
+                      <span className={`text-base font-bold flex-shrink-0 max-w-[35%] truncate ${ans ? 'text-yellow-300' : 'text-white/30 italic'}`}>
                         {ans || '...'}
                       </span>
                       {isChecked && (
@@ -792,7 +799,16 @@ export default function TVGamePage() {
   // ===================== SPY TV RENDER =====================
   if (gameType === 'spy') {
     const sp = spyState;
-    const drawerName = players.find(p => p.id === sp.drawerId)?.nickname || '???';
+    const spyActivePlayerId = sp.playerOrder.length > 0
+      ? sp.playerOrder[sp.playerOrderIdx % sp.playerOrder.length]
+      : sp.drawerId;
+    const spyActivePlayerName = players.find(p => p.id === spyActivePlayerId)?.nickname || '???';
+
+    const spyTimerColor = sp.timerLeft <= 30 && sp.timerRunning ? 'text-red-400'
+      : sp.timerLeft <= 60 ? 'text-amber-400'
+      : 'text-white';
+    const spyFormatTime = (sec: number) =>
+      `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
 
     // Init canvas on first render
     const initSpyCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
@@ -819,6 +835,20 @@ export default function TVGamePage() {
               </span>
             )}
           </div>
+          {/* Timer in top bar */}
+          {sp.phase === 'playing' && (
+            <div className="flex items-center gap-3">
+              {sp.timerRunning && (
+                <span className="text-green-400 text-sm font-bold animate-pulse">● ИДЁТ</span>
+              )}
+              {sp.timerLeft === 0 && (
+                <span className="text-red-400 text-xl font-bold animate-pulse">⏰ ВРЕМЯ!</span>
+              )}
+              <span className={`text-5xl font-black tabular-nums ${spyTimerColor} ${sp.timerLeft <= 30 && sp.timerRunning ? 'animate-pulse' : ''}`}>
+                {spyFormatTime(sp.timerLeft)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Main content */}
@@ -832,23 +862,40 @@ export default function TVGamePage() {
           )}
 
           {sp.phase === 'playing' && sp.mode === 'guess' && (
-            <div className="text-center animate-fade-in">
-              <p className="text-xl text-white/50 mb-4">Игра идёт — слушайте и наблюдайте!</p>
-              <div className="text-9xl mb-6">💬</div>
+            <div className="text-center animate-fade-in flex flex-col items-center gap-6">
+              <div className="text-7xl">💬</div>
               <h2 className="text-5xl font-bold text-amber-400">Угадай слово</h2>
-              <p className="text-2xl text-white/40 mt-4">Кто же шпион?</p>
+              {spyActivePlayerId && (
+                <div className="glass-card px-8 py-4 border-purple-400/40 bg-purple-500/10">
+                  <p className="text-xl text-white/50 mb-1">Задаёт вопрос</p>
+                  <p className="text-4xl font-bold text-purple-300">🎤 {spyActivePlayerName}</p>
+                </div>
+              )}
+              {/* Player order */}
+              {sp.playerOrder.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {sp.playerOrder.map((id, i) => {
+                    const name = players.find(p => p.id === id)?.nickname ?? id;
+                    const isActive = i === sp.playerOrderIdx % sp.playerOrder.length;
+                    return (
+                      <span key={id} className={`px-4 py-1.5 rounded-full text-lg border transition-all ${
+                        isActive ? 'border-purple-400/60 bg-purple-500/20 text-purple-300 font-bold' : 'border-white/10 text-white/30'
+                      }`}>
+                        {isActive ? '🎤 ' : ''}{name}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {sp.phase === 'playing' && sp.mode === 'draw' && (
             <div className="flex flex-col items-center w-full h-full min-h-0">
-              {/* Drawer label */}
               <p className="text-2xl mb-3 shrink-0">
                 <span className="text-white/50">Рисует: </span>
-                <span className="font-bold text-amber-400">{drawerName}</span>
+                <span className="font-bold text-amber-400">{spyActivePlayerName}</span>
               </p>
-
-              {/* Synced canvas — constrained to available height */}
               <div className="flex-1 min-h-0 w-full flex items-center justify-center">
                 <canvas
                   ref={initSpyCanvas}
@@ -888,7 +935,7 @@ export default function TVGamePage() {
           )}
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-4 overflow-hidden min-h-0">
           {/* WAITING */}
           {crocState.phase === 'waiting' && (
             <div className="text-center">
@@ -909,14 +956,14 @@ export default function TVGamePage() {
           {crocState.phase === 'explaining' && (
             <>
               {/* Timer */}
-              <div className="text-center">
-                <span className={`font-bold text-8xl tabular-nums ${crocState.timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+              <div className="text-center flex-shrink-0">
+                <span className={`font-bold text-[clamp(3rem,10vh,6rem)] tabular-nums ${crocState.timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
                   {crocState.timeLeft}
                 </span>
               </div>
 
               {/* Timer bar */}
-              <div className="w-full max-w-2xl h-3 rounded-full bg-white/10 overflow-hidden">
+              <div className="w-full max-w-2xl h-3 rounded-full bg-white/10 overflow-hidden flex-shrink-0">
                 <div
                   className="h-full rounded-full transition-all duration-1000 linear"
                   style={{
@@ -926,25 +973,31 @@ export default function TVGamePage() {
                 />
               </div>
 
-              {/* Explainer + word */}
-              <div className="glass-card px-12 py-8 text-center">
-                <p className="text-white/50 text-xl mb-2">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
-                <p className="text-4xl font-bold text-amber-400 mb-4">🎤 {explainerName}</p>
+              {/* Explainer */}
+              <div className="glass-card px-8 py-5 text-center flex-shrink-0">
+                <p className="text-white/50 text-lg mb-1">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
+                <p className="text-3xl font-bold text-amber-400">🎤 {explainerName}</p>
               </div>
 
-              {/* Words guessed this turn */}
-              <p className="text-2xl text-white/60">
-                {locale === 'ru' ? 'Угадано в этом ходе:' : 'Guessed this turn:'}{' '}
-                <span className="font-bold text-green-400">{crocState.wordsGuessed}</span>
-              </p>
+              {/* Words guessed / skipped this turn */}
+              <div className="flex gap-6 flex-shrink-0 text-xl">
+                <span className="text-white/60">
+                  {locale === 'ru' ? 'Угадано:' : 'Guessed:'}{' '}
+                  <span className="font-bold text-green-400">{crocState.wordsGuessed}</span>
+                </span>
+                <span className="text-white/60">
+                  {locale === 'ru' ? 'Пропущено:' : 'Skipped:'}{' '}
+                  <span className="font-bold text-red-400">{crocState.wordsSkipped}</span>
+                </span>
+              </div>
 
               {/* Scoreboard */}
-              <div className="w-full max-w-xl">
-                <div className="grid grid-cols-2 gap-3">
+              <div className="w-full max-w-xl overflow-hidden">
+                <div className="grid grid-cols-2 gap-2">
                   {sortedScores.map(({ id, name, score }) => (
-                    <div key={id} className={`glass-card px-5 py-3 flex items-center justify-between ${id === crocState.explainerId ? 'outline outline-2 outline-amber-400' : ''}`}>
-                      <span className="text-lg font-bold">{name} {id === crocState.explainerId && '🎤'}</span>
-                      <span className="text-2xl font-bold text-amber-400">{score}</span>
+                    <div key={id} className={`glass-card px-4 py-2.5 flex items-center justify-between ${id === crocState.explainerId ? 'outline outline-2 outline-amber-400' : ''}`}>
+                      <span className="text-base font-bold truncate">{name} {id === crocState.explainerId && '🎤'}</span>
+                      <span className="text-xl font-bold text-amber-400 flex-shrink-0 ml-2">{score}</span>
                     </div>
                   ))}
                 </div>
@@ -979,10 +1032,12 @@ export default function TVGamePage() {
   if (gameType === 'alias') {
     const activeTeam = aliasState.teams[aliasState.activeTeamIndex];
     const explainerId = activeTeam
-      ? activeTeam.playerIds[aliasState.explainerIndex % activeTeam.playerIds.length]
+      ? activeTeam.playerIds[
+          (aliasState.explainerIndices?.[aliasState.activeTeamIndex] ?? aliasState.explainerIndex ?? 0) %
+            activeTeam.playerIds.length
+        ]
       : '';
     const explainerName = getPlayerName(explainerId);
-    const currentWord = aliasState.currentWordIndex >= 0 ? ALIAS_WORDS[aliasState.currentWordIndex] : null;
 
     return (
       <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
@@ -1006,7 +1061,7 @@ export default function TVGamePage() {
           )}
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-3 overflow-hidden min-h-0">
           {/* WAITING / MODE SELECT — no game yet */}
           {(aliasState.phase === 'modeSelect' || (aliasState.phase === 'waiting' && aliasState.teams.length === 0)) && (
             <div className="text-center">
@@ -1020,6 +1075,25 @@ export default function TVGamePage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* TEAM SELECT */}
+          {aliasState.phase === 'teamSelect' && (
+            <div className="flex gap-8 w-full max-w-4xl">
+              {aliasState.teams.map((team, ti) => (
+                <div key={team.id} className="flex-1 glass-card px-8 py-6 text-center">
+                  <p className="text-2xl font-bold text-amber-400 mb-4">{team.name}</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {team.playerIds.map(id => (
+                      <span key={id} className="glass-badge text-lg px-3 py-1">{getPlayerName(id)}</span>
+                    ))}
+                    {team.playerIds.length === 0 && (
+                      <p className="text-white/30 text-sm">{locale === 'ru' ? 'пока никого' : 'nobody yet'}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -1060,12 +1134,12 @@ export default function TVGamePage() {
           {aliasState.phase === 'explaining' && (
             <>
               {/* Timer */}
-              <div className="text-center">
-                <span className={`font-bold text-8xl tabular-nums ${aliasState.timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+              <div className="text-center flex-shrink-0">
+                <span className={`font-bold text-[clamp(2.5rem,8vh,5rem)] tabular-nums ${aliasState.timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
                   {aliasState.timeLeft}
                 </span>
               </div>
-              <div className="w-full max-w-2xl h-3 rounded-full bg-white/10 overflow-hidden">
+              <div className="w-full max-w-2xl h-3 rounded-full bg-white/10 overflow-hidden flex-shrink-0">
                 <div
                   className="h-full rounded-full transition-all duration-1000 linear"
                   style={{
@@ -1077,35 +1151,35 @@ export default function TVGamePage() {
                 />
               </div>
 
-              {/* Explainer + letter + word */}
-              <div className="glass-card px-12 py-8 text-center">
-                <p className="text-white/50 text-xl mb-2">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
-                <p className="text-4xl font-bold text-amber-400 mb-4">🎤 {explainerName}</p>
+              {/* Explainer + letter */}
+              <div className="glass-card px-6 py-4 text-center flex-shrink-0">
+                <p className="text-white/50 text-lg mb-1">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
+                <p className="text-2xl font-bold text-amber-400">🎤 {explainerName}</p>
                 {aliasState.mode === 'letter' && aliasState.currentLetter && (
-                  <div className="mb-4">
-                    <p className="text-white/40 text-lg mb-1">{locale === 'ru' ? 'Буква' : 'Letter'}</p>
-                    <p className="text-7xl font-black text-purple-400">{aliasState.currentLetter}</p>
+                  <div className="mt-3">
+                    <p className="text-white/40 text-base mb-0.5">{locale === 'ru' ? 'Буква' : 'Letter'}</p>
+                    <p className="text-[clamp(2rem,6vh,4rem)] font-black text-purple-400 leading-none">{aliasState.currentLetter}</p>
                   </div>
                 )}
               </div>
 
               {/* Stats */}
-              <div className="flex gap-8 text-2xl">
+              <div className="flex gap-8 text-xl flex-shrink-0">
                 <span className="text-green-400">✅ {aliasState.wordsGuessed}</span>
                 <span className="text-red-400">❌ {aliasState.wordsSkipped}</span>
               </div>
 
               {/* Team scores */}
-              <div className="flex gap-8 w-full max-w-2xl">
+              <div className="flex gap-6 w-full max-w-2xl flex-shrink-0">
                 {aliasState.teams.map((team, ti) => (
                   <div
                     key={team.id}
-                    className={`flex-1 glass-card px-5 py-3 flex items-center justify-between ${
+                    className={`flex-1 glass-card px-4 py-2.5 flex items-center justify-between ${
                       ti === aliasState.activeTeamIndex ? 'outline outline-2 outline-purple-400' : 'opacity-50'
                     }`}
                   >
-                    <span className="text-lg font-bold">{team.name}</span>
-                    <span className="text-2xl font-bold text-amber-400">{team.score}</span>
+                    <span className="text-lg font-bold truncate">{team.name}</span>
+                    <span className="text-lg font-bold text-amber-400 flex-shrink-0 ml-2">{team.score}</span>
                   </div>
                 ))}
               </div>
@@ -1130,16 +1204,16 @@ export default function TVGamePage() {
 
               {/* Word history */}
               {aliasState.turnHistory.length > 0 && (
-                <div className="w-full max-w-2xl grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                <div className="w-full max-w-2xl grid grid-cols-2 gap-2 max-h-[28vh] overflow-y-auto">
                   {aliasState.turnHistory.map((item, i) => (
                     <div
                       key={i}
-                      className={`glass-card px-4 py-2 flex items-center justify-between ${
+                      className={`glass-card px-3 py-1.5 flex items-center justify-between gap-2 ${
                         item.guessed ? 'bg-green-500/10' : 'bg-red-500/10'
                       }`}
                     >
-                      <span className="text-lg">{locale === 'ru' ? item.word.ru : item.word.en}</span>
-                      <span className="text-xl">{item.guessed ? '✅' : '❌'}</span>
+                      <span className="text-base truncate">{locale === 'ru' ? item.word.ru : item.word.en}</span>
+                      <span className="text-lg flex-shrink-0">{item.guessed ? '✅' : '❌'}</span>
                     </div>
                   ))}
                 </div>

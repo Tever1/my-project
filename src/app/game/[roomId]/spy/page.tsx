@@ -21,14 +21,20 @@ interface SpyGameState {
   mode: SpyMode;
   word: string;
   spyId: string;
-  drawerId: string; // current drawer's playerId
+  drawerId: string;
   usedWords: number[];
   players: GamePlayer[];
+  playerOrder: string[];   // shuffled player IDs for turn order
+  playerOrderIdx: number;  // current active player index
+  timerLeft: number;       // seconds (300 = 5 min)
+  timerRunning: boolean;
 }
 
 interface DrawStroke {
-  x1: number; y1: number; x2: number; y2: number; // normalized 0-1
+  x1: number; y1: number; x2: number; y2: number;
 }
+
+const TIMER_TOTAL = 300; // 5 minutes
 
 const mkInitial = (): SpyGameState => ({
   phase: 'modeSelect',
@@ -38,9 +44,16 @@ const mkInitial = (): SpyGameState => ({
   drawerId: '',
   usedWords: [],
   players: [],
+  playerOrder: [],
+  playerOrderIdx: 0,
+  timerLeft: TIMER_TOTAL,
+  timerRunning: false,
 });
 
-// ── Synced Drawing Canvas ──
+const formatTime = (sec: number) =>
+  `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
+
+// ── Drawing Canvas ──
 
 interface DrawCanvasProps {
   canDraw: boolean;
@@ -81,24 +94,19 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
     lastPos.current = pos;
   };
 
-  const endDraw = () => {
-    drawing.current = false;
-    lastPos.current = null;
-  };
+  const endDraw = () => { drawing.current = false; lastPos.current = null; };
 
   const drawLine = useCallback((x1: number, y1: number, x2: number, y2: number) => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!ctx || !canvas) return;
-    const w = sizeRef.current.w;
-    const h = sizeRef.current.h;
     ctx.strokeStyle = '#fbbf24';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
-    ctx.moveTo(x1 * w, y1 * h);
-    ctx.lineTo(x2 * w, y2 * h);
+    ctx.moveTo(x1 * sizeRef.current.w, y1 * sizeRef.current.h);
+    ctx.lineTo(x2 * sizeRef.current.w, y2 * sizeRef.current.h);
     ctx.stroke();
   }, []);
 
@@ -109,7 +117,6 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }, []);
 
-  // Init canvas resolution
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -121,17 +128,12 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
     sizeRef.current = { w: rect.width, h: rect.height };
   }, []);
 
-  // Expose methods via ref-like pattern using data attributes
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     (canvas as unknown as { _drawLine: typeof drawLine; _clearAll: typeof clearAll })._drawLine = drawLine;
     (canvas as unknown as { _clearAll: typeof clearAll })._clearAll = clearAll;
   }, [drawLine, clearAll]);
-
-  // Expose ref for parent
-  const canvasElRef = canvasRef;
-  (DrawCanvas as unknown as { canvasRef: typeof canvasElRef }).canvasRef = canvasElRef;
 
   return (
     <div className="relative">
@@ -143,13 +145,12 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
         onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw}
       />
       {canDraw && (
-        <button onClick={() => { clearAll(); onClear(); }}
-          className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-white/10 text-white/50 text-xs hover:bg-white/20">
+        <button
+          onClick={() => { clearAll(); onClear(); }}
+          className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-white/10 text-white/50 text-xs hover:bg-white/20"
+        >
           Очистить
         </button>
-      )}
-      {!canDraw && (
-        <div className="absolute inset-0 rounded-xl" /> /* transparent overlay blocks interaction */
       )}
     </div>
   );
@@ -165,10 +166,22 @@ export default function SpyGamePage() {
 
   const [s, setS] = useState<SpyGameState>(mkInitial);
 
+  // Always-fresh ref for use inside intervals/closures
+  const sRef = useRef(s);
+  useEffect(() => { sRef.current = s; }, [s]);
+
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const isHost = s.players.find(p => p.id === user?.id)?.isHost ?? false;
   const isSpy = user?.id === s.spyId;
-  const isDrawer = user?.id === s.drawerId;
-  const drawerName = s.players.find(p => p.id === s.drawerId)?.nickname || '???';
+
+  // Active player = current questioner (guess) or drawer (draw)
+  const activePlayerId = s.playerOrder.length > 0
+    ? s.playerOrder[s.playerOrderIdx % s.playerOrder.length]
+    : '';
+  const isActivePlayer = user?.id === activePlayerId;
+  const activePlayerName = s.players.find(p => p.id === activePlayerId)?.nickname || '???';
+  const isDrawer = s.mode === 'draw' && isActivePlayer;
 
   // ── Socket ──
   useEffect(() => {
@@ -178,23 +191,17 @@ export default function SpyGamePage() {
     });
     const u2 = on('game:action', (data: unknown) => {
       const { action, payload } = data as { action: string; payload: Record<string, unknown> };
-      if (action === 'spy:sync') setS(prev => ({ ...prev, ...(payload as Partial<SpyGameState>) }));
-      // Remote draw stroke
+      if (action === 'spy:sync') {
+        setS(prev => ({ ...prev, ...(payload as Partial<SpyGameState>) }));
+      }
       if (action === 'spy:stroke') {
         const { x1, y1, x2, y2 } = payload as unknown as DrawStroke;
         const canvas = document.getElementById('spy-canvas') as HTMLCanvasElement | null;
-        if (canvas) {
-          const el = canvas as unknown as { _drawLine?: (x1: number, y1: number, x2: number, y2: number) => void };
-          el._drawLine?.(x1, y1, x2, y2);
-        }
+        if (canvas) (canvas as unknown as { _drawLine?: (x1: number, y1: number, x2: number, y2: number) => void })._drawLine?.(x1, y1, x2, y2);
       }
-      // Remote clear
       if (action === 'spy:clear') {
         const canvas = document.getElementById('spy-canvas') as HTMLCanvasElement | null;
-        if (canvas) {
-          const el = canvas as unknown as { _clearAll?: () => void };
-          el._clearAll?.();
-        }
+        if (canvas) (canvas as unknown as { _clearAll?: () => void })._clearAll?.();
       }
     });
     const u3 = on('game:ended', () => router.push(`/lobby/${roomId}`));
@@ -202,10 +209,41 @@ export default function SpyGamePage() {
     return () => { u1(); u2(); u3(); };
   }, [on, emit, router, roomId]);
 
+  // ── Timer (host only) ──
+  useEffect(() => {
+    if (!isHost) return;
+
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    if (s.timerRunning && s.timerLeft > 0) {
+      timerIntervalRef.current = setInterval(() => {
+        const cur = sRef.current;
+        if (!cur.timerRunning || cur.timerLeft <= 0) {
+          if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+          return;
+        }
+        const newLeft = cur.timerLeft - 1;
+        const patch = { timerLeft: newLeft, timerRunning: newLeft > 0 };
+        setS(prev => ({ ...prev, ...patch }));
+        emit('game:action', { code: roomId, action: 'spy:sync', payload: patch });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.timerRunning, isHost]);
+
+  // ── Helpers ──
   const broadcast = useCallback((payload: Partial<SpyGameState>) => {
     emit('game:action', { code: roomId, action: 'spy:sync', payload });
   }, [emit, roomId]);
 
+  // Broadcast patch AND update local state
   const update = useCallback((patch: Partial<SpyGameState>) => {
     setS(prev => ({ ...prev, ...patch }));
     broadcast(patch);
@@ -219,7 +257,15 @@ export default function SpyGamePage() {
     emit('game:action', { code: roomId, action: 'spy:clear', payload: {} });
   }, [emit, roomId]);
 
-  // ── Actions ──
+  const shufflePlayers = (players: GamePlayer[]): string[] => {
+    const ids = players.map(p => p.id);
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    return ids;
+  };
+
   const pickRandomWord = (used: number[]): { word: string; idx: number } => {
     const available = SPY_WORDS.map((w, i) => ({ w, i })).filter(x => !used.includes(x.i));
     if (available.length === 0) {
@@ -230,73 +276,123 @@ export default function SpyGamePage() {
     return { word: pick.w, idx: pick.i };
   };
 
-  const pickRandomSpy = (): string => {
-    const playerIds = s.players.map(p => p.id);
-    return playerIds[Math.floor(Math.random() * playerIds.length)];
+  const pickRandomSpy = (players: GamePlayer[]): string => {
+    const ids = players.map(p => p.id);
+    return ids[Math.floor(Math.random() * ids.length)];
   };
 
-  const getFirstDrawer = (players: GamePlayer[]): string => {
-    return players.length > 0 ? players[0].id : '';
-  };
-
+  // ── Actions ──
   const startGame = (mode: SpyMode) => {
     if (!isHost) return;
     const { word, idx } = pickRandomWord([]);
-    const spyId = pickRandomSpy();
+    const spyId = pickRandomSpy(s.players);
+    const playerOrder = shufflePlayers(s.players);
+    // Broadcast full initial state so all clients are in sync
     update({
       phase: 'playing',
       mode,
       word,
       spyId,
-      drawerId: mode === 'draw' ? getFirstDrawer(s.players) : '',
+      drawerId: mode === 'draw' ? playerOrder[0] : '',
       usedWords: [idx],
+      playerOrder,
+      playerOrderIdx: 0,
+      timerLeft: TIMER_TOTAL,
+      timerRunning: false,
     });
   };
 
   const nextWord = () => {
     if (!isHost) return;
     const { word, idx } = pickRandomWord(s.usedWords);
-    const spyId = pickRandomSpy();
+    const spyId = pickRandomSpy(s.players);
+    const playerOrder = shufflePlayers(s.players);
     const newUsed = s.usedWords.length >= SPY_WORDS.length - 1 ? [idx] : [...s.usedWords, idx];
-    // Clear canvas on all devices
     sendClear();
-    setTimeout(() => {
-      const canvas = document.getElementById('spy-canvas') as HTMLCanvasElement | null;
-      if (canvas) {
-        const el = canvas as unknown as { _clearAll?: () => void };
-        el._clearAll?.();
-      }
-    }, 50);
-    update({ word, spyId, drawerId: s.mode === 'draw' ? getFirstDrawer(s.players) : '', usedWords: newUsed });
+    // Broadcast ALL relevant fields — guarantees all clients get consistent state
+    update({
+      word,
+      spyId,
+      drawerId: s.mode === 'draw' ? playerOrder[0] : '',
+      usedWords: newUsed,
+      playerOrder,
+      playerOrderIdx: 0,
+      timerLeft: TIMER_TOTAL,
+      timerRunning: false,
+    });
   };
 
   const passTurn = () => {
-    if (!isDrawer) return;
-    const idx = s.players.findIndex(p => p.id === s.drawerId);
-    const nextIdx = (idx + 1) % s.players.length;
-    update({ drawerId: s.players[nextIdx].id });
+    if (!isActivePlayer && !isHost) return;
+    const nextIdx = (s.playerOrderIdx + 1) % Math.max(s.playerOrder.length, 1);
+    const nextPlayerId = s.playerOrder[nextIdx] ?? '';
+    if (s.mode === 'draw') sendClear();
+    update({
+      playerOrderIdx: nextIdx,
+      drawerId: s.mode === 'draw' ? nextPlayerId : '',
+    });
+  };
+
+  const toggleTimer = () => {
+    if (!isHost) return;
+    if (s.timerLeft <= 0) {
+      update({ timerLeft: TIMER_TOTAL, timerRunning: true });
+    } else {
+      update({ timerRunning: !s.timerRunning });
+    }
+  };
+
+  const resetTimer = () => {
+    if (!isHost) return;
+    update({ timerLeft: TIMER_TOTAL, timerRunning: false });
   };
 
   const endGame = () => {
-    if (confirm('Завершить игру?')) {
-      emit('game:end', { code: roomId });
-    }
+    if (confirm('Завершить игру?')) emit('game:end', { code: roomId });
   };
 
   // ── Render ──
   return (
     <GameLayout title="Шпион" icon="🕵️‍♂️" onEnd={isHost ? endGame : undefined}>
 
-      {/* ── MODE SELECT ── */}
+      {/* ── MODE SELECT + RULES ── */}
       {s.phase === 'modeSelect' && (
-        <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
-          <div className="text-6xl mb-4">🕵️‍♂️</div>
-          <h2 className="text-2xl font-bold text-white mb-2">ШПИОН</h2>
-          <p className="text-white/50 text-sm mb-6">Один из вас — шпион! Остальные знают слово.</p>
+        <div className="max-w-lg mx-auto py-6 animate-fade-in space-y-4">
+          <div className="text-center">
+            <div className="text-6xl mb-2">🕵️‍♂️</div>
+            <h2 className="text-2xl font-bold text-white mb-1">ШПИОН</h2>
+            <p className="text-white/50 text-sm">Один из вас — шпион. Остальные знают слово.</p>
+          </div>
+
+          {/* Rules */}
+          <GlassCard className="p-4 space-y-3 text-sm">
+            <p className="font-bold text-amber-400 text-base">📖 Как играть</p>
+            <div className="space-y-2 text-white/80">
+              <p>
+                <span className="text-white font-semibold">🎭 Роли</span>
+                {' '}— все видят секретное слово, кроме одного игрока: шпиона. Он должен это скрыть.
+              </p>
+              <p>
+                <span className="text-white font-semibold">💬 Вопросы</span>
+                {' '}— игроки задают друг другу вопросы, связанные со словом. Отвечай убедительно, не раскрывая слово — шпион слушает и пытается понять, что загадано.
+              </p>
+              <p>
+                <span className="text-white font-semibold">🕵️ Задача шпиона</span>
+                {' '}— отвечать уклончиво, не выдавая незнания. Если угадает слово до разоблачения — победа!
+              </p>
+              <p>
+                <span className="text-white font-semibold">🗳️ Голосование</span>
+                {' '}— в конце все голосуют: кто шпион? Ошиблись — шпион победил!
+              </p>
+            </div>
+            <div className="border-t border-white/10 pt-2 text-white/50 text-xs">
+              🎨 В режиме <b>«Нарисуй»</b> каждый по очереди рисует слово. Шпион не знает что рисовать и старается скопировать других.
+            </div>
+          </GlassCard>
 
           {isHost ? (
             <div className="space-y-3">
-              <p className="text-xs text-white/40 mb-2">Выберите режим:</p>
+              <p className="text-xs text-white/40 text-center">Выберите режим:</p>
               <GlassButton variant="primary" size="lg" className="w-full" onClick={() => startGame('guess')}>
                 <span className="text-2xl mr-2">💬</span> Угадай слово
               </GlassButton>
@@ -305,76 +401,155 @@ export default function SpyGamePage() {
               </GlassButton>
             </div>
           ) : (
-            <p className="text-white/40 text-sm animate-pulse">Хост выбирает режим...</p>
+            <p className="text-white/40 text-sm text-center animate-pulse">Хост выбирает режим...</p>
           )}
         </div>
       )}
 
       {/* ── PLAYING ── */}
       {s.phase === 'playing' && (
-        <div className="max-w-md mx-auto w-full py-6 animate-fade-in">
+        <div className="max-w-md mx-auto w-full py-4 animate-fade-in space-y-3">
+
           {/* Mode badge */}
-          <div className="text-center mb-4">
+          <div className="text-center">
             <span className="glass-badge px-4 py-1.5 text-sm font-bold">
               {s.mode === 'guess' ? '💬 Угадай слово' : '🎨 Нарисуй'}
             </span>
           </div>
 
-          {/* Card — spy or word */}
-          <GlassCard className={`p-8 mb-4 text-center ${isSpy ? 'border-red-500/50 bg-red-900/20' : 'border-amber-500/50 bg-amber-900/20'}`}>
+          {/* Timer */}
+          <GlassCard className="p-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⏱️</span>
+              <span className={`text-3xl font-black tabular-nums ${
+                s.timerLeft <= 30 && s.timerRunning ? 'text-red-400 animate-pulse'
+                : s.timerLeft <= 60 ? 'text-amber-400'
+                : 'text-white'
+              }`}>
+                {formatTime(s.timerLeft)}
+              </span>
+              {s.timerRunning && (
+                <span className="text-green-400 text-xs font-bold animate-pulse">● ИДЁТ</span>
+              )}
+              {!s.timerRunning && s.timerLeft < TIMER_TOTAL && s.timerLeft > 0 && (
+                <span className="text-white/40 text-xs">на паузе</span>
+              )}
+              {s.timerLeft === 0 && (
+                <span className="text-red-400 text-sm font-bold">Время вышло!</span>
+              )}
+            </div>
+            {isHost && (
+              <div className="flex gap-2">
+                <button
+                  onClick={toggleTimer}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+                    s.timerRunning
+                      ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+                      : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                  }`}
+                >
+                  {s.timerRunning ? '⏸ Стоп' : '▶ Старт'}
+                </button>
+                <button
+                  onClick={resetTimer}
+                  className="px-3 py-1.5 rounded-lg text-sm text-white/40 bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  ↺
+                </button>
+              </div>
+            )}
+          </GlassCard>
+
+          {/* Spy or Word card */}
+          <GlassCard className={`p-6 text-center ${isSpy ? 'border-red-500/50 bg-red-900/20' : 'border-amber-500/50 bg-amber-900/20'}`}>
             {isSpy ? (
               <>
                 <div className="text-5xl mb-3">🕵️‍♂️</div>
                 <h2 className="text-3xl font-black text-red-400 mb-2">ТЫ ШПИОН</h2>
-                <p className="text-white/50 text-sm">Ты не знаешь слово. Притворяйся!</p>
+                <p className="text-white/50 text-sm">Ты не знаешь слово. Притворяйся убедительно!</p>
               </>
             ) : (
               <>
-                <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-2">СЛОВО</p>
+                <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-2">СЕКРЕТНОЕ СЛОВО</p>
                 <h2 className="text-4xl font-black text-white mb-2">{s.word}</h2>
                 <p className="text-white/40 text-sm">Один из игроков — шпион и не знает это слово</p>
               </>
             )}
           </GlassCard>
 
-          {/* Current drawer indicator (draw mode) */}
-          {s.mode === 'draw' && (
-            <p className="text-center text-sm mb-3">
-              <span className="text-white/40">Рисует: </span>
-              <span className={`font-bold ${isDrawer ? 'text-amber-400' : 'text-white'}`}>
-                {isDrawer ? 'Ты' : drawerName}
-              </span>
-            </p>
+          {/* Active player indicator */}
+          {activePlayerId && (
+            <div className={`rounded-xl border px-4 py-3 text-center text-sm transition-all ${
+              isActivePlayer
+                ? 'border-purple-400/60 bg-purple-500/15 text-purple-300'
+                : 'border-white/10 bg-white/5 text-white/50'
+            }`}>
+              {isActivePlayer ? (
+                <span className="font-bold">
+                  {s.mode === 'guess' ? '🎤 Твой ход — задавай вопрос!' : '🎨 Твой ход — рисуй!'}
+                </span>
+              ) : (
+                <span>
+                  {s.mode === 'guess' ? `🎤 Вопрос задаёт: ` : `🎨 Рисует: `}
+                  <span className="font-bold text-white">{activePlayerName}</span>
+                </span>
+              )}
+            </div>
           )}
 
           {/* Drawing canvas (draw mode only) */}
           {s.mode === 'draw' && (
-            <div className="mb-4">
+            <div>
               <DrawCanvas canDraw={isDrawer} onStroke={sendStroke} onClear={sendClear} />
             </div>
           )}
 
-          {/* Pass turn button (current drawer only, draw mode) */}
-          {s.mode === 'draw' && isDrawer && (
-            <div className="text-center mb-4">
-              <GlassButton onClick={passTurn}>
-                Передать ход →
-              </GlassButton>
-            </div>
+          {/* Pass turn button — active player or host */}
+          {(isActivePlayer || isHost) && s.playerOrder.length > 0 && (
+            <GlassButton className="w-full" onClick={passTurn}>
+              {s.mode === 'guess' ? '➡ Передать слово следующему' : '➡ Передать ход'}
+            </GlassButton>
           )}
 
-          {/* Next word button (host only) */}
+          {/* Host controls */}
           {isHost && (
-            <div className="text-center">
-              <GlassButton variant="primary" size="lg" onClick={nextWord}>
-                Следующее слово
-              </GlassButton>
+            <GlassButton variant="primary" size="lg" className="w-full" onClick={nextWord}>
+              🔄 Следующее слово
+            </GlassButton>
+          )}
+
+          {/* Player turn order (guess mode) */}
+          {s.mode === 'guess' && s.playerOrder.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-white/30 text-center">Порядок ходов</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {s.playerOrder.map((id, i) => {
+                  const name = s.players.find(p => p.id === id)?.nickname ?? id;
+                  const isActive = i === s.playerOrderIdx % s.playerOrder.length;
+                  return (
+                    <span
+                      key={id}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                        isActive
+                          ? 'border-purple-400/60 bg-purple-500/20 text-purple-300 font-bold'
+                          : 'border-white/10 text-white/30'
+                      }`}
+                    >
+                      {isActive ? '🎤 ' : ''}{name}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           )}
 
-          {/* Non-host info */}
-          {!isHost && (
-            <p className="text-center text-xs text-white/30 mt-2">Хост нажмёт «Следующее слово» когда будете готовы</p>
+          {/* Info for non-host */}
+          {!isHost && !isActivePlayer && (
+            <p className="text-center text-xs text-white/25 mt-1">
+              {s.mode === 'guess'
+                ? 'Слушайте вопросы и ответы — вычислите шпиона!'
+                : 'Хост нажмёт «Следующее слово» когда будете готовы'}
+            </p>
           )}
         </div>
       )}
