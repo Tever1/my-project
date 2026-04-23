@@ -108,15 +108,13 @@ script просто возьмёт её как есть и обернёт в с�
    (c6b8057) затронул **только letter mode**. Classic mode должен работать как
    работал. Если правишь Alias — сначала убедись, что не трогаешь classic.
 
-4. **Crocodile/Alias letter mode — новая схема очков:**
-   - Explainer **не получает** очки по кнопкам «Guessed» / «Skip».
-   - Не-explainer видит поле ввода и печатает свою догадку.
-   - Первый, кто правильно напишет слово, получает +1.
-   - На уровне сокетов: action `croc:guess-attempt` / `alias:guess-attempt`
-     отправляется клиентом → сервер матчит со словом → эмитит `croc:correct`
-     для фидбэка.
+4. **Crocodile/Alias letter mode — новая схема очков (актуальная):**
+   - **Explainer получает очки** по кнопкам «Угадали! ✓» (+1 за каждое слово).
+   - Кнопка «Пропустить →» не даёт и не снимает очки, но увеличивает `wordsSkipped`.
+   - Не-explainer видит «Угадывайте вслух! 🗣️» — никакого текстового ввода нет.
+   - `croc:guess-attempt` / `alias:guess-attempt` / `croc:correct` / `alias:correct` **удалены**.
    - В letter mode Alias каждый игрок — сам себе «команда» (individual scoring).
-   - `finishTurn` в letter mode **не обновляет счёт** (он уже начислен по ходу).
+   - `finishTurn` в letter mode **не обновляет счёт** (он уже начислен по ходу через `handleGuessed`).
 
 5. **`.env.local` в `.gitignore`.** Это правильно. Но это означает, что он
    **не переносится через git между окружениями** — его нужно создавать
@@ -188,11 +186,44 @@ script просто возьмёт её как есть и обернёт в с�
         бейджи условно показывают `specialQuizInfo` либо `diffInfo + topicInfo`,
         `backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl`.
 
-### В работе — валидация UI и тематические вопросы
+- [x] **Spy — полный оверхол** (коммит `c62bb8b`):
+      - Новый порядок хода: случайный (Fisher-Yates shuffle), `playerOrder[]` + `playerOrderIdx`.
+      - Таймер на стороне host'а: `timerLeft` (300с), `timerRunning`, broadcast каждую секунду через `spy:sync`.
+      - `passTurn()` — доступна активному игроку и host'у.
+      - `nextWord()` рассылает полный state-патч (фикс рассинхрона слова у игроков).
+      - TV Spy: показывает таймер в хедере, активного игрока, порядок ходов пиллами.
+      - Карточка правил в modeSelect: 4 секции — Роли, Вопросы, Задача шпиона, Голосование.
 
-1. ✅ Код интеграции фонов и рестракт setup-флоу запушены в `claude/party-games-hub-etqfF`.
-2. 🟡 Визуальная проверка в браузере (localhost:3000) — создать комнату, пройти
-   флоу Special → Harry Potter #1 / Marvel #1, убедиться что фон виден и бейджи корректны.
+- [x] **Admin: вкладка Tools перенесена в Games** (коммит `f9b9215`):
+      - Убрана отдельная вкладка `'tools'` из `Tab` type и массива вкладок.
+      - `WordGeneratorPanel` и `LocationGeneratorPanel` встроены прямо в `GamesTab`.
+      - Layout: `flex-col`, данные игры (`flex-[3]`) + инструмент (`flex-[2]`).
+      - Игры с инструментом помечены бейджем ✨.
+
+- [x] **Установлен gstack + Claude Code post-commit hook** (коммит `c42fb01`, сессия 2026-04-22):
+      - `~/.claude/skills/gstack/` — полный gstack (33 скилла, Chrome Headless для QA).
+      - Learnings перенесены из CLAUDE.md в `~/.gstack/projects/Tever1-my-project/learnings.jsonl`.
+      - `.claude/hooks/post-commit.sh` — после каждого коммита создаёт маркер `.claude/pending-doc-update.md`.
+      - `.claude/settings.json` — PostToolUse хук на Bash → запускает post-commit.sh.
+
+- [x] **Крокодил и Alias letter mode — рефакторинг схемы очков** (сессия 2026-04-19):
+      - `src/app/game/[roomId]/crocodile/page.tsx`: очки теперь зарабатывает **explainer**
+        через кнопку «Угадали! ✓» (+1 к его счёту). Кнопка «Пропустить →» не даёт очков,
+        но увеличивает `wordsSkipped`. Гессеры видят «Угадывайте вслух! 🗣️» — поле ввода удалено.
+        Удалены `handleCorrectGuess`, `submitGuess`, `croc:guess-attempt`, `croc:correct`.
+        Добавлен `wordsSkipped` в state.
+      - `src/app/game/[roomId]/alias/page.tsx`: letter mode — та же схема: explainer
+        зарабатывает +1 за каждое «Угадали!», не-explainer видит «Угадывайте вслух!».
+        Удалены `handleCorrectGuess`, `submitGuess`, `alias:guess-attempt`, `alias:correct`.
+        Classic mode не тронут.
+      - `src/app/tv/[roomId]/[gameType]/page.tsx`: TV crocodile теперь показывает
+        и `wordsGuessed` и `wordsSkipped`.
+
+### В работе
+
+1. ✅ Крокодил и Alias letter mode переписаны.
+2. 🟡 Визуальная проверка в браузере (localhost:3000) — создать комнату, проверить
+   Crocodile и Alias (letter mode) в деле.
 3. ⬜ Создать отдельные наборы тематических вопросов
    (`src/lib/quiz/themed/harry-potter.ts`, `marvel.ts`) и заменить fallback
    в `getSpecialQuizQuestions`.
