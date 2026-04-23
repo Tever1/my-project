@@ -42,3 +42,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# game overrides (local data, not committed)
+/data/game-overrides.json
+
+# Graphify
+graphify-out/
+
+# Claude Code hooks — pending marker (local only)
+.claude/pending-doc-update.md
