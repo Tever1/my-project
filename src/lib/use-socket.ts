@@ -27,14 +27,15 @@ export function useSocket() {
     };
   }, []);
 
-  const emit = useCallback((event: string, data?: unknown, callback?: (response: unknown) => void) => {
+  const emit = useCallback((event: string, data?: unknown, callback?: (response: unknown) => void): boolean => {
     const socket = socketRef.current;
-    if (!socket || !socket.connected) return;
+    if (!socket || !socket.connected) return false;
     if (callback) {
       socket.emit(event, data, callback);
     } else {
       socket.emit(event, data);
     }
+    return true;
   }, []);
 
   const on = useCallback((event: string, handler: (...args: unknown[]) => void) => {

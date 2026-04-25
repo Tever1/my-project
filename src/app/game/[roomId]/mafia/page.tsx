@@ -37,14 +37,14 @@ type GameAction =
   | { type: 'sync-state'; state: MafiaGameState }
   | { type: 'assign-roles'; roles: Record<string, MafiaRole> }
   | { type: 'start-night' }
-  | { type: 'mafia-vote'; targetId: string }
-  | { type: 'detective-check'; targetId: string }
-  | { type: 'detective-result'; role: MafiaRole }
-  | { type: 'doctor-save'; targetId: string }
+  | { type: 'mafia-vote'; voterId: string; targetId: string }
+  | { type: 'detective-check'; detectiveId: string; targetId: string }
+  | { type: 'detective-result'; role: MafiaRole; detectiveId: string }
+  | { type: 'doctor-save'; doctorId: string; targetId: string }
   | { type: 'resolve-night' }
   | { type: 'night-result'; killedId: string | null; saved: boolean }
   | { type: 'start-voting' }
-  | { type: 'cast-vote'; targetId: string }
+  | { type: 'cast-vote'; voterId: string; targetId: string }
   | { type: 'resolve-votes' }
   | { type: 'eliminate'; playerId: string; role: MafiaRole }
   | { type: 'game-over'; winner: 'mafia' | 'citizens' }
@@ -129,7 +129,7 @@ function getInitialState(): MafiaGameState {
 
 export default function MafiaPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { emit, on } = useSocket();
+  const { emit, on, isConnected } = useSocket();
   const { t, locale } = useTranslation();
   const { user } = useAuth();
 
@@ -213,14 +213,45 @@ export default function MafiaPage() {
           break;
 
         case 'mafia-vote':
-          // Handled by host via sync-state
+          // Accumulate on host so handleResolveNight has all votes
+          if (isHost) {
+            setGs((prev) => ({
+              ...prev,
+              mafiaVotes: { ...prev.mafiaVotes, [payload.voterId]: payload.targetId },
+            }));
+          }
+          break;
+
+        case 'detective-check':
+          // Accumulate on host so handleResolveNight knows what was checked
+          if (isHost) {
+            setGs((prev) => ({ ...prev, detectiveCheck: payload.targetId }));
+          }
+          break;
+
+        case 'doctor-save':
+          // Accumulate on host so handleResolveNight can check the save
+          if (isHost) {
+            setGs((prev) => ({ ...prev, doctorSave: payload.targetId }));
+          }
+          break;
+
+        case 'cast-vote':
+          // Day vote — everyone accumulates for live tally
+          setGs((prev) => ({
+            ...prev,
+            votes: { ...prev.votes, [payload.voterId]: payload.targetId },
+          }));
           break;
 
         case 'detective-result':
-          setGs((prev) => ({
-            ...prev,
-            detectiveResult: payload.role,
-          }));
+          // Only the detective processes this result
+          if (user?.id === payload.detectiveId) {
+            setGs((prev) => ({
+              ...prev,
+              detectiveResult: payload.role,
+            }));
+          }
           break;
 
         case 'night-result':
@@ -319,13 +350,9 @@ export default function MafiaPage() {
   // Night actions
   // -----------------------------------------------------------------------
   const handleMafiaVote = (targetId: string) => {
-    if (!user) return;
-    emit('game:action', {
-      code: roomId,
-      action: 'mafia-vote',
-      payload: { voterId: user.id, targetId },
-    });
-    // Update local state for the voting mafia player
+    if (!user || !isConnected) return;
+    broadcast({ type: 'mafia-vote', voterId: user.id, targetId });
+    // Update local state immediately for instant UI feedback
     setGs((prev) => ({
       ...prev,
       mafiaVotes: { ...prev.mafiaVotes, [user.id]: targetId },
@@ -334,23 +361,15 @@ export default function MafiaPage() {
   };
 
   const handleDetectiveCheck = (targetId: string) => {
-    if (!user) return;
-    emit('game:action', {
-      code: roomId,
-      action: 'detective-check',
-      payload: { detectiveId: user.id, targetId },
-    });
+    if (!user || !isConnected) return;
+    broadcast({ type: 'detective-check', detectiveId: user.id, targetId });
     setGs((prev) => ({ ...prev, detectiveCheck: targetId }));
     setNightActionDone(true);
   };
 
   const handleDoctorSave = (targetId: string) => {
-    if (!user) return;
-    emit('game:action', {
-      code: roomId,
-      action: 'doctor-save',
-      payload: { doctorId: user.id, targetId },
-    });
+    if (!user || !isConnected) return;
+    broadcast({ type: 'doctor-save', doctorId: user.id, targetId });
     setGs((prev) => ({ ...prev, doctorSave: targetId }));
     setNightActionDone(true);
   };
@@ -371,19 +390,14 @@ export default function MafiaPage() {
     const saved = mafiaTarget != null && gs.doctorSave === mafiaTarget;
     const killedId = saved ? null : mafiaTarget;
 
-    // Detective gets result
+    // Detective gets result — include detectiveId so only they process it
     if (gs.detectiveCheck) {
       const checkedRole = gs.roles[gs.detectiveCheck];
-      // Send result privately to the detective
       const detectiveId = Object.entries(gs.roles).find(
         ([, r]) => r === 'detective',
       )?.[0];
       if (detectiveId) {
-        emit('game:action', {
-          code: roomId,
-          action: 'mafia',
-          payload: { type: 'detective-result', role: checkedRole },
-        });
+        broadcast({ type: 'detective-result', role: checkedRole, detectiveId });
       }
     }
 
@@ -410,12 +424,9 @@ export default function MafiaPage() {
   // Player: cast day vote
   // -----------------------------------------------------------------------
   const handleDayVote = (targetId: string) => {
-    if (!user) return;
-    emit('game:action', {
-      code: roomId,
-      action: 'mafia-day-vote',
-      payload: { voterId: user.id, targetId },
-    });
+    if (!user || !isConnected) return;
+    broadcast({ type: 'cast-vote', voterId: user.id, targetId });
+    // Update local state immediately for instant UI feedback
     setGs((prev) => ({
       ...prev,
       votes: { ...prev.votes, [user.id]: targetId },
