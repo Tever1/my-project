@@ -25,11 +25,12 @@ interface Team {
 type AliasMode = 'classic' | 'letter';
 
 interface AliasGameState {
-  phase: 'modeSelect' | 'waiting' | 'explaining' | 'turnResult' | 'finished';
+  phase: 'modeSelect' | 'teamSelect' | 'waiting' | 'explaining' | 'turnResult' | 'finished';
   mode: AliasMode;
   teams: Team[];
   activeTeamIndex: number;        // which team is playing
-  explainerIndex: number;         // index inside team's player list
+  explainerIndex: number;         // legacy, kept for backward compat
+  explainerIndices: number[];     // per-team explainer index
   currentWordIndex: number;
   timeLeft: number;
   wordsGuessed: number;           // +1 per guessed word this turn
@@ -89,9 +90,6 @@ export default function AliasPage() {
   const [gameState, setGameState] = useState<AliasGameState | null>(null);
   const [selectedMode, setSelectedMode] = useState<AliasMode | null>(null);
 
-  // Letter-mode guesser UI state
-  const [guessInput, setGuessInput] = useState('');
-  const [guessFlash, setGuessFlash] = useState<'none' | 'correct' | 'wrong'>('none');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -100,8 +98,15 @@ export default function AliasPage() {
 
   // Derived
   const activeTeam = gameState?.teams[gameState.activeTeamIndex];
+  const explainerIndices = gameState?.explainerIndices ?? gameState?.teams.map(() => 0) ?? [];
   const explainer = activeTeam
-    ? players.find((p) => p.id === activeTeam.playerIds[gameState!.explainerIndex % activeTeam.playerIds.length])
+    ? players.find(
+        (p) =>
+          p.id ===
+          activeTeam.playerIds[
+            (explainerIndices[gameState!.activeTeamIndex] ?? 0) % activeTeam.playerIds.length
+          ],
+      )
     : null;
   const isExplainer = myId === explainer?.id;
   const isMyTeamActive = activeTeam?.playerIds.includes(myId) ?? false;
@@ -149,7 +154,6 @@ export default function AliasPage() {
       switch (action) {
         case 'alias:state':
           setGameState(payload);
-          setGuessInput('');
           break;
         case 'alias:tick':
           setGameState((prev) =>
@@ -157,10 +161,6 @@ export default function AliasPage() {
               ? { ...prev, timeLeft: (payload as unknown as { timeLeft: number }).timeLeft }
               : prev,
           );
-          break;
-        case 'alias:correct':
-          setGuessFlash('correct');
-          setTimeout(() => setGuessFlash('none'), 800);
           break;
       }
     });
@@ -196,7 +196,75 @@ export default function AliasPage() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, gameState?.phase, gameState?.activeTeamIndex, gameState?.explainerIndex]);
+  }, [isHost, gameState?.phase, gameState?.activeTeamIndex, gameState?.explainerIndices?.[gameState?.activeTeamIndex ?? 0]]);
+
+  // ------------------------------------------------------------------
+  // Host: team select helpers
+  // ------------------------------------------------------------------
+
+  const handleJoinTeam = useCallback(
+    (playerId: string, teamIndex: number) => {
+      setGameState((prev) => {
+        if (!prev) return prev;
+        // Remove player from all teams
+        const updatedTeams = prev.teams.map((t) => ({
+          ...t,
+          playerIds: t.playerIds.filter((id) => id !== playerId),
+        }));
+        // Add to target team
+        updatedTeams[teamIndex] = {
+          ...updatedTeams[teamIndex],
+          playerIds: [...updatedTeams[teamIndex].playerIds, playerId],
+        };
+        const next = { ...prev, teams: updatedTeams };
+        broadcast('alias:state', next);
+        return next;
+      });
+    },
+    [broadcast],
+  );
+
+  const handleRandomizeTeams = useCallback(() => {
+    setGameState((prev) => {
+      if (!prev) return prev;
+      const allPlayers = players.map((p) => p.id);
+      const [t1Ids, t2Ids] = splitIntoTeams(allPlayers);
+      const updatedTeams = prev.teams.map((t, i) => ({
+        ...t,
+        playerIds: i === 0 ? t1Ids : t2Ids,
+      }));
+      const next = { ...prev, teams: updatedTeams };
+      broadcast('alias:state', next);
+      return next;
+    });
+  }, [broadcast, players]);
+
+  const finalizeTeams = useCallback(() => {
+    setGameState((prev) => {
+      if (!prev) return prev;
+      // Find players not in any team
+      const assignedIds = new Set(prev.teams.flatMap((t) => t.playerIds));
+      const unassigned = players.map((p) => p.id).filter((id) => !assignedIds.has(id));
+
+      let updatedTeams = [...prev.teams];
+      // Assign unassigned players to the smaller team
+      for (const playerId of unassigned) {
+        const smallerIdx = updatedTeams[0].playerIds.length <= updatedTeams[1].playerIds.length ? 0 : 1;
+        updatedTeams[smallerIdx] = {
+          ...updatedTeams[smallerIdx],
+          playerIds: [...updatedTeams[smallerIdx].playerIds, playerId],
+        };
+      }
+
+      const next: AliasGameState = {
+        ...prev,
+        phase: 'waiting',
+        teams: updatedTeams,
+      };
+      broadcast('alias:state', next);
+      return next;
+    });
+  }, [broadcast, players]);
 
   // ------------------------------------------------------------------
   // Host: start game
@@ -209,43 +277,64 @@ export default function AliasPage() {
     const pIds = players.map((p) => p.id);
     const firstWord = pickRandomWordIndex([]);
 
-    let teams: Team[];
     if (mode === 'letter') {
       // Individual play for letter mode (scoring is per-player)
       const shuffled = [...pIds].sort(() => Math.random() - 0.5);
-      teams = shuffled.map((id, i) => ({
+      const teams: Team[] = shuffled.map((id, i) => ({
         id: `player-${i}`,
         name: players.find((p) => p.id === id)?.nickname ?? `Player ${i + 1}`,
         playerIds: [id],
         score: 0,
       }));
+
+      const initial: AliasGameState = {
+        phase: 'waiting',
+        mode,
+        teams,
+        activeTeamIndex: 0,
+        explainerIndex: 0,
+        explainerIndices: teams.map(() => 0),
+        currentWordIndex: firstWord,
+        timeLeft: TURN_DURATION_LETTER,
+        wordsGuessed: 0,
+        wordsSkipped: 0,
+        round: 1,
+        totalRounds: DEFAULT_ROUNDS,
+        usedWordIndices: [firstWord],
+        turnHistory: [],
+        currentLetter: pickRandomLetter(locale),
+      };
+
+      setGameState(initial);
+      broadcast('alias:state', initial);
     } else {
-      const [t1Ids, t2Ids] = splitIntoTeams(pIds);
-      teams = [
-        { id: 'team-1', name: locale === 'ru' ? 'Команда 1' : 'Team 1', playerIds: t1Ids, score: 0 },
-        { id: 'team-2', name: locale === 'ru' ? 'Команда 2' : 'Team 2', playerIds: t2Ids, score: 0 },
+      // Classic mode: go to teamSelect first
+      const teams: Team[] = [
+        { id: 'team-1', name: locale === 'ru' ? 'Команда 1' : 'Team 1', playerIds: [], score: 0 },
+        { id: 'team-2', name: locale === 'ru' ? 'Команда 2' : 'Team 2', playerIds: [], score: 0 },
       ];
+
+      const teamSelectState: AliasGameState = {
+        phase: 'teamSelect',
+        mode,
+        teams,
+        activeTeamIndex: 0,
+        explainerIndex: 0,
+        explainerIndices: [0, 0],
+        currentWordIndex: firstWord,
+        timeLeft: TURN_DURATION_CLASSIC,
+        wordsGuessed: 0,
+        wordsSkipped: 0,
+        round: 1,
+        totalRounds: DEFAULT_ROUNDS,
+        usedWordIndices: [firstWord],
+        turnHistory: [],
+        currentLetter: '',
+      };
+
+      setGameState(teamSelectState);
+      broadcast('alias:state', teamSelectState);
     }
-
-    const initial: AliasGameState = {
-      phase: 'waiting',
-      mode,
-      teams,
-      activeTeamIndex: 0,
-      explainerIndex: 0,
-      currentWordIndex: firstWord,
-      timeLeft: mode === 'letter' ? TURN_DURATION_LETTER : TURN_DURATION_CLASSIC,
-      wordsGuessed: 0,
-      wordsSkipped: 0,
-      round: 1,
-      totalRounds: DEFAULT_ROUNDS,
-      usedWordIndices: [firstWord],
-      turnHistory: [],
-      currentLetter: mode === 'letter' ? pickRandomLetter(locale) : '',
-    };
-
-    setGameState(initial);
-    broadcast('alias:state', initial);
   }, [isHost, players, broadcast, locale]);
 
   // ------------------------------------------------------------------
@@ -316,16 +405,25 @@ export default function AliasPage() {
       return;
     }
 
-    const nextTeam = gameState.teams[nextTeamIndex];
+    const currentIndices = gameState.explainerIndices ?? gameState.teams.map(() => 0);
+
+    // Increment explainerIndex for the team that just played
+    const updatedIndices = currentIndices.map((idx, i) => {
+      if (i === gameState.activeTeamIndex) {
+        const teamSize = gameState.teams[i].playerIds.length;
+        return teamSize > 0 ? (idx + 1) % teamSize : 0;
+      }
+      return idx;
+    });
+
     const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
 
     const next: AliasGameState = {
       ...gameState,
       phase: 'waiting',
       activeTeamIndex: nextTeamIndex,
-      explainerIndex: nextTeamIndex === gameState.activeTeamIndex
-        ? (gameState.explainerIndex + 1) % nextTeam.playerIds.length
-        : gameState.explainerIndex,
+      explainerIndex: updatedIndices[nextTeamIndex],
+      explainerIndices: updatedIndices,
       currentWordIndex: nextWordIdx,
       round: newRound,
       timeLeft: gameState.mode === 'letter' ? TURN_DURATION_LETTER : TURN_DURATION_CLASSIC,
@@ -348,18 +446,24 @@ export default function AliasPage() {
 
     const isLetter = gameState.mode === 'letter';
     const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
+
+    // Letter mode: award +1 to the active explainer's team live
+    const updatedTeams = isLetter
+      ? gameState.teams.map((t, i) =>
+          i === gameState.activeTeamIndex ? { ...t, score: t.score + 1 } : t,
+        )
+      : gameState.teams;
+
     const updated: AliasGameState = {
       ...gameState,
       currentWordIndex: nextWordIdx,
-      // Letter mode: explainer just advances word, no score counter change
-      wordsGuessed: isLetter ? gameState.wordsGuessed : gameState.wordsGuessed + 1,
+      wordsGuessed: gameState.wordsGuessed + 1,
+      teams: updatedTeams,
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
-      turnHistory: isLetter
-        ? gameState.turnHistory
-        : [
-            ...gameState.turnHistory,
-            { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: true },
-          ],
+      turnHistory: [
+        ...gameState.turnHistory,
+        { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: true },
+      ],
       currentLetter: isLetter ? pickRandomLetter(locale) : gameState.currentLetter,
     };
     setGameState(updated);
@@ -378,8 +482,7 @@ export default function AliasPage() {
     const updated: AliasGameState = {
       ...gameState,
       currentWordIndex: nextWordIdx,
-      // Letter mode: no score penalty for explainer skip
-      wordsSkipped: isLetter ? gameState.wordsSkipped : gameState.wordsSkipped + 1,
+      wordsSkipped: gameState.wordsSkipped + 1,
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
       turnHistory: isLetter
         ? gameState.turnHistory
@@ -394,39 +497,6 @@ export default function AliasPage() {
   }, [isHost, gameState, broadcast, locale]);
 
   // ------------------------------------------------------------------
-  // Host: correct guess submitted by a non-explainer player (letter mode)
-  // ------------------------------------------------------------------
-
-  const handleCorrectGuess = useCallback(
-    (guesserId: string) => {
-      if (!isHost || !gameState || gameState.phase !== 'explaining') return;
-      if (gameState.mode !== 'letter') return;
-
-      const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
-      const updatedTeams = gameState.teams.map((t) =>
-        t.playerIds.includes(guesserId) ? { ...t, score: t.score + 1 } : t,
-      );
-
-      const updated: AliasGameState = {
-        ...gameState,
-        currentWordIndex: nextWordIdx,
-        wordsGuessed: gameState.wordsGuessed + 1,
-        teams: updatedTeams,
-        usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
-        turnHistory: [
-          ...gameState.turnHistory,
-          { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: true },
-        ],
-        currentLetter: pickRandomLetter(locale),
-      };
-      setGameState(updated);
-      broadcast('alias:state', updated);
-      broadcast('alias:correct', { guesserId });
-    },
-    [isHost, gameState, broadcast, locale],
-  );
-
-  // ------------------------------------------------------------------
   // Non-host actions forwarded to host
   // ------------------------------------------------------------------
 
@@ -436,33 +506,6 @@ export default function AliasPage() {
     },
     [emit, roomId],
   );
-
-  // ------------------------------------------------------------------
-  // Guesser: submit a guess attempt (letter mode only)
-  // ------------------------------------------------------------------
-
-  const submitGuess = useCallback(() => {
-    const text = guessInput.trim();
-    if (!text || !gameState || gameState.phase !== 'explaining') return;
-    if (gameState.mode !== 'letter') return;
-    if (isExplainer) return;
-
-    if (isHost && currentWord) {
-      const target = (locale === 'ru' ? currentWord.ru : currentWord.en).trim().toLowerCase();
-      if (text.toLowerCase() === target) {
-        handleCorrectGuess(myId);
-        setGuessInput('');
-        return;
-      }
-      setGuessFlash('wrong');
-      setTimeout(() => setGuessFlash('none'), 600);
-      setGuessInput('');
-      return;
-    }
-
-    emit('game:action', { code: roomId, action: 'alias:guess-attempt', payload: { text } });
-    setGuessInput('');
-  }, [guessInput, gameState, isExplainer, isHost, currentWord, locale, handleCorrectGuess, myId, emit, roomId]);
 
   useEffect(() => {
     if (!isHost) return;
@@ -477,16 +520,19 @@ export default function AliasPage() {
         setSelectedMode(mode);
         broadcast('alias:state', { phase: 'modeSelect', mode } as unknown as AliasGameState);
       }
-      if (action === 'alias:guess-attempt' && gameState && currentWord && gameState.mode === 'letter') {
-        const guess = String(payload.text ?? '').trim().toLowerCase();
-        const target = (locale === 'ru' ? currentWord.ru : currentWord.en).trim().toLowerCase();
-        if (guess && guess === target && from !== explainer?.id) {
-          handleCorrectGuess(from);
-        }
+      if (action === 'alias:join-team') {
+        const teamIndex = payload.teamIndex as number;
+        handleJoinTeam(from, teamIndex);
+      }
+      if (action === 'alias:randomize-teams') {
+        handleRandomizeTeams();
+      }
+      if (action === 'alias:confirm-teams') {
+        finalizeTeams();
       }
     });
     return cleanup;
-  }, [isHost, on, handleGuessed, handleSkip, beginTurn, nextTurn, broadcast, gameState, currentWord, locale, explainer, handleCorrectGuess]);
+  }, [isHost, on, handleGuessed, handleSkip, beginTurn, nextTurn, broadcast, handleJoinTeam, handleRandomizeTeams, finalizeTeams]);
 
   // ------------------------------------------------------------------
   // End game
@@ -507,6 +553,10 @@ export default function AliasPage() {
 
   const currentRound = gameState?.round ?? 0;
   const totalRounds = gameState?.totalRounds ?? DEFAULT_ROUNDS;
+
+  // Derived: players not yet in any team (for teamSelect)
+  const assignedPlayerIds = gameState?.teams.flatMap((t) => t.playerIds) ?? [];
+  const unassignedPlayers = players.filter((p) => !assignedPlayerIds.includes(p.id));
 
   // ------------------------------------------------------------------
   // Render
@@ -621,40 +671,136 @@ export default function AliasPage() {
         </div>
       )}
 
-      {/* ---- WAITING FOR EXPLAINER TO START ---- */}
-      {gameState?.phase === 'waiting' && (
+      {/* ---- TEAM SELECT (classic mode only) ---- */}
+      {gameState?.phase === 'teamSelect' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <p className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {locale === 'ru' ? 'Выберите команду' : 'Choose your team'}
+          </p>
+
           {/* Team cards */}
           <div className="w-full max-w-md flex gap-3">
             {gameState.teams.map((team, ti) => (
               <GlassCard
                 key={team.id}
-                className={`flex-1 p-4 text-center ${
-                  ti === gameState.activeTeamIndex ? 'outline outline-2 outline-purple-400' : 'opacity-60'
-                }`}
+                className="flex-1 p-4 text-center cursor-pointer hover:outline hover:outline-1 hover:outline-purple-400 transition-all"
+                onClick={() => {
+                  if (isHost) {
+                    handleJoinTeam(myId, ti);
+                  } else {
+                    emit('game:action', { code: roomId, action: 'alias:join-team', payload: { teamIndex: ti } });
+                  }
+                }}
               >
-                <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                <p className="text-lg font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
                   {team.name}
                 </p>
-                <p className="text-2xl font-bold text-amber-400">{team.score}</p>
-                <div className="mt-2 flex flex-wrap gap-1 justify-center">
+                <div className="flex flex-wrap gap-1 justify-center min-h-[2rem]">
                   {team.playerIds.map((id) => {
                     const p = players.find((pl) => pl.id === id);
-                    const isExp =
-                      ti === gameState.activeTeamIndex &&
-                      id === team.playerIds[gameState.explainerIndex % team.playerIds.length];
                     return (
                       <span
                         key={id}
-                        className={`glass-badge text-xs ${isExp ? 'outline outline-1 outline-amber-400' : ''}`}
+                        className={`glass-badge text-xs ${id === myId ? 'outline outline-1 outline-amber-400' : ''}`}
                       >
-                        {p?.nickname ?? id} {isExp && '🎤'}
+                        {p?.nickname ?? id}
                       </span>
                     );
                   })}
+                  {team.playerIds.length === 0 && (
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      {locale === 'ru' ? 'пока никого' : 'nobody yet'}
+                    </span>
+                  )}
                 </div>
               </GlassCard>
             ))}
+          </div>
+
+          {/* Unassigned players */}
+          {unassignedPlayers.length > 0 && (
+            <div className="w-full max-w-md">
+              <p className="text-xs text-center mb-2" style={{ color: 'var(--text-secondary)' }}>
+                {locale === 'ru' ? 'Ещё не выбрали команду:' : 'Haven\'t chosen yet:'}
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {unassignedPlayers.map((p) => (
+                  <span key={p.id} className="glass-badge text-xs opacity-60">{p.nickname}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Host controls */}
+          {isHost && (
+            <div className="w-full max-w-md flex flex-col gap-3">
+              <GlassButton
+                size="lg"
+                className="w-full"
+                onClick={handleRandomizeTeams}
+              >
+                {locale === 'ru' ? '🔀 Случайное распределение' : '🔀 Randomize Teams'}
+              </GlassButton>
+              <GlassButton
+                variant="primary"
+                size="lg"
+                className="w-full"
+                onClick={finalizeTeams}
+                disabled={
+                  gameState.teams[0].playerIds.length === 0 ||
+                  gameState.teams[1].playerIds.length === 0
+                }
+              >
+                {locale === 'ru' ? 'Начать игру →' : 'Start Game →'}
+              </GlassButton>
+            </div>
+          )}
+
+          {!isHost && (
+            <p className="text-sm italic" style={{ color: 'var(--text-secondary)' }}>
+              {locale === 'ru' ? 'Нажмите на карточку команды, чтобы вступить' : 'Tap a team card to join'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ---- WAITING FOR EXPLAINER TO START ---- */}
+      {gameState?.phase === 'waiting' && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          {/* Team cards */}
+          <div className="w-full max-w-md flex gap-3">
+            {gameState.teams.map((team, ti) => {
+              const teamExplainerIdx = (gameState.explainerIndices ?? gameState.teams.map(() => 0))[ti] ?? 0;
+              return (
+                <GlassCard
+                  key={team.id}
+                  className={`flex-1 p-4 text-center ${
+                    ti === gameState.activeTeamIndex ? 'outline outline-2 outline-purple-400' : 'opacity-60'
+                  }`}
+                >
+                  <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {team.name}
+                  </p>
+                  <p className="text-2xl font-bold text-amber-400">{team.score}</p>
+                  <div className="mt-2 flex flex-wrap gap-1 justify-center">
+                    {team.playerIds.map((id) => {
+                      const p = players.find((pl) => pl.id === id);
+                      const isExp =
+                        ti === gameState.activeTeamIndex &&
+                        id === team.playerIds[teamExplainerIdx % team.playerIds.length];
+                      return (
+                        <span
+                          key={id}
+                          className={`glass-badge text-xs ${isExp ? 'outline outline-1 outline-amber-400' : ''}`}
+                        >
+                          {p?.nickname ?? id} {isExp && '🎤'}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </GlassCard>
+              );
+            })}
           </div>
 
           {/* Start button for explainer */}
@@ -763,15 +909,8 @@ export default function AliasPage() {
               </p>
             </GlassCard>
           ) : gameState.mode === 'letter' ? (
-            <GlassCard
-              className={`w-full max-w-md p-6 text-center transition-all ${
-                guessFlash === 'correct'
-                  ? 'outline outline-2 outline-green-400'
-                  : guessFlash === 'wrong'
-                  ? 'outline outline-2 outline-red-400'
-                  : ''
-              }`}
-            >
+            /* Letter mode non-explainer: guess out loud */
+            <GlassCard className="w-full max-w-md p-8 text-center">
               {gameState.currentLetter && (
                 <div className="mb-3">
                   <p className="text-xs uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
@@ -780,43 +919,15 @@ export default function AliasPage() {
                   <p className="text-4xl font-black text-purple-400">{gameState.currentLetter}</p>
                 </div>
               )}
-              <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
-                {locale === 'ru' ? 'Введите ваш ответ:' : 'Type your guess:'}
+              <p className="text-4xl mb-3">🗣️</p>
+              <p className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {locale === 'ru' ? 'Угадывайте вслух!' : 'Guess out loud!'}
               </p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  submitGuess();
-                }}
-                className="flex gap-2"
-              >
-                <input
-                  type="text"
-                  value={guessInput}
-                  onChange={(e) => setGuessInput(e.target.value)}
-                  placeholder={locale === 'ru' ? 'Ваше слово...' : 'Your word...'}
-                  className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-purple-400 text-lg"
-                  autoFocus
-                />
-                <GlassButton
-                  variant="primary"
-                  size="md"
-                  type="submit"
-                  disabled={!guessInput.trim()}
-                >
-                  →
-                </GlassButton>
-              </form>
-              {guessFlash === 'correct' && (
-                <p className="text-green-400 text-sm mt-2">
-                  {locale === 'ru' ? '✓ Правильно!' : '✓ Correct!'}
-                </p>
-              )}
-              {guessFlash === 'wrong' && (
-                <p className="text-red-400 text-sm mt-2">
-                  {locale === 'ru' ? '✗ Неверно' : '✗ Wrong'}
-                </p>
-              )}
+              <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
+                {locale === 'ru'
+                  ? `${explainer?.nickname ?? '...'} объясняет слово`
+                  : `${explainer?.nickname ?? '...'} is explaining`}
+              </p>
             </GlassCard>
           ) : (
             <GlassCard className="w-full max-w-md p-8 text-center">
@@ -842,9 +953,7 @@ export default function AliasPage() {
                 className="flex-1"
                 onClick={() => (isHost ? handleGuessed() : emitAction('alias:guessed'))}
               >
-                {gameState.mode === 'letter'
-                  ? (locale === 'ru' ? 'Далее ✓' : 'Next ✓')
-                  : (locale === 'ru' ? 'Угадали! +1' : 'Guessed! +1')}
+                {locale === 'ru' ? 'Угадали! ✓' : 'Guessed! ✓'}
               </GlassButton>
               <GlassButton
                 size="lg"
@@ -852,7 +961,7 @@ export default function AliasPage() {
                 onClick={() => (isHost ? handleSkip() : emitAction('alias:skip'))}
               >
                 {gameState.mode === 'letter'
-                  ? (locale === 'ru' ? 'Пропустить' : 'Skip')
+                  ? (locale === 'ru' ? 'Пропустить →' : 'Skip →')
                   : (locale === 'ru' ? 'Пропуск −1' : 'Skip −1')}
               </GlassButton>
             </div>
@@ -868,11 +977,10 @@ export default function AliasPage() {
               {locale === 'ru' ? 'Время вышло!' : "Time's up!"}
             </p>
             {gameState.mode === 'letter' ? (
-              <p className="text-base mb-4" style={{ color: 'var(--text-secondary)' }}>
-                {locale === 'ru'
-                  ? `Угадано слов: ${gameState.wordsGuessed}`
-                  : `Words guessed: ${gameState.wordsGuessed}`}
-              </p>
+              <div className="text-sm space-y-1 mb-4" style={{ color: 'var(--text-secondary)' }}>
+                <p>✅ {locale === 'ru' ? 'Угадано' : 'Guessed'}: {gameState.wordsGuessed}</p>
+                <p>❌ {locale === 'ru' ? 'Пропущено' : 'Skipped'}: {gameState.wordsSkipped}</p>
+              </div>
             ) : (
               <>
                 <p className="text-3xl font-bold text-amber-400 mb-4">

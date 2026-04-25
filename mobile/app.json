@@ -10,7 +10,9 @@
     "splash": {
       "backgroundColor": "#0c0a15"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.partygameshub.app",
@@ -22,7 +24,10 @@
       },
       "package": "com.partygameshub.app"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      "expo-asset"
+    ],
     "experiments": {
       "typedRoutes": true
     }

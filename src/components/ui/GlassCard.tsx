@@ -1,11 +1,11 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, MouseEventHandler } from 'react';
 
 interface GlassCardProps {
   children: ReactNode;
   className?: string;
-  onClick?: () => void;
+  onClick?: MouseEventHandler<HTMLDivElement>;
   hover?: boolean;
 }
 

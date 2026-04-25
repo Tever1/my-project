@@ -166,6 +166,13 @@ async function generateImage({ prompt, outputName, theme }) {
   const filename = outputName ?? `generated-${Date.now()}.png`;
   const finalName = filename.endsWith('.png') ? filename : `${filename}.png`;
   const outputPath = path.join(outputDir, finalName);
+
+  if (fs.existsSync(outputPath)) {
+    console.error(`❌ File already exists: public/backgrounds/${finalName}`);
+    console.error(`   Use --name <другое-имя> чтобы сохранить под другим именем.`);
+    process.exit(1);
+  }
+
   fs.writeFileSync(outputPath, buffer);
 
   const sizeKb = (buffer.length / 1024).toFixed(1);

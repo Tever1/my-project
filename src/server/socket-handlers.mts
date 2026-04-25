@@ -26,6 +26,22 @@ interface Room {
 const rooms = new Map<string, Room>();
 const playerRooms = new Map<string, string>();
 
+// Expose rooms to admin API routes via globalThis (avoids ESM/CJS boundary issues).
+// rooms-registry.ts reads from this same key using getRoomsSnapshot().
+(globalThis as Record<string, unknown>)['__partyGamesRoomsProvider__'] = () =>
+  Array.from(rooms.values()).map((room) => ({
+    code: room.code,
+    status: room.status,
+    currentGame: room.currentGame,
+    playerCount: room.players.size,
+    players: Array.from(room.players.values()).map((p) => ({
+      nickname: p.nickname,
+      isHost: p.isHost,
+      isConnected: p.isConnected,
+    })),
+    createdAt: room.createdAt,
+  }));
+
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';

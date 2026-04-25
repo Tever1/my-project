@@ -23,6 +23,7 @@ interface CrocodileGameState {
   timeLeft: number;
   scores: Record<string, number>;
   wordsGuessed: number;
+  wordsSkipped: number;
   playersOrder: string[];          // player ids in turn order
   completedExplainers: string[];   // ids of players who already explained
   usedWordIndices: number[];       // track used words to avoid repeats
@@ -39,7 +40,6 @@ function pickRandomWordIndex(usedIndices: number[]): number {
     (i) => !usedIndices.includes(i),
   );
   if (available.length === 0) {
-    // All words used -- reset pool
     return Math.floor(Math.random() * CROCODILE_WORDS.length);
   }
   return available[Math.floor(Math.random() * available.length)];
@@ -63,7 +63,7 @@ export default function CrocodilePage() {
   const router = useRouter();
   const { emit, on } = useSocket();
   const { user } = useAuth();
-  const { t, locale } = useTranslation();
+  const { locale } = useTranslation();
 
   // Room players (from room:state)
   const [players, setPlayers] = useState<Player[]>([]);
@@ -71,10 +71,6 @@ export default function CrocodilePage() {
 
   // Game state (host is source of truth, broadcasts to all)
   const [gameState, setGameState] = useState<CrocodileGameState | null>(null);
-
-  // Guesser UI state
-  const [guessInput, setGuessInput] = useState('');
-  const [guessFlash, setGuessFlash] = useState<'none' | 'correct' | 'wrong'>('none');
 
   // Timer ref for host-side countdown
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -137,7 +133,6 @@ export default function CrocodilePage() {
         switch (action) {
           case 'croc:state':
             setGameState(payload);
-            setGuessInput('');
             break;
           case 'croc:tick':
             setGameState((prev) =>
@@ -145,10 +140,6 @@ export default function CrocodilePage() {
                 ? { ...prev, timeLeft: (payload as unknown as { timeLeft: number }).timeLeft }
                 : prev,
             );
-            break;
-          case 'croc:correct':
-            setGuessFlash('correct');
-            setTimeout(() => setGuessFlash('none'), 800);
             break;
         }
       },
@@ -164,7 +155,6 @@ export default function CrocodilePage() {
   useEffect(() => {
     if (!isHost || !gameState || gameState.phase !== 'explaining') return;
 
-    // Clear any existing timer
     if (timerRef.current) clearInterval(timerRef.current);
 
     timerRef.current = setInterval(() => {
@@ -172,13 +162,10 @@ export default function CrocodilePage() {
         if (!prev || prev.phase !== 'explaining') return prev;
         const newTime = prev.timeLeft - 1;
 
-        // Broadcast tick to keep others in sync
         broadcast('croc:tick', { timeLeft: Math.max(newTime, 0) });
 
         if (newTime <= 0) {
-          // Time is up -- advance to next explainer
           if (timerRef.current) clearInterval(timerRef.current);
-          // Use setTimeout to avoid setState-in-setState
           setTimeout(() => advanceToNextExplainer(prev), 0);
           return { ...prev, timeLeft: 0 };
         }
@@ -210,6 +197,7 @@ export default function CrocodilePage() {
       timeLeft: TURN_DURATION,
       scores: Object.fromEntries(players.map((p) => [p.id, 0])),
       wordsGuessed: 0,
+      wordsSkipped: 0,
       playersOrder: order,
       completedExplainers: [],
       usedWordIndices: [firstWordIdx],
@@ -227,7 +215,6 @@ export default function CrocodilePage() {
     (prev: CrocodileGameState) => {
       const newCompleted = [...prev.completedExplainers, prev.explainerId];
 
-      // Check if all players have explained
       if (newCompleted.length >= prev.playersOrder.length) {
         const finished: CrocodileGameState = {
           ...prev,
@@ -252,6 +239,7 @@ export default function CrocodilePage() {
         currentWordIndex: nextWordIdx,
         timeLeft: TURN_DURATION,
         wordsGuessed: 0,
+        wordsSkipped: 0,
         completedExplainers: newCompleted,
         usedWordIndices: [...prev.usedWordIndices, nextWordIdx],
       };
@@ -263,7 +251,7 @@ export default function CrocodilePage() {
   );
 
   // ------------------------------------------------------------------
-  // Host: explainer pressed "guessed" button (no scoring, just advance)
+  // Host: explainer pressed "Угадали!" — award +1 to explainer, next word
   // ------------------------------------------------------------------
 
   const handleGuessed = useCallback(() => {
@@ -274,6 +262,10 @@ export default function CrocodilePage() {
       ...gameState,
       currentWordIndex: nextWordIdx,
       wordsGuessed: gameState.wordsGuessed + 1,
+      scores: {
+        ...gameState.scores,
+        [gameState.explainerId]: (gameState.scores[gameState.explainerId] ?? 0) + 1,
+      },
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
     };
 
@@ -282,34 +274,7 @@ export default function CrocodilePage() {
   }, [isHost, gameState, broadcast]);
 
   // ------------------------------------------------------------------
-  // Host: correct guess submitted by a non-explainer player
-  // ------------------------------------------------------------------
-
-  const handleCorrectGuess = useCallback(
-    (guesserId: string) => {
-      if (!isHost || !gameState || gameState.phase !== 'explaining') return;
-
-      const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
-      const updated: CrocodileGameState = {
-        ...gameState,
-        currentWordIndex: nextWordIdx,
-        wordsGuessed: gameState.wordsGuessed + 1,
-        scores: {
-          ...gameState.scores,
-          [guesserId]: (gameState.scores[guesserId] ?? 0) + 1,
-        },
-        usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
-      };
-
-      setGameState(updated);
-      broadcast('croc:state', updated);
-      broadcast('croc:correct', { guesserId });
-    },
-    [isHost, gameState, broadcast],
-  );
-
-  // ------------------------------------------------------------------
-  // Host: skip word (no penalty, just next word)
+  // Host: explainer pressed "Пропустить" — skip word, no points
   // ------------------------------------------------------------------
 
   const handleSkip = useCallback(() => {
@@ -319,6 +284,7 @@ export default function CrocodilePage() {
     const updated: CrocodileGameState = {
       ...gameState,
       currentWordIndex: nextWordIdx,
+      wordsSkipped: gameState.wordsSkipped + 1,
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
     };
 
@@ -327,7 +293,7 @@ export default function CrocodilePage() {
   }, [isHost, gameState, broadcast]);
 
   // ------------------------------------------------------------------
-  // Explainer presses Guessed / Skip (emit to host)
+  // Explainer presses Guessed / Skip (emit to host if not host)
   // ------------------------------------------------------------------
 
   const emitAction = useCallback(
@@ -337,38 +303,11 @@ export default function CrocodilePage() {
     [emit, roomId],
   );
 
-  // ------------------------------------------------------------------
-  // Guesser: submit a guess attempt
-  // ------------------------------------------------------------------
-
-  const submitGuess = useCallback(() => {
-    const text = guessInput.trim();
-    if (!text || !gameState || gameState.phase !== 'explaining' || isExplainer) return;
-
-    if (isHost && currentWord) {
-      // Host handles locally
-      const target = (locale === 'ru' ? currentWord.ru : currentWord.en).trim().toLowerCase();
-      if (text.toLowerCase() === target) {
-        handleCorrectGuess(myId);
-        setGuessInput('');
-        return;
-      }
-      setGuessFlash('wrong');
-      setTimeout(() => setGuessFlash('none'), 600);
-      setGuessInput('');
-      return;
-    }
-
-    // Non-host: send to host
-    emit('game:action', { code: roomId, action: 'croc:guess-attempt', payload: { text } });
-    setGuessInput('');
-  }, [guessInput, gameState, isExplainer, isHost, currentWord, locale, handleCorrectGuess, myId, emit, roomId]);
-
   // Non-host explainer actions -> host listens
   useEffect(() => {
     if (!isHost) return;
     const cleanup = on('game:action', (data: unknown) => {
-      const { action, payload, from } = data as {
+      const { action } = data as {
         action: string;
         payload: Record<string, unknown>;
         from: string;
@@ -379,16 +318,9 @@ export default function CrocodilePage() {
         if (timerRef.current) clearInterval(timerRef.current);
         advanceToNextExplainer(gameState);
       }
-      if (action === 'croc:guess-attempt' && gameState && currentWord) {
-        const guess = String(payload.text ?? '').trim().toLowerCase();
-        const target = (locale === 'ru' ? currentWord.ru : currentWord.en).trim().toLowerCase();
-        if (guess && guess === target && from !== gameState.explainerId) {
-          handleCorrectGuess(from);
-        }
-      }
     });
     return cleanup;
-  }, [isHost, on, handleGuessed, handleSkip, advanceToNextExplainer, gameState, currentWord, locale, handleCorrectGuess]);
+  }, [isHost, on, handleGuessed, handleSkip, advanceToNextExplainer, gameState]);
 
   // ------------------------------------------------------------------
   // Host: end game manually
@@ -444,8 +376,8 @@ export default function CrocodilePage() {
               style={{ color: 'var(--text-secondary)' }}
             >
               {locale === 'ru'
-                ? 'Объясняйте слова, не называя их! У каждого будет 60 секунд.'
-                : 'Explain words without saying them! Each player gets 60 seconds.'}
+                ? 'Объясняйте слова, не называя их! У каждого будет 60 секунд. Очки получает тот, кто объясняет.'
+                : 'Explain words without saying them! Each player gets 60 seconds. Points go to the explainer.'}
             </p>
 
             <div className="mb-4">
@@ -515,25 +447,25 @@ export default function CrocodilePage() {
             </div>
           </div>
 
-          {/* Explainer name */}
+          {/* Explainer name + stats */}
           <GlassCard className="w-full max-w-md p-4 text-center">
             <p
               className="text-lg font-bold"
               style={{ color: 'var(--text-primary)' }}
             >
-              {currentExplainer?.nickname ?? '...'}
+              🎤 {currentExplainer?.nickname ?? '...'}
             </p>
             <p
               className="text-sm"
               style={{ color: 'var(--text-secondary)' }}
             >
               {locale === 'ru'
-                ? `Угадано слов: ${gameState.wordsGuessed}`
-                : `Words guessed: ${gameState.wordsGuessed}`}
+                ? `✅ Угадано: ${gameState.wordsGuessed}  ❌ Пропущено: ${gameState.wordsSkipped}`
+                : `✅ Guessed: ${gameState.wordsGuessed}  ❌ Skipped: ${gameState.wordsSkipped}`}
             </p>
           </GlassCard>
 
-          {/* Word card -- only visible to explainer */}
+          {/* Word card — only visible to explainer */}
           {isExplainer && currentWord ? (
             <GlassCard className="w-full max-w-md p-8 text-center">
               <p
@@ -550,56 +482,27 @@ export default function CrocodilePage() {
               </p>
             </GlassCard>
           ) : (
-            <GlassCard className={`w-full max-w-md p-6 text-center transition-all ${
-              guessFlash === 'correct' ? 'outline outline-2 outline-green-400' :
-              guessFlash === 'wrong' ? 'outline outline-2 outline-red-400' : ''
-            }`}>
+            /* Non-explainer: just listen and guess out loud */
+            <GlassCard className="w-full max-w-md p-8 text-center">
+              <p className="text-4xl mb-3">🗣️</p>
               <p
-                className="text-base mb-3"
+                className="text-lg font-semibold"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                {locale === 'ru' ? 'Угадывайте вслух!' : 'Guess out loud!'}
+              </p>
+              <p
+                className="text-sm mt-2"
                 style={{ color: 'var(--text-secondary)' }}
               >
                 {locale === 'ru'
-                  ? 'Введите ваш ответ:'
-                  : 'Type your guess:'}
+                  ? `${currentExplainer?.nickname ?? '...'} объясняет слово`
+                  : `${currentExplainer?.nickname ?? '...'} is explaining`}
               </p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  submitGuess();
-                }}
-                className="flex gap-2"
-              >
-                <input
-                  type="text"
-                  value={guessInput}
-                  onChange={(e) => setGuessInput(e.target.value)}
-                  placeholder={locale === 'ru' ? 'Ваше слово...' : 'Your word...'}
-                  className="flex-1 px-4 py-3 rounded-xl bg-white/10 text-white placeholder-white/30 border border-white/20 focus:outline-none focus:border-purple-400 text-lg"
-                  autoFocus
-                />
-                <GlassButton
-                  variant="primary"
-                  size="md"
-                  type="submit"
-                  disabled={!guessInput.trim()}
-                >
-                  {locale === 'ru' ? '→' : '→'}
-                </GlassButton>
-              </form>
-              {guessFlash === 'correct' && (
-                <p className="text-green-400 text-sm mt-2">
-                  {locale === 'ru' ? '✓ Правильно!' : '✓ Correct!'}
-                </p>
-              )}
-              {guessFlash === 'wrong' && (
-                <p className="text-red-400 text-sm mt-2">
-                  {locale === 'ru' ? '✗ Неверно' : '✗ Wrong'}
-                </p>
-              )}
             </GlassCard>
           )}
 
-          {/* Action buttons */}
+          {/* Action buttons — only for explainer */}
           {isExplainer && (
             <div className="w-full max-w-md flex gap-3">
               <GlassButton
@@ -683,7 +586,6 @@ export default function CrocodilePage() {
       {/* ---- FINISHED ---- */}
       {gameState?.phase === 'finished' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          {/* GameLayout showScoreboard handles the overlay, but we add a restart option */}
           {isHost && (
             <GlassButton
               variant="primary"

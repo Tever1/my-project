@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 // IMPORTANT: Change this to your server's IP address
 // When running on your local network, use your Mac's IP (e.g., 192.168.1.X)
 // When deployed, use your server's public URL
-export const SERVER_URL = 'http://192.168.1.100:3000';
+export const SERVER_URL = 'http://192.168.0.64:3000';
 
 let socket: Socket | null = null;
 
