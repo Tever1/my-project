@@ -343,7 +343,9 @@ export default function CrocodilePage() {
     : [];
 
   const currentRound = gameState
-    ? gameState.completedExplainers.length + 1
+    ? gameState.phase === 'finished'
+      ? gameState.playersOrder.length
+      : gameState.completedExplainers.length + 1
     : 0;
   const totalRounds = gameState ? gameState.playersOrder.length : players.length;
 
@@ -586,6 +588,23 @@ export default function CrocodilePage() {
       {/* ---- FINISHED ---- */}
       {gameState?.phase === 'finished' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          {!isHost && (
+            <GlassCard className="w-full max-w-md p-6 text-center">
+              <p className="text-4xl mb-3">🏆</p>
+              <p
+                className="text-lg font-semibold mb-1"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                {locale === 'ru' ? 'Игра окончена!' : 'Game over!'}
+              </p>
+              <p
+                className="text-sm"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {locale === 'ru' ? 'Ожидание хоста...' : 'Waiting for host...'}
+              </p>
+            </GlassCard>
+          )}
           {isHost && (
             <GlassButton
               variant="primary"
