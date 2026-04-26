@@ -171,8 +171,20 @@ export default function TVGamePage() {
   // Join TV room
   useEffect(() => {
     if (!isConnected) return;
-    emit('tv:join', { code: roomId }, () => {});
-  }, [isConnected, roomId, emit]);
+    emit('tv:join', { code: roomId }, () => {
+      // Request full game state only after the socket has joined the room,
+      // otherwise the h2o:sync response won't be delivered to this socket yet.
+      if (gameType === 'hundred-to-one') {
+        emit('game:action', { code: roomId, action: 'h2o:request-state', payload: {} });
+      } else if (gameType === 'crocodile') {
+        emit('game:action', { code: roomId, action: 'croc:request-state', payload: {} });
+      } else if (gameType === 'alias') {
+        emit('game:action', { code: roomId, action: 'alias:request-state', payload: {} });
+      } else if (gameType === 'quiz') {
+        emit('game:action', { code: roomId, action: 'quiz:request-state', payload: {} });
+      }
+    });
+  }, [isConnected, roomId, emit, gameType]);
 
   // Socket listeners
   useEffect(() => {
@@ -368,16 +380,8 @@ export default function TVGamePage() {
     });
 
     emit('room:get-state', { code: roomId });
-    // Request full game state so TV catches up if joining mid-game
-    if (gameType === 'hundred-to-one') {
-      emit('game:action', { code: roomId, action: 'h2o:request-state', payload: {} });
-    } else if (gameType === 'crocodile') {
-      emit('game:action', { code: roomId, action: 'croc:request-state', payload: {} });
-    } else if (gameType === 'alias') {
-      emit('game:action', { code: roomId, action: 'alias:request-state', payload: {} });
-    } else if (gameType === 'quiz') {
-      emit('game:action', { code: roomId, action: 'quiz:request-state', payload: {} });
-    }
+    // Note: game state request (h2o:request-state etc.) is sent in the tv:join
+    // callback above, after the socket has confirmed it joined the room.
 
     return () => {
       unsub1();
