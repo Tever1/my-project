@@ -71,11 +71,14 @@ export default function CrocodilePage() {
 
   // Game state (host is source of truth, broadcasts to all)
   const [gameState, setGameState] = useState<CrocodileGameState | null>(null);
+  const gameStateRef = useRef<CrocodileGameState | null>(null);
+  const isHostRef = useRef(false);
 
   // Timer ref for host-side countdown
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isHost = user?.id === hostId;
+  isHostRef.current = isHost;
   const myId = user?.id ?? '';
 
   // ------------------------------------------------------------------
@@ -133,13 +136,22 @@ export default function CrocodilePage() {
         switch (action) {
           case 'croc:state':
             setGameState(payload);
+            gameStateRef.current = payload;
             break;
           case 'croc:tick':
-            setGameState((prev) =>
-              prev
+            setGameState((prev) => {
+              const next = prev
                 ? { ...prev, timeLeft: (payload as unknown as { timeLeft: number }).timeLeft }
-                : prev,
-            );
+                : prev;
+              gameStateRef.current = next;
+              return next;
+            });
+            break;
+          case 'croc:request-state':
+            // TV joined mid-game — host re-broadcasts current state
+            if (isHostRef.current && gameStateRef.current) {
+              emit('game:action', { code: roomId, action: 'croc:state', payload: gameStateRef.current });
+            }
             break;
         }
       },

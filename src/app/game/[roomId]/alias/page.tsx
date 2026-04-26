@@ -90,10 +90,12 @@ export default function AliasPage() {
   const [gameState, setGameState] = useState<AliasGameState | null>(null);
   const [selectedMode, setSelectedMode] = useState<AliasMode | null>(null);
 
-
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const gameStateRef = useRef<AliasGameState | null>(null);
+  const isHostRef = useRef(false);
 
   const isHost = user?.id === hostId;
+  isHostRef.current = isHost;
   const myId = user?.id ?? '';
 
   // Derived
@@ -154,13 +156,22 @@ export default function AliasPage() {
       switch (action) {
         case 'alias:state':
           setGameState(payload);
+          gameStateRef.current = payload;
           break;
         case 'alias:tick':
-          setGameState((prev) =>
-            prev
+          setGameState((prev) => {
+            const next = prev
               ? { ...prev, timeLeft: (payload as unknown as { timeLeft: number }).timeLeft }
-              : prev,
-          );
+              : prev;
+            gameStateRef.current = next;
+            return next;
+          });
+          break;
+        case 'alias:request-state':
+          // TV joined mid-game — host re-broadcasts current state
+          if (isHostRef.current && gameStateRef.current) {
+            emit('game:action', { code: roomId, action: 'alias:state', payload: gameStateRef.current });
+          }
           break;
       }
     });

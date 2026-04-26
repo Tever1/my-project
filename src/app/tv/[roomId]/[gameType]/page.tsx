@@ -368,9 +368,15 @@ export default function TVGamePage() {
     });
 
     emit('room:get-state', { code: roomId });
-    // Request full 100к1 state so TV catches up if joining late
+    // Request full game state so TV catches up if joining mid-game
     if (gameType === 'hundred-to-one') {
       emit('game:action', { code: roomId, action: 'h2o:request-state', payload: {} });
+    } else if (gameType === 'crocodile') {
+      emit('game:action', { code: roomId, action: 'croc:request-state', payload: {} });
+    } else if (gameType === 'alias') {
+      emit('game:action', { code: roomId, action: 'alias:request-state', payload: {} });
+    } else if (gameType === 'quiz') {
+      emit('game:action', { code: roomId, action: 'quiz:request-state', payload: {} });
     }
 
     return () => {
@@ -986,8 +992,10 @@ export default function TVGamePage() {
   // ===================== CROCODILE TV RENDER =====================
   if (gameType === 'crocodile') {
     const explainerName = getPlayerName(crocState.explainerId);
-    const currentRound = crocState.completedExplainers.length + 1;
     const totalRounds = crocState.playersOrder.length || players.length;
+    const currentRound = crocState.phase === 'finished'
+      ? totalRounds
+      : crocState.completedExplainers.length + 1;
     const sortedScores = Object.entries(crocState.scores)
       .map(([id, score]) => ({ id, name: getPlayerName(id), score }))
       .sort((a, b) => b.score - a.score);

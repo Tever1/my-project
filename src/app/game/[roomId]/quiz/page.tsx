@@ -87,6 +87,8 @@ export default function QuizPage() {
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const gameStateRef = useRef<QuizGameState>(INITIAL_STATE);
+  const isHostRef = useRef(false);
 
   const { tick: timerTick, stop: stopTimerSound, warmup: warmupSound } = useTimerSound();
 
@@ -95,6 +97,8 @@ export default function QuizPage() {
   const shownIdsRef = useRef<Set<string>>(new Set());
 
   const isHost = gameState.players.find((p) => p.id === user?.id)?.isHost ?? false;
+  isHostRef.current = isHost;
+  gameStateRef.current = gameState;
   const myAnswer = user ? gameState.answers[user.id] : undefined;
   const totalPlayers = gameState.players.length;
   const answeredCount = Object.keys(gameState.answers).length;
@@ -187,6 +191,13 @@ export default function QuizPage() {
 
         case 'quiz:final':
           setGameState((prev) => ({ ...prev, phase: 'final' }));
+          break;
+
+        case 'quiz:request-state':
+          // TV joined mid-game — host re-broadcasts current state
+          if (isHostRef.current) {
+            emit('game:action', { code: roomId, action: 'quiz:sync', payload: gameStateRef.current as unknown as Record<string, unknown> });
+          }
           break;
       }
     });
