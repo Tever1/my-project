@@ -223,10 +223,9 @@ export default function MafiaPage() {
           break;
 
         case 'detective-check':
-          // Accumulate on host so handleResolveNight knows what was checked
-          if (isHost) {
-            setGs((prev) => ({ ...prev, detectiveCheck: payload.targetId }));
-          }
+          // All clients store this so host has it for resolve night;
+          // detective already set it locally in handleDetectiveCheck
+          setGs((prev) => ({ ...prev, detectiveCheck: payload.targetId }));
           break;
 
         case 'doctor-save':
@@ -280,10 +279,6 @@ export default function MafiaPage() {
 
         case 'start-voting':
           setGs((prev) => ({ ...prev, phase: 'voting', votes: {} }));
-          break;
-
-        case 'cast-vote':
-          // Handled by host via sync-state
           break;
 
         case 'eliminate':
