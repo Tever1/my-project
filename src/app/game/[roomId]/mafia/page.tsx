@@ -308,7 +308,7 @@ export default function MafiaPage() {
       }
     });
     return cleanup;
-  }, [on]);
+  }, [on, isHost, user]);
 
   // -----------------------------------------------------------------------
   // Day timer
