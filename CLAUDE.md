@@ -262,7 +262,7 @@ script просто возьмёт её как есть и обернёт в с�
 | Шпион | 8/10 | ✅ Ship-ready |
 | Кто я? | 8/10 | ✅ Ship-ready |
 | Крокодил | 9/10 | ✅ Ship-ready (P1+P2 исправлены) |
-| 100 к 1 | 9/10 | ✅ Ship-ready (1×P2 TV bug) |
+| 100 к 1 | 9/10 | ✅ Ship-ready |
 | Мафия | 9/10 | ✅ Ship-ready (все P0 исправлены + TV улучшен) |
 
 ### Полный реестр багов
@@ -336,9 +336,9 @@ script просто возьмёт её как есть и обернёт в с�
 
 | # | Компонент | Баг | Серьёзность |
 |---|-----------|-----|-------------|
-| 13 | 100 к 1 TV | Начальное состояние TV показывает default имена команд ("Команда 1/2") и 0 очков при подключении к идущей игре. `h2o:request-state` отправляется до того, как TV socket присоединился к socket.io room (`tv:join` async race). Фиксируется само при первом broadcast от хоста. | P2 |
+| 13 | 100 к 1 TV | Начальное состояние TV показывает default имена команд ("Команда 1/2") и 0 очков при подключении к идущей игре. `h2o:request-state` отправляется до того, как TV socket присоединился к socket.io room (`tv:join` async race). Фиксируется само при первом broadcast от хоста. | P2 ✅ FIXED `f17efda` |
 
-**Fix для P2 бага:** в TV page (`src/app/tv/[roomId]/[gameType]/page.tsx`) переместить `emit('h2o:request-state')` в callback от `emit('tv:join', ..., callback)`, а не в useEffect того же рендер-цикла.
+**Fix:** перемещены все `request-state` emit'ы (`h2o:request-state`, `croc:request-state`, `alias:request-state`, `quiz:request-state`) из отдельного useEffect в callback от `emit('tv:join', ..., callback)` — гарантирует что socket уже в комнате перед запросом состояния. Файл: `src/app/tv/[roomId]/[gameType]/page.tsx`, коммит `f17efda`.
 
 ### Технические находки (100 к 1 QA)
 - `nativeInputValueSetter` + `dispatchEvent('input')` + `KeyboardEvent('keydown', {key:'Enter'})` корректно триггерит React onChange и onKeyDown для bigGame answer input
