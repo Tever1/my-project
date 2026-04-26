@@ -227,7 +227,10 @@ script просто возьмёт её как есть и обернёт в с�
    - Коммит `10bd715`: broadcast() всегда ставит action:'mafia', добавлен `cast-vote` для дневного голосования, детектив-result доставляется только детективу.
    - Коммит `0c2fb54`: **stale closure fix** — `useEffect` dep array `[on]` → `[on, isHost, user]`. Handler захватывал `isHost=false` при монте и никогда не обновлялся. Исправлено путём добавления `isHost` и `user` в deps.
    - **QA подтверждено** в production mode (6 игроков): `mafiaVotes` получает оба голоса мафии, `doctorSave` работает, ночь резолвится правильно («Доктор спас жертву! Никто не погиб.»).
-   - Остаётся: `detectiveCheck: null` на хосте (мелкий баг, не блокирует игру т.к. детектив видит результат у себя).
+- [x] **`detectiveCheck` на хосте исправлен** (коммит `1d0425b`, сессия 2026-04-25):
+   - Убран `if (isHost)` guard из `case 'detective-check'` — теперь все клиенты сохраняют значение, хост получает его для `handleResolveNight`.
+   - Удалён дублирующий мёртвый `case 'cast-vote'` (lines 285-287).
+   - **QA подтверждено** в production mode: `detectiveCheck: "user_kolya_qa"` появился на fiber-стейте хоста сразу после хода детектива, ночь резолвится корректно.
 4. ⬜ Создать отдельные наборы тематических вопросов
    (`src/lib/quiz/themed/harry-potter.ts`, `marvel.ts`) и заменить fallback
    в `getSpecialQuizQuestions`.
@@ -263,7 +266,7 @@ script просто возьмёт её как есть и обернёт в с�
 | 4 | TV (все) | Не подхватывает текущее состояние при подключении mid-turn | P2 |
 | 5 | Сервер | `room.hostId` ≠ `player.isHost` после реконнектов (lobby vs game расхождение) | P1 |
 | 6 | Мафия | Silent socket emit при дисконнекте (`use-socket.ts:32` — `if (!connected) return`) | P0 |
-| 7 | Мафия | Detective check result никогда не доставляется — `gs.detectiveCheck` null на host | P0 |
+| 7 | Мафия | Detective check result никогда не доставляется — `gs.detectiveCheck` null на host | P0 ✅ FIXED `1d0425b` |
 | 8 | Мафия | Голоса Мафии не синхронизируются с host — считается только голос самого host'а | P0 |
 | 9 | Мафия | Дневное голосование сломано — `mafia-day-vote` не проходит фильтр `action !== 'mafia'` | P0 |
 | 10 | Мафия TV | TV показывает статичное "Игра идёт" всю игру, фазы не обновляются | P2 |
