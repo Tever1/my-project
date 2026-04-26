@@ -117,16 +117,19 @@ export function setupSocketHandlers(io: SocketIOServer) {
         callback({ success: false, error: 'Room not found' });
         return;
       }
-      if (room.players.size >= room.maxPlayers) {
-        callback({ success: false, error: 'Room is full' });
-        return;
-      }
-      if (room.status === 'in-game') {
+
+      const existingPlayer = room.players.get(data.playerId);
+
+      // Allow existing players to reconnect even mid-game; block only new players
+      if (room.status === 'in-game' && !existingPlayer) {
         callback({ success: false, error: 'Game already in progress' });
         return;
       }
+      if (room.players.size >= room.maxPlayers && !existingPlayer) {
+        callback({ success: false, error: 'Room is full' });
+        return;
+      }
 
-      const existingPlayer = room.players.get(data.playerId);
       if (existingPlayer) {
         existingPlayer.socketId = socket.id;
         existingPlayer.isConnected = true;
