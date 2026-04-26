@@ -127,9 +127,11 @@ export default function TVGamePage() {
   const [spyState, setSpyState] = useState<{
     phase: string; mode: string; word: string; spyId: string; drawerId: string;
     playerOrder: string[]; playerOrderIdx: number; timerLeft: number; timerRunning: boolean;
+    players: { id: string; nickname: string }[];
   }>({
     phase: 'modeSelect', mode: 'guess', word: '', spyId: '', drawerId: '',
     playerOrder: [], playerOrderIdx: 0, timerLeft: 300, timerRunning: false,
+    players: [],
   });
   const spyCanvasRef = useRef<HTMLCanvasElement>(null);
   const spyCanvasSizeRef = useRef({ w: 0, h: 0 });
@@ -151,6 +153,14 @@ export default function TVGamePage() {
     currentWordIndex: -1, timeLeft: 60, wordsGuessed: 0, wordsSkipped: 0,
     round: 1, totalRounds: 4, turnHistory: [], currentLetter: '',
   });
+  const [mafiaState, setMafiaState] = useState<{
+    phase: string;
+    alive: string[];   // player IDs currently alive
+    eliminated: { id: string }[];
+    lastEvent: string; // human-readable last event
+    winner: string | null;
+    round: number;
+  }>({ phase: 'lobby', alive: [], eliminated: [], lastEvent: '', winner: null, round: 1 });
 
   const gameInfo = GAMES.find((g) => g.id === gameType);
   const gameTitle = gameInfo
@@ -287,6 +297,65 @@ export default function TVGamePage() {
           }
           case 'quiz:final':
             setQuizState((prev) => ({ ...prev, phase: 'final' }));
+            break;
+        }
+      }
+
+      if (action === 'mafia') {
+        const mp = payload as { type: string; roles?: Record<string, string>; killedId?: string | null; saved?: boolean; playerId?: string; winner?: string; round?: number };
+        switch (mp.type) {
+          case 'assign-roles':
+            setMafiaState(prev => ({
+              ...prev,
+              phase: 'role-reveal',
+              alive: Object.keys(mp.roles ?? {}),
+              eliminated: [],
+              lastEvent: locale === 'ru' ? '🎭 Роли розданы' : '🎭 Roles assigned',
+              winner: null,
+            }));
+            break;
+          case 'start-night':
+            setMafiaState(prev => ({
+              ...prev,
+              phase: 'night',
+              lastEvent: locale === 'ru' ? '🌙 Ночь наступила...' : '🌙 Night falls...',
+            }));
+            break;
+          case 'night-result': {
+            const killed = mp.killedId ?? null;
+            const saved = mp.saved ?? false;
+            setMafiaState(prev => ({
+              ...prev,
+              lastEvent: killed && !saved
+                ? (locale === 'ru' ? '💀 Ночью кто-то погиб' : '💀 Someone died last night')
+                : (locale === 'ru' ? '🛡️ Доктор спас жертву!' : '🛡️ Doctor saved the victim!'),
+            }));
+            break;
+          }
+          case 'start-voting':
+            setMafiaState(prev => ({
+              ...prev,
+              phase: 'day',
+              lastEvent: locale === 'ru' ? '🗳️ Голосование' : '🗳️ Voting',
+            }));
+            break;
+          case 'eliminate':
+            setMafiaState(prev => ({
+              ...prev,
+              alive: prev.alive.filter(id => id !== mp.playerId),
+              eliminated: [...prev.eliminated, { id: mp.playerId! }],
+              lastEvent: locale === 'ru' ? '⚖️ Игрок исключён' : '⚖️ Player eliminated',
+            }));
+            break;
+          case 'game-over':
+            setMafiaState(prev => ({
+              ...prev,
+              phase: 'results',
+              winner: mp.winner ?? null,
+              lastEvent: mp.winner === 'mafia'
+                ? (locale === 'ru' ? '🔫 Мафия победила!' : '🔫 Mafia wins!')
+                : (locale === 'ru' ? '🎉 Мирные победили!' : '🎉 Citizens win!'),
+            }));
             break;
         }
       }
@@ -799,10 +868,14 @@ export default function TVGamePage() {
   // ===================== SPY TV RENDER =====================
   if (gameType === 'spy') {
     const sp = spyState;
+    // Use sp.players (from spy:sync payload) for lookups — more reliable than outer
+    // `players` which depends on room:state arriving before the first spy:sync.
+    const spyPlayerList = sp.players.length > 0 ? sp.players : players;
+    const spyGetName = (id: string) => spyPlayerList.find(p => p.id === id)?.nickname ?? id;
     const spyActivePlayerId = sp.playerOrder.length > 0
       ? sp.playerOrder[sp.playerOrderIdx % sp.playerOrder.length]
       : sp.drawerId;
-    const spyActivePlayerName = players.find(p => p.id === spyActivePlayerId)?.nickname || '???';
+    const spyActivePlayerName = spyGetName(spyActivePlayerId) || '???';
 
     const spyTimerColor = sp.timerLeft <= 30 && sp.timerRunning ? 'text-red-400'
       : sp.timerLeft <= 60 ? 'text-amber-400'
@@ -875,7 +948,7 @@ export default function TVGamePage() {
               {sp.playerOrder.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-center">
                   {sp.playerOrder.map((id, i) => {
-                    const name = players.find(p => p.id === id)?.nickname ?? id;
+                    const name = spyGetName(id);
                     const isActive = i === sp.playerOrderIdx % sp.playerOrder.length;
                     return (
                       <span key={id} className={`px-4 py-1.5 rounded-full text-lg border transition-all ${
@@ -1253,6 +1326,84 @@ export default function TVGamePage() {
                 ))}
               </div>
             </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ===================== MAFIA TV RENDER =====================
+  if (gameType === 'mafia') {
+    const ms = mafiaState;
+    const phaseLabel = ms.phase === 'night'
+      ? (locale === 'ru' ? '🌙 Ночь' : '🌙 Night')
+      : ms.phase === 'day'
+      ? (locale === 'ru' ? '☀️ День — Голосование' : '☀️ Day — Voting')
+      : ms.phase === 'role-reveal'
+      ? (locale === 'ru' ? '🎭 Роли розданы' : '🎭 Roles assigned')
+      : ms.phase === 'results'
+      ? (locale === 'ru' ? '🏁 Игра окончена' : '🏁 Game over')
+      : (locale === 'ru' ? '⏳ Ожидание...' : '⏳ Waiting...');
+
+    const alivePlayers = ms.alive.length > 0
+      ? ms.alive.map(id => players.find(p => p.id === id)?.nickname ?? id)
+      : players.map(p => p.nickname);
+
+    return (
+      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <span className="text-4xl">🕵️</span>
+            <h1 className="text-3xl font-bold">{locale === 'ru' ? 'Мафия' : 'Mafia'}</h1>
+            <span className="glass-badge px-3 py-1 text-sm">{phaseLabel}</span>
+          </div>
+          <span className="text-white/50 text-lg">
+            {locale === 'ru' ? `В живых: ${alivePlayers.length}` : `Alive: ${alivePlayers.length}`}
+          </span>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
+          {/* Last event banner */}
+          {ms.lastEvent && (
+            <div className="glass-card px-10 py-5 text-center border-white/20">
+              <p className="text-3xl font-bold">{ms.lastEvent}</p>
+            </div>
+          )}
+
+          {/* Winner announcement */}
+          {ms.winner && (
+            <div className={`glass-card px-12 py-8 text-center ${ms.winner === 'mafia' ? 'border-red-400/40 bg-red-500/10' : 'border-green-400/40 bg-green-500/10'}`}>
+              <p className="text-7xl mb-4">{ms.winner === 'mafia' ? '🔫' : '🎉'}</p>
+              <p className="text-4xl font-bold">
+                {ms.winner === 'mafia'
+                  ? (locale === 'ru' ? 'Мафия победила!' : 'Mafia wins!')
+                  : (locale === 'ru' ? 'Мирные победили!' : 'Citizens win!')}
+              </p>
+            </div>
+          )}
+
+          {/* Alive players grid */}
+          {alivePlayers.length > 0 && !ms.winner && (
+            <div className="flex flex-wrap gap-3 justify-center">
+              {alivePlayers.map((name, i) => (
+                <div key={i} className="glass-card px-6 py-3 flex items-center gap-2">
+                  <span className="text-green-400">●</span>
+                  <span className="text-xl">{name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Phase instructions */}
+          {!ms.winner && (
+            <p className="text-white/40 text-lg">
+              {ms.phase === 'night'
+                ? (locale === 'ru' ? 'Закройте глаза — мафия действует' : 'Close your eyes — mafia is acting')
+                : ms.phase === 'day'
+                ? (locale === 'ru' ? 'Обсуждайте и голосуйте!' : 'Discuss and vote!')
+                : (locale === 'ru' ? 'Смотрите на телефоны' : 'Check your phones')}
+            </p>
           )}
         </div>
       </div>

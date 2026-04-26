@@ -285,6 +285,8 @@ export default function WhoAmIPage() {
 
   const handleEndGame = () => {
     broadcast({ type: 'end-game' });
+    // Tell the server the game is over — this triggers 'game:ended' on TV and all clients
+    emit('game:end', { code: roomId });
   };
 
   // -----------------------------------------------------------------------

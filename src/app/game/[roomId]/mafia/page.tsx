@@ -138,6 +138,8 @@ export default function MafiaPage() {
   const [roleRevealed, setRoleRevealed] = useState(false);
   const [nightActionDone, setNightActionDone] = useState(false);
   const [dayTimerValue, setDayTimerValue] = useState(60);
+  // Cache of id→nickname that only grows — survives player disconnection
+  const nicknameCacheRef = useRef<Record<string, string>>({});
 
   const isHost = players.find((p) => p.isHost)?.id === user?.id;
   const myRole = user ? gs.roles[user.id] : undefined;
@@ -145,7 +147,7 @@ export default function MafiaPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playerName = useCallback(
-    (id: string) => players.find((p) => p.id === id)?.nickname ?? id,
+    (id: string) => nicknameCacheRef.current[id] ?? players.find((p) => p.id === id)?.nickname ?? id,
     [players],
   );
 
@@ -165,7 +167,11 @@ export default function MafiaPage() {
   useEffect(() => {
     const cleanup = on('room:state', (data: unknown) => {
       const room = data as { players?: Player[] };
-      if (room.players) setPlayers(room.players);
+      if (room.players) {
+        // Populate cache — never evict so disconnected players keep their name
+        room.players.forEach(p => { nicknameCacheRef.current[p.id] = p.nickname; });
+        setPlayers(room.players);
+      }
     });
     emit('room:get-state', { code: roomId });
     return cleanup;
@@ -460,6 +466,8 @@ export default function MafiaPage() {
 
   const handleEndGame = () => {
     broadcast({ type: 'end-game' });
+    // Tell the server the game is over — this triggers 'game:ended' on TV and all clients
+    emit('game:end', { code: roomId });
   };
 
   // -----------------------------------------------------------------------
