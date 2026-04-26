@@ -51,3 +51,15 @@ graphify-out/
 
 # Claude Code hooks — pending marker (local only)
 .claude/pending-doc-update.md
+.gstack/
+
+# Local generated / tool files
+.claude-flow/
+.expo/
+.swarm/
+ruvector.db
+data/
+mobile/.expo/
+mobile/node_modules/
+mobile/package-lock.json
+*.html.tmp
