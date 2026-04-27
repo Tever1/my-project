@@ -46,11 +46,11 @@ const games: { id: GameId; ru: string }[] = [
 ];
 
 const springEntries: { name: keyof typeof spring; label: string }[] = [
-  { name: "soft", label: "soft (200/30) — luxe default" },
-  { name: "medium", label: "medium (280/28)" },
-  { name: "snappy", label: "snappy (400/30)" },
-  { name: "bouncy", label: "bouncy (350/18) — overshoot" },
-  { name: "stiff", label: "stiff (500/35)" },
+  { name: "soft", label: "мягкий (200/30) — премиум по умолчанию" },
+  { name: "medium", label: "средний (280/28) — отзывчивый" },
+  { name: "snappy", label: "быстрый (400/30) — кнопки" },
+  { name: "bouncy", label: "пружинистый (350/18) — с отскоком" },
+  { name: "stiff", label: "жёсткий (500/35) — мгновенный" },
 ];
 
 export default function DesignTokensPage() {
@@ -88,7 +88,7 @@ export default function DesignTokensPage() {
               marginBottom: 12,
             }}
           >
-            Phase A — Foundation
+            Фаза A — Фундамент
           </p>
           <h1
             style={{
@@ -99,7 +99,7 @@ export default function DesignTokensPage() {
               margin: 0,
             }}
           >
-            Design Tokens Preview
+            Превью дизайн-токенов
           </h1>
           <p
             style={{
@@ -116,30 +116,30 @@ export default function DesignTokensPage() {
         </motion.header>
 
         {/* Typography */}
-        <Section title="Typography — Geist" subtitle="Sans для UI, Mono для цифр">
+        <Section title="Типографика — Geist" subtitle="Sans для интерфейса, Mono для цифр">
           <GlassPanel>
             <div style={{ fontSize: 72, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1 }}>
               Aa Bb 123
             </div>
             <div style={{ marginTop: 24, display: "grid", gap: 12 }}>
-              <Row label="Display 56">
+              <Row label="Заголовок 56">
                 <span style={{ fontSize: 56, fontWeight: 700, letterSpacing: "-0.03em" }}>
                   Party Games Hub
                 </span>
               </Row>
-              <Row label="Heading 32">
+              <Row label="Подзаголовок 32">
                 <span style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-0.02em" }}>
                   Выбери игру
                 </span>
               </Row>
-              <Row label="Body 16">
+              <Row label="Текст 16">
                 <span style={{ fontSize: 16, color: "rgba(240, 238, 246, 0.85)" }}>
                   4 игрока готовы — нажми, чтобы начать
                 </span>
               </Row>
-              <Row label="Mono">
+              <Row label="Моно">
                 <span className="font-mono" style={{ fontSize: 32, color: "#c084fc" }}>
-                  03:24 · 1,250 pts
+                  03:24 · 1 250 очк
                 </span>
               </Row>
             </div>
@@ -148,8 +148,8 @@ export default function DesignTokensPage() {
 
         {/* Per-game palette */}
         <Section
-          title="Per-game palette"
-          subtitle="Каждая игра — свой акцент. Hover чтобы увидеть deep-вариант"
+          title="Палитра по играм"
+          subtitle="Каждая игра — свой акцент. Кликни, чтобы выбрать активную игру"
         >
           <motion.div
             variants={stagger}
@@ -216,7 +216,7 @@ export default function DesignTokensPage() {
         </Section>
 
         {/* Radius scale */}
-        <Section title="Radius scale" subtitle="iOS-26-style generous rounding">
+        <Section title="Шкала скруглений" subtitle="Щедрые радиусы в стиле iOS 26">
           <GlassPanel>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
               {Object.entries(radius)
@@ -243,7 +243,7 @@ export default function DesignTokensPage() {
 
         {/* Spring presets */}
         <Section
-          title="Spring presets"
+          title="Пружинная физика"
           subtitle="Кликни на пресет — карточка прыгнет с этой физикой"
         >
           <GlassPanel>
@@ -307,12 +307,12 @@ export default function DesignTokensPage() {
         </Section>
 
         {/* Motion variants in action */}
-        <Section title="Motion variants" subtitle="Готовые паттерны для импорта">
+        <Section title="Motion-варианты" subtitle="Готовые паттерны для импорта">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
             {[
-              { variant: scaleIn, label: "scaleIn", desc: "Modals, focus moments" },
-              { variant: pop, label: "pop", desc: "Score updates, celebrations" },
-              { variant: fadeInUp, label: "fadeInUp", desc: "Lists, cards (default)" },
+              { variant: scaleIn, label: "scaleIn", desc: "Модальные окна, появление в фокусе" },
+              { variant: pop, label: "pop", desc: "Изменение очков, празднование" },
+              { variant: fadeInUp, label: "fadeInUp", desc: "Списки, карточки (по умолчанию)" },
             ].map((m, i) => (
               <motion.div
                 key={`${m.label}-${popKey}-${i}`}
@@ -348,17 +348,17 @@ export default function DesignTokensPage() {
               cursor: "pointer",
             }}
           >
-            ↻ Replay animations
+            ↻ Повторить анимации
           </button>
         </Section>
 
         {/* Durations & Easings reference */}
-        <Section title="Durations & easings" subtitle="Reference table">
+        <Section title="Длительности и easings" subtitle="Справочная таблица">
           <GlassPanel>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
               <div>
                 <h4 style={{ margin: 0, marginBottom: 12, fontSize: 14, color: "#c084fc" }}>
-                  Durations
+                  Длительности
                 </h4>
                 <div style={{ display: "grid", gap: 8 }}>
                   {Object.entries(duration).map(([k, v]) => (
@@ -408,7 +408,7 @@ export default function DesignTokensPage() {
               marginBottom: 12,
             }}
           >
-            Phase B — Liquid Glass
+            Фаза B — Жидкое стекло
           </p>
           <h2
             style={{
@@ -419,7 +419,7 @@ export default function DesignTokensPage() {
               marginBottom: 8,
             }}
           >
-            Glass surfaces & components
+            Стеклянные поверхности и компоненты
           </h2>
           <p
             style={{
@@ -429,15 +429,15 @@ export default function DesignTokensPage() {
               marginBottom: 40,
             }}
           >
-            Reusable building blocks: panels, sheets, toasts. Composed onto
-            tokens from Phase A.
+            Переиспользуемые строительные блоки: панели, шторки, уведомления.
+            Собраны на токенах из Фазы A.
           </p>
         </div>
 
         {/* GlassPanel variants */}
         <Section
-          title="<GlassPanel> variants"
-          subtitle="Single component, 5 variants. Naveждай, чтобы увидеть intersactivity"
+          title="<GlassPanel> — варианты"
+          subtitle="Один компонент, 5 вариантов. Наведи курсор, чтобы увидеть отклик"
         >
           <div
             style={{
@@ -476,11 +476,11 @@ export default function DesignTokensPage() {
                       lineHeight: 1.4,
                     }}
                   >
-                    {v === "subtle" && "Quiet background, low blur"}
-                    {v === "card" && "Standard content panel"}
-                    {v === "floating" && "Popovers, dropdowns"}
-                    {v === "hero" && "Featured panels, deep shadow"}
-                    {v === "elevated" && "Modal-like, top of stack"}
+                    {v === "subtle" && "Тихий фон, слабое размытие"}
+                    {v === "card" && "Стандартная контентная панель"}
+                    {v === "floating" && "Поповеры, выпадающие меню"}
+                    {v === "hero" && "Главные панели, глубокая тень"}
+                    {v === "elevated" && "Модальные окна, верхний слой"}
                   </div>
                 </GlassPanel>
               ),
@@ -494,15 +494,15 @@ export default function DesignTokensPage() {
               fontStyle: "italic",
             }}
           >
-            Tip: borders glow with the active game accent — попробуй переключить
-            игру в палитре выше.
+            Подсказка: бордеры подсвечиваются цветом активной игры — попробуй
+            переключить игру в палитре выше.
           </p>
         </Section>
 
         {/* GlassSheet demos */}
         <Section
-          title="<GlassSheet> — drag-to-dismiss drawer"
-          subtitle="Built on vaul. Bottom sheet (iOS-style) + side drawer"
+          title="<GlassSheet> — шторка с drag-to-dismiss"
+          subtitle="На базе vaul. Нижняя шторка (iOS-стиль) + боковая шторка"
         >
           <GlassPanel variant="card" padding={24}>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -510,13 +510,13 @@ export default function DesignTokensPage() {
                 onClick={() => setSheetOpen(true)}
                 accent={gameColors[activeGame].accent}
               >
-                Open bottom sheet
+                Открыть нижнюю шторку
               </DemoButton>
               <DemoButton
                 onClick={() => setSideSheetOpen(true)}
                 accent={gameColors[activeGame].accent}
               >
-                Open side drawer →
+                Открыть боковую шторку →
               </DemoButton>
             </div>
             <p
@@ -527,16 +527,16 @@ export default function DesignTokensPage() {
                 lineHeight: 1.5,
               }}
             >
-              Bottom sheet: drag down or tap outside to close. Side drawer:
-              swipe right or tap outside.
+              Нижняя шторка: потяни вниз или кликни вне, чтобы закрыть.
+              Боковая шторка: свайп вправо или клик вне.
             </p>
           </GlassPanel>
         </Section>
 
         {/* Toast demos */}
         <Section
-          title="<GlassToaster> — sonner with glass styling"
-          subtitle="Toast notifications. Mount once, trigger anywhere"
+          title="<GlassToaster> — sonner со стеклянной стилизацией"
+          subtitle="Тост-уведомления. Подключи один раз, вызывай откуда угодно"
         >
           <GlassPanel variant="card" padding={24}>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -544,19 +544,19 @@ export default function DesignTokensPage() {
                 accent={gameColors[activeGame].accent}
                 onClick={() => toast("Игрок присоединился к комнате")}
               >
-                Default
+                Обычное
               </DemoButton>
               <DemoButton
                 accent="#22c55e"
                 onClick={() => toast.success("Победа! +250 очков")}
               >
-                Success
+                Успех
               </DemoButton>
               <DemoButton
                 accent="#ef4444"
                 onClick={() => toast.error("Соединение потеряно")}
               >
-                Error
+                Ошибка
               </DemoButton>
               <DemoButton
                 accent={gameColors[activeGame].accent}
@@ -567,7 +567,7 @@ export default function DesignTokensPage() {
                   })
                 }
               >
-                With description
+                С описанием
               </DemoButton>
             </div>
           </GlassPanel>
@@ -581,7 +581,7 @@ export default function DesignTokensPage() {
             color: "rgba(255,255,255,0.35)",
           }}
         >
-          Source: <code className="font-mono">src/lib/design/tokens.ts</code> ·{" "}
+          Исходники: <code className="font-mono">src/lib/design/tokens.ts</code> ·{" "}
           <code className="font-mono">src/lib/design/motion.ts</code> ·{" "}
           <code className="font-mono">src/components/glass/</code>
         </p>
@@ -592,8 +592,8 @@ export default function DesignTokensPage() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         direction="bottom"
-        title="Player menu"
-        description="Drag the handle down to dismiss"
+        title="Меню игрока"
+        description="Потяни ручку вниз, чтобы закрыть"
       >
         <div style={{ display: "grid", gap: 12 }}>
           {["Сменить ник", "Покинуть комнату", "Настройки звука", "Помощь"].map(
@@ -627,8 +627,8 @@ export default function DesignTokensPage() {
         title="Чат комнаты"
       >
         <p style={{ color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>
-          Side drawers идеальны для постоянных панелей: чат, плеер-лист, history.
-          Свайп вправо или клик вне закроет.
+          Боковые шторки удобны для постоянных панелей: чат, список игроков,
+          история. Свайп вправо или клик вне закроет.
         </p>
       </GlassSheet>
 
