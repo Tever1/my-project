@@ -391,10 +391,28 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 - `src/lib/design/motion.ts` — переиспользуемые variants
 - `docs/design-tokens.md` — справочник
 
-**Фаза B — Liquid Glass system**
-- Базовый `<GlassPanel>` компонент (frosted backdrop-blur + border)
-- Варианты: card, sheet, sidebar, modal, toast
-- Depth layers (z-index + shadow scale)
+**Фаза B — Liquid Glass system** ✅ DONE
+- ✅ Установлены `vaul` 1.1.2 (drawers) + `sonner` 2.0.7 (toasts) — оба от Emil Kowalski
+- ✅ Depth tokens: `z.{base,elevated,floating,overlay,toast}` (1→60)
+- ✅ Blur scale: `blur.{subtle,default,strong,intense}` (8→40px)
+- ✅ Shadow scale: `shadow.{xs,sm,md,lg,xl}`
+- ✅ `<GlassPanel>` — 5 вариантов (subtle/card/floating/hero/elevated),
+  per-game accent border glow, interactive (hover.lift + tap.press)
+- ✅ `<GlassSheet>` — обёртка vaul, bottom + side directions, title/description,
+  drag handle, frosted backdrop
+- ✅ `<GlassToaster>` — обёртка sonner, glass-стилизация, success/error/default,
+  per-game accent на border
+- ✅ Demo всех компонентов добавлено в `/design-tokens` превью
+- ✅ Документация обновлена в `docs/design-tokens.md`
+
+**Файлы:**
+- `src/components/glass/GlassPanel.tsx`
+- `src/components/glass/GlassSheet.tsx`
+- `src/components/glass/GlassToaster.tsx`
+- `src/components/glass/index.ts` — barrel
+- `src/lib/design/tokens.ts` — новые `z`, `blur`, `shadow` экспорты
+- `src/app/globals.css` — соответствующие CSS-переменные
+- `src/app/design-tokens/page.tsx` — расширено секциями Phase B
 
 **Фаза C — Custom icon pipeline**
 - Аудит всех мест где сейчас стоят эмодзи (game icons, action buttons, status, reactions)

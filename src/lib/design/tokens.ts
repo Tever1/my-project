@@ -91,3 +91,39 @@ export const radius = {
   "2xl": 40,
   full: 9999,
 } as const;
+
+// ============================================================
+// Depth layers — z-index scale (matches CSS vars)
+// ============================================================
+
+export const z = {
+  base: 1,
+  elevated: 10,
+  floating: 40,
+  overlay: 50,
+  toast: 60,
+  debug: 9999,
+} as const;
+
+// ============================================================
+// Blur scale (matches CSS vars)
+// ============================================================
+
+export const blur = {
+  subtle: 8,
+  default: 16,
+  strong: 24,
+  intense: 40,
+} as const;
+
+// ============================================================
+// Glass shadow scale (matches CSS vars)
+// ============================================================
+
+export const shadow = {
+  xs: "0 2px 8px rgba(0, 0, 0, 0.08)",
+  sm: "0 4px 16px rgba(0, 0, 0, 0.12)",
+  md: "0 8px 32px rgba(0, 0, 0, 0.18)",
+  lg: "0 16px 48px rgba(0, 0, 0, 0.28)",
+  xl: "0 24px 64px rgba(0, 0, 0, 0.4)",
+} as const;

@@ -87,6 +87,29 @@
   --radius-2xl: 40px;
   --radius-full: 9999px;
 
+  /* ---- Depth layers (Phase B — Liquid Glass system) ----
+     z-index scale + matching shadow depth.
+     Use TS exports from @/lib/design/tokens for component code. */
+  --z-base: 1;          /* default content */
+  --z-elevated: 10;     /* sticky nav, headers */
+  --z-floating: 40;     /* popovers, dropdowns, tooltips */
+  --z-overlay: 50;      /* sheets, drawers, modals */
+  --z-toast: 60;        /* toasts (above all overlays) */
+  --z-debug: 9999;      /* dev tools, never in prod UI */
+
+  /* ---- Glass shadow scale (matches depth layers) ---- */
+  --shadow-glass-xs: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-glass-sm: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-glass-md: 0 8px 32px rgba(0, 0, 0, 0.18);
+  --shadow-glass-lg: 0 16px 48px rgba(0, 0, 0, 0.28);
+  --shadow-glass-xl: 0 24px 64px rgba(0, 0, 0, 0.4);
+
+  /* ---- Glass blur scale ---- */
+  --blur-subtle: 8px;
+  --blur-default: 16px;
+  --blur-strong: 24px;
+  --blur-intense: 40px;
+
   /* ---- Motion: durations ---- */
   --duration-micro: 120ms;   /* focus rings, subtle state */
   --duration-fast: 200ms;    /* hover, tap, small feedback */

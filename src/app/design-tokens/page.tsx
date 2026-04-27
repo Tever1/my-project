@@ -11,6 +11,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   spring,
   duration,
@@ -27,6 +28,12 @@ import {
   hover,
   tap,
 } from "@/lib/design/motion";
+import {
+  GlassPanel,
+  GlassSheet,
+  GlassToaster,
+  type GlassVariant,
+} from "@/components/glass";
 
 const games: { id: GameId; ru: string }[] = [
   { id: "quiz", ru: "Квиз" },
@@ -55,6 +62,8 @@ export default function DesignTokensPage() {
 
   const [popKey, setPopKey] = useState(0);
   const [activeGame, setActiveGame] = useState<GameId>("mafia");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sideSheetOpen, setSideSheetOpen] = useState(false);
 
   return (
     <main
@@ -379,6 +388,191 @@ export default function DesignTokensPage() {
           </GlassPanel>
         </Section>
 
+        {/* ============================================================
+            Phase B — Liquid Glass system
+            ============================================================ */}
+        <div
+          style={{
+            marginTop: 96,
+            paddingTop: 48,
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <p
+            className="font-mono"
+            style={{
+              fontSize: 13,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "rgba(192, 132, 252, 0.7)",
+              marginBottom: 12,
+            }}
+          >
+            Phase B — Liquid Glass
+          </p>
+          <h2
+            style={{
+              fontSize: 40,
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+              margin: 0,
+              marginBottom: 8,
+            }}
+          >
+            Glass surfaces & components
+          </h2>
+          <p
+            style={{
+              fontSize: 16,
+              color: "rgba(240, 238, 246, 0.6)",
+              marginTop: 0,
+              marginBottom: 40,
+            }}
+          >
+            Reusable building blocks: panels, sheets, toasts. Composed onto
+            tokens from Phase A.
+          </p>
+        </div>
+
+        {/* GlassPanel variants */}
+        <Section
+          title="<GlassPanel> variants"
+          subtitle="Single component, 5 variants. Naveждай, чтобы увидеть intersactivity"
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 16,
+            }}
+          >
+            {(["subtle", "card", "floating", "hero", "elevated"] as GlassVariant[]).map(
+              (v) => (
+                <GlassPanel
+                  key={v}
+                  variant={v}
+                  radius="lg"
+                  interactive
+                  accentColor={gameColors[activeGame].accent}
+                  padding={20}
+                >
+                  <div
+                    className="font-mono"
+                    style={{
+                      fontSize: 12,
+                      color: gameColors[activeGame].accent,
+                      fontWeight: 600,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {v}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "rgba(255,255,255,0.7)",
+                      marginTop: 6,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {v === "subtle" && "Quiet background, low blur"}
+                    {v === "card" && "Standard content panel"}
+                    {v === "floating" && "Popovers, dropdowns"}
+                    {v === "hero" && "Featured panels, deep shadow"}
+                    {v === "elevated" && "Modal-like, top of stack"}
+                  </div>
+                </GlassPanel>
+              ),
+            )}
+          </div>
+          <p
+            style={{
+              fontSize: 12,
+              color: "rgba(255,255,255,0.4)",
+              marginTop: 12,
+              fontStyle: "italic",
+            }}
+          >
+            Tip: borders glow with the active game accent — попробуй переключить
+            игру в палитре выше.
+          </p>
+        </Section>
+
+        {/* GlassSheet demos */}
+        <Section
+          title="<GlassSheet> — drag-to-dismiss drawer"
+          subtitle="Built on vaul. Bottom sheet (iOS-style) + side drawer"
+        >
+          <GlassPanel variant="card" padding={24}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <DemoButton
+                onClick={() => setSheetOpen(true)}
+                accent={gameColors[activeGame].accent}
+              >
+                Open bottom sheet
+              </DemoButton>
+              <DemoButton
+                onClick={() => setSideSheetOpen(true)}
+                accent={gameColors[activeGame].accent}
+              >
+                Open side drawer →
+              </DemoButton>
+            </div>
+            <p
+              style={{
+                fontSize: 13,
+                color: "rgba(255,255,255,0.45)",
+                marginTop: 16,
+                lineHeight: 1.5,
+              }}
+            >
+              Bottom sheet: drag down or tap outside to close. Side drawer:
+              swipe right or tap outside.
+            </p>
+          </GlassPanel>
+        </Section>
+
+        {/* Toast demos */}
+        <Section
+          title="<GlassToaster> — sonner with glass styling"
+          subtitle="Toast notifications. Mount once, trigger anywhere"
+        >
+          <GlassPanel variant="card" padding={24}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <DemoButton
+                accent={gameColors[activeGame].accent}
+                onClick={() => toast("Игрок присоединился к комнате")}
+              >
+                Default
+              </DemoButton>
+              <DemoButton
+                accent="#22c55e"
+                onClick={() => toast.success("Победа! +250 очков")}
+              >
+                Success
+              </DemoButton>
+              <DemoButton
+                accent="#ef4444"
+                onClick={() => toast.error("Соединение потеряно")}
+              >
+                Error
+              </DemoButton>
+              <DemoButton
+                accent={gameColors[activeGame].accent}
+                onClick={() =>
+                  toast("Твой ход!", {
+                    description: "30 секунд на размышления",
+                    duration: 5000,
+                  })
+                }
+              >
+                With description
+              </DemoButton>
+            </div>
+          </GlassPanel>
+        </Section>
+
         <p
           style={{
             textAlign: "center",
@@ -387,10 +581,92 @@ export default function DesignTokensPage() {
             color: "rgba(255,255,255,0.35)",
           }}
         >
-          Source: <code className="font-mono">src/lib/design/tokens.ts</code> · <code className="font-mono">src/lib/design/motion.ts</code>
+          Source: <code className="font-mono">src/lib/design/tokens.ts</code> ·{" "}
+          <code className="font-mono">src/lib/design/motion.ts</code> ·{" "}
+          <code className="font-mono">src/components/glass/</code>
         </p>
       </div>
+
+      {/* Sheets (rendered via portal, position outside main flow) */}
+      <GlassSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        direction="bottom"
+        title="Player menu"
+        description="Drag the handle down to dismiss"
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          {["Сменить ник", "Покинуть комнату", "Настройки звука", "Помощь"].map(
+            (label) => (
+              <button
+                key={label}
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: radius.md,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "white",
+                  fontSize: 15,
+                  fontFamily: "inherit",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+                onClick={() => setSheetOpen(false)}
+              >
+                {label}
+              </button>
+            ),
+          )}
+        </div>
+      </GlassSheet>
+
+      <GlassSheet
+        open={sideSheetOpen}
+        onOpenChange={setSideSheetOpen}
+        direction="right"
+        title="Чат комнаты"
+      >
+        <p style={{ color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>
+          Side drawers идеальны для постоянных панелей: чат, плеер-лист, history.
+          Свайп вправо или клик вне закроет.
+        </p>
+      </GlassSheet>
+
+      {/* Toaster mounted once */}
+      <GlassToaster accentColor={gameColors[activeGame].accent} />
     </main>
+  );
+}
+
+// Helper button used in demos
+function DemoButton({
+  onClick,
+  accent,
+  children,
+}: {
+  onClick: () => void;
+  accent: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.button
+      onClick={onClick}
+      whileHover={hover.lift}
+      whileTap={tap.press}
+      style={{
+        padding: "10px 18px",
+        borderRadius: radius.md,
+        border: `1px solid color-mix(in srgb, ${accent} 35%, rgba(255,255,255,0.1))`,
+        background: `color-mix(in srgb, ${accent} 12%, rgba(255,255,255,0.04))`,
+        color: accent,
+        fontFamily: "inherit",
+        fontSize: 14,
+        fontWeight: 600,
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </motion.button>
   );
 }
 
@@ -433,24 +709,6 @@ function Section({
       </p>
       {children}
     </motion.section>
-  );
-}
-
-function GlassPanel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        padding: 32,
-        borderRadius: radius.xl,
-        background: "rgba(255,255,255,0.04)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 16px 48px rgba(0,0,0,0.4)",
-      }}
-    >
-      {children}
-    </div>
   );
 }
 

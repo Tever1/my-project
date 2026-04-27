@@ -109,3 +109,95 @@ to ~0ms. No extra work needed in components.
 - **Auto** (existing): follows `prefers-color-scheme: dark`.
 - **Force-dark** (new): add `class="dark"` on `<html>` for permanent dark mode.
   Used by lobby + TV pages where premium-dark is the only correct aesthetic.
+
+---
+
+# Phase B — Liquid Glass System
+
+## Depth layers (z-index)
+
+| Token | Value | Use |
+|---|---|---|
+| `z.base` / `--z-base` | 1 | default content |
+| `z.elevated` / `--z-elevated` | 10 | sticky nav, headers |
+| `z.floating` / `--z-floating` | 40 | popovers, dropdowns, tooltips |
+| `z.overlay` / `--z-overlay` | 50 | sheets, drawers, modals |
+| `z.toast` / `--z-toast` | 60 | toasts (above all overlays) |
+
+## Blur scale
+
+| Token | Value |
+|---|---|
+| `blur.subtle` | 8px |
+| `blur.default` | 16px |
+| `blur.strong` | 24px |
+| `blur.intense` | 40px |
+
+## Shadow scale
+
+| Token | Value |
+|---|---|
+| `shadow.xs` | `0 2px 8px rgba(0,0,0,0.08)` |
+| `shadow.sm` | `0 4px 16px rgba(0,0,0,0.12)` |
+| `shadow.md` | `0 8px 32px rgba(0,0,0,0.18)` |
+| `shadow.lg` | `0 16px 48px rgba(0,0,0,0.28)` |
+| `shadow.xl` | `0 24px 64px rgba(0,0,0,0.4)` |
+
+## Components
+
+```tsx
+import { GlassPanel, GlassSheet, GlassToaster } from "@/components/glass";
+import { toast } from "sonner";
+```
+
+### `<GlassPanel>` — frosted surface
+
+5 variants: `subtle` / `card` / `floating` / `hero` / `elevated`.
+
+```tsx
+<GlassPanel variant="card">Default content panel</GlassPanel>
+<GlassPanel variant="hero" radius="xl" padding={48}>Big info card</GlassPanel>
+<GlassPanel interactive accentColor={gameColors.mafia.accent}>
+  Per-game accent glow on border + hover lift
+</GlassPanel>
+```
+
+Props:
+- `variant?: GlassVariant` — defaults to `"card"`
+- `radius?: GlassRadius` — defaults to `"lg"`
+- `interactive?: boolean` — adds hover.lift + tap.press
+- `accentColor?: string` — adds colored glow on border (use per-game accent)
+- `padding?: number | string` — overrides variant default
+- `as?: ...` — render as different element (motion.div by default)
+
+### `<GlassSheet>` — drag-to-dismiss drawer
+
+Built on `vaul`. Bottom sheet (iOS default) + side drawers (left / right / top).
+
+```tsx
+const [open, setOpen] = useState(false);
+
+<GlassSheet open={open} onOpenChange={setOpen} title="Settings">
+  <p>Sheet content here</p>
+</GlassSheet>
+
+<GlassSheet open={open} onOpenChange={setOpen} direction="right" title="Чат">
+  <ChatPanel />
+</GlassSheet>
+```
+
+### `<GlassToaster>` — toast notifications
+
+Built on `sonner`. Mount once at root level.
+
+```tsx
+// In providers.tsx or layout.tsx
+<GlassToaster accentColor={gameColors.mafia.accent} />
+
+// Trigger from anywhere
+import { toast } from "sonner";
+toast("Игрок присоединился");
+toast.success("Победа!");
+toast.error("Соединение потеряно");
+toast("Твой ход!", { description: "30 секунд", duration: 5000 });
+```
