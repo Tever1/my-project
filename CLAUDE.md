@@ -348,6 +348,119 @@ script просто возьмёт её как есть и обернёт в с�
 
 ---
 
+## 🎨 Дизайн-направление (план от 2026-04-26)
+
+### Design DNA — главное в одном абзаце
+
+**PS5 Home Screen × iOS 26 Liquid Glass.** Плиточный лобби с иконками игр внизу,
+выбранная игра «всплывает» в центр с инфо-карточкой (игроки, длительность),
+фон меняется под тематику игры. Эстетика — матовое стекло, скруглённые углы,
+soft-shadows, приглушённый премиум поверх ярких per-game акцентов. Анимации
+spring 400–600ms — должны выглядеть **дорого и плавно**. Никаких стандартных
+эмодзи — только кастомные иконки, генерируем через Nano Banana (OpenRouter).
+
+### Референсы
+- **PS5 Home Screen** — главная парадигма лобби (плитки игр + dynamic background)
+- **iOS 26 Liquid Glass** — frosted glass surfaces, large rounded corners, depth
+- Spring physics а-ля Apple (не Linear-style быстро, не Jackbox bouncy)
+
+### Правила (immutable)
+1. **Ни одного стандартного эмодзи в финальном UI** — все иконки/иллюстрации генерируем
+2. **Каждая игра — свой визуальный мир** (Mafia ≠ Crocodile ≠ Quiz)
+3. Анимации обязаны быть плавными и spring-based (400–600ms), не резкими
+4. Phone и TV должны оба выглядеть «вау» — ни один не second-class
+5. iOS-26 frosted-glass surfaces везде где есть наложение информации
+
+### План работы — 10 фаз
+
+**Фаза A — Foundation (design tokens + motion tokens)**
+- Цветовая система: тёмная база + per-game акценты + glass overlays
+- Типографика: шкала размеров + weights (SF Pro / Inter Display / Geist?)
+- Spacing/radius/shadow токены через CSS-переменные в Tailwind v4
+- Motion-токены: `duration-fast/base/slow`, spring presets, easings
+- Reduced-motion fallback с самого начала
+
+**Фаза B — Liquid Glass system**
+- Базовый `<GlassPanel>` компонент (frosted backdrop-blur + border)
+- Варианты: card, sheet, sidebar, modal, toast
+- Depth layers (z-index + shadow scale)
+
+**Фаза C — Custom icon pipeline**
+- Аудит всех мест где сейчас стоят эмодзи (game icons, action buttons, status, reactions)
+- Стилевой brief для иконок (flat 3D? glassy? illustrative? — определить в начале фазы)
+- Расширение `scripts/generate-image.mjs` → `scripts/generate-icon.mjs`
+  (квадратный canvas, transparent background, single subject)
+- Генерация набора иконок через Nano Banana, складывание в `public/icons/`
+- Замена эмодзи на `<Icon name="..." />`
+
+**Фаза D — PS5-style Lobby (флагман)**
+- Layout: tile-strip игр снизу, центр — info card выбранной игры
+- Динамический фон под тематику игры (cross-fade при переключении)
+- Info-карточка: иконка, название, описание, игроки (min/max), ~длительность
+- Hover/focus state для тайлов (zoom + glow + meta появление)
+- Keyboard navigation (arrow keys для переключения)
+- Анимация выбора игры → переход в подготовку
+
+**Фаза E — Core component library**
+- Buttons (primary/secondary/ghost/destructive) — все с press-spring
+- Inputs / forms — focused glass border + smooth label
+- Modals / sheets (`vaul`) — drag-to-dismiss
+- Toasts (`sonner`) — стилизация под glass
+- Avatars игроков, badges, chips
+- Skeleton loaders (для async подгрузки)
+- Часть тащим/адаптируем из 21st.dev MCP
+
+**Фаза F — Game flow transitions**
+- Унификация переходов `setup → playing → round → results → next`
+- Shared layout animations (`layoutId`) для общих элементов
+- Cross-fade фонов, slide для контента, spring для CTA
+- Loading states между фазами (скелетоны, не спиннеры)
+
+**Фаза G — In-game polish**
+- Таймеры с visual urgency (цвет/ring fill, shake в последние 5с)
+- Score animations (count-up + pop при изменении)
+- Celebration moments (правильный ответ — particles из glass)
+- "Твой ход" attention-grabbers (pulse + glow)
+- Состояния ожидания (subtle breathing animation вместо "Loading...")
+
+**Фаза H — TV mode glow-up**
+- Большие читаемые шрифты (с дивана 2.5м)
+- Эффектные phase-transitions (full-screen wipes)
+- Player avatars/nicknames на экране постоянно
+- Live score updates с анимацией
+- Атмосферный фон (slow-moving gradient + per-game theming)
+
+**Фаза I — Per-game theming**
+- Mafia — тёмная мистика (deep purple + smoke), serif accents
+- Crocodile — playful карнавал (warm vibrant), большие formы
+- Quiz — clean focused (cool tones), sharp typography
+- Spy — intrigue (muted teal/charcoal), reveal-style transitions
+- Alias — energetic (electric colors), fast pulses
+- Who Am I? — curious (pastel mystery), soft fades
+- 100 to 1 — premium ТВ-шоу (gold/red, dramatic spotlight)
+
+**Фаза J — Audit & iteration**
+- Прогон через `/skill design-motion-principles` (Emil Kowalski lens)
+- Прогон через `/skill ui-ux-pro-max`
+- Визуальный QA на phone + TV
+- Финальная документация design system (`docs/design-system.md`)
+
+### Открытые вопросы (решаем в ходе работы)
+- Стиль кастомных иконок: flat 3D / glassy / illustrative / other?
+- Общий логотип/brand для "Party Games Hub"?
+- Звуковой дизайн — нужен или out of scope?
+- Шрифты — закупаем (SF Pro Display) или используем free (Geist, Inter Display)?
+
+### Установленные инструменты для дизайн-работы
+- **Framer Motion 12.38.0** — все анимации
+- **21st.dev Magic MCP** — готовые компоненты по описанию
+- **design-motion-principles** скилл — аудит motion (Emil Kowalski + 2 других)
+- **ui-ux-pro-max** + 6 ckm-* скиллов — UX-аудит, brand, design-system
+- **Nano Banana** через OpenRouter — генерация иконок и фонов
+  (`scripts/generate-image.mjs` уже работает)
+
+---
+
 ## Рабочий процесс в этом чате (договорённость от 2026-04-17)
 
 После каждого выполненного шага:
