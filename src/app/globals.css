@@ -1,18 +1,51 @@
 @import "tailwindcss";
 
+/* ============================================================
+   DESIGN TOKENS — Phase A (Foundation)
+   PS5 × iOS 26 Liquid Glass aesthetic
+   See docs/design-tokens.md for full reference
+   ============================================================ */
+
 @theme inline {
+  /* ---- Typography (Geist via next/font in layout.tsx) ---- */
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono",
+    Menlo, Consolas, monospace;
+
+  /* ---- Glass surfaces (existing) ---- */
   --color-glass-white: rgba(255, 255, 255, 0.12);
   --color-glass-white-strong: rgba(255, 255, 255, 0.25);
   --color-glass-dark: rgba(0, 0, 0, 0.15);
   --color-glass-dark-strong: rgba(0, 0, 0, 0.3);
   --color-glass-border: rgba(255, 255, 255, 0.2);
   --color-glass-border-dark: rgba(255, 255, 255, 0.08);
+
+  /* ---- Universal accent (app-level, used in lobby/nav) ---- */
   --color-accent-purple: #a855f7;
   --color-accent-purple-light: #c084fc;
   --color-accent-blue: #6366f1;
   --color-accent-blue-light: #818cf8;
   --color-accent-gradient-start: #a855f7;
   --color-accent-gradient-end: #6366f1;
+
+  /* ---- Per-game accent palette (Phase I will use these) ---- */
+  --color-game-quiz: #06b6d4;          /* cyan — focused, clean */
+  --color-game-quiz-deep: #0e7490;
+  --color-game-mafia: #8b5cf6;         /* violet — mystic, dark */
+  --color-game-mafia-deep: #4c1d95;
+  --color-game-crocodile: #f97316;     /* orange — playful, warm */
+  --color-game-crocodile-deep: #c2410c;
+  --color-game-spy: #14b8a6;           /* teal — intrigue */
+  --color-game-spy-deep: #0f766e;
+  --color-game-alias: #ec4899;         /* pink — energetic */
+  --color-game-alias-deep: #be185d;
+  --color-game-whoami: #a78bfa;        /* pastel violet — curious */
+  --color-game-whoami-deep: #7c3aed;
+  --color-game-h2o: #f59e0b;           /* amber — premium TV-show */
+  --color-game-h2o-deep: #b45309;
+
+  /* ---- Surfaces & text (existing) ---- */
   --color-surface-light: rgba(255, 255, 255, 0.6);
   --color-surface-dark: rgba(15, 15, 25, 0.65);
   --color-text-primary-light: #1e1b3a;
@@ -45,13 +78,33 @@
   --accent-border: rgba(168, 85, 247, 0.3);
   --accent-gradient: linear-gradient(135deg, #a855f7, #6366f1);
   --accent-gradient-hover: linear-gradient(135deg, #9333ea, #4f46e5);
+  /* ---- Radius scale (iOS 26 — generous rounding) ---- */
+  --radius-xs: 6px;
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 24px;
   --radius-xl: 32px;
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+  --radius-2xl: 40px;
+  --radius-full: 9999px;
+
+  /* ---- Motion: durations ---- */
+  --duration-micro: 120ms;   /* focus rings, subtle state */
+  --duration-fast: 200ms;    /* hover, tap, small feedback */
+  --duration-base: 350ms;    /* most transitions */
+  --duration-slow: 550ms;    /* cards, sheets, page sections */
+  --duration-cinema: 800ms;  /* TV transitions, dramatic moments */
+
+  /* ---- Motion: easings (iOS-26 inspired) ---- */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);          /* Apple signature */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);      /* smooth deceleration */
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);  /* gentle overshoot */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);       /* legacy/default */
+
+  /* ---- Legacy transition tokens (kept for backwards compat) ---- */
+  --transition-fast: var(--duration-fast) var(--ease-ios);
+  --transition-base: var(--duration-base) var(--ease-ios);
+  --transition-slow: var(--duration-slow) var(--ease-ios);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -97,9 +150,61 @@ body {
   padding: 0;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11"; /* Geist alt forms — refined glyphs */
   min-height: 100dvh;
   transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+/* Mono font utility (numbers, timers, scoreboard) */
+.font-mono,
+[data-mono] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========================================
+   Reduced motion (a11y)
+   Disables Framer Motion springs + keyframes
+   for users who prefer reduced motion
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ========================================
+   Force-dark utility (.dark class on <html>)
+   Used by lobby/TV pages for "always premium dark" mode
+   regardless of OS preference
+   ======================================== */
+
+html.dark {
+  --bg-primary: #0c0a15;
+  --bg-secondary: #131025;
+  --text-primary: #f0eef6;
+  --text-secondary: #a5a0bf;
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-hover: rgba(255, 255, 255, 0.1);
+  --glass-bg-strong: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-subtle: rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+  --accent: #c084fc;
+  --accent-hover: #a855f7;
+  --accent-bg: rgba(192, 132, 252, 0.12);
+  --accent-border: rgba(192, 132, 252, 0.25);
+  --accent-gradient: linear-gradient(135deg, #c084fc, #818cf8);
+  --accent-gradient-hover: linear-gradient(135deg, #a855f7, #6366f1);
+  color-scheme: dark;
 }
 
 /* ========================================

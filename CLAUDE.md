@@ -373,12 +373,23 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 
 ### План работы — 10 фаз
 
-**Фаза A — Foundation (design tokens + motion tokens)**
-- Цветовая система: тёмная база + per-game акценты + glass overlays
-- Типографика: шкала размеров + weights (SF Pro / Inter Display / Geist?)
-- Spacing/radius/shadow токены через CSS-переменные в Tailwind v4
-- Motion-токены: `duration-fast/base/slow`, spring presets, easings
-- Reduced-motion fallback с самого начала
+**Фаза A — Foundation (design tokens + motion tokens)** ✅ DONE
+- ✅ Geist 1.7.0 подключен через `next/font` (Sans + Mono)
+- ✅ Per-game accent palette (7 цветов) — `--color-game-{quiz,mafia,...}`
+- ✅ Radius scale 6→40px + full
+- ✅ Motion tokens: durations (`micro/fast/base/slow/cinema`) + iOS-easings
+- ✅ Spring presets для Framer Motion (`spring.soft/medium/snappy/bouncy/stiff`)
+- ✅ Готовые motion variants (`fadeInUp`, `pop`, `stagger`, `hover.lift` и др.)
+- ✅ Reduced-motion fallback (auto через media query)
+- ✅ Force-dark utility (`class="dark"` на `<html>`)
+- ✅ Документация `docs/design-tokens.md`
+
+**Файлы:**
+- `src/app/layout.tsx` — Geist подключен
+- `src/app/globals.css` — все CSS токены
+- `src/lib/design/tokens.ts` — TS токены (spring/easing/duration/gameColors)
+- `src/lib/design/motion.ts` — переиспользуемые variants
+- `docs/design-tokens.md` — справочник
 
 **Фаза B — Liquid Glass system**
 - Базовый `<GlassPanel>` компонент (frosted backdrop-blur + border)
