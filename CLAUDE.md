@@ -445,11 +445,17 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 - Визуальный QA на phone + TV
 - Финальная документация design system (`docs/design-system.md`)
 
-### Открытые вопросы (решаем в ходе работы)
-- Стиль кастомных иконок: flat 3D / glassy / illustrative / other?
-- Общий логотип/brand для "Party Games Hub"?
-- Звуковой дизайн — нужен или out of scope?
-- Шрифты — закупаем (SF Pro Display) или используем free (Geist, Inter Display)?
+### Открытые вопросы (с триггер-фазой)
+
+| # | Вопрос | Триггер-фаза | Блокирует |
+|---|--------|--------------|-----------|
+| 1 | Шрифты — закупаем (SF Pro Display) или free (Geist / Inter Display)? | **Фаза A** | Typography tokens |
+| 2 | Звуковой дизайн — нужен / нет / позже? | **Фаза B** | Synchronization motion ↔ sound timings |
+| 3 | Стиль иконок — flat 3D / glassy / illustrative / other? | **Фаза C** | Style brief для Nano Banana pipeline |
+| 4 | Логотип / brand для "Party Games Hub" — нужен? какой? | **Фаза D** | Шапка лобби и TV header |
+
+**Правило:** в первом сообщении каждой фазы Claude обязан напомнить про
+соответствующий вопрос и дождаться решения, прежде чем кодить.
 
 ### Установленные инструменты для дизайн-работы
 - **Framer Motion 12.38.0** — все анимации
