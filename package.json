@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "gen-image": "node scripts/generate-image.mjs",
+    "gen-icon": "node scripts/generate-icon.mjs",
     "gen-questions": "node scripts/generate-questions.mjs"
   },
   "dependencies": {

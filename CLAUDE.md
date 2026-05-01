@@ -417,19 +417,35 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 - `src/app/globals.css` — соответствующие CSS-переменные
 - `src/app/design-tokens/page.tsx` — расширено секциями Phase B
 
-**Фаза C — Custom icon pipeline**
-- Аудит всех мест где сейчас стоят эмодзи (game icons, action buttons, status, reactions)
-- Стилевой brief для иконок (flat 3D? glassy? illustrative? — определить в начале фазы)
-- Расширение `scripts/generate-image.mjs` → `scripts/generate-icon.mjs`
-  (квадратный canvas, transparent background, single subject)
-- Генерация набора иконок через Nano Banana, складывание в `public/icons/`
-- Замена эмодзи на `<Icon name="..." />`
+**Фаза C — Custom icon pipeline** (частично готова)
+- ✅ `scripts/generate-icon.mjs` написан (стили: flat-3d / glassy / glassy-glow /
+  glassy-noglow / illustrative / mixed-3d). Команда `npm run gen-icon`.
+- ✅ `<GameIcon>` компонент с auto-fallback на SVG-заглушку
+  (`src/components/GameIcon.tsx`). Если PNG нет — рендерит градиентный круг
+  с инициалом цветом игры.
+- ✅ `/lobby-preview` страница — показывает все 7 тайлов с overflow + hover
+  spec из Фазы D, использует `<GameIcon>` (placeholder'ы видно сразу).
+- ✅ Папка `public/icons/games/` + README.md с инструкциями куда класть PNG.
+- ⏳ Стиль выбирается на `/icon-compare` (v3 — Glassy 4 варианта).
+- ⏳ Финальная генерация всех 7 игр в выбранном стиле — пользователь сделает
+  сам позже, файлы упадут в `public/icons/games/<gameId>.png` и подхватятся
+  автоматически без правок кода.
+- ⏳ Аудит эмодзи в остальных местах UI (action buttons, статусы) — после лобби.
+
+**Имена файлов для финальных иконок** (точное совпадение):
+`quiz.png` `mafia.png` `crocodile.png` `spy.png` `alias.png` `who-am-i.png`
+`hundred-to-one.png` — все в `public/icons/games/`. 1024×1024 PNG, прозрачный
+фон, subject 75–85% канваса.
 
 **Фаза D — PS5-style Lobby (флагман)**
 - Layout: tile-strip игр снизу, центр — info card выбранной игры
 - Динамический фон под тематику игры (cross-fade при переключении)
 - Info-карточка: иконка, название, описание, игроки (min/max), ~длительность
-- Hover/focus state для тайлов (zoom + glow + meta появление)
+- **Tile spec (зафиксировано):** иконка игры выходит за верхнюю границу
+  рамки на ~40-50% своей высоты (overflow visible). При hover тайл
+  поднимается (`y: -6, scale: 1.02`), иконка увеличивается и парит
+  (`y: -8, scale: 1.12`), сзади появляется radial-glow halo с цветом игры.
+  Spring `spring.soft`. Превью паттерна работает на `/icon-compare`.
 - Keyboard navigation (arrow keys для переключения)
 - Анимация выбора игры → переход в подготовку
 
