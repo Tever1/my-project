@@ -376,6 +376,36 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 
 ### План работы — 10 фаз
 
+**Сводный статус** (обновлён 2026-04-30):
+
+| Фаза | Статус | Что сделано / что осталось |
+|---|---|---|
+| **A** Foundation | ✅ DONE | Geist + per-game palette + motion + radius/duration/easing токены |
+| **B** Liquid Glass | ✅ DONE | `<GlassPanel>` (5 вариантов) + `<GlassSheet>` (vaul) + `<GlassToaster>` (sonner) + depth/blur/shadow токены |
+| **C** Icon pipeline | 🟡 PARTIAL | `<GameIcon>` placeholder fallback, generate-icon.mjs со стилями. Финальные PNG — позже |
+| **D** PS5 Lobby | 🟡 PROTOTYPE | `/lobby-preview` визуально готов (гибрид PS5+Spotlight). Socket.io + keyboard nav + mobile — впереди |
+| **E** Core components | ⏳ TODO | Buttons / inputs / modals / avatars / badges / skeletons |
+| **F** Game flow transitions | ⏳ TODO | setup → playing → results unified transitions |
+| **G** In-game polish | ⏳ TODO | Таймеры, очки, celebrations, attention-grabbers |
+| **H** TV mode glow-up | ⏳ TODO | Большой шрифт, эффектные phase wipes, host visual |
+| **I** Per-game theming | ⏳ TODO | Атмосфера каждой игры (Mafia mystic, Crocodile playful…) |
+| **J** Audit & iteration | ⏳ TODO | Прогон через design-motion-principles + ui-ux-pro-max |
+| **K** Нейроведущий | ⏳ TODO | TTS + LLM + per-game personalities (отдельная большая фича) |
+
+**Палитра по играм** (актуальная, утверждена):
+- 🟣 Мафия `#8b5cf6`
+- 🟡 Квиз `#facc15` (жёлтый)
+- 🔴 Крокодил `#ef4444` (красный)
+- 🟢 Шпион `#14b8a6` (бирюзовый)
+- 🩷 Alias `#ec4899`
+- 🔵 Кто я? `#38bdf8` (голубой)
+- 🟠 100 к 1 `#f59e0b` (янтарь)
+
+**Превью-страницы** (живая документация):
+- `/design-tokens` — все токены Phase A + B
+- `/icon-compare` — выбор стиля иконок (v1/v2/v3)
+- `/lobby-preview` — гибрид-лобби PS5 × Spotlight (Phase D прототип)
+
 **Фаза A — Foundation (design tokens + motion tokens)** ✅ DONE
 - ✅ Geist 1.7.0 подключен через `next/font` (Sans + Mono)
 - ✅ Per-game accent palette (7 цветов) — `--color-game-{quiz,mafia,...}`
@@ -437,17 +467,29 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 `hundred-to-one.png` — все в `public/icons/games/`. 1024×1024 PNG, прозрачный
 фон, subject 75–85% канваса.
 
-**Фаза D — PS5-style Lobby (флагман)**
-- Layout: tile-strip игр снизу, центр — info card выбранной игры
-- Динамический фон под тематику игры (cross-fade при переключении)
-- Info-карточка: иконка, название, описание, игроки (min/max), ~длительность
-- **Tile spec (зафиксировано):** иконка игры выходит за верхнюю границу
-  рамки на ~40-50% своей высоты (overflow visible). При hover тайл
-  поднимается (`y: -6, scale: 1.02`), иконка увеличивается и парит
-  (`y: -8, scale: 1.12`), сзади появляется radial-glow halo с цветом игры.
-  Spring `spring.soft`. Превью паттерна работает на `/icon-compare`.
-- Keyboard navigation (arrow keys для переключения)
-- Анимация выбора игры → переход в подготовку
+**Фаза D — PS5-style Lobby (флагман)** 🟡 PROTOTYPE READY
+- ✅ Layout (гибрид PS5 × Spotlight, прототип в `/lobby-preview`):
+  - Top bar: brand-mark + nav (Играть/Друзья/История) + "Друзей онлайн" +
+    Кнопка комнаты (toggle: «Создать комнату» → `КОМНАТА · ABXY7K`) +
+    Avatar pill «А Аня»
+  - Hero (2-col): big title с per-game gradient на втором слове + meta-pills
+    с SVG-иконками + описание + CTA-row (Начать партию + Правила + inline
+    «Код комнаты» input для join)
+  - Tilted preview-card справа (rotate -2°) с уникальным mock-content для
+    каждой игры (quiz: вопрос+таймер+4 ответа; mafia: «Город засыпает»+
+    ДОКТОР+чипы; и т.д.) + 2 floating badges («8 онлайн», «2 480 рекорд»)
+  - Bottom: tile-strip всех 7 игр, smaller radii (`md`)
+- ✅ **Tile spec:** иконка выходит за верх рамки на ~40%, при hover тайл
+  поднимается (`y: -5, scale: 1.04`), иконка ещё выше (`y: -7, scale: 1.12`),
+  radial-glow halo. Spring `spring.soft`.
+- ✅ Динамический фон: radial-gradient в цветах активной игры, cross-fade
+  при переключении (duration 0.8s, ease iOS).
+- ✅ AnimatePresence на title/meta/desc/preview — мягкая перерисовка.
+- ✅ Палитра по играм согласована с пользователем (см. DNA-секцию выше).
+- ⏳ Реальный socket.io интеграция (создание комнаты, join, переход в игру) —
+  будет после утверждения визуала.
+- ⏳ Keyboard navigation (arrow keys между тайлами).
+- ⏳ Mobile layout (stacked, без 2-column hero).
 
 **Фаза E — Core component library**
 - Buttons (primary/secondary/ghost/destructive) — все с press-spring
@@ -478,14 +520,14 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 - Live score updates с анимацией
 - Атмосферный фон (slow-moving gradient + per-game theming)
 
-**Фаза I — Per-game theming**
-- Mafia — тёмная мистика (deep purple + smoke), serif accents
-- Crocodile — playful карнавал (warm vibrant), большие formы
-- Quiz — clean focused (cool tones), sharp typography
-- Spy — intrigue (muted teal/charcoal), reveal-style transitions
-- Alias — energetic (electric colors), fast pulses
-- Who Am I? — curious (pastel mystery), soft fades
-- 100 to 1 — premium ТВ-шоу (gold/red, dramatic spotlight)
+**Фаза I — Per-game theming** (палитра см. сводный статус выше)
+- Mafia — тёмная мистика (фиолетовый `#8b5cf6` + smoke), serif accents
+- Crocodile — playful карнавал (красный `#ef4444`), крупные формы
+- Quiz — энергичный шоу-стиль (жёлтый `#facc15`), sharp typography
+- Spy — intrigue (бирюзовый `#14b8a6`), reveal-style transitions
+- Alias — energetic (розовый `#ec4899`), fast pulses
+- Who Am I? — curious (голубой `#38bdf8`), soft fades
+- 100 to 1 — premium ТВ-шоу (янтарь `#f59e0b`), dramatic spotlight
 
 **Фаза J — Audit & iteration**
 - Прогон через `/skill design-motion-principles` (Emil Kowalski lens)

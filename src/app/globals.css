@@ -30,18 +30,18 @@
   --color-accent-gradient-end: #6366f1;
 
   /* ---- Per-game accent palette (Phase I will use these) ---- */
-  --color-game-quiz: #06b6d4;          /* cyan — focused, clean */
-  --color-game-quiz-deep: #0e7490;
+  --color-game-quiz: #facc15;          /* yellow (жёлтый) — energetic */
+  --color-game-quiz-deep: #a16207;
   --color-game-mafia: #8b5cf6;         /* violet — mystic, dark */
   --color-game-mafia-deep: #4c1d95;
-  --color-game-crocodile: #f97316;     /* orange — playful, warm */
-  --color-game-crocodile-deep: #c2410c;
+  --color-game-crocodile: #ef4444;     /* red (красный) — playful */
+  --color-game-crocodile-deep: #991b1b;
   --color-game-spy: #14b8a6;           /* teal — intrigue */
   --color-game-spy-deep: #0f766e;
   --color-game-alias: #ec4899;         /* pink — energetic */
   --color-game-alias-deep: #be185d;
-  --color-game-whoami: #a78bfa;        /* pastel violet — curious */
-  --color-game-whoami-deep: #7c3aed;
+  --color-game-whoami: #38bdf8;        /* sky blue (голубой) — curious */
+  --color-game-whoami-deep: #0284c7;
   --color-game-h2o: #f59e0b;           /* amber — premium TV-show */
   --color-game-h2o-deep: #b45309;
 

@@ -69,12 +69,12 @@ export type GameId =
   | "hundred-to-one";
 
 export const gameColors: Record<GameId, { accent: string; deep: string }> = {
-  quiz:            { accent: "#06b6d4", deep: "#0e7490" }, // cyan
+  quiz:            { accent: "#facc15", deep: "#a16207" }, // yellow (жёлтый)
   mafia:           { accent: "#8b5cf6", deep: "#4c1d95" }, // violet
-  crocodile:       { accent: "#f97316", deep: "#c2410c" }, // orange
+  crocodile:       { accent: "#ef4444", deep: "#991b1b" }, // red (красный)
   spy:             { accent: "#14b8a6", deep: "#0f766e" }, // teal
   alias:           { accent: "#ec4899", deep: "#be185d" }, // pink
-  "who-am-i":      { accent: "#a78bfa", deep: "#7c3aed" }, // pastel violet
+  "who-am-i":      { accent: "#38bdf8", deep: "#0284c7" }, // sky blue (голубой)
   "hundred-to-one":{ accent: "#f59e0b", deep: "#b45309" }, // amber gold
 };
 
