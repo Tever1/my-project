@@ -59,7 +59,6 @@ export function GlassToaster({
       style={{
         zIndex: z.toast,
         // CSS vars for sonner internals
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...({
           "--normal-bg": "rgba(20, 18, 35, 0.82)",
           "--normal-border": `color-mix(in srgb, ${accentColor} 25%, rgba(255,255,255,0.1))`,

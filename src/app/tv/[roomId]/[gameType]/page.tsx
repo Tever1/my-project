@@ -7,7 +7,6 @@ import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
-import { CROCODILE_WORDS, ALIAS_WORDS } from '@/lib/game-data';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,7 +121,7 @@ export default function TVGamePage() {
     correctPlayers: [],
     currentQuestion: null,
   });
-  const [genericState, setGenericState] = useState<GenericGameState>({});
+  const [, setGenericState] = useState<GenericGameState>({});
   const [h2oState, setH2OState] = useState<H2OState>(mkH2OInitial);
   const [spyState, setSpyState] = useState<{
     phase: string; mode: string; word: string; spyId: string; drawerId: string;
@@ -1003,8 +1002,6 @@ export default function TVGamePage() {
     const sortedScores = Object.entries(crocState.scores)
       .map(([id, score]) => ({ id, name: getPlayerName(id), score }))
       .sort((a, b) => b.score - a.score);
-    const currentWord = crocState.currentWordIndex >= 0 ? CROCODILE_WORDS[crocState.currentWordIndex] : null;
-
     return (
       <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
         {/* Header */}
@@ -1166,7 +1163,7 @@ export default function TVGamePage() {
           {/* TEAM SELECT */}
           {aliasState.phase === 'teamSelect' && (
             <div className="flex gap-8 w-full max-w-4xl">
-              {aliasState.teams.map((team, ti) => (
+              {aliasState.teams.map((team) => (
                 <div key={team.id} className="flex-1 glass-card px-8 py-6 text-center">
                   <p className="text-2xl font-bold text-amber-400 mb-4">{team.name}</p>
                   <div className="flex flex-wrap gap-2 justify-center">

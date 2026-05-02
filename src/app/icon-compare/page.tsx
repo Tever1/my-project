@@ -96,8 +96,6 @@ export default function IconComparePage() {
     return () => document.documentElement.classList.remove("dark");
   }, []);
 
-  const accent = versionMeta[version].accent;
-
   return (
     <main
       style={{
@@ -202,7 +200,6 @@ export default function IconComparePage() {
                 label={s.label}
                 desc={s.desc}
                 file={fileFor(version, s.id)}
-                accent={accent}
               />
             ))}
           </div>
@@ -218,7 +215,6 @@ export default function IconComparePage() {
                 label={v.label}
                 desc={v.desc}
                 file={v.file}
-                accent={accent}
                 badgeText={v.glow ? "Со свечением" : "Без свечения"}
                 badgeColor={v.glow ? "#dc2626" : "#94a3b8"}
               />
@@ -299,7 +295,6 @@ function StyleSection({
   label,
   desc,
   file,
-  accent,
   badgeText,
   badgeColor,
 }: {
@@ -307,7 +302,6 @@ function StyleSection({
   label: string;
   desc: string;
   file: string;
-  accent: string;
   badgeText?: string;
   badgeColor?: string;
 }) {

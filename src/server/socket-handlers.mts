@@ -59,7 +59,10 @@ function getRoomByCode(code: string): Room | undefined {
 }
 
 function broadcastRoomState(io: SocketIOServer, room: Room) {
-  const players = Array.from(room.players.values()).map(({ socketId, ...rest }) => rest);
+  const players = Array.from(room.players.values()).map(({ socketId: _socketId, ...rest }) => {
+    void _socketId;
+    return rest;
+  });
   const state = {
     id: room.id,
     code: room.code,
@@ -168,7 +171,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
     socket.on('room:get-state', (data: { code: string }) => {
       const room = getRoomByCode(data.code);
       if (!room) return;
-      const players = Array.from(room.players.values()).map(({ socketId, ...rest }) => rest);
+      const players = Array.from(room.players.values()).map(({ socketId: _socketId, ...rest }) => {
+        void _socketId;
+        return rest;
+      });
       const state = {
         id: room.id,
         code: room.code,

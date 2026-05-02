@@ -78,6 +78,8 @@ export function useTimerSound() {
    * Automatically manages sub-second ticks for acceleration.
    */
   const tick = useCallback((timeLeft: number, _totalTime: number) => {
+    // Keep the second arg for existing callers; acceleration currently depends on timeLeft only.
+    void _totalTime;
     stop();
 
     if (timeLeft <= 0 || timeLeft > 10) return;
