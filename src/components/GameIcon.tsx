@@ -56,68 +56,90 @@ export function GameIcon({
   className,
   style,
 }: GameIconProps) {
+  const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
   const path = src ?? `/icons/games/${gameId}.png`;
 
-  if (errored) {
-    return (
-      <PlaceholderIcon
-        gameId={gameId}
-        size={size}
-        className={className}
-        style={style}
-      />
-    );
-  }
-
+  // Always render placeholder underneath — visible until real image loads.
+  // If the image fails (404), placeholder stays. No "broken image" artifact.
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={path}
-      alt={alt ?? gameId}
-      width={size}
-      height={size}
-      onError={() => setErrored(true)}
+    <div
       className={className}
       style={{
+        position: "relative",
         width: size,
         height: size,
-        objectFit: "contain",
+        display: "inline-block",
         ...style,
       }}
-    />
+    >
+      {/* Placeholder — always rendered, hidden once real image loads */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          opacity: loaded && !errored ? 0 : 1,
+          transition: "opacity 200ms ease-out",
+        }}
+      >
+        <PlaceholderIcon gameId={gameId} size={size} />
+      </div>
+
+      {/* Real image — invisible until loaded */}
+      {!errored && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={path}
+          alt={alt ?? ""}
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            opacity: loaded ? 1 : 0,
+            transition: "opacity 200ms ease-out",
+          }}
+        />
+      )}
+    </div>
   );
 }
 
 /**
  * SVG placeholder — soft gradient blob + bold initial.
  * Used until the real icon is generated and dropped into public/icons/games/.
+ *
+ * Renders as 100% × 100% so it scales with parent container automatically.
+ * Font sizes are SVG-relative units (viewBox 100), so they scale too.
  */
 function PlaceholderIcon({
   gameId,
-  size,
   className,
   style,
 }: {
   gameId: GameId;
-  size: number;
+  size?: number; // ignored — placeholder always fills parent
   className?: string;
   style?: React.CSSProperties;
 }) {
   const accent = gameColors[gameId].accent;
   const deep = gameColors[gameId].deep;
   const initial = initials[gameId];
-  const fontSize = initial.length >= 3 ? size * 0.32 : size * 0.45;
+  // Font size in SVG units (viewBox is 100×100), scales with parent
+  const fontSize = initial.length >= 3 ? 32 : 45;
 
-  // Stable gradient id per game so multiple instances coexist
   const gradId = `placeholder-grad-${gameId}`;
   const blurId = `placeholder-blur-${gameId}`;
 
   return (
     <svg
-      width={size}
-      height={size}
+      width="100%"
+      height="100%"
       viewBox="0 0 100 100"
+      preserveAspectRatio="xMidYMid meet"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       style={{ display: "block", ...style }}
@@ -134,41 +156,11 @@ function PlaceholderIcon({
         </filter>
       </defs>
 
-      {/* Soft outer glow */}
-      <circle
-        cx="50"
-        cy="50"
-        r="42"
-        fill={accent}
-        opacity="0.25"
-        filter={`url(#${blurId})`}
-      />
-
-      {/* Main gradient blob */}
+      <circle cx="50" cy="50" r="42" fill={accent} opacity="0.25" filter={`url(#${blurId})`} />
       <circle cx="50" cy="50" r="38" fill={`url(#${gradId})`} />
+      <ellipse cx="42" cy="35" rx="14" ry="9" fill="white" opacity="0.18" />
+      <circle cx="50" cy="50" r="38" fill="none" stroke={accent} strokeWidth="1.2" opacity="0.6" />
 
-      {/* Inner highlight */}
-      <ellipse
-        cx="42"
-        cy="35"
-        rx="14"
-        ry="9"
-        fill="white"
-        opacity="0.18"
-      />
-
-      {/* Border */}
-      <circle
-        cx="50"
-        cy="50"
-        r="38"
-        fill="none"
-        stroke={accent}
-        strokeWidth="1.2"
-        opacity="0.6"
-      />
-
-      {/* Initial */}
       <text
         x="50"
         y="50"
@@ -178,9 +170,7 @@ function PlaceholderIcon({
         fontWeight="700"
         fontSize={fontSize}
         fill="white"
-        style={{
-          letterSpacing: initial.length >= 3 ? "-0.04em" : "-0.02em",
-        }}
+        style={{ letterSpacing: initial.length >= 3 ? "-0.04em" : "-0.02em" }}
       >
         {initial}
       </text>

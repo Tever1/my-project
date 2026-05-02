@@ -155,13 +155,13 @@ export default function LobbyPreviewPage() {
           position: "relative",
           zIndex: 1,
           flex: 1,
-          maxWidth: 1280,
+          maxWidth: 1600,
           width: "100%",
           margin: "0 auto",
-          padding: "32px 64px",
+          padding: "32px 32px",
           display: "grid",
-          gridTemplateColumns: "1.1fr 1fr",
-          gap: 64,
+          gridTemplateColumns: "1fr 1fr",
+          gap: 120,
           alignItems: "center",
         }}
       >
@@ -1109,10 +1109,10 @@ function TileStrip({
         style={{
           display: "grid",
           gridTemplateColumns: `repeat(${games.length}, 1fr)`,
-          gap: 12,
-          maxWidth: 1100,
+          gap: 28,
+          maxWidth: 1280,
           margin: "0 auto",
-          padding: "0 32px",
+          padding: "0 48px",
         }}
       >
         {games.map((game) => (
@@ -1154,7 +1154,6 @@ function Tile({
         padding: 0,
         fontFamily: "inherit",
         color: "inherit",
-        marginTop: 28,
       }}
     >
       <motion.div
@@ -1191,40 +1190,36 @@ function Tile({
           boxShadow: isActive
             ? `0 12px 36px ${accent}55, 0 0 0 2px ${accent}80`
             : `0 10px 24px rgba(0,0,0,0.35), 0 0 0 1px ${accent}25`,
-          overflow: "visible",
+          overflow: "hidden",
           zIndex: 1,
         }}
       >
-        {/* Icon — overflows top by 38% */}
-        <motion.div
-          variants={{
-            rest: { y: 0, scale: 1 },
-            hover: { y: -7, scale: 1.12 },
-            active: { y: -4, scale: 1.06 },
-          }}
-          transition={spring.soft}
+        {/* Icon fills the entire tile */}
+        <div
           style={{
             position: "absolute",
-            top: "-38%",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "78%",
-            height: "78%",
-            filter: `drop-shadow(0 10px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 14px ${accent}50)`,
+            inset: 0,
             pointerEvents: "none",
           }}
         >
-          <GameIcon gameId={game.id} size={120} />
-        </motion.div>
+          <GameIcon
+            gameId={game.id}
+            style={{ width: "100%", height: "100%" }}
+          />
+        </div>
 
+        {/* Bottom label with dark gradient mask for readability */}
         <div
           style={{
             position: "absolute",
             bottom: 0,
             left: 0,
             right: 0,
-            padding: "10px 8px",
+            padding: "18px 8px 10px",
             textAlign: "center",
+            background:
+              "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)",
+            pointerEvents: "none",
           }}
         >
           <div
@@ -1236,6 +1231,7 @@ function Tile({
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              textShadow: "0 1px 4px rgba(0,0,0,0.6)",
             }}
           >
             {game.name}

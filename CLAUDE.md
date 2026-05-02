@@ -203,6 +203,21 @@ script просто возьмёт её как есть и обернёт в с�
       - Layout: `flex-col`, данные игры (`flex-[3]`) + инструмент (`flex-[2]`).
       - Игры с инструментом помечены бейджем ✨.
 
+- [x] **Tile redesign в `/lobby-preview`** (сессия 2026-05-01, ещё не закоммичено):
+      - Картинка из `public/icons/games/<id>.png` теперь **полностью заполняет тайл**
+        (`objectFit: cover`, `inset: 0`), а не висит над верхней рамкой.
+      - Удалён overflow-блок (картинка торчала на ~38% над тайлом + scale-on-hover).
+      - Tile frame получил `overflow: hidden` — картинка обрезается по border-radius.
+      - Убран `marginTop: 28` (резерв под overflow).
+      - Подпись игры внизу: dark gradient mask (`rgba(0,0,0,0.85) → transparent`)
+        + `text-shadow` для читаемости поверх произвольной картинки.
+      - `<GameIcon>` починен под fill-mode: внутренний `<img>` теперь `width/height: 100%`
+        + `objectFit: cover` (раньше было фиксированное `size` + `contain`).
+      - Сгенерированы 2 финальные иконки: `public/icons/games/mafia.png`,
+        `public/icons/games/quiz.png`. Остальные 5 (crocodile/spy/alias/who-am-i/
+        hundred-to-one) пока на SVG-placeholder.
+      - Файлы: `src/components/GameIcon.tsx`, `src/app/lobby-preview/page.tsx`.
+
 - [x] **Установлен gstack + Claude Code post-commit hook** (коммит `c42fb01`, сессия 2026-04-22):
       - `~/.claude/skills/gstack/` — полный gstack (33 скилла, Chrome Headless для QA).
       - Learnings перенесены из CLAUDE.md в `~/.gstack/projects/Tever1-my-project/learnings.jsonl`.
@@ -376,14 +391,14 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 
 ### План работы — 10 фаз
 
-**Сводный статус** (обновлён 2026-04-30):
+**Сводный статус** (обновлён 2026-05-01):
 
 | Фаза | Статус | Что сделано / что осталось |
 |---|---|---|
 | **A** Foundation | ✅ DONE | Geist + per-game palette + motion + radius/duration/easing токены |
 | **B** Liquid Glass | ✅ DONE | `<GlassPanel>` (5 вариантов) + `<GlassSheet>` (vaul) + `<GlassToaster>` (sonner) + depth/blur/shadow токены |
-| **C** Icon pipeline | 🟡 PARTIAL | `<GameIcon>` placeholder fallback, generate-icon.mjs со стилями. Финальные PNG — позже |
-| **D** PS5 Lobby | 🟡 PROTOTYPE | `/lobby-preview` визуально готов (гибрид PS5+Spotlight). Socket.io + keyboard nav + mobile — впереди |
+| **C** Icon pipeline | 🟡 PARTIAL | `<GameIcon>` placeholder fallback (fill mode), generate-icon.mjs. Сгенерированы `mafia.png`, `quiz.png`. Осталось 5 PNG |
+| **D** PS5 Lobby | 🟡 PROTOTYPE | `/lobby-preview` визуально готов, тайлы перепроектированы (картинка на всю площадь + dark gradient label). Socket.io + keyboard nav + mobile — впереди |
 | **E** Core components | ⏳ TODO | Buttons / inputs / modals / avatars / badges / skeletons |
 | **F** Game flow transitions | ⏳ TODO | setup → playing → results unified transitions |
 | **G** In-game polish | ⏳ TODO | Таймеры, очки, celebrations, attention-grabbers |
