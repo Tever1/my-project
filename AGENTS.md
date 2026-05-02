@@ -1,10 +1,10 @@
 # Party Games Hub — Project Context
 
-Этот файл автоматически читается Claude Code в начале каждой сессии. Он содержит
+Этот файл автоматически читается Codex в начале каждой сессии. Он содержит
 долговременный контекст проекта, который не должен теряться при переключении
 между сессиями/окружениями (облако ↔ локальный Mac).
 
-Если ты — Claude, запущенный в этом репозитории: **прочитай этот файл целиком до
+Если ты — Codex, запущенный в этом репозитории: **прочитай этот файл целиком до
 начала работы**. Он объясняет, что это за проект, что уже сделано, что в процессе
 и каких граблей избегать.
 
@@ -129,7 +129,7 @@ script просто возьмёт её как есть и обернёт в с�
 
 ---
 
-## Над чем работаем сейчас (ветка `claude/party-games-hub-etqfF`)
+## Над чем работаем сейчас (ветка `Codex/party-games-hub-etqfF`)
 
 ### Сделано
 - [x] Рефакторинг начисления очков в **Crocodile** — guessers получают очки
@@ -203,26 +203,11 @@ script просто возьмёт её как есть и обернёт в с�
       - Layout: `flex-col`, данные игры (`flex-[3]`) + инструмент (`flex-[2]`).
       - Игры с инструментом помечены бейджем ✨.
 
-- [x] **Tile redesign в `/lobby-preview`** (сессия 2026-05-01, ещё не закоммичено):
-      - Картинка из `public/icons/games/<id>.png` теперь **полностью заполняет тайл**
-        (`objectFit: cover`, `inset: 0`), а не висит над верхней рамкой.
-      - Удалён overflow-блок (картинка торчала на ~38% над тайлом + scale-on-hover).
-      - Tile frame получил `overflow: hidden` — картинка обрезается по border-radius.
-      - Убран `marginTop: 28` (резерв под overflow).
-      - Подпись игры внизу: dark gradient mask (`rgba(0,0,0,0.85) → transparent`)
-        + `text-shadow` для читаемости поверх произвольной картинки.
-      - `<GameIcon>` починен под fill-mode: внутренний `<img>` теперь `width/height: 100%`
-        + `objectFit: cover` (раньше было фиксированное `size` + `contain`).
-      - Сгенерированы 2 финальные иконки: `public/icons/games/mafia.png`,
-        `public/icons/games/quiz.png`. Остальные 5 (crocodile/spy/alias/who-am-i/
-        hundred-to-one) пока на SVG-placeholder.
-      - Файлы: `src/components/GameIcon.tsx`, `src/app/lobby-preview/page.tsx`.
-
-- [x] **Установлен gstack + Claude Code post-commit hook** (коммит `c42fb01`, сессия 2026-04-22):
-      - `~/.claude/skills/gstack/` — полный gstack (33 скилла, Chrome Headless для QA).
-      - Learnings перенесены из CLAUDE.md в `~/.gstack/projects/Tever1-my-project/learnings.jsonl`.
-      - `.claude/hooks/post-commit.sh` — после каждого коммита создаёт маркер `.claude/pending-doc-update.md`.
-      - `.claude/settings.json` — PostToolUse хук на Bash → запускает post-commit.sh.
+- [x] **Установлен gstack + Codex post-commit hook** (коммит `c42fb01`, сессия 2026-04-22):
+      - `~/.Codex/skills/gstack/` — полный gstack (33 скилла, Chrome Headless для QA).
+      - Learnings перенесены из AGENTS.md в `~/.gstack/projects/Tever1-my-project/learnings.jsonl`.
+      - `.Codex/hooks/post-commit.sh` — после каждого коммита создаёт маркер `.Codex/pending-doc-update.md`.
+      - `.Codex/settings.json` — PostToolUse хук на Bash → запускает post-commit.sh.
 
 - [x] **Крокодил и Alias letter mode — рефакторинг схемы очков** (сессия 2026-04-19):
       - `src/app/game/[roomId]/crocodile/page.tsx`: очки теперь зарабатывает **explainer**
@@ -391,14 +376,14 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 
 ### План работы — 10 фаз
 
-**Сводный статус** (обновлён 2026-05-01):
+**Сводный статус** (обновлён 2026-04-30):
 
 | Фаза | Статус | Что сделано / что осталось |
 |---|---|---|
 | **A** Foundation | ✅ DONE | Geist + per-game palette + motion + radius/duration/easing токены |
 | **B** Liquid Glass | ✅ DONE | `<GlassPanel>` (5 вариантов) + `<GlassSheet>` (vaul) + `<GlassToaster>` (sonner) + depth/blur/shadow токены |
-| **C** Icon pipeline | 🟡 PARTIAL | `<GameIcon>` placeholder fallback (fill mode), generate-icon.mjs. Сгенерированы `mafia.png`, `quiz.png`. Осталось 5 PNG |
-| **D** PS5 Lobby | 🟡 PROTOTYPE | `/lobby-preview` визуально готов, тайлы перепроектированы (картинка на всю площадь + dark gradient label). Socket.io + keyboard nav + mobile — впереди |
+| **C** Icon pipeline | 🟡 PARTIAL | `<GameIcon>` placeholder fallback, generate-icon.mjs со стилями. Финальные PNG — позже |
+| **D** PS5 Lobby | 🟡 PROTOTYPE | `/lobby-preview` визуально готов (гибрид PS5+Spotlight). Socket.io + keyboard nav + mobile — впереди |
 | **E** Core components | ⏳ TODO | Buttons / inputs / modals / avatars / badges / skeletons |
 | **F** Game flow transitions | ⏳ TODO | setup → playing → results unified transitions |
 | **G** In-game polish | ⏳ TODO | Таймеры, очки, celebrations, attention-grabbers |
@@ -597,7 +582,7 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 | 6 | Визуальное представление ведущего — voice-only / статичный + waveform / анимированный аватар? | **Фаза K** | TV layout, генерация ассетов |
 | 7 | Язык ведущего — RU / EN / оба (с переключением)? | **Фаза K** | Prompt engineering, voice selection |
 
-**Правило:** в первом сообщении каждой фазы Claude обязан напомнить про
+**Правило:** в первом сообщении каждой фазы Codex обязан напомнить про
 соответствующий вопрос и дождаться решения, прежде чем кодить.
 
 ### Установленные инструменты для дизайн-работы
@@ -613,57 +598,16 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 ## Рабочий процесс в этом чате (договорённость от 2026-04-17)
 
 После каждого выполненного шага:
-1. **Обновлять этот `CLAUDE.md`** — фиксировать что сделано, в каком коммите,
+1. **Обновлять этот `AGENTS.md`** — фиксировать что сделано, в каком коммите,
    какие файлы затронуты.
-2. **Комментировать в issue #3** (`tever1/my-project`) — чтобы облачный Claude
+2. **Комментировать в issue #3** (`tever1/my-project`) — чтобы облачный Codex
    был в курсе прогресса.
-
----
-
-## Работа с Codex (договорённость от 2026-05-01)
-
-В команду добавлен **Codex** как исполнитель черновой работы. **Гибридный режим:**
-- **Claude:** планирует, пишет ТЗ, ревьюит, общается с пользователем. **Production-код руками не пишет.**
-- **Codex:** выполняет таски строго по whitelist файлов из ТЗ.
-- **Пользователь:** ставит задачи, мерджит, пушит.
-
-### Цикл работы
-
-1. Пользователь → Claude: «сделай X»
-2. Claude пишет `.codex/tasks/NNN-X.md` (ТЗ + whitelist файлов)
-3. Claude обновляет `.codex/STATUS.md` (активный таск)
-4. **Simple-таск** → Claude сам запускает `codex exec` (с индикацией 🤖 в чате)
-   **Complex-таск** → Claude говорит пользователю «переходи в Codex Desktop» 🖥️
-5. Codex делает работу → `.codex/reports/NNN-X.md`
-6. Claude читает отчёт + git diff → валидирует
-7. ОК → говорит пользователю готово, тот коммитит
-   Не ОК → Claude пишет `NNN.1` с правками, возврат к шагу 4
-
-### Критерии simple vs complex
-
-- **Simple** (Claude запускает сам): 1-2 файла, механическое изменение,
-  нет архитектурных решений, не трогает `server.mts`, < 5 минут.
-- **Complex** (юзер в Codex Desktop): 3+ файла, игровая логика, socket.io,
-  архитектурные решения, > 5 минут.
-
-### Структура
-
-```
-.codex/
-  AGENTS.md          ← правила для Codex (мирror CLAUDE.md)
-  WORKFLOW.md        ← подробное описание процесса
-  STATUS.md          ← шина состояния (активные/завершённые таски)
-  tasks/_TEMPLATE.md ← шаблон ТЗ
-  reports/_TEMPLATE.md ← шаблон отчёта
-```
-
-Подробности — `.codex/WORKFLOW.md`.
 
 ---
 
 ## Известные подводные камни
 
-- **Облачный sandbox Claude Code без интернета.** API-вызовы к внешним сервисам
+- **Облачный sandbox Codex без интернета.** API-вызовы к внешним сервисам
   (OpenRouter, Google, любые `fetch('https://...')`) из этой среды **упадут по
   таймауту**. Запускать их можно только из локальной среды (Mac local mode,
   VS Code, CLI, или одним кликом из Finder). Из sandbox'а — только код, git,
@@ -688,8 +632,8 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 
 ## Ветки и рабочий процесс
 
-- **Основная ветка разработки:** `claude/party-games-hub-etqfF`.
-- Пуш всегда через `git push -u origin claude/party-games-hub-etqfF`.
+- **Основная ветка разработки:** `Codex/party-games-hub-etqfF`.
+- Пуш всегда через `git push -u origin Codex/party-games-hub-etqfF`.
 - Коммиты — короткие, в стиле уже существующих (смотри `git log --oneline`):
   `crocodile: fix timer overflow`, `feat(alias): add letter mode`, и т.п.
 - PR в `main` создаём только когда фича полностью готова и протестирована.
@@ -700,14 +644,14 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 
 Пользователь работает с этим проектом из **нескольких сред одновременно**:
 
-1. **Claude Code on web / облачный sandbox** — откуда угодно (телефон, работа),
+1. **Codex on web / облачный sandbox** — откуда угодно (телефон, работа),
    нет интернета, нет доступа к Mac. Хорошо для планирования, чтения, правок
    через git.
-2. **Claude Code Desktop app в Local mode** (Mac дома) — полный доступ к файлам,
+2. **Codex Desktop app в Local mode** (Mac дома) — полный доступ к файлам,
    интернет, можно дёргать API. Здесь тестируем, генерируем картинки, запускаем
    dev-сервер.
 3. (Потенциально) VS Code + расширение, CLI — не используются сейчас.
 
 **Git — единственный мост.** Всё, что должно переноситься между средами, должно
-лежать в git. Этот `CLAUDE.md` — один из таких артефактов: он гарантирует, что
-любой Claude в любой среде получит одинаковый контекст.
+лежать в git. Этот `AGENTS.md` — один из таких артефактов: он гарантирует, что
+любой Codex в любой среде получит одинаковый контекст.

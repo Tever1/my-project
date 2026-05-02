@@ -1,0 +1,7 @@
+[mcp_servers.ruflo]
+args = [
+    "ruflo@latest",
+    "mcp",
+    "start",
+]
+command = "npx"
