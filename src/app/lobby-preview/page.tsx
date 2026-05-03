@@ -103,7 +103,7 @@ const games: GameInfo[] = [
   },
 ];
 
-function useIsMobile(breakpoint = 900) {
+function useIsMobile(breakpoint = 1024) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -334,6 +334,7 @@ function FriendsOnlinePill({ count }: { count: number }) {
         fontSize: 14,
         color: "rgba(255, 255, 255, 0.85)",
         fontWeight: 500,
+        whiteSpace: "nowrap",
       }}
     >
       <span
@@ -382,6 +383,7 @@ function RoomButton({
         cursor: "pointer",
         boxShadow: roomCode ? `0 6px 20px -4px ${accent}80` : "none",
         textTransform: roomCode ? "uppercase" : undefined,
+        whiteSpace: "nowrap",
       }}
     >
       {roomCode ? `Комната · ${roomCode}` : "Создать комнату"}
