@@ -78,7 +78,7 @@ Codex имеет право редактировать **только** эти �
 1. Прочитать diff (`git diff --stat` + `git diff`).
 2. Убедиться что не вышел за whitelist файлов.
 3. Запустить `npm run lint` и `npm run build`.
-4. Заполнить отчёт `.codex/reports/NNN-<name>.md` по шаблону `_TEMPLATE.md`.
+4. Заполнить отчёт `codex-reports/NNN-<name>.md` по шаблону `_TEMPLATE.md`.
 5. **Не коммитить.** Коммит делает Claude после ревью (или пользователь).
 
 ---

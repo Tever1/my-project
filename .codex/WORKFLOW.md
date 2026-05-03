@@ -24,14 +24,14 @@
        ↓
 2. Claude: планирует, оценивает сложность (simple / complex)
        ↓
-3. Claude: пишет .codex/tasks/NNN-X.md
+3. Claude: пишет codex-tasks/NNN-X.md
        ↓
 4. Claude: добавляет запись в .codex/STATUS.md (активный таск)
        ↓
 5a. SIMPLE: Claude сам запускает `codex exec` — индикация в чате 🤖
-5b. COMPLEX: Claude говорит "переходи в Codex Desktop, открой .codex/tasks/NNN-X.md" 🖥️
+5b. COMPLEX: Claude говорит "переходи в Codex Desktop, открой codex-tasks/NNN-X.md" 🖥️
        ↓
-6. Codex: делает работу, пишет .codex/reports/NNN-X.md
+6. Codex: делает работу, пишет codex-reports/NNN-X.md
        ↓
 7. Claude: читает отчёт + git diff, валидирует
        ↓
@@ -77,14 +77,14 @@ fix линт-ошибки, добавление нового пресета цв
 🤖 Запускаю Codex (TASK-NNN: <название>)
    Файлы: src/foo/bar.ts, src/foo/baz.ts
    Ожидаемое время: ~3 минуты
-   Команда: codex exec .codex/tasks/NNN-name.md
+   Команда: codex exec codex-tasks/NNN-name.md
 ```
 
 После завершения:
 
 ```
 ✅ Codex завершил TASK-NNN
-   Отчёт: .codex/reports/NNN-name.md
+   Отчёт: codex-reports/NNN-name.md
    Diff stat: <N файлов, +X -Y>
    Проверяю результат...
 ```
@@ -95,10 +95,10 @@ fix линт-ошибки, добавление нового пресета цв
 🖥️ Этот таск сложный — нужно запустить вручную в Codex Desktop.
 
 Открой Codex Desktop и скорми ему файл:
-   .codex/tasks/NNN-<name>.md
+   codex-tasks/NNN-<name>.md
 
 Я буду ждать пока ты не скажешь что Codex закончил
-(или появится .codex/reports/NNN-<name>.md).
+(или появится codex-reports/NNN-<name>.md).
 ```
 
 ---
@@ -129,21 +129,30 @@ fix линт-ошибки, добавление нового пресета цв
 ## Файлы и папки
 
 ```
-.codex/
-  AGENTS.md          ← правила для Codex (синхронизирован с CLAUDE.md)
-  WORKFLOW.md        ← этот файл
-  STATUS.md          ← шина состояния (активные/завершённые таски)
-  config.toml        ← настройки Codex CLI
-  hooks/, hooks.json ← Codex hooks
-  skills/            ← Codex skills
-  tasks/
-    _TEMPLATE.md     ← шаблон task-spec'а
-    NNN-name.md      ← конкретные задания
-  reports/
-    _TEMPLATE.md     ← шаблон отчёта
-    NNN-name.md      ← отчёты Codex
-  archive/           ← завершённые таски (опционально, для истории)
+.codex/                ← READ-ONLY для Codex (sandbox-protected)
+  WORKFLOW.md          ← этот файл (правит Claude)
+  STATUS.md            ← шина состояния (правит Claude)
+  config.toml          ← настройки Codex CLI
+  hooks/, hooks.json   ← Codex hooks
+  skills/              ← Codex skills
+
+AGENTS.md              ← правила для Codex (правит Claude, в корне репо)
+
+codex-tasks/           ← WRITABLE для Codex
+  _TEMPLATE.md         ← шаблон task-spec'а
+  NNN-name.md          ← конкретные задания (пишет Claude, читает Codex)
+
+codex-reports/         ← WRITABLE для Codex
+  _TEMPLATE.md         ← шаблон отчёта
+  NNN-name.md          ← отчёты Codex
+
+codex-archive/         ← завершённые таски (опционально)
 ```
+
+**Почему `tasks/` и `reports/` вне `.codex/`?** Codex CLI sandbox жёстко
+блокирует запись в `.codex/**` независимо от настроек `writable_roots`.
+Поэтому файлы, в которые Codex должен писать, перенесены в обычные папки
+репозитория (`codex-tasks/`, `codex-reports/`).
 
 ---
 

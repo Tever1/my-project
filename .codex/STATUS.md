@@ -17,8 +17,8 @@ _Сейчас никто ничего не делает._
 - **Исполнитель:** Codex (auto by Claude) | Codex (manual by user) | Claude
 - **Запущено:** 2026-05-01 23:45
 - **Файлы (locked):** src/foo/bar.ts, src/foo/baz.ts
-- **Task spec:** `.codex/tasks/NNN-name.md`
-- **Report:** `.codex/reports/NNN-name.md` (если есть)
+- **Task spec:** `codex-tasks/NNN-name.md`
+- **Report:** `codex-reports/NNN-name.md` (если есть)
 -->
 
 ---

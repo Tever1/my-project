@@ -118,7 +118,7 @@ Codex редактирует **только** эти файлы:
 1. `git diff --stat` — должен показать только файлы из whitelist.
 2. `npm run lint 2>&1 | grep -E "(accent|ALIAS_WORDS|genericState|currentWord|'ti'|_totalTime|socketId|Unused eslint-disable)"` — должно быть пусто (или почти пусто).
 3. `npm run build` — успех.
-4. Заполнить отчёт `.codex/reports/001-lint-unused-vars.md`.
+4. Заполнить отчёт `codex-reports/001-lint-unused-vars.md`.
 
 ---
 

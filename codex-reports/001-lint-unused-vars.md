@@ -38,7 +38,7 @@
 ### Новые файлы
 
 - `/private/tmp/001-lint-unused-vars.md` — fallback-копия отчёта, потому что
-  запись в `.codex/reports/001-lint-unused-vars.md` заблокирована sandbox.
+  запись в `codex-reports/001-lint-unused-vars.md` заблокирована sandbox.
 
 ### Удалённые файлы
 
@@ -88,7 +88,7 @@ Scoped diff по файлам задачи:
 ## Отклонения от ТЗ
 
 - `git pull` не выполнился: `error: cannot open '.git/FETCH_HEAD': Operation not permitted`.
-- Запись отчёта в `.codex/reports/001-lint-unused-vars.md` не выполнилась:
+- Запись отчёта в `codex-reports/001-lint-unused-vars.md` не выполнилась:
   `Operation not permitted` на `.codex/reports` и на `.codex` в целом.
 - `npm run build` не подтверждён из-за Turbopack/sandbox ошибки с bind к порту.
 - В `src/lib/use-timer-sound.ts` параметр `_totalTime` не удалялся, потому что
@@ -105,7 +105,7 @@ Scoped diff по файлам задачи:
 
 ## Что НЕ сделано (если статус ⚠️ или ❌)
 
-- Не удалось записать отчёт в требуемый путь `.codex/reports/001-lint-unused-vars.md`
+- Не удалось записать отчёт в требуемый путь `codex-reports/001-lint-unused-vars.md`
   из-за filesystem sandbox. Fallback-копия лежит в `/private/tmp/001-lint-unused-vars.md`.
 - Не удалось получить успешный `npm run build` в текущем sandbox. Нужна проверка
   в окружении, где Turbopack может создавать процесс и bind к порту.

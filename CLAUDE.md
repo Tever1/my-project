@@ -630,11 +630,11 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 ### Цикл работы
 
 1. Пользователь → Claude: «сделай X»
-2. Claude пишет `.codex/tasks/NNN-X.md` (ТЗ + whitelist файлов)
+2. Claude пишет `codex-tasks/NNN-X.md` (ТЗ + whitelist файлов)
 3. Claude обновляет `.codex/STATUS.md` (активный таск)
 4. **Simple-таск** → Claude сам запускает `codex exec` (с индикацией 🤖 в чате)
    **Complex-таск** → Claude говорит пользователю «переходи в Codex Desktop» 🖥️
-5. Codex делает работу → `.codex/reports/NNN-X.md`
+5. Codex делает работу → `codex-reports/NNN-X.md`
 6. Claude читает отчёт + git diff → валидирует
 7. ОК → говорит пользователю готово, тот коммитит
    Не ОК → Claude пишет `NNN.1` с правками, возврат к шагу 4
@@ -649,13 +649,18 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 ### Структура
 
 ```
-.codex/
-  AGENTS.md          ← правила для Codex (мирror CLAUDE.md)
+AGENTS.md            ← правила для Codex (mirror CLAUDE.md, корень репо)
+.codex/              ← read-only для Codex
   WORKFLOW.md        ← подробное описание процесса
   STATUS.md          ← шина состояния (активные/завершённые таски)
-  tasks/_TEMPLATE.md ← шаблон ТЗ
-  reports/_TEMPLATE.md ← шаблон отчёта
+  config.toml        ← Codex sandbox config
+codex-tasks/         ← writable: ТЗ от Claude → читает Codex
+  _TEMPLATE.md
+codex-reports/       ← writable: отчёты от Codex
+  _TEMPLATE.md
 ```
+
+`.codex/**` hard-protected sandbox'ом Codex — поэтому writable папки вне.
 
 Подробности — `.codex/WORKFLOW.md`.
 
