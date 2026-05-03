@@ -38,6 +38,13 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-004: Fix GameIcon cached-image loaded — ✅ done
+- Завершено: 2026-05-03
+- Резюме: cached PNG не показывались (opacity:0) потому что onLoad
+  срабатывал синхронно до навешивания React listener'а. Добавлен
+  useRef + useEffect с проверкой `complete && naturalWidth > 0` +
+  `queueMicrotask(setLoaded)` для обхода set-state-in-effect lint.
+
 ### TASK-003.1: Breakpoint 900 → 1024 — ✅ done
 - Завершено: 2026-05-03
 - Резюме: при breakpoint=900 на 901-1023 header overflowал на ~42px

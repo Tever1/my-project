@@ -24,7 +24,7 @@
  * subject filling 75–85% of the canvas (so it looks good at any display size).
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gameColors, type GameId } from "@/lib/design/tokens";
 
 const initials: Record<GameId, string> = {
@@ -58,7 +58,17 @@ export function GameIcon({
 }: GameIconProps) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
   const path = src ?? `/icons/games/${gameId}.png`;
+
+  // Если картинка в browser cache - onLoad не сработает (срабатывает
+  // синхронно до навешивания listener'а). Проверяем complete вручную.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0 && !errored) {
+      queueMicrotask(() => setLoaded(true));
+    }
+  }, [errored]);
 
   // Always render placeholder underneath — visible until real image loads.
   // If the image fails (404), placeholder stays. No "broken image" artifact.
@@ -89,6 +99,7 @@ export function GameIcon({
       {!errored && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={imgRef}
           src={path}
           alt={alt ?? ""}
           onLoad={() => setLoaded(true)}
