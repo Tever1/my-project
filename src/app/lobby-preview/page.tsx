@@ -103,6 +103,20 @@ const games: GameInfo[] = [
   },
 ];
 
+function useIsMobile(breakpoint = 900) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
 // ============================================================
 // Page
 // ============================================================
@@ -111,6 +125,7 @@ export default function LobbyPreviewPage() {
   const [activeGame, setActiveGame] = useState<GameId>("quiz");
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -147,6 +162,7 @@ export default function LobbyPreviewPage() {
         roomCode={roomCode}
         onCreateRoom={() => setRoomCode("ABXY7K")}
         accent={accent}
+        isMobile={isMobile}
       />
 
       {/* Hero */}
@@ -158,10 +174,10 @@ export default function LobbyPreviewPage() {
           maxWidth: 1600,
           width: "100%",
           margin: "0 auto",
-          padding: "32px 32px",
+          padding: isMobile ? "16px 16px" : "32px 32px",
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 120,
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gap: isMobile ? 32 : 120,
           alignItems: "center",
         }}
       >
@@ -171,11 +187,14 @@ export default function LobbyPreviewPage() {
           deep={deep}
           joinCode={joinCode}
           onJoinCodeChange={setJoinCode}
+          isMobile={isMobile}
         />
 
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <TiltedPreview gameId={active.id} />
-        </div>
+        {!isMobile && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <TiltedPreview gameId={active.id} />
+          </div>
+        )}
       </section>
 
       {/* Bottom tile strip */}
@@ -183,6 +202,7 @@ export default function LobbyPreviewPage() {
         games={games}
         activeId={activeGame}
         onSelect={setActiveGame}
+        isMobile={isMobile}
       />
     </main>
   );
@@ -196,10 +216,12 @@ function TopBar({
   roomCode,
   onCreateRoom,
   accent,
+  isMobile,
 }: {
   roomCode: string | null;
   onCreateRoom: () => void;
   accent: string;
+  isMobile: boolean;
 }) {
   return (
     <header
@@ -209,13 +231,14 @@ function TopBar({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "20px 32px",
+        padding: isMobile ? "12px 16px" : "20px 32px",
+        gap: isMobile ? 12 : 24,
       }}
     >
       {/* Left: brand + nav */}
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
         <BrandMark />
-        <nav style={{ display: "flex", gap: 4 }}>
+        <nav style={{ display: isMobile ? "none" : "flex", gap: 4 }}>
           <NavButton active>Играть</NavButton>
           <NavButton>Друзья</NavButton>
           <NavButton>История</NavButton>
@@ -223,10 +246,10 @@ function TopBar({
       </div>
 
       {/* Right: friends online + room button + avatar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <FriendsOnlinePill count={4} />
+      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
+        {!isMobile && <FriendsOnlinePill count={4} />}
         <RoomButton roomCode={roomCode} onCreate={onCreateRoom} accent={accent} />
-        <AvatarPill name="Аня" />
+        <AvatarPill name="Аня" isMobile={isMobile} />
       </div>
     </header>
   );
@@ -258,6 +281,7 @@ function BrandMark() {
           fontWeight: 700,
           fontSize: 17,
           letterSpacing: "-0.02em",
+          whiteSpace: "nowrap",
         }}
       >
         Party Hub
@@ -365,15 +389,15 @@ function RoomButton({
   );
 }
 
-function AvatarPill({ name }: { name: string }) {
+function AvatarPill({ name, isMobile = false }: { name: string; isMobile?: boolean }) {
   const initial = name.charAt(0);
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        padding: "5px 16px 5px 5px",
+        gap: isMobile ? 0 : 10,
+        padding: isMobile ? 5 : "5px 16px 5px 5px",
         borderRadius: radius.full,
         background: "rgba(255, 255, 255, 0.04)",
         border: "1px solid rgba(255, 255, 255, 0.08)",
@@ -395,7 +419,7 @@ function AvatarPill({ name }: { name: string }) {
       >
         {initial}
       </div>
-      <span style={{ fontSize: 14, fontWeight: 600 }}>{name}</span>
+      {!isMobile && <span style={{ fontSize: 14, fontWeight: 600 }}>{name}</span>}
     </div>
   );
 }
@@ -410,12 +434,14 @@ function HeroLeft({
   deep,
   joinCode,
   onJoinCodeChange,
+  isMobile,
 }: {
   game: GameInfo;
   accent: string;
   deep: string;
   joinCode: string;
   onJoinCodeChange: (v: string) => void;
+  isMobile: boolean;
 }) {
   return (
     <div style={{ position: "relative" }}>
@@ -429,11 +455,11 @@ function HeroLeft({
           transition={spring.soft}
           style={{
             fontWeight: 900,
-            fontSize: "clamp(56px, 8.5vw, 116px)",
-            lineHeight: 0.9,
-            letterSpacing: "-0.045em",
+            fontSize: isMobile ? "clamp(40px, 12vw, 44px)" : "clamp(56px, 8.5vw, 116px)",
+            lineHeight: isMobile ? 0.96 : 0.9,
+            letterSpacing: isMobile ? "-0.03em" : "-0.045em",
             margin: 0,
-            marginBottom: 24,
+            marginBottom: isMobile ? 18 : 24,
           }}
         >
           <span
@@ -473,16 +499,16 @@ function HeroLeft({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 20,
-            marginBottom: 28,
+            gap: isMobile ? 10 : 20,
+            marginBottom: isMobile ? 20 : 28,
             flexWrap: "wrap",
             fontFamily: "var(--font-mono)",
           }}
         >
           <MetaPill icon={<PersonIcon />}>{game.players}</MetaPill>
-          <Dot />
+          {!isMobile && <Dot />}
           <MetaPill icon={<ClockIcon />}>{game.duration}</MetaPill>
-          <Dot />
+          {!isMobile && <Dot />}
           <MetaPill icon={<TeamsIcon />}>{game.mode}</MetaPill>
         </motion.div>
       </AnimatePresence>
@@ -496,11 +522,11 @@ function HeroLeft({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
           style={{
-            fontSize: 18,
+            fontSize: isMobile ? 14 : 18,
             lineHeight: 1.55,
             color: "rgba(235, 235, 245, 0.72)",
             maxWidth: 520,
-            margin: "0 0 32px",
+            margin: isMobile ? "0 0 24px" : "0 0 32px",
           }}
         >
           {game.description}
@@ -511,9 +537,10 @@ function HeroLeft({
       <div
         style={{
           display: "flex",
-          gap: 24,
+          gap: isMobile ? 12 : 24,
           flexWrap: "wrap",
-          alignItems: "center",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "stretch" : "center",
         }}
       >
         <motion.button
@@ -525,9 +552,10 @@ function HeroLeft({
             alignItems: "center",
             justifyContent: "center",
             gap: 10,
-            height: 60,
-            padding: "0 32px",
-            fontSize: 17,
+            height: isMobile ? 54 : 60,
+            width: isMobile ? "100%" : undefined,
+            padding: isMobile ? "0 22px" : "0 32px",
+            fontSize: isMobile ? 16 : 17,
             fontWeight: 700,
             borderRadius: radius.md,
             background: `linear-gradient(180deg, ${accent}, ${deep})`,
@@ -548,9 +576,10 @@ function HeroLeft({
           whileTap={{ scale: 0.97 }}
           transition={spring.snappy}
           style={{
-            height: 60,
-            padding: "0 26px",
-            fontSize: 16,
+            height: isMobile ? 54 : 60,
+            width: isMobile ? "100%" : undefined,
+            padding: isMobile ? "0 22px" : "0 26px",
+            fontSize: isMobile ? 15 : 16,
             fontWeight: 600,
             borderRadius: radius.md,
             background: "rgba(255, 255, 255, 0.06)",
@@ -569,14 +598,15 @@ function HeroLeft({
             display: "inline-flex",
             alignItems: "center",
             gap: 12,
-            height: 60,
+            height: isMobile ? 54 : 60,
+            width: isMobile ? "100%" : undefined,
             padding: "0 18px",
             borderRadius: radius.md,
             background: "rgba(0, 0, 0, 0.32)",
             border: "1px dashed rgba(255, 255, 255, 0.22)",
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
             <span
               style={{
                 fontSize: 10,
@@ -605,7 +635,7 @@ function HeroLeft({
                 fontWeight: 700,
                 fontSize: 17,
                 letterSpacing: "0.3em",
-                width: 130,
+                width: isMobile ? "100%" : 130,
                 padding: 0,
               }}
             />
@@ -1084,13 +1114,15 @@ function TileStrip({
   games,
   activeId,
   onSelect,
+  isMobile,
 }: {
   games: GameInfo[];
   activeId: GameId;
   onSelect: (id: GameId) => void;
+  isMobile: boolean;
 }) {
   return (
-    <div style={{ position: "relative", zIndex: 1, paddingBottom: 32 }}>
+    <div style={{ position: "relative", zIndex: 1, paddingBottom: isMobile ? 20 : 32 }}>
       <p
         style={{
           fontSize: 11,
@@ -1108,11 +1140,17 @@ function TileStrip({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${games.length}, 1fr)`,
-          gap: 28,
+          gridTemplateColumns: isMobile ? undefined : `repeat(${games.length}, 1fr)`,
+          gridAutoFlow: isMobile ? "column" : undefined,
+          gridAutoColumns: isMobile ? 110 : undefined,
+          gap: isMobile ? 12 : 28,
           maxWidth: 1280,
           margin: "0 auto",
-          padding: "0 48px",
+          padding: isMobile ? "0 16px 10px" : "0 48px",
+          overflowX: isMobile ? "auto" : undefined,
+          overflowY: isMobile ? "visible" : undefined,
+          scrollSnapType: isMobile ? "x mandatory" : undefined,
+          WebkitOverflowScrolling: isMobile ? "touch" : undefined,
         }}
       >
         {games.map((game) => (
@@ -1121,6 +1159,7 @@ function TileStrip({
             game={game}
             isActive={game.id === activeId}
             onClick={() => onSelect(game.id)}
+            isMobile={isMobile}
           />
         ))}
       </div>
@@ -1132,10 +1171,12 @@ function Tile({
   game,
   isActive,
   onClick,
+  isMobile = false,
 }: {
   game: GameInfo;
   isActive: boolean;
   onClick: () => void;
+  isMobile?: boolean;
 }) {
   const accent = gameColors[game.id].accent;
   const deep = gameColors[game.id].deep;
@@ -1154,6 +1195,7 @@ function Tile({
         padding: 0,
         fontFamily: "inherit",
         color: "inherit",
+        scrollSnapAlign: isMobile ? "start" : undefined,
       }}
     >
       <motion.div

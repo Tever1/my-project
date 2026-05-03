@@ -38,6 +38,22 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-002.1: Mobile polish (breakpoint 768→900, brand nowrap) — ✅ done
+- Завершено: 2026-05-03
+- Коммит: _(вместе с TASK-002)_
+- Резюме: breakpoint поднят до 900px (имя Аня больше не обрезается на
+  769-900). Brand "Party Hub" получил `whiteSpace: nowrap` (не переносится
+  на 375px). Diff: ровно 2 строки изменений.
+
+### TASK-002: Mobile layout для /lobby-preview — ✅ done
+- Завершено: 2026-05-02
+- Коммит: _(pending)_
+- Резюме: добавлен SSR-safe `useIsMobile` (breakpoint 768px), hero
+  стэкается в одну колонку, TiltedPreview/floating badges/nav/
+  FriendsOnlinePill/имя в Avatar скрыты на мобиле, CTA-row
+  стэкается вертикально с full-width кнопками, tile-strip получил
+  scroll-snap. Desktop layout не изменился. Build OK, lint без новых.
+
 ### TASK-001: Убрать unused variables — ✅ done
 - Завершено: 2026-05-02
 - Коммит: _(pending — ждёт ревью пользователя)_
