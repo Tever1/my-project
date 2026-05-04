@@ -117,6 +117,20 @@ function useIsMobile(breakpoint = 1024) {
   return isMobile;
 }
 
+function useIsNarrowDesktop() {
+  const [isNarrowDesktop, setIsNarrowDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1025px) and (max-width: 1100px)");
+    const onChange = () => setIsNarrowDesktop(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  return isNarrowDesktop;
+}
+
 // ============================================================
 // Page
 // ============================================================
@@ -126,6 +140,7 @@ export default function LobbyPreviewPage() {
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const isMobile = useIsMobile();
+  const isNarrowDesktop = useIsNarrowDesktop();
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -163,6 +178,7 @@ export default function LobbyPreviewPage() {
         onCreateRoom={() => setRoomCode("ABXY7K")}
         accent={accent}
         isMobile={isMobile}
+        isNarrowDesktop={isNarrowDesktop}
       />
 
       {/* Hero */}
@@ -217,12 +233,16 @@ function TopBar({
   onCreateRoom,
   accent,
   isMobile,
+  isNarrowDesktop,
 }: {
   roomCode: string | null;
   onCreateRoom: () => void;
   accent: string;
   isMobile: boolean;
+  isNarrowDesktop: boolean;
 }) {
+  const compact = isNarrowDesktop && !isMobile;
+
   return (
     <header
       style={{
@@ -231,25 +251,32 @@ function TopBar({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: isMobile ? "12px 16px" : "20px 32px",
-        gap: isMobile ? 12 : 24,
+        padding: isMobile ? "12px 16px" : compact ? "20px 20px" : "20px 32px",
+        gap: isMobile ? 12 : compact ? 12 : 24,
       }}
     >
       {/* Left: brand + nav */}
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
         <BrandMark />
         <nav style={{ display: isMobile ? "none" : "flex", gap: 4 }}>
-          <NavButton active>Играть</NavButton>
-          <NavButton>Друзья</NavButton>
-          <NavButton>История</NavButton>
+          <NavButton active isNarrowDesktop={compact}>
+            Играть
+          </NavButton>
+          <NavButton isNarrowDesktop={compact}>Друзья</NavButton>
+          <NavButton isNarrowDesktop={compact}>История</NavButton>
         </nav>
       </div>
 
       {/* Right: friends online + room button + avatar */}
-      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
-        {!isMobile && <FriendsOnlinePill count={4} />}
-        <RoomButton roomCode={roomCode} onCreate={onCreateRoom} accent={accent} />
-        <AvatarPill name="Аня" isMobile={isMobile} />
+      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : compact ? 8 : 12 }}>
+        {!isMobile && <FriendsOnlinePill count={4} isNarrowDesktop={compact} />}
+        <RoomButton
+          roomCode={roomCode}
+          onCreate={onCreateRoom}
+          accent={accent}
+          isNarrowDesktop={compact}
+        />
+        <AvatarPill name="Аня" isMobile={isMobile} isNarrowDesktop={compact} />
       </div>
     </header>
   );
@@ -293,9 +320,11 @@ function BrandMark() {
 function NavButton({
   children,
   active = false,
+  isNarrowDesktop = false,
 }: {
   children: React.ReactNode;
   active?: boolean;
+  isNarrowDesktop?: boolean;
 }) {
   return (
     <motion.button
@@ -303,13 +332,13 @@ function NavButton({
       whileTap={{ scale: 0.97 }}
       transition={spring.snappy}
       style={{
-        padding: "10px 20px",
+        padding: isNarrowDesktop ? "10px 14px" : "10px 20px",
         borderRadius: radius.full,
         background: active ? "rgba(255, 255, 255, 0.1)" : "transparent",
         border: active ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid transparent",
         color: active ? "white" : "rgba(255, 255, 255, 0.55)",
         fontFamily: "inherit",
-        fontSize: 15,
+        fontSize: isNarrowDesktop ? 14 : 15,
         fontWeight: 600,
         cursor: "pointer",
         letterSpacing: "-0.01em",
@@ -320,18 +349,24 @@ function NavButton({
   );
 }
 
-function FriendsOnlinePill({ count }: { count: number }) {
+function FriendsOnlinePill({
+  count,
+  isNarrowDesktop = false,
+}: {
+  count: number;
+  isNarrowDesktop?: boolean;
+}) {
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
         gap: 8,
-        padding: "8px 16px",
+        padding: isNarrowDesktop ? "8px 12px" : "8px 16px",
         borderRadius: radius.full,
         background: "rgba(255, 255, 255, 0.04)",
         border: "1px solid rgba(255, 255, 255, 0.08)",
-        fontSize: 14,
+        fontSize: isNarrowDesktop ? 13 : 14,
         color: "rgba(255, 255, 255, 0.85)",
         fontWeight: 500,
         whiteSpace: "nowrap",
@@ -355,10 +390,12 @@ function RoomButton({
   roomCode,
   onCreate,
   accent,
+  isNarrowDesktop = false,
 }: {
   roomCode: string | null;
   onCreate: () => void;
   accent: string;
+  isNarrowDesktop?: boolean;
 }) {
   return (
     <motion.button
@@ -367,7 +404,7 @@ function RoomButton({
       whileTap={{ scale: 0.97 }}
       transition={spring.snappy}
       style={{
-        padding: "8px 18px",
+        padding: isNarrowDesktop ? "8px 14px" : "8px 18px",
         borderRadius: radius.full,
         background: roomCode
           ? `linear-gradient(135deg, ${accent}, ${accent}CC)`
@@ -377,7 +414,7 @@ function RoomButton({
           : "1px solid rgba(255, 255, 255, 0.12)",
         color: roomCode ? "white" : "rgba(255, 255, 255, 0.85)",
         fontFamily: roomCode ? "var(--font-mono)" : "inherit",
-        fontSize: roomCode ? 13 : 14,
+        fontSize: roomCode || isNarrowDesktop ? 13 : 14,
         fontWeight: roomCode ? 700 : 600,
         letterSpacing: roomCode ? "0.12em" : "-0.01em",
         cursor: "pointer",
@@ -391,15 +428,23 @@ function RoomButton({
   );
 }
 
-function AvatarPill({ name, isMobile = false }: { name: string; isMobile?: boolean }) {
+function AvatarPill({
+  name,
+  isMobile = false,
+  isNarrowDesktop = false,
+}: {
+  name: string;
+  isMobile?: boolean;
+  isNarrowDesktop?: boolean;
+}) {
   const initial = name.charAt(0);
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: isMobile ? 0 : 10,
-        padding: isMobile ? 5 : "5px 16px 5px 5px",
+        gap: isMobile ? 0 : isNarrowDesktop ? 8 : 10,
+        padding: isMobile ? 5 : isNarrowDesktop ? "5px 12px 5px 5px" : "5px 16px 5px 5px",
         borderRadius: radius.full,
         background: "rgba(255, 255, 255, 0.04)",
         border: "1px solid rgba(255, 255, 255, 0.08)",

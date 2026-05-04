@@ -38,6 +38,15 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-008: TopBar polish 1025-1100px (narrow desktop) — ✅ done
+- Завершено: 2026-05-03
+- Резюме: добавлен SSR-safe хук `useIsNarrowDesktop()` (matchMedia
+  `(min-width:1025px) and (max-width:1100px)`). В этом диапазоне ужаты
+  padding/gap/fontSize у `<header>`, `NavButton`, `FriendsOnlinePill`,
+  `RoomButton`, `AvatarPill`. Wide desktop (>1100px) и mobile (≤1024)
+  не тронуты. QA через Claude Preview MCP — на 800/1025/1080/1100/1101/1200
+  всё корректно, нет overflow.
+
 ### TASK-007: Rename UI label "Alias" → "Угадай слово" — ✅ done
 - Завершено: 2026-05-03
 - Резюме: заменён видимый текст "Alias" на "Угадай слово" в 4 файлах
