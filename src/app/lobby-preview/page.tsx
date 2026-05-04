@@ -182,7 +182,10 @@ export default function LobbyPreviewPage() {
 
         if (focusedCta) {
           e.preventDefault();
-          const ctaOrder = ["start", "rules", "join-code"];
+          const ctaOrder =
+            joinCode.length === 6
+              ? ["start", "rules", "join-code", "join-submit"]
+              : ["start", "rules", "join-code"];
           const idx = ctaOrder.indexOf(focusedCta);
           if (idx === -1) return;
 
@@ -255,7 +258,7 @@ export default function LobbyPreviewPage() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeGame, handleStartGame]);
+  }, [activeGame, handleStartGame, joinCode]);
 
   const active = games.find((g) => g.id === activeGame)!;
   const accent = gameColors[active.id].accent;
@@ -665,7 +668,49 @@ function HeroLeft({
 }) {
   const [startFocused, setStartFocused] = useState(false);
   const [rulesFocused, setRulesFocused] = useState(false);
+  const [joinWrapperFocused, setJoinWrapperFocused] = useState(false);
+  const [joinInputFocused, setJoinInputFocused] = useState(false);
+  const [submitFocused, setSubmitFocused] = useState(false);
+  const joinInputRef = useRef<HTMLInputElement>(null);
+  const joinWrapperRef = useRef<HTMLButtonElement>(null);
+  const joinSelectedByEscRef = useRef(false);
   const startButtonShadow = `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`;
+  const joinFocusRing = joinWrapperFocused || joinInputFocused;
+
+  const handleJoinWrapperFocus = () => {
+    setJoinWrapperFocused(true);
+    if (joinSelectedByEscRef.current) {
+      joinSelectedByEscRef.current = false;
+      return;
+    }
+    joinInputRef.current?.focus();
+  };
+
+  const handleJoinWrapperKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.target !== e.currentTarget) return;
+
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelector<HTMLElement>('[data-lobby-cta="rules"]')?.focus();
+      return;
+    }
+
+    if (e.key === "ArrowRight" || e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      joinInputRef.current?.focus();
+    }
+  };
+
+  const handleJoinInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Escape") return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    joinSelectedByEscRef.current = true;
+    joinWrapperRef.current?.focus();
+  };
 
   return (
     <div style={{ position: "relative" }}>
@@ -830,7 +875,15 @@ function HeroLeft({
         </motion.button>
 
         {/* Join code input */}
-        <div
+        <button
+          ref={joinWrapperRef}
+          type="button"
+          tabIndex={-1}
+          data-lobby-cta="join-code"
+          onFocus={handleJoinWrapperFocus}
+          onBlur={() => setJoinWrapperFocused(false)}
+          onKeyDown={handleJoinWrapperKeyDown}
+          onClick={() => joinInputRef.current?.focus()}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -841,6 +894,11 @@ function HeroLeft({
             borderRadius: radius.md,
             background: "rgba(0, 0, 0, 0.32)",
             border: "1px dashed rgba(255, 255, 255, 0.22)",
+            boxShadow: joinFocusRing ? `0 0 0 3px ${accent}99` : "none",
+            cursor: "text",
+            fontFamily: "inherit",
+            outline: "none",
+            color: "inherit",
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
@@ -857,11 +915,15 @@ function HeroLeft({
               Код комнаты
             </span>
             <input
-              data-lobby-cta="join-code"
+              ref={joinInputRef}
+              data-lobby-cta="join-code-input"
               value={joinCode}
               onChange={(e) =>
                 onJoinCodeChange(e.target.value.toUpperCase().slice(0, 6))
               }
+              onFocus={() => setJoinInputFocused(true)}
+              onBlur={() => setJoinInputFocused(false)}
+              onKeyDown={handleJoinInputKeyDown}
               placeholder="ABXY7K"
               maxLength={6}
               style={{
@@ -878,7 +940,39 @@ function HeroLeft({
               }}
             />
           </div>
-        </div>
+        </button>
+
+        {joinCode.length === 6 && (
+          <motion.button
+            data-lobby-cta="join-submit"
+            onClick={() => console.log("join room", joinCode)}
+            onFocus={() => setSubmitFocused(true)}
+            onBlur={() => setSubmitFocused(false)}
+            whileHover={{ scale: 1.03, y: -2 }}
+            whileTap={{ scale: 0.97 }}
+            transition={spring.snappy}
+            style={{
+              height: isMobile ? 54 : 60,
+              width: isMobile ? "100%" : undefined,
+              padding: isMobile ? "0 22px" : "0 28px",
+              fontSize: isMobile ? 16 : 17,
+              fontWeight: 700,
+              borderRadius: radius.md,
+              background: `linear-gradient(180deg, ${accent}, ${deep})`,
+              color: "white",
+              border: `1px solid color-mix(in srgb, ${accent} 60%, white)`,
+              boxShadow: submitFocused
+                ? `0 0 0 3px rgba(255,255,255,0.7), 0 12px 32px -8px ${accent}99`
+                : `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
+              cursor: "pointer",
+              letterSpacing: "-0.01em",
+              fontFamily: "inherit",
+              outline: "none",
+            }}
+          >
+            Присоединиться
+          </motion.button>
+        )}
       </div>
     </div>
   );

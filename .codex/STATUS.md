@@ -38,6 +38,15 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-018: Join-code Esc + «Присоединиться» при 6 chars — ✅ done
+- Завершено: 2026-05-03
+- Резюме: wrapper вокруг join-code input стал button (data-lobby-cta="join-code"),
+  input получил "join-code-input". Two-stage focus: ArrowRight с rules
+  → editing input → Esc → selected wrapper (per-game accent ring 3px) →
+  ArrowLeft → rules / Enter → editing / ArrowRight → join-submit.
+  Кнопка «Присоединиться» (data-lobby-cta="join-submit") появляется при
+  joinCode.length===6, добавлена в CTA order условно.
+
 ### TASK-017: ArrowRight from «Правила» → join-code input — ✅ done
 - Завершено: 2026-05-03
 - Резюме: Hero CTA order стал `[start, rules, join-code]`. Стрелка → с
