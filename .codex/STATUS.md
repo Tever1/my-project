@@ -38,6 +38,15 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-015 + 015.1: TopBar — FriendsPill как button + visual order + focus rings — ✅ done
+- Завершено: 2026-05-03
+- Резюме: FriendsOnlinePill переведён с `<div>` на `motion.button` с
+  `data-topbar="friends-online"` и 3px focus ring. NavButton «Друзья»
+  получил `topbarId="friends-nav"`. Order array обновлён до
+  `['play', 'friends-nav', 'history', 'friends-online', 'room']` — natural
+  left-to-right. RoomButton focus ring увеличен до 3px и пофикшен баг с
+  невалидным CSS `boxShadow: 'X, none'` — теперь корректно показывается.
+
 ### TASK-014: Sync DOM focus with activeGame on ←/→ — ✅ done
 - Завершено: 2026-05-03
 - Резюме: после mouse-клика на тайле фокус оставался на body — ←/→ меняли

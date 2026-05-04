@@ -167,7 +167,7 @@ export default function LobbyPreviewPage() {
         const inTopBar = focused?.dataset?.topbar !== undefined;
         if (inTopBar) {
           e.preventDefault();
-          const order = ["play", "friends", "history", "room"];
+          const order = ["play", "friends-nav", "history", "friends-online", "room"];
           const cur = focused.dataset.topbar!;
           const idx = order.indexOf(cur);
           if (idx === -1) return;
@@ -368,14 +368,16 @@ function TopBar({
           <NavButton active topbarId="play" isNarrowDesktop={compact}>
             Играть
           </NavButton>
-          <NavButton topbarId="friends" isNarrowDesktop={compact}>Друзья</NavButton>
+          <NavButton topbarId="friends-nav" isNarrowDesktop={compact}>Друзья</NavButton>
           <NavButton topbarId="history" isNarrowDesktop={compact}>История</NavButton>
         </nav>
       </div>
 
       {/* Right: friends online + room button + avatar */}
       <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : compact ? 8 : 12 }}>
-        {!isMobile && <FriendsOnlinePill count={4} isNarrowDesktop={compact} />}
+        {!isMobile && (
+          <FriendsOnlinePill count={4} isNarrowDesktop={compact} topbarId="friends-online" />
+        )}
         <RoomButton
           roomCode={roomCode}
           onCreate={onCreateRoom}
@@ -468,12 +470,23 @@ function NavButton({
 function FriendsOnlinePill({
   count,
   isNarrowDesktop = false,
+  topbarId,
 }: {
   count: number;
   isNarrowDesktop?: boolean;
+  topbarId?: string;
 }) {
+  const [focused, setFocused] = useState(false);
+
   return (
-    <div
+    <motion.button
+      data-topbar={topbarId}
+      onClick={() => console.log("friends panel — TODO")}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      transition={spring.snappy}
       style={{
         display: "flex",
         alignItems: "center",
@@ -482,9 +495,13 @@ function FriendsOnlinePill({
         borderRadius: radius.full,
         background: "rgba(255, 255, 255, 0.04)",
         border: "1px solid rgba(255, 255, 255, 0.08)",
+        fontFamily: "inherit",
         fontSize: isNarrowDesktop ? 13 : 14,
         color: "rgba(255, 255, 255, 0.85)",
         fontWeight: 500,
+        cursor: "pointer",
+        outline: "none",
+        boxShadow: focused ? "0 0 0 3px rgba(255,255,255,0.6)" : "none",
         whiteSpace: "nowrap",
       }}
     >
@@ -498,7 +515,7 @@ function FriendsOnlinePill({
         }}
       />
       {count} друзей онлайн
-    </div>
+    </motion.button>
   );
 }
 
@@ -517,7 +534,7 @@ function RoomButton({
 }) {
   const [focused, setFocused] = useState(false);
   const baseShadow = roomCode ? `0 6px 20px -4px ${accent}80` : "none";
-  const focusRing = roomCode ? `0 0 0 2px ${accent}99` : "0 0 0 2px rgba(255,255,255,0.6)";
+  const focusRing = roomCode ? `0 0 0 3px ${accent}99` : "0 0 0 3px rgba(255,255,255,0.7)";
 
   return (
     <motion.button
@@ -544,7 +561,11 @@ function RoomButton({
         letterSpacing: roomCode ? "0.12em" : "-0.01em",
         cursor: "pointer",
         outline: "none",
-        boxShadow: focused ? `${focusRing}, ${baseShadow}` : baseShadow,
+        boxShadow: focused
+          ? baseShadow !== "none"
+            ? `${focusRing}, ${baseShadow}`
+            : focusRing
+          : baseShadow,
         textTransform: roomCode ? "uppercase" : undefined,
         whiteSpace: "nowrap",
       }}
