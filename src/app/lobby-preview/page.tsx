@@ -188,12 +188,19 @@ export default function LobbyPreviewPage() {
         }
 
         e.preventDefault();
-        setActiveGame((prev) => {
-          const idx = games.findIndex((g) => g.id === prev);
-          const direction = e.key === "ArrowRight" ? 1 : -1;
-          const next = (idx + direction + games.length) % games.length;
-          return games[next].id;
-        });
+        const inTileStrip = focused?.dataset?.gameId !== undefined;
+        const focusedTag = focused?.tagName;
+        const isOnBody = !focused || focusedTag === "BODY" || focusedTag === "HTML";
+        const curId = inTileStrip ? focused.dataset.gameId! : activeGame;
+        const idx = games.findIndex((g) => g.id === curId);
+        const direction = e.key === "ArrowRight" ? 1 : -1;
+        const nextIdx = (idx + direction + games.length) % games.length;
+        const nextId = games[nextIdx].id;
+        setActiveGame(nextId);
+
+        if (inTileStrip || isOnBody) {
+          document.querySelector<HTMLElement>(`[data-game-id="${nextId}"]`)?.focus();
+        }
       } else if (e.key === "ArrowUp") {
         const focusedTag = focused?.tagName;
         const focusedCta = focused?.dataset?.lobbyCta !== undefined;

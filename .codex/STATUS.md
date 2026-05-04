@@ -38,6 +38,16 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-014: Sync DOM focus with activeGame on ←/→ — ✅ done
+- Завершено: 2026-05-03
+- Резюме: после mouse-клика на тайле фокус оставался на body — ←/→ меняли
+  activeGame, но focus не переезжал, и Enter не находил «inTileStrip».
+  Также при ↓ → tile, ← → next-from-activeGame вместо next-from-focused.
+  Исправлено: в ←/→ handler берём curId из focused.dataset.gameId если
+  focus в strip, иначе из activeGame; после setActiveGame явно фокусируем
+  новый тайл через querySelector. QA подтвердило press effect на правильном
+  тайле во всех сценариях.
+
 ### TASK-010..013.2: Lobby keyboard navigation + tile press effect — ✅ done
 - Завершено: 2026-05-03
 - Резюме: серия итераций (010, 010.1-.4, 011-011.1, 012, 013-013.2):
