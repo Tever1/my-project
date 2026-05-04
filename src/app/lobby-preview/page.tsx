@@ -182,8 +182,15 @@ export default function LobbyPreviewPage() {
 
         if (focusedCta) {
           e.preventDefault();
-          const next = focusedCta === "start" ? "rules" : "start";
-          document.querySelector<HTMLElement>(`[data-lobby-cta="${next}"]`)?.focus();
+          const ctaOrder = ["start", "rules", "join-code"];
+          const idx = ctaOrder.indexOf(focusedCta);
+          if (idx === -1) return;
+
+          const direction = e.key === "ArrowRight" ? 1 : -1;
+          const next = idx + direction;
+          if (next < 0 || next >= ctaOrder.length) return;
+
+          document.querySelector<HTMLElement>(`[data-lobby-cta="${ctaOrder[next]}"]`)?.focus();
           return;
         }
 
@@ -850,6 +857,7 @@ function HeroLeft({
               Код комнаты
             </span>
             <input
+              data-lobby-cta="join-code"
               value={joinCode}
               onChange={(e) =>
                 onJoinCodeChange(e.target.value.toUpperCase().slice(0, 6))

@@ -38,6 +38,12 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-017: ArrowRight from «Правила» → join-code input — ✅ done
+- Завершено: 2026-05-03
+- Резюме: Hero CTA order стал `[start, rules, join-code]`. Стрелка → с
+  «Правила» фокусирует input «Код комнаты». В input стрелки работают
+  нативно (handler пропускает событие в INPUT/TEXTAREA).
+
 ### TASK-016: AvatarPill → button + keyboard order — ✅ done
 - Завершено: 2026-05-03
 - Резюме: AvatarPill переведён с `<div>` на `motion.button` с
