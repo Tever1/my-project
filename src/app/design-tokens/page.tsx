@@ -34,13 +34,14 @@ import {
   GlassToaster,
   type GlassVariant,
 } from "@/components/glass";
+import { GameIcon } from "@/components/GameIcon";
 
 const games: { id: GameId; ru: string }[] = [
   { id: "quiz", ru: "Квиз" },
   { id: "mafia", ru: "Мафия" },
   { id: "crocodile", ru: "Крокодил" },
   { id: "spy", ru: "Шпион" },
-  { id: "alias", ru: "Alias" },
+  { id: "alias", ru: "Угадай слово" },
   { id: "who-am-i", ru: "Кто я?" },
   { id: "hundred-to-one", ru: "100 к 1" },
 ];
@@ -573,6 +574,56 @@ export default function DesignTokensPage() {
           </GlassPanel>
         </Section>
 
+        <Section
+          title="Тайл игры — варианты"
+          subtitle="Сравнение: с рамкой (как в /lobby-preview) и без рамки (только иконка + подпись)"
+        >
+          <h3
+            style={{
+              fontSize: 16,
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.8)",
+              margin: "0 0 12px",
+            }}
+          >
+            Вариант A — с рамкой (текущий)
+          </h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+              gap: 16,
+              marginBottom: 32,
+            }}
+          >
+            {games.map((g) => (
+              <TileFramed key={g.id} gameId={g.id} label={g.ru} />
+            ))}
+          </div>
+
+          <h3
+            style={{
+              fontSize: 16,
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.8)",
+              margin: "0 0 12px",
+            }}
+          >
+            Вариант B — без рамки
+          </h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+              gap: 16,
+            }}
+          >
+            {games.map((g) => (
+              <TileNaked key={g.id} gameId={g.id} label={g.ru} />
+            ))}
+          </div>
+        </Section>
+
         <p
           style={{
             textAlign: "center",
@@ -635,6 +686,87 @@ export default function DesignTokensPage() {
       {/* Toaster mounted once */}
       <GlassToaster accentColor={gameColors[activeGame].accent} />
     </main>
+  );
+}
+
+function TileFramed({ gameId, label }: { gameId: GameId; label: string }) {
+  const accent = gameColors[gameId].accent;
+  const deep = gameColors[gameId].deep;
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        aspectRatio: "1",
+        borderRadius: radius.md,
+        background: `linear-gradient(135deg, ${deep}66, ${accent}22)`,
+        backdropFilter: "blur(16px)",
+        border: `1px solid ${accent}40`,
+        boxShadow: `0 10px 24px rgba(0,0,0,0.35), 0 0 0 1px ${accent}25`,
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <GameIcon gameId={gameId} style={{ width: "100%", height: "100%" }} />
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: "18px 8px 10px",
+          textAlign: "center",
+          background:
+            "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "white",
+            letterSpacing: "-0.01em",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            textShadow: "0 1px 4px rgba(0,0,0,0.6)",
+          }}
+        >
+          {label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TileNaked({ gameId, label }: { gameId: GameId; label: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <div style={{ width: "100%", aspectRatio: "1" }}>
+        <GameIcon gameId={gameId} style={{ width: "100%", height: "100%" }} />
+      </div>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: "white",
+          letterSpacing: "-0.01em",
+          whiteSpace: "nowrap",
+          textShadow: "0 1px 4px rgba(0,0,0,0.6)",
+        }}
+      >
+        {label}
+      </div>
+    </div>
   );
 }
 

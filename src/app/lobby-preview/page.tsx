@@ -73,7 +73,7 @@ const games: GameInfo[] = [
   },
   {
     id: "alias",
-    name: "Alias",
+    name: "Угадай слово",
     heroTitle: { word: "Объясни", accent: "быстрее" },
     description:
       "Минута, секундомер и стопка слов. Чем больше угадает команда — тем больше очков.",

@@ -64,3 +64,6 @@ mobile/node_modules/
 mobile/package-lock.json
 *.html.tmp
 100_к_1_кино.html
+
+# Картинки-референсы (не для коммита)
+Картинки для игр/

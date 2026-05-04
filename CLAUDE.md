@@ -203,6 +203,42 @@ script просто возьмёт её как есть и обернёт в с�
       - Layout: `flex-col`, данные игры (`flex-[3]`) + инструмент (`flex-[2]`).
       - Игры с инструментом помечены бейджем ✨.
 
+- [x] **Все 7 PNG-иконок игр + pipeline стрипа фона** (сессия 2026-05-03):
+      - **`scripts/strip-bg.mjs`** + `npm run strip-bg` (использует `sharp`).
+        Алгоритм: 4-связный flood-fill от 4 углов канваса, порог
+        `min(R,G,B) ≥ 180` для «light gate». Убирает зашитый ChatGPT-ом
+        фон (RGB без альфы — белый/шахматка) и светлый halo вокруг субъекта.
+        **Не трогает внутренние glassy-блики** (они окружены цветом субъекта,
+        flood-fill туда не доходит). См. TASK-005, 005.1, 005.2, 005.3 в
+        `codex-tasks/`.
+      - **Все 7 иконок** в `public/icons/games/` сгенерированы через
+        ChatGPT image gen в стиле **frosted matte 3D glass** в цвете игры,
+        обработаны strip-bg и закоммичены как RGBA-PNG:
+        `mafia.png` (фиолетовый), `quiz.png` (жёлтый, мозг), `crocodile.png`
+        (красный, кавайный крокодил с фуросики), `spy.png` (бирюзовый,
+        детектив с лупой), `alias.png` (розовый, секундомер-облако),
+        `who-am-i.png` (голубой, силуэт с вопросом), `hundred-to-one.png`
+        (янтарный, стопка ответов).
+      - Промпт-шаблон выработан и зафиксирован: subject из референса +
+        наш 3D frosted-glass стиль + per-game палитра из CLAUDE.md +
+        строгие требования к RGBA / прозрачному фону / отсутствию белого halo.
+      - **Phase C закрыта.**
+
+- [x] **TASK-006: секция «Тайл игры — варианты» в `/design-tokens`** (сессия 2026-05-03):
+      - Два варианта рендера для всех 7 игр side-by-side:
+        - `TileFramed` — копия визуала `<Tile>` из `/lobby-preview` (frosted-glass
+          рамка, gradient background, dark-gradient label).
+        - `TileNaked` — только `<GameIcon>` + подпись под иконкой, без рамки/фона.
+      - Inline-копия стилей, не выносим в shared компонент.
+      - Цель — выбрать финальный визуальный язык лобби.
+
+- [x] **TASK-007: «Alias» → «Угадай слово»** (сессия 2026-05-03):
+      - Заменена видимая UI-надпись в 4 файлах: `lobby-preview/page.tsx`,
+        `admin/page.tsx`, `design-tokens/page.tsx`, `api/admin/game-stats/route.ts`.
+      - **Внутренний id `'alias'`, маршруты `/game/[roomId]/alias`,
+        socket-события `alias:*`, тип `GameType` — НЕ ТРОНУТЫ.**
+        Это технические идентификаторы.
+
 - [x] **Tile redesign в `/lobby-preview`** (сессия 2026-05-01, ещё не закоммичено):
       - Картинка из `public/icons/games/<id>.png` теперь **полностью заполняет тайл**
         (`objectFit: cover`, `inset: 0`), а не висит над верхней рамкой.
@@ -263,6 +299,13 @@ script просто возьмёт её как есть и обернёт в с�
 5. ⬜ UI превью фона в setup-экране выбора темы (опционально).
 6. ✅ **Все 12 багов из QA исправлены** (сессии 2026-04-25/26, см. реестр ниже).
 7. ✅ **100 к 1** — QA прогон завершён (сессия 2026-04-26), оценка 9/10, найден 1 P2 баг TV mode.
+8. ⬜ **TiltedPreview справа в `/lobby-preview` — заменить на реальные in-game скриншоты.**
+   Сейчас правая карточка превью показывает те же иконки что и нижний tile-strip
+   (mock-content из 7 случаев). После того как UI всех 7 игр будет финализирован
+   (Phase F-H), нужно сделать скриншоты реального gameplay каждой игры (фаза `playing`,
+   характерный момент игры) и подставить их в TiltedPreview по `activeGame`. Это
+   станет визуальной фишкой лобби — игрок реально видит **что происходит в игре**,
+   а не повторение иконки.
 
 ---
 
@@ -397,8 +440,8 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 |---|---|---|
 | **A** Foundation | ✅ DONE | Geist + per-game palette + motion + radius/duration/easing токены |
 | **B** Liquid Glass | ✅ DONE | `<GlassPanel>` (5 вариантов) + `<GlassSheet>` (vaul) + `<GlassToaster>` (sonner) + depth/blur/shadow токены |
-| **C** Icon pipeline | 🟡 PARTIAL | `<GameIcon>` placeholder fallback (fill mode), generate-icon.mjs. Сгенерированы `mafia.png`, `quiz.png`. Осталось 5 PNG |
-| **D** PS5 Lobby | 🟡 PROTOTYPE | `/lobby-preview` визуально готов, тайлы перепроектированы (картинка на всю площадь + dark gradient label). Socket.io + keyboard nav + mobile — впереди |
+| **C** Icon pipeline | ✅ DONE (icons) | Все 7 PNG-иконок сгенерированы и обработаны через `npm run strip-bg` (flood-fill от углов, RGBA): mafia, quiz, crocodile, spy, alias, who-am-i, hundred-to-one. Стиль — frosted matte 3D glass в цвете игры, прозрачный фон. |
+| **D** PS5 Lobby | 🟡 PROTOTYPE | `/lobby-preview` визуально готов, тайлы перепроектированы. Socket.io + keyboard nav + mobile — впереди. **TODO: TiltedPreview справа сейчас показывает те же иконки что и в нижнем tile-strip — это неверно. Нужно заменить на реальные in-game скриншоты каждой игры (после того как UI всех игр будет финализирован).** |
 | **E** Core components | ⏳ TODO | Buttons / inputs / modals / avatars / badges / skeletons |
 | **F** Game flow transitions | ⏳ TODO | setup → playing → results unified transitions |
 | **G** In-game polish | ⏳ TODO | Таймеры, очки, celebrations, attention-grabbers |

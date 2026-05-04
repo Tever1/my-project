@@ -38,6 +38,44 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-007: Rename UI label "Alias" → "Угадай слово" — ✅ done
+- Завершено: 2026-05-03
+- Резюме: заменён видимый текст "Alias" на "Угадай слово" в 4 файлах
+  (lobby-preview, admin, design-tokens, game-stats route). Внутренний id
+  `'alias'`, маршруты, socket-события, типы — не тронуты.
+
+### TASK-006: Tile variants section in /design-tokens — ✅ done
+- Завершено: 2026-05-03
+- Резюме: новая секция «Тайл игры — варианты» в `/design-tokens` с двумя
+  под-блоками: TileFramed (frosted-glass рамка как в lobby-preview) и
+  TileNaked (только иконка + лейбл, без рамки). Все 7 игр в каждом варианте.
+
+### TASK-005.3: Drop achromatic pass from strip-bg.mjs — ✅ done
+- Завершено: 2026-05-03
+- Резюме: ахроматический проход съедал внутренние glassy-блики на
+  стеклянных иконках (e.g. циферблат секундомера в alias.png). Удалён —
+  flood-fill от углов сам справляется и с шахматкой, и с halo, не трогая
+  внутренние блики.
+
+### TASK-005.2: Flood-fill from corners — ✅ done
+- Завершено: 2026-05-03
+- Резюме: 4-связный BFS от 4 углов с порогом `min(R,G,B) ≥ 180` для
+  «light gate». Убирает светлый halo вокруг субъекта (например бледно-жёлтый
+  ореол вокруг мозга в quiz.png), который ахроматический фильтр не цеплял.
+
+### TASK-005.1: Achromatic background detection — ✅ done (потом удалено в 005.3)
+- Завершено: 2026-05-03
+- Резюме: расширил логику стрипа — `min ≥ 220 && max-min ≤ 15` ловило
+  и серые клетки шахматки (R≈G≈B). Логика убрана в TASK-005.3 как
+  слишком агрессивная.
+
+### TASK-005: Strip white background from icons (RGB → RGBA) — ✅ done
+- Завершено: 2026-05-03
+- Резюме: новый скрипт `scripts/strip-bg.mjs` + `npm run strip-bg`,
+  использует `sharp`. ChatGPT image gen экспортирует PNG без альфа-канала,
+  скрипт обрабатывает все PNG в `public/icons/games/` и делает фон
+  прозрачным.
+
 ### TASK-004: Fix GameIcon cached-image loaded — ✅ done
 - Завершено: 2026-05-03
 - Резюме: cached PNG не показывались (opacity:0) потому что onLoad

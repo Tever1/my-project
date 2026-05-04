@@ -11,7 +11,7 @@ export async function GET() {
   const stats = [
     {
       id: 'alias',
-      titleRu: 'Alias',
+      titleRu: 'Угадай слово',
       icon: '🗣',
       description: 'Объяснять словами',
       count: ALIAS_WORDS.length,
