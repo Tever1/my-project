@@ -38,6 +38,12 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-016: AvatarPill → button + keyboard order — ✅ done
+- Завершено: 2026-05-03
+- Резюме: AvatarPill переведён с `<div>` на `motion.button` с
+  `data-topbar="avatar"` и 3px focus ring (заготовка под popup аккаунта).
+  Order: `[play, friends-nav, history, friends-online, room, avatar]`.
+
 ### TASK-015 + 015.1: TopBar — FriendsPill как button + visual order + focus rings — ✅ done
 - Завершено: 2026-05-03
 - Резюме: FriendsOnlinePill переведён с `<div>` на `motion.button` с

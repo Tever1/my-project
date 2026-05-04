@@ -167,7 +167,7 @@ export default function LobbyPreviewPage() {
         const inTopBar = focused?.dataset?.topbar !== undefined;
         if (inTopBar) {
           e.preventDefault();
-          const order = ["play", "friends-nav", "history", "friends-online", "room"];
+          const order = ["play", "friends-nav", "history", "friends-online", "room", "avatar"];
           const cur = focused.dataset.topbar!;
           const idx = order.indexOf(cur);
           if (idx === -1) return;
@@ -385,7 +385,7 @@ function TopBar({
           topbarId="room"
           isNarrowDesktop={compact}
         />
-        <AvatarPill name="Аня" isMobile={isMobile} isNarrowDesktop={compact} />
+        <AvatarPill name="Аня" isMobile={isMobile} isNarrowDesktop={compact} topbarId="avatar" />
       </div>
     </header>
   );
@@ -579,14 +579,24 @@ function AvatarPill({
   name,
   isMobile = false,
   isNarrowDesktop = false,
+  topbarId,
 }: {
   name: string;
   isMobile?: boolean;
   isNarrowDesktop?: boolean;
+  topbarId?: string;
 }) {
+  const [focused, setFocused] = useState(false);
   const initial = name.charAt(0);
   return (
-    <div
+    <motion.button
+      data-topbar={topbarId}
+      onClick={() => console.log("account panel — TODO")}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
+      transition={spring.snappy}
       style={{
         display: "flex",
         alignItems: "center",
@@ -595,6 +605,11 @@ function AvatarPill({
         borderRadius: radius.full,
         background: "rgba(255, 255, 255, 0.04)",
         border: "1px solid rgba(255, 255, 255, 0.08)",
+        outline: "none",
+        cursor: "pointer",
+        boxShadow: focused ? "0 0 0 3px rgba(255,255,255,0.6)" : "none",
+        fontFamily: "inherit",
+        color: "inherit",
       }}
     >
       <div
@@ -614,7 +629,7 @@ function AvatarPill({
         {initial}
       </div>
       {!isMobile && <span style={{ fontSize: 14, fontWeight: 600 }}>{name}</span>}
-    </div>
+    </motion.button>
   );
 }
 
