@@ -15,7 +15,7 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { GameIcon } from "@/components/GameIcon";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
 
@@ -139,6 +139,8 @@ export default function LobbyPreviewPage() {
   const [activeGame, setActiveGame] = useState<GameId>("quiz");
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
+  const tileStripRef = useRef<HTMLDivElement>(null);
+  const startGameButtonRef = useRef<HTMLButtonElement>(null);
   const isMobile = useIsMobile();
   const isNarrowDesktop = useIsNarrowDesktop();
 
@@ -146,6 +148,100 @@ export default function LobbyPreviewPage() {
     document.documentElement.classList.add("dark");
     return () => document.documentElement.classList.remove("dark");
   }, []);
+
+  const handleStartGame = useCallback(() => {
+    console.log("keyboard: start game", activeGame);
+  }, [activeGame]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const editable = target?.isContentEditable;
+      if (tag === "INPUT" || tag === "TEXTAREA" || editable) return;
+
+      const focused = document.activeElement as HTMLElement | null;
+      const focusedCta = focused?.dataset?.lobbyCta;
+
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        const inTopBar = focused?.dataset?.topbar !== undefined;
+        if (inTopBar) {
+          e.preventDefault();
+          const order = ["play", "friends", "history", "room"];
+          const cur = focused.dataset.topbar!;
+          const idx = order.indexOf(cur);
+          if (idx === -1) return;
+
+          const direction = e.key === "ArrowRight" ? 1 : -1;
+          const next = idx + direction;
+          if (next < 0 || next >= order.length) return;
+
+          document.querySelector<HTMLElement>(`[data-topbar="${order[next]}"]`)?.focus();
+          return;
+        }
+
+        if (focusedCta) {
+          e.preventDefault();
+          const next = focusedCta === "start" ? "rules" : "start";
+          document.querySelector<HTMLElement>(`[data-lobby-cta="${next}"]`)?.focus();
+          return;
+        }
+
+        e.preventDefault();
+        setActiveGame((prev) => {
+          const idx = games.findIndex((g) => g.id === prev);
+          const direction = e.key === "ArrowRight" ? 1 : -1;
+          const next = (idx + direction + games.length) % games.length;
+          return games[next].id;
+        });
+      } else if (e.key === "ArrowUp") {
+        const focusedTag = focused?.tagName;
+        const focusedCta = focused?.dataset?.lobbyCta !== undefined;
+        const inTileStrip = focused?.dataset?.gameId !== undefined;
+        const isOnBody = !focused || focusedTag === "BODY" || focusedTag === "HTML";
+        if (focusedCta) {
+          e.preventDefault();
+          document.querySelector<HTMLElement>('[data-topbar="play"]')?.focus();
+          return;
+        }
+        if (inTileStrip || isOnBody) {
+          e.preventDefault();
+          startGameButtonRef.current?.focus();
+        }
+      } else if (e.key === "ArrowDown") {
+        const inTopBar = focused?.dataset?.topbar !== undefined;
+        if (inTopBar) {
+          e.preventDefault();
+          startGameButtonRef.current?.focus();
+          return;
+        }
+
+        if (focusedCta) {
+          e.preventDefault();
+          document.querySelector<HTMLElement>(`[data-game-id="${activeGame}"]`)?.focus();
+        }
+      } else if (e.key === "Enter") {
+        const inTileStrip = focused?.dataset?.gameId !== undefined;
+        if (inTileStrip) {
+          e.preventDefault();
+          startGameButtonRef.current?.focus();
+          return;
+        }
+
+        if (tag !== "BUTTON" && tag !== "A") {
+          handleStartGame();
+        }
+      } else if (e.key === "Escape") {
+        const activeElement = document.activeElement as HTMLElement | null;
+        if (activeElement && tileStripRef.current?.contains(activeElement)) {
+          activeElement.blur();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeGame, handleStartGame]);
 
   const active = games.find((g) => g.id === activeGame)!;
   const accent = gameColors[active.id].accent;
@@ -203,6 +299,8 @@ export default function LobbyPreviewPage() {
           deep={deep}
           joinCode={joinCode}
           onJoinCodeChange={setJoinCode}
+          onStartGame={handleStartGame}
+          startGameButtonRef={startGameButtonRef}
           isMobile={isMobile}
         />
 
@@ -215,6 +313,7 @@ export default function LobbyPreviewPage() {
 
       {/* Bottom tile strip */}
       <TileStrip
+        ref={tileStripRef}
         games={games}
         activeId={activeGame}
         onSelect={setActiveGame}
@@ -259,11 +358,11 @@ function TopBar({
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
         <BrandMark />
         <nav style={{ display: isMobile ? "none" : "flex", gap: 4 }}>
-          <NavButton active isNarrowDesktop={compact}>
+          <NavButton active topbarId="play" isNarrowDesktop={compact}>
             Играть
           </NavButton>
-          <NavButton isNarrowDesktop={compact}>Друзья</NavButton>
-          <NavButton isNarrowDesktop={compact}>История</NavButton>
+          <NavButton topbarId="friends" isNarrowDesktop={compact}>Друзья</NavButton>
+          <NavButton topbarId="history" isNarrowDesktop={compact}>История</NavButton>
         </nav>
       </div>
 
@@ -274,6 +373,7 @@ function TopBar({
           roomCode={roomCode}
           onCreate={onCreateRoom}
           accent={accent}
+          topbarId="room"
           isNarrowDesktop={compact}
         />
         <AvatarPill name="Аня" isMobile={isMobile} isNarrowDesktop={compact} />
@@ -320,14 +420,21 @@ function BrandMark() {
 function NavButton({
   children,
   active = false,
+  topbarId,
   isNarrowDesktop = false,
 }: {
   children: React.ReactNode;
   active?: boolean;
+  topbarId?: string;
   isNarrowDesktop?: boolean;
 }) {
+  const [focused, setFocused] = useState(false);
+
   return (
     <motion.button
+      data-topbar={topbarId}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.97 }}
       transition={spring.snappy}
@@ -342,6 +449,8 @@ function NavButton({
         fontWeight: 600,
         cursor: "pointer",
         letterSpacing: "-0.01em",
+        outline: "none",
+        boxShadow: focused ? "0 0 0 2px rgba(255,255,255,0.6)" : "none",
       }}
     >
       {children}
@@ -390,16 +499,25 @@ function RoomButton({
   roomCode,
   onCreate,
   accent,
+  topbarId,
   isNarrowDesktop = false,
 }: {
   roomCode: string | null;
   onCreate: () => void;
   accent: string;
+  topbarId?: string;
   isNarrowDesktop?: boolean;
 }) {
+  const [focused, setFocused] = useState(false);
+  const baseShadow = roomCode ? `0 6px 20px -4px ${accent}80` : "none";
+  const focusRing = roomCode ? `0 0 0 2px ${accent}99` : "0 0 0 2px rgba(255,255,255,0.6)";
+
   return (
     <motion.button
+      data-topbar={topbarId}
       onClick={() => !roomCode && onCreate()}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       whileHover={{ scale: 1.03, y: -1 }}
       whileTap={{ scale: 0.97 }}
       transition={spring.snappy}
@@ -418,7 +536,8 @@ function RoomButton({
         fontWeight: roomCode ? 700 : 600,
         letterSpacing: roomCode ? "0.12em" : "-0.01em",
         cursor: "pointer",
-        boxShadow: roomCode ? `0 6px 20px -4px ${accent}80` : "none",
+        outline: "none",
+        boxShadow: focused ? `${focusRing}, ${baseShadow}` : baseShadow,
         textTransform: roomCode ? "uppercase" : undefined,
         whiteSpace: "nowrap",
       }}
@@ -481,6 +600,8 @@ function HeroLeft({
   deep,
   joinCode,
   onJoinCodeChange,
+  onStartGame,
+  startGameButtonRef,
   isMobile,
 }: {
   game: GameInfo;
@@ -488,8 +609,14 @@ function HeroLeft({
   deep: string;
   joinCode: string;
   onJoinCodeChange: (v: string) => void;
+  onStartGame: () => void;
+  startGameButtonRef: React.RefObject<HTMLButtonElement | null>;
   isMobile: boolean;
 }) {
+  const [startFocused, setStartFocused] = useState(false);
+  const [rulesFocused, setRulesFocused] = useState(false);
+  const startButtonShadow = `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`;
+
   return (
     <div style={{ position: "relative" }}>
       {/* Title — animates between games */}
@@ -591,6 +718,11 @@ function HeroLeft({
         }}
       >
         <motion.button
+          ref={startGameButtonRef}
+          onClick={onStartGame}
+          data-lobby-cta="start"
+          onFocus={() => setStartFocused(true)}
+          onBlur={() => setStartFocused(false)}
           whileHover={{ scale: 1.03, y: -2 }}
           whileTap={{ scale: 0.97 }}
           transition={spring.snappy}
@@ -608,10 +740,13 @@ function HeroLeft({
             background: `linear-gradient(180deg, ${accent}, ${deep})`,
             color: "white",
             border: `1px solid color-mix(in srgb, ${accent} 60%, white)`,
-            boxShadow: `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
+            boxShadow: startFocused
+              ? `0 0 0 3px ${accent}, ${startButtonShadow}`
+              : startButtonShadow,
             cursor: "pointer",
             letterSpacing: "-0.01em",
             fontFamily: "inherit",
+            outline: "none",
           }}
         >
           <PlayIcon />
@@ -619,6 +754,9 @@ function HeroLeft({
         </motion.button>
 
         <motion.button
+          data-lobby-cta="rules"
+          onFocus={() => setRulesFocused(true)}
+          onBlur={() => setRulesFocused(false)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
           transition={spring.snappy}
@@ -634,6 +772,8 @@ function HeroLeft({
             border: "1px solid rgba(255, 255, 255, 0.14)",
             cursor: "pointer",
             fontFamily: "inherit",
+            outline: "none",
+            boxShadow: rulesFocused ? "0 0 0 3px rgba(255,255,255,0.4)" : "none",
           }}
         >
           Правила
@@ -1067,17 +1207,17 @@ function PreviewBottomChips({ chips }: { chips: string[] }) {
 // Bottom tile strip (smaller radii)
 // ============================================================
 
-function TileStrip({
-  games,
-  activeId,
-  onSelect,
-  isMobile,
-}: {
+const TileStrip = forwardRef<HTMLDivElement, {
   games: GameInfo[];
   activeId: GameId;
   onSelect: (id: GameId) => void;
   isMobile: boolean;
-}) {
+}>(function TileStrip({
+  games,
+  activeId,
+  onSelect,
+  isMobile,
+}, ref) {
   return (
     <div style={{ position: "relative", zIndex: 1, paddingBottom: isMobile ? 20 : 32 }}>
       <p
@@ -1095,6 +1235,7 @@ function TileStrip({
         Все игры
       </p>
       <div
+        ref={ref}
         style={{
           display: "grid",
           gridTemplateColumns: isMobile ? undefined : `repeat(${games.length}, 1fr)`,
@@ -1116,52 +1257,100 @@ function TileStrip({
             game={game}
             isActive={game.id === activeId}
             onClick={() => onSelect(game.id)}
+            onFocus={() => onSelect(game.id)}
             isMobile={isMobile}
           />
         ))}
       </div>
     </div>
   );
-}
+});
 
 function Tile({
   game,
   isActive,
   onClick,
+  onFocus,
   isMobile = false,
 }: {
   game: GameInfo;
   isActive: boolean;
   onClick: () => void;
+  onFocus: () => void;
   isMobile?: boolean;
 }) {
+  const [focused, setFocused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const pressReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accent = gameColors[game.id].accent;
   const deep = gameColors[game.id].deep;
+  const highlighted = isActive || focused;
+
+  useEffect(() => {
+    return () => {
+      if (pressReleaseTimerRef.current) {
+        clearTimeout(pressReleaseTimerRef.current);
+      }
+    };
+  }, []);
+
+  const releasePressSoon = () => {
+    if (pressReleaseTimerRef.current) {
+      clearTimeout(pressReleaseTimerRef.current);
+    }
+    pressReleaseTimerRef.current = setTimeout(() => setPressed(false), 120);
+  };
+
+  const tileAnimate = pressed
+    ? { y: -2, scale: 0.92 }
+    : isActive
+      ? { y: -3, scale: 1.02 }
+      : hovered
+        ? { y: -5, scale: 1.04 }
+        : { y: 0, scale: 1 };
 
   return (
     <motion.button
       onClick={onClick}
-      whileHover="hover"
-      animate={isActive ? "active" : "rest"}
-      initial="rest"
+      data-game-id={game.id}
+      onFocus={() => {
+        setFocused(true);
+        onFocus();
+      }}
+      onBlur={() => setFocused(false)}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          setPressed(true);
+          releasePressSoon();
+        }
+      }}
+      onKeyUp={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          releasePressSoon();
+        }
+      }}
+      animate={tileAnimate}
+      transition={pressed ? { type: "spring", stiffness: 700, damping: 22 } : spring.soft}
       style={{
         position: "relative",
         cursor: "pointer",
         background: "transparent",
         border: "none",
+        outline: "none",
         padding: 0,
         fontFamily: "inherit",
         color: "inherit",
         scrollSnapAlign: isMobile ? "start" : undefined,
       }}
     >
-      <motion.div
-        variants={{
-          rest: { opacity: 0 },
-          hover: { opacity: 1 },
-          active: { opacity: 0.6 },
-        }}
-        transition={{ duration: 0.4 }}
+      <div
         style={{
           position: "absolute",
           inset: -12,
@@ -1169,24 +1358,20 @@ function Tile({
           borderRadius: radius.xl,
           pointerEvents: "none",
           zIndex: 0,
+          opacity: isActive ? 0.6 : hovered ? 1 : 0,
+          transition: "opacity 400ms ease-out",
         }}
       />
 
-      <motion.div
-        variants={{
-          rest: { y: 0, scale: 1 },
-          hover: { y: -5, scale: 1.04 },
-          active: { y: -3, scale: 1.02 },
-        }}
-        transition={spring.soft}
+      <div
         style={{
           position: "relative",
           aspectRatio: "1",
           borderRadius: radius.md,
           background: `linear-gradient(135deg, ${deep}66, ${accent}22)`,
           backdropFilter: "blur(16px)",
-          border: `1px solid ${isActive ? accent : `${accent}40`}`,
-          boxShadow: isActive
+          border: `1px solid ${highlighted ? accent : `${accent}40`}`,
+          boxShadow: highlighted
             ? `0 12px 36px ${accent}55, 0 0 0 2px ${accent}80`
             : `0 10px 24px rgba(0,0,0,0.35), 0 0 0 1px ${accent}25`,
           overflow: "hidden",
@@ -1236,7 +1421,7 @@ function Tile({
             {game.name}
           </div>
         </div>
-      </motion.div>
+      </div>
     </motion.button>
   );
 }

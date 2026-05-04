@@ -38,6 +38,15 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-010..013.2: Lobby keyboard navigation + tile press effect — ✅ done
+- Завершено: 2026-05-03
+- Резюме: серия итераций (010, 010.1-.4, 011-011.1, 012, 013-013.2):
+  полный keyboard flow в /lobby-preview (←/→/↑/↓/Enter/Escape по
+  TopBar / hero CTA / tile-strip), focus-ring на всех интерактивных
+  элементах, рабочий press-effect на тайлах (mouse + Enter) через
+  явный `pressed` state. QA через Claude Preview MCP — все 7 тайлов
+  показывают scale ~0.90 на mouse pointerdown и keyboard Enter.
+
 ### TASK-009: Remove floating badges from TiltedPreview — ✅ done
 - Завершено: 2026-05-03
 - Резюме: удалены оба декоративных бейджа («8 онлайн» и «2 480 лучший рекорд»),
