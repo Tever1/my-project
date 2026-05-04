@@ -756,24 +756,6 @@ function TiltedPreview({ gameId }: { gameId: GameId }) {
           <PreviewMock gameId={gameId} />
         </motion.div>
       </AnimatePresence>
-
-      {/* Floating badges (animated) */}
-      <FloatingBadge
-        position={{ top: "5%", right: "-6%" }}
-        animation="float1"
-        icon={<span style={{ color: "#30d158" }}>●</span>}
-        bg="rgba(48,209,88,0.2)"
-        title="8 онлайн"
-        subtitle="сейчас в игре"
-      />
-      <FloatingBadge
-        position={{ bottom: "12%", left: "-8%" }}
-        animation="float2"
-        icon={<span style={{ color: "#ffd60a" }}>★</span>}
-        bg="rgba(255,214,10,0.2)"
-        title="2 480"
-        subtitle="лучший рекорд"
-      />
     </div>
   );
 }
@@ -1078,78 +1060,6 @@ function PreviewBottomChips({ chips }: { chips: string[] }) {
         </span>
       ))}
     </div>
-  );
-}
-
-function FloatingBadge({
-  position,
-  animation,
-  icon,
-  bg,
-  title,
-  subtitle,
-}: {
-  position: React.CSSProperties;
-  animation: "float1" | "float2";
-  icon: React.ReactNode;
-  bg: string;
-  title: string;
-  subtitle: string;
-}) {
-  const isFloat1 = animation === "float1";
-  return (
-    <motion.div
-      animate={{
-        y: isFloat1 ? [0, -12, 0] : [0, -10, 0],
-        rotate: isFloat1 ? [2, 2, 2] : [-3, -3, -3],
-      }}
-      transition={{
-        duration: isFloat1 ? 5 : 6,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
-      style={{
-        position: "absolute",
-        ...position,
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "10px 14px",
-        borderRadius: 14,
-        background: "rgba(20, 20, 32, 0.92)",
-        border: "1px solid rgba(255, 255, 255, 0.18)",
-        boxShadow: "0 16px 40px -10px rgba(0, 0, 0, 0.6)",
-        zIndex: 5,
-      }}
-    >
-      <div
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 9,
-          background: bg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 16,
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-        <span style={{ fontWeight: 800, fontSize: 14 }}>{title}</span>
-        <span
-          style={{
-            fontSize: 10,
-            color: "rgba(235, 235, 245, 0.5)",
-            fontWeight: 500,
-            fontFamily: "var(--font-mono)",
-          }}
-        >
-          {subtitle}
-        </span>
-      </div>
-    </motion.div>
   );
 }
 
