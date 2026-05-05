@@ -38,6 +38,14 @@ _Сейчас никто ничего не делает._
 
 ## История (последние 10 завершённых)
 
+### TASK-018.1: Join-submit icon-only + arrow-nav из input — ✅ done
+- Завершено: 2026-05-04
+- Резюме: «Присоединиться» заменена на icon-only (SVG enter/login), ширина
+  60px — теперь умещается в той же строке справа от join-code wrapper
+  (sameRow=true, submitToRight=true). В editing input при курсоре в
+  конце value и 6 chars, ArrowRight фокусирует join-submit напрямую
+  (без необходимости Esc).
+
 ### TASK-018: Join-code Esc + «Присоединиться» при 6 chars — ✅ done
 - Завершено: 2026-05-03
 - Резюме: wrapper вокруг join-code input стал button (data-lobby-cta="join-code"),

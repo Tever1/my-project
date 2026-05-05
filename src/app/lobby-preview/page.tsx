@@ -704,6 +704,19 @@ function HeroLeft({
   };
 
   const handleJoinInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowRight") {
+      const target = e.currentTarget;
+      const isAtEnd =
+        target.selectionStart === target.value.length &&
+        target.selectionEnd === target.value.length;
+
+      if (isAtEnd && target.value.length === 6) {
+        e.preventDefault();
+        document.querySelector<HTMLElement>('[data-lobby-cta="join-submit"]')?.focus();
+      }
+      return;
+    }
+
     if (e.key !== "Escape") return;
 
     e.preventDefault();
@@ -874,105 +887,132 @@ function HeroLeft({
           Правила
         </motion.button>
 
-        {/* Join code input */}
-        <button
-          ref={joinWrapperRef}
-          type="button"
-          tabIndex={-1}
-          data-lobby-cta="join-code"
-          onFocus={handleJoinWrapperFocus}
-          onBlur={() => setJoinWrapperFocused(false)}
-          onKeyDown={handleJoinWrapperKeyDown}
-          onClick={() => joinInputRef.current?.focus()}
+        <div
           style={{
             display: "inline-flex",
             alignItems: "center",
             gap: 12,
-            height: isMobile ? 54 : 60,
             width: isMobile ? "100%" : undefined,
-            padding: "0 18px",
-            borderRadius: radius.md,
-            background: "rgba(0, 0, 0, 0.32)",
-            border: "1px dashed rgba(255, 255, 255, 0.22)",
-            boxShadow: joinFocusRing ? `0 0 0 3px ${accent}99` : "none",
-            cursor: "text",
-            fontFamily: "inherit",
-            outline: "none",
-            color: "inherit",
+            flexShrink: 0,
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
-            <span
-              style={{
-                fontSize: 10,
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-                color: "rgba(235, 235, 245, 0.45)",
-                fontWeight: 700,
-                fontFamily: "var(--font-mono)",
-              }}
-            >
-              Код комнаты
-            </span>
-            <input
-              ref={joinInputRef}
-              data-lobby-cta="join-code-input"
-              value={joinCode}
-              onChange={(e) =>
-                onJoinCodeChange(e.target.value.toUpperCase().slice(0, 6))
-              }
-              onFocus={() => setJoinInputFocused(true)}
-              onBlur={() => setJoinInputFocused(false)}
-              onKeyDown={handleJoinInputKeyDown}
-              placeholder="ABXY7K"
-              maxLength={6}
-              style={{
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                color: "white",
-                fontFamily: "var(--font-mono)",
-                fontWeight: 700,
-                fontSize: 17,
-                letterSpacing: "0.3em",
-                width: isMobile ? "100%" : 130,
-                padding: 0,
-              }}
-            />
-          </div>
-        </button>
-
-        {joinCode.length === 6 && (
-          <motion.button
-            data-lobby-cta="join-submit"
-            onClick={() => console.log("join room", joinCode)}
-            onFocus={() => setSubmitFocused(true)}
-            onBlur={() => setSubmitFocused(false)}
-            whileHover={{ scale: 1.03, y: -2 }}
-            whileTap={{ scale: 0.97 }}
-            transition={spring.snappy}
+          {/* Join code input */}
+          <button
+            ref={joinWrapperRef}
+            type="button"
+            tabIndex={-1}
+            data-lobby-cta="join-code"
+            onFocus={handleJoinWrapperFocus}
+            onBlur={() => setJoinWrapperFocused(false)}
+            onKeyDown={handleJoinWrapperKeyDown}
+            onClick={() => joinInputRef.current?.focus()}
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 12,
               height: isMobile ? 54 : 60,
-              width: isMobile ? "100%" : undefined,
-              padding: isMobile ? "0 22px" : "0 28px",
-              fontSize: isMobile ? 16 : 17,
-              fontWeight: 700,
+              flex: isMobile ? "1 1 auto" : undefined,
+              minWidth: 0,
+              padding: "0 18px",
               borderRadius: radius.md,
-              background: `linear-gradient(180deg, ${accent}, ${deep})`,
-              color: "white",
-              border: `1px solid color-mix(in srgb, ${accent} 60%, white)`,
-              boxShadow: submitFocused
-                ? `0 0 0 3px rgba(255,255,255,0.7), 0 12px 32px -8px ${accent}99`
-                : `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
-              cursor: "pointer",
-              letterSpacing: "-0.01em",
+              background: "rgba(0, 0, 0, 0.32)",
+              border: "1px dashed rgba(255, 255, 255, 0.22)",
+              boxShadow: joinFocusRing ? `0 0 0 3px ${accent}99` : "none",
+              cursor: "text",
               fontFamily: "inherit",
               outline: "none",
+              color: "inherit",
             }}
           >
-            Присоединиться
-          </motion.button>
-        )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                  color: "rgba(235, 235, 245, 0.45)",
+                  fontWeight: 700,
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                Код комнаты
+              </span>
+              <input
+                ref={joinInputRef}
+                data-lobby-cta="join-code-input"
+                value={joinCode}
+                onChange={(e) =>
+                  onJoinCodeChange(e.target.value.toUpperCase().slice(0, 6))
+                }
+                onFocus={() => setJoinInputFocused(true)}
+                onBlur={() => setJoinInputFocused(false)}
+                onKeyDown={handleJoinInputKeyDown}
+                placeholder="ABXY7K"
+                maxLength={6}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  color: "white",
+                  fontFamily: "var(--font-mono)",
+                  fontWeight: 700,
+                  fontSize: 17,
+                  letterSpacing: "0.3em",
+                  width: isMobile ? "100%" : 130,
+                  padding: 0,
+                }}
+              />
+            </div>
+          </button>
+
+          {joinCode.length === 6 && (
+            <motion.button
+              data-lobby-cta="join-submit"
+              aria-label="Присоединиться к комнате"
+              onClick={() => console.log("join room", joinCode)}
+              onFocus={() => setSubmitFocused(true)}
+              onBlur={() => setSubmitFocused(false)}
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              transition={spring.snappy}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: isMobile ? 54 : 60,
+                width: 60,
+                padding: 0,
+                flexShrink: 0,
+                borderRadius: radius.md,
+                background: `linear-gradient(180deg, ${accent}, ${deep})`,
+                color: "white",
+                border: `1px solid color-mix(in srgb, ${accent} 60%, white)`,
+                boxShadow: submitFocused
+                  ? `0 0 0 3px rgba(255,255,255,0.7), 0 12px 32px -8px ${accent}99`
+                  : `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-label="Присоединиться"
+              >
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+            </motion.button>
+          )}
+        </div>
       </div>
     </div>
   );
