@@ -839,10 +839,10 @@ function HeroLeft({
             alignItems: "center",
             justifyContent: "center",
             gap: 10,
-            height: isMobile ? 54 : 60,
+            height: isMobile ? 54 : 51,
             width: isMobile ? "100%" : undefined,
-            padding: isMobile ? "0 22px" : "0 32px",
-            fontSize: isMobile ? 16 : 17,
+            padding: isMobile ? "0 22px" : "0 27px",
+            fontSize: isMobile ? 16 : 15,
             fontWeight: 700,
             borderRadius: radius.md,
             background: `linear-gradient(180deg, ${accent}, ${deep})`,
@@ -869,10 +869,10 @@ function HeroLeft({
           whileTap={{ scale: 0.97 }}
           transition={spring.snappy}
           style={{
-            height: isMobile ? 54 : 60,
+            height: isMobile ? 54 : 51,
             width: isMobile ? "100%" : undefined,
-            padding: isMobile ? "0 22px" : "0 26px",
-            fontSize: isMobile ? 15 : 16,
+            padding: isMobile ? "0 22px" : "0 22px",
+            fontSize: isMobile ? 15 : 14,
             fontWeight: 600,
             borderRadius: radius.md,
             background: "rgba(255, 255, 255, 0.06)",
@@ -910,10 +910,10 @@ function HeroLeft({
               display: "inline-flex",
               alignItems: "center",
               gap: 12,
-              height: isMobile ? 54 : 60,
+              height: isMobile ? 54 : 51,
               flex: isMobile ? "1 1 auto" : undefined,
               minWidth: 0,
-              padding: "0 18px",
+              padding: isMobile ? "0 18px" : "0 15px",
               borderRadius: radius.md,
               background: "rgba(0, 0, 0, 0.32)",
               border: "1px dashed rgba(255, 255, 255, 0.22)",
@@ -927,7 +927,7 @@ function HeroLeft({
             <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: isMobile ? 10 : 9,
                   letterSpacing: "0.15em",
                   textTransform: "uppercase",
                   color: "rgba(235, 235, 245, 0.45)",
@@ -956,9 +956,9 @@ function HeroLeft({
                   color: "white",
                   fontFamily: "var(--font-mono)",
                   fontWeight: 700,
-                  fontSize: 17,
+                  fontSize: isMobile ? 17 : 15,
                   letterSpacing: "0.3em",
-                  width: isMobile ? "100%" : 130,
+                  width: isMobile ? "100%" : 110,
                   padding: 0,
                 }}
               />
@@ -979,8 +979,8 @@ function HeroLeft({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                height: isMobile ? 54 : 60,
-                width: 60,
+                height: isMobile ? 54 : 51,
+                width: isMobile ? 60 : 51,
                 padding: 0,
                 flexShrink: 0,
                 borderRadius: radius.md,
@@ -996,8 +996,8 @@ function HeroLeft({
               }}
             >
               <svg
-                width="22"
-                height="22"
+                width={isMobile ? 22 : 19}
+                height={isMobile ? 22 : 19}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
