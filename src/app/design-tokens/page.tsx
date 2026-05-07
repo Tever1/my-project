@@ -576,7 +576,7 @@ export default function DesignTokensPage() {
 
         <Section
           title="Тайл игры — варианты"
-          subtitle="Сравнение: с рамкой (как в /lobby-preview) и без рамки (только иконка + подпись)"
+          subtitle="Сравнение: с рамкой (как в лобби) и без рамки (только иконка + подпись)"
         >
           <h3
             style={{
