@@ -15,9 +15,15 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { GameIcon } from "@/components/GameIcon";
+import { GlassPanel, GlassToaster } from "@/components/glass";
+import { useAuth } from "@/lib/auth-context";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
+import { useSocket } from "@/lib/use-socket";
+import { QRCode } from "react-qrcode-logo";
+import { toast } from "sonner";
 
 interface GameInfo {
   id: GameId;
@@ -28,6 +34,32 @@ interface GameInfo {
   players: string;
   duration: string;
   mode: string;
+}
+
+interface RoomCreateResponse {
+  success: boolean;
+  code?: string;
+  roomId?: string;
+  error?: string;
+}
+
+interface RoomJoinResponse {
+  success: boolean;
+  code?: string;
+  roomId?: string;
+  error?: string;
+}
+
+interface RoomPlayer {
+  id: string;
+  nickname: string;
+  isHost: boolean;
+  isConnected: boolean;
+}
+
+interface RoomState {
+  players: RoomPlayer[];
+  hostId: string;
 }
 
 const games: GameInfo[] = [
@@ -136,9 +168,18 @@ function useIsNarrowDesktop() {
 // ============================================================
 
 export default function LobbyPreviewPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { emit, on, isConnected } = useSocket();
   const [activeGame, setActiveGame] = useState<GameId>("quiz");
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
+  const [presenceCount, setPresenceCount] = useState(0);
+  const [roomState, setRoomState] = useState<RoomState | null>(null);
+  const [roomMenuOpen, setRoomMenuOpen] = useState(false);
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const roomMenuRef = useRef<HTMLDivElement>(null);
   const tileStripRef = useRef<HTMLDivElement>(null);
   const startGameButtonRef = useRef<HTMLButtonElement>(null);
   const isMobile = useIsMobile();
@@ -149,9 +190,167 @@ export default function LobbyPreviewPage() {
     return () => document.documentElement.classList.remove("dark");
   }, []);
 
-  const handleStartGame = useCallback(() => {
-    console.log("keyboard: start game", activeGame);
-  }, [activeGame]);
+  useEffect(() => {
+    const unsubscribe = on('presence:count', (data: unknown) => {
+      const payload = data as { count?: number };
+      setPresenceCount(typeof payload.count === "number" ? payload.count : 0);
+    });
+
+    if (isConnected) {
+      emit('presence:subscribe');
+    }
+
+    return unsubscribe;
+  }, [emit, isConnected, on]);
+
+  useEffect(() => {
+    const unsubscribe = on('room:state', (data: unknown) => {
+      const payload = data as Partial<RoomState>;
+      setRoomState({
+        players: Array.isArray(payload.players) ? payload.players : [],
+        hostId: typeof payload.hostId === "string" ? payload.hostId : "",
+      });
+    });
+
+    return unsubscribe;
+  }, [on]);
+
+  useEffect(() => {
+    if (roomCode && isConnected) {
+      emit('room:get-state', { code: roomCode });
+    }
+  }, [emit, isConnected, roomCode]);
+
+  useEffect(() => {
+    if (!roomMenuOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setRoomMenuOpen(false);
+      }
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (roomMenuRef.current?.contains(target)) return;
+      if (target.closest('[data-topbar="room"]')) return;
+      setRoomMenuOpen(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [roomMenuOpen]);
+
+  const getPlayerPayload = useCallback(() => {
+    if (!user?.id || !user.nickname) {
+      toast.error("Войдите в профиль, чтобы создать или присоединиться к комнате");
+      router.push("/auth?redirect=/lobby-preview");
+      return null;
+    }
+
+    return { playerId: user.id, nickname: user.nickname };
+  }, [router, user]);
+
+  const createRoom = useCallback(() => {
+    const player = getPlayerPayload();
+    if (!player) return Promise.resolve<RoomCreateResponse>({ success: false, error: "Auth required" });
+
+    if (!isConnected) {
+      const error = "Нет подключения к серверу";
+      toast.error(error);
+      return Promise.resolve<RoomCreateResponse>({ success: false, error });
+    }
+
+    setIsCreatingRoom(true);
+
+    return new Promise<RoomCreateResponse>((resolve) => {
+      const timeout = setTimeout(() => {
+        const error = "Сервер не отвечает. Попробуйте ещё раз";
+        setIsCreatingRoom(false);
+        toast.error(error);
+        resolve({ success: false, error });
+      }, 5000);
+
+      const sent = emit('room:create', player, (response: unknown) => {
+        clearTimeout(timeout);
+        setIsCreatingRoom(false);
+        const res = response as RoomCreateResponse;
+        if (res.success && res.code) {
+          setRoomCode(res.code);
+        } else {
+          toast.error(res.error || "Не удалось создать комнату");
+        }
+        resolve(res);
+      });
+
+      if (!sent) {
+        clearTimeout(timeout);
+        const error = "Нет подключения к серверу";
+        setIsCreatingRoom(false);
+        toast.error(error);
+        resolve({ success: false, error });
+      }
+    });
+  }, [emit, getPlayerPayload, isConnected]);
+
+  const handleCreateRoom = useCallback(() => {
+    void createRoom();
+  }, [createRoom]);
+
+  const handleRoomButtonClick = useCallback(() => {
+    setRoomMenuOpen((open) => !open);
+  }, []);
+
+  const handleJoinRoom = useCallback(() => {
+    const code = joinCode.trim().toUpperCase();
+    if (code.length !== 6) return;
+
+    const player = getPlayerPayload();
+    if (!player) return;
+
+    if (!isConnected) {
+      toast.error("Нет подключения к серверу");
+      return;
+    }
+
+    setIsJoiningRoom(true);
+
+    const timeout = setTimeout(() => {
+      setIsJoiningRoom(false);
+      toast.error("Сервер не отвечает. Попробуйте ещё раз");
+    }, 5000);
+
+    const sent = emit('room:join', { code, ...player }, (response: unknown) => {
+      clearTimeout(timeout);
+      setIsJoiningRoom(false);
+      const res = response as RoomJoinResponse;
+      if (res.success && res.code) {
+        router.push(`/lobby/${res.code}`);
+      } else {
+        toast.error(res.error || "Не удалось присоединиться к комнате");
+      }
+    });
+
+    if (!sent) {
+      clearTimeout(timeout);
+      setIsJoiningRoom(false);
+      toast.error("Нет подключения к серверу");
+    }
+  }, [emit, getPlayerPayload, isConnected, joinCode, router]);
+
+  const handleStartGame = useCallback(async () => {
+    const existingCode = roomCode;
+    const code = existingCode ?? (await createRoom()).code;
+
+    if (!code) return;
+
+    router.push(`/lobby/${code}?game=${activeGame}`);
+  }, [activeGame, createRoom, roomCode, router]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -288,10 +487,13 @@ export default function LobbyPreviewPage() {
       {/* Top bar */}
       <TopBar
         roomCode={roomCode}
-        onCreateRoom={() => setRoomCode("ABXY7K")}
+        onCreateRoom={handleCreateRoom}
+        onRoomMenuToggle={handleRoomButtonClick}
         accent={accent}
         isMobile={isMobile}
         isNarrowDesktop={isNarrowDesktop}
+        presenceCount={presenceCount}
+        isCreatingRoom={isCreatingRoom}
       />
 
       {/* Hero */}
@@ -316,14 +518,29 @@ export default function LobbyPreviewPage() {
           deep={deep}
           joinCode={joinCode}
           onJoinCodeChange={setJoinCode}
+          onJoinRoom={handleJoinRoom}
           onStartGame={handleStartGame}
           startGameButtonRef={startGameButtonRef}
           isMobile={isMobile}
+          isJoiningRoom={isJoiningRoom}
         />
 
         {!isMobile && (
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <TiltedPreview gameId={active.id} />
+            <AnimatePresence mode="wait">
+              {roomMenuOpen && roomCode ? (
+                <RoomMenu
+                  key="room-menu"
+                  ref={roomMenuRef}
+                  roomCode={roomCode}
+                  roomState={roomState}
+                  accent={accent}
+                  deep={deep}
+                />
+              ) : (
+                <TiltedPreview key="tilted-preview" gameId={active.id} />
+              )}
+            </AnimatePresence>
           </div>
         )}
       </section>
@@ -336,6 +553,7 @@ export default function LobbyPreviewPage() {
         onSelect={setActiveGame}
         isMobile={isMobile}
       />
+      <GlassToaster accentColor={accent} />
     </main>
   );
 }
@@ -347,15 +565,21 @@ export default function LobbyPreviewPage() {
 function TopBar({
   roomCode,
   onCreateRoom,
+  onRoomMenuToggle,
   accent,
   isMobile,
   isNarrowDesktop,
+  presenceCount,
+  isCreatingRoom,
 }: {
   roomCode: string | null;
   onCreateRoom: () => void;
+  onRoomMenuToggle: () => void;
   accent: string;
   isMobile: boolean;
   isNarrowDesktop: boolean;
+  presenceCount: number;
+  isCreatingRoom: boolean;
 }) {
   const compact = isNarrowDesktop && !isMobile;
 
@@ -386,14 +610,16 @@ function TopBar({
       {/* Right: friends online + room button + avatar */}
       <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : compact ? 8 : 12 }}>
         {!isMobile && (
-          <FriendsOnlinePill count={4} isNarrowDesktop={compact} topbarId="friends-online" />
+          <FriendsOnlinePill count={presenceCount} isNarrowDesktop={compact} topbarId="friends-online" />
         )}
         <RoomButton
           roomCode={roomCode}
           onCreate={onCreateRoom}
+          onToggle={onRoomMenuToggle}
           accent={accent}
           topbarId="room"
           isNarrowDesktop={compact}
+          isCreating={isCreatingRoom}
         />
         <AvatarPill name="Аня" isMobile={isMobile} isNarrowDesktop={compact} topbarId="avatar" />
       </div>
@@ -532,15 +758,19 @@ function FriendsOnlinePill({
 function RoomButton({
   roomCode,
   onCreate,
+  onToggle,
   accent,
   topbarId,
   isNarrowDesktop = false,
+  isCreating = false,
 }: {
   roomCode: string | null;
   onCreate: () => void;
+  onToggle: () => void;
   accent: string;
   topbarId?: string;
   isNarrowDesktop?: boolean;
+  isCreating?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const baseShadow = roomCode ? `0 6px 20px -4px ${accent}80` : "none";
@@ -549,7 +779,8 @@ function RoomButton({
   return (
     <motion.button
       data-topbar={topbarId}
-      onClick={() => !roomCode && onCreate()}
+      onClick={() => roomCode ? onToggle() : onCreate()}
+      disabled={isCreating}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       whileHover={{ scale: 1.03, y: -1 }}
@@ -569,7 +800,8 @@ function RoomButton({
         fontSize: roomCode || isNarrowDesktop ? 13 : 14,
         fontWeight: roomCode ? 700 : 600,
         letterSpacing: roomCode ? "0.12em" : "-0.01em",
-        cursor: "pointer",
+        cursor: isCreating ? "wait" : "pointer",
+        opacity: isCreating ? 0.72 : 1,
         outline: "none",
         boxShadow: focused
           ? baseShadow !== "none"
@@ -580,7 +812,7 @@ function RoomButton({
         whiteSpace: "nowrap",
       }}
     >
-      {roomCode ? `Комната · ${roomCode}` : "Создать комнату"}
+      {roomCode ? `Комната · ${roomCode}` : isCreating ? "Создаём..." : "Создать комнату"}
     </motion.button>
   );
 }
@@ -653,18 +885,22 @@ function HeroLeft({
   deep,
   joinCode,
   onJoinCodeChange,
+  onJoinRoom,
   onStartGame,
   startGameButtonRef,
   isMobile,
+  isJoiningRoom,
 }: {
   game: GameInfo;
   accent: string;
   deep: string;
   joinCode: string;
   onJoinCodeChange: (v: string) => void;
+  onJoinRoom: () => void;
   onStartGame: () => void;
   startGameButtonRef: React.RefObject<HTMLButtonElement | null>;
   isMobile: boolean;
+  isJoiningRoom: boolean;
 }) {
   const [startFocused, setStartFocused] = useState(false);
   const [rulesFocused, setRulesFocused] = useState(false);
@@ -704,6 +940,13 @@ function HeroLeft({
   };
 
   const handleJoinInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && e.currentTarget.value.length === 6) {
+      e.preventDefault();
+      e.stopPropagation();
+      onJoinRoom();
+      return;
+    }
+
     if (e.key === "ArrowRight") {
       const target = e.currentTarget;
       const isAtEnd =
@@ -969,9 +1212,10 @@ function HeroLeft({
             <motion.button
               data-lobby-cta="join-submit"
               aria-label="Присоединиться к комнате"
-              onClick={() => console.log("join room", joinCode)}
+              onClick={onJoinRoom}
               onFocus={() => setSubmitFocused(true)}
               onBlur={() => setSubmitFocused(false)}
+              disabled={isJoiningRoom}
               whileHover={{ scale: 1.03, y: -2 }}
               whileTap={{ scale: 0.97 }}
               transition={spring.snappy}
@@ -990,7 +1234,8 @@ function HeroLeft({
                 boxShadow: submitFocused
                   ? `0 0 0 3px rgba(255,255,255,0.7), 0 12px 32px -8px ${accent}99`
                   : `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
-                cursor: "pointer",
+                cursor: isJoiningRoom ? "wait" : "pointer",
+                opacity: isJoiningRoom ? 0.72 : 1,
                 fontFamily: "inherit",
                 outline: "none",
               }}
@@ -1017,6 +1262,185 @@ function HeroLeft({
     </div>
   );
 }
+
+// ============================================================
+// Room menu
+// ============================================================
+
+const RoomMenu = forwardRef<HTMLDivElement, {
+  roomCode: string;
+  roomState: RoomState | null;
+  accent: string;
+  deep: string;
+}>(function RoomMenu({
+  roomCode,
+  roomState,
+  accent,
+  deep,
+}, ref) {
+  const joinUrl = typeof window === "undefined" ? "" : `${window.location.origin}/lobby/${roomCode}`;
+  const connectedPlayers = (roomState?.players ?? []).filter((p) => p.isConnected !== false);
+
+  return (
+    <GlassPanel
+      ref={ref}
+      variant="floating"
+      radius="lg"
+      padding={32}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+      style={{
+        width: "100%",
+        maxWidth: 460,
+        minHeight: 480,
+        background: "rgba(255,255,255,0.08)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 26,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: 24,
+            fontWeight: 700,
+            lineHeight: 1.1,
+            backgroundImage: `linear-gradient(90deg, ${accent}, color-mix(in srgb, ${accent} 62%, white), ${deep})`,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            marginBottom: 8,
+          }}
+        >
+          Комната · {roomCode}
+        </div>
+        <div
+          style={{
+            color: "rgba(235, 235, 245, 0.58)",
+            fontSize: 13,
+            fontFamily: "var(--font-mono)",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+          }}
+        >
+          В комнате · {connectedPlayers.length}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          minHeight: 70,
+          alignContent: "flex-start",
+        }}
+      >
+        {connectedPlayers.length > 0 ? (
+          connectedPlayers.map((player) => {
+            const isHost = player.isHost || player.id === roomState?.hostId;
+            return (
+              <span
+                key={player.id}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  minHeight: 36,
+                  padding: "8px 12px",
+                  borderRadius: radius.full,
+                  background: isHost ? `${accent}24` : "rgba(255, 255, 255, 0.07)",
+                  border: `1px solid ${isHost ? `${accent}88` : "rgba(255, 255, 255, 0.12)"}`,
+                  color: "rgba(255, 255, 255, 0.9)",
+                  fontSize: 14,
+                  fontWeight: 650,
+                  boxShadow: isHost ? `0 8px 24px -14px ${accent}` : undefined,
+                }}
+              >
+                <span>{player.nickname}</span>
+                {isHost && (
+                  <span
+                    style={{
+                      padding: "3px 7px",
+                      borderRadius: radius.full,
+                      background: `linear-gradient(135deg, ${accent}, ${deep})`,
+                      color: "white",
+                      fontSize: 10,
+                      fontWeight: 800,
+                      fontFamily: "var(--font-mono)",
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    хост
+                  </span>
+                )}
+              </span>
+            );
+          })
+        ) : (
+          <span style={{ color: "rgba(235, 235, 245, 0.52)", fontSize: 14 }}>
+            Ждём игроков...
+          </span>
+        )}
+      </div>
+
+      <div
+        style={{
+          marginTop: "auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 14,
+          paddingTop: 8,
+        }}
+      >
+        <div
+          style={{
+            width: 206,
+            height: 206,
+            borderRadius: 24,
+            background: "rgba(255, 255, 255, 0.94)",
+            border: "1px solid rgba(255, 255, 255, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 24px 60px -28px rgba(0,0,0,0.85)",
+          }}
+        >
+          {joinUrl && (
+            <QRCode
+              value={joinUrl}
+              size={180}
+              quietZone={4}
+              bgColor="#ffffff"
+              fgColor="#06060c"
+              qrStyle="dots"
+              eyeRadius={10}
+            />
+          )}
+        </div>
+        <div
+          style={{
+            maxWidth: 280,
+            textAlign: "center",
+            color: "rgba(235, 235, 245, 0.62)",
+            fontSize: 13,
+            lineHeight: 1.45,
+          }}
+        >
+          Покажи QR друзьям для быстрого подключения
+        </div>
+      </div>
+    </GlassPanel>
+  );
+});
 
 // ============================================================
 // Tilted preview (right column) — per-game mock content

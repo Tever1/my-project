@@ -441,7 +441,7 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 | **A** Foundation | ✅ DONE | Geist + per-game palette + motion + radius/duration/easing токены |
 | **B** Liquid Glass | ✅ DONE | `<GlassPanel>` (5 вариантов) + `<GlassSheet>` (vaul) + `<GlassToaster>` (sonner) + depth/blur/shadow токены |
 | **C** Icon pipeline | ✅ DONE (icons) | Все 7 PNG-иконок сгенерированы и обработаны через `npm run strip-bg` (flood-fill от углов, RGBA): mafia, quiz, crocodile, spy, alias, who-am-i, hundred-to-one. Стиль — frosted matte 3D glass в цвете игры, прозрачный фон. |
-| **D** PS5 Lobby | 🟡 PROTOTYPE | `/lobby-preview` визуально готов, тайлы перепроектированы. Socket.io + keyboard nav + mobile — впереди. **TODO: TiltedPreview справа сейчас показывает те же иконки что и в нижнем tile-strip — это неверно. Нужно заменить на реальные in-game скриншоты каждой игры (после того как UI всех игр будет финализирован).** |
+| **D** PS5 Lobby | 🟡 IN PROGRESS | `/lobby-preview` визуально готов, socket.io подключён (TASK-020/021): `room:create`, `room:join`, presence, Enter-join, popup-меню комнаты с QR. **Осталось:** keyboard nav, перенос в production `/lobby/[roomId]`. **TODO: TiltedPreview справа сейчас показывает те же иконки что и в нижнем tile-strip — заменить на реальные in-game скриншоты после финализации UI игр.** |
 | **E** Core components | ⏳ TODO | Buttons / inputs / modals / avatars / badges / skeletons |
 | **F** Game flow transitions | ⏳ TODO | setup → playing → results unified transitions |
 | **G** In-game polish | ⏳ TODO | Таймеры, очки, celebrations, attention-grabbers |
@@ -525,7 +525,7 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 `hundred-to-one.png` — все в `public/icons/games/`. 1024×1024 PNG, прозрачный
 фон, subject 75–85% канваса.
 
-**Фаза D — PS5-style Lobby (флагман)** 🟡 PROTOTYPE READY
+**Фаза D — PS5-style Lobby (флагман)** 🟡 IN PROGRESS
 - ✅ Layout (гибрид PS5 × Spotlight, прототип в `/lobby-preview`):
   - Top bar: brand-mark + nav (Играть/Друзья/История) + "Друзей онлайн" +
     Кнопка комнаты (toggle: «Создать комнату» → `КОМНАТА · ABXY7K`) +
@@ -544,10 +544,22 @@ spring 400–600ms — должны выглядеть **дорого и пла�
   при переключении (duration 0.8s, ease iOS).
 - ✅ AnimatePresence на title/meta/desc/preview — мягкая перерисовка.
 - ✅ Палитра по играм согласована с пользователем (см. DNA-секцию выше).
-- ⏳ Реальный socket.io интеграция (создание комнаты, join, переход в игру) —
-  будет после утверждения визуала.
-- ⏳ Keyboard navigation (arrow keys между тайлами).
-- ⏳ Mobile layout (stacked, без 2-column hero).
+- ✅ **TASK-020** Socket.io flow: `room:create` (RoomButton → server → сохранение кода),
+  `room:join` (6-char input submit → переход в `/lobby/<code>`), Start CTA → `/lobby/<code>?game=<activeGame>`,
+  `presence:subscribe` / `presence:count` для FriendsOnlinePill. `GlassToaster` для ошибок.
+- ✅ **TASK-021** Enter + popup меню комнаты:
+  - Enter в join-code input при 6 символах → `onJoinRoom()`.
+  - Клик по «КОМНАТА · ...» → popup занимает правую колонку hero (TiltedPreview скрывается).
+  - Popup: glass look, заголовок с gradient, список подключённых игроков (хост помечен),
+    QR-код `react-qrcode-logo` на `${origin}/lobby/${roomCode}`, AnimatePresence.
+  - Закрытие: повторный клик, Escape, клик вне popup.
+  - Подписка на `room:state` → `roomState: { players, hostId }`.
+- ✅ Keyboard navigation (TASK-010–015): arrow keys между тайлами, TopBar nav,
+  Enter = «Начать партию», Escape = возврат.
+- ✅ Mobile layout (TASK-002, breakpoint 1024px, `useIsMobile` hook SSR-safe).
+- ⏳ Перенос дизайна в production `/lobby/[roomId]` — после финального утверждения socket-flow.
+- ⏳ TiltedPreview справа: заменить mock-content на реальные in-game скриншоты каждой
+  игры (после финализации UI всех игр).
 
 **Фаза E — Core component library**
 - Buttons (primary/secondary/ghost/destructive) — все с press-spring

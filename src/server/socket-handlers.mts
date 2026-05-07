@@ -25,6 +25,7 @@ interface Room {
 
 const rooms = new Map<string, Room>();
 const playerRooms = new Map<string, string>();
+const presenceSubscribers = new Set<string>();
 
 // Expose rooms to admin API routes via globalThis (avoids ESM/CJS boundary issues).
 // rooms-registry.ts reads from this same key using getRoomsSnapshot().
@@ -76,9 +77,22 @@ function broadcastRoomState(io: SocketIOServer, room: Room) {
   io.to(`room:${room.code}`).emit('room:state', state);
 }
 
+function emitPresenceCount(io: SocketIOServer) {
+  const count = io.engine.clientsCount;
+  for (const socketId of presenceSubscribers) {
+    io.to(socketId).emit('presence:count', { count });
+  }
+}
+
 export function setupSocketHandlers(io: SocketIOServer) {
   io.on('connection', (socket: Socket) => {
     console.log(`[Socket] Connected: ${socket.id}`);
+    emitPresenceCount(io);
+
+    socket.on('presence:subscribe', () => {
+      presenceSubscribers.add(socket.id);
+      emitPresenceCount(io);
+    });
 
     // Create room
     socket.on('room:create', (data: { playerId: string; nickname: string }, callback) => {
@@ -287,7 +301,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Disconnect
     socket.on('disconnect', () => {
       console.log(`[Socket] Disconnected: ${socket.id}`);
+      presenceSubscribers.delete(socket.id);
       handleDisconnect(io, socket);
+      emitPresenceCount(io);
     });
   });
 }

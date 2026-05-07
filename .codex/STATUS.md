@@ -7,7 +7,12 @@
 
 ## Активные таски
 
-_Сейчас никто ничего не делает._
+### TASK-020: Socket.io flow в /lobby-preview
+- **Статус:** pending (ждёт пользователя в Codex Desktop)
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-04
+- **Файлы (locked):** src/app/lobby-preview/page.tsx, src/server/socket-handlers.mts (опц.), src/lib/auth-context.tsx (опц.)
+- **Task spec:** `codex-tasks/020-lobby-preview-socket-flow.md`
 
 <!--
 Формат записи активного таска:
