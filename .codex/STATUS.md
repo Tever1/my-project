@@ -7,7 +7,13 @@
 
 ## Активные таски
 
-_(нет активных тасков)_
+### TASK-026: Smoke QA после Волн 1 и 2
+- **Статус:** pending (ждёт пользователя в Codex Desktop)
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-07
+- **Файлы (locked):** только codex-reports/026-smoke-qa-wave2.md (read-only QA)
+- **Task spec:** `codex-tasks/026-smoke-qa-wave2.md`
+- **Цель:** smoke HTTP-тест всех 16 routes + проверка логов сервера на ошибки. Код не править.
 
 <!--
 Формат записи активного таска:
