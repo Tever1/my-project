@@ -387,7 +387,7 @@ export default function TVGamePage() {
       unsub2();
       unsub3();
     };
-  }, [on, emit, router, roomId, gameType]);
+  }, [on, emit, router, roomId, gameType, locale]);
 
   const getPlayerName = useCallback(
     (id: string) => players.find((p) => p.id === id)?.nickname || id,

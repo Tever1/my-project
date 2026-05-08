@@ -177,7 +177,7 @@ export default function AliasPage() {
     });
     const unsub2 = on('game:ended', () => router.push(`/lobby/${roomId}`));
     return () => { unsub1(); unsub2(); };
-  }, [on, router, roomId]);
+  }, [on, emit, router, roomId]);
 
   // ------------------------------------------------------------------
   // Host: timer

@@ -254,6 +254,38 @@ export default function QuizPage() {
     }
   }, [gameState.timeLeft, gameState.phase, gameState.showCorrect, timePerQuestion, timerTick, stopTimerSound]);
 
+  // ------- Game Actions -------
+
+  const revealResults = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const question = gameState.currentQuestion;
+    if (!question) return;
+
+    const newScores = { ...gameState.scores };
+    const correct: string[] = [];
+
+    for (const [playerId, answerIdx] of Object.entries(gameState.answers)) {
+      if (answerIdx === question.correctIndex) {
+        newScores[playerId] = (newScores[playerId] || 0) + 1;
+        correct.push(playerId);
+      }
+    }
+
+    setGameState((prev) => ({ ...prev, showCorrect: true, scores: newScores, correctPlayers: correct }));
+
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:show-results',
+      payload: { scores: newScores, correctPlayers: correct },
+    });
+
+    emit('game:state-update', {
+      code: roomId,
+      gameState: { scores: newScores },
+    });
+  }, [gameState.currentQuestion, gameState.answers, gameState.scores, emit, roomId]);
+
   // ------- Auto-reveal -------
 
   useEffect(() => {
@@ -261,7 +293,7 @@ export default function QuizPage() {
     if (gameState.timeLeft <= 0 || allAnswered) {
       revealResults();
     }
-  }, [gameState.timeLeft, allAnswered, isHost, gameState.phase, gameState.showCorrect]);
+  }, [gameState.timeLeft, allAnswered, isHost, gameState.phase, gameState.showCorrect, revealResults]);
 
   // ------- Setup Actions (host only) -------
 
@@ -377,38 +409,6 @@ export default function QuizPage() {
       payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
     });
   };
-
-  // ------- Game Actions -------
-
-  const revealResults = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    const question = gameState.currentQuestion;
-    if (!question) return;
-
-    const newScores = { ...gameState.scores };
-    const correct: string[] = [];
-
-    for (const [playerId, answerIdx] of Object.entries(gameState.answers)) {
-      if (answerIdx === question.correctIndex) {
-        newScores[playerId] = (newScores[playerId] || 0) + 1;
-        correct.push(playerId);
-      }
-    }
-
-    setGameState((prev) => ({ ...prev, showCorrect: true, scores: newScores, correctPlayers: correct }));
-
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:show-results',
-      payload: { scores: newScores, correctPlayers: correct },
-    });
-
-    emit('game:state-update', {
-      code: roomId,
-      gameState: { scores: newScores },
-    });
-  }, [gameState.currentQuestion, gameState.answers, gameState.scores, gameState.timeLeft, emit, roomId]);
 
   const runCountdown = useCallback(
     (questionIdx: number) => {

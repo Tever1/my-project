@@ -314,8 +314,9 @@ export default function MafiaPage() {
   // -----------------------------------------------------------------------
   // Day timer
   // -----------------------------------------------------------------------
+  const isDayTimerActive = dayTimerValue > 0;
   useEffect(() => {
-    if (gs.phase === 'day' && dayTimerValue > 0) {
+    if (gs.phase === 'day' && isDayTimerActive) {
       timerRef.current = setInterval(() => {
         setDayTimerValue((v) => {
           if (v <= 1) {
@@ -329,7 +330,7 @@ export default function MafiaPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gs.phase, dayTimerValue > 0]);
+  }, [gs.phase, isDayTimerActive]);
 
   // -----------------------------------------------------------------------
   // Host: start game
