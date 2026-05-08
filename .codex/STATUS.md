@@ -38,6 +38,11 @@ _(нет активных тасков)_
 
 ## История (последние 10 завершённых)
 
+### TASK-028: Унификация дизайна лобби — ✅ done
+- Завершено: 2026-05-07
+- Коммит: `b5e67f6`
+- Резюме: `<Lobby initialRoomCode?>` вынесен в `src/components/lobby/Lobby.tsx`. `/` и `/lobby/[roomId]` стали тонкими wrapper'ами (7 и 9 строк). Хост после create → `router.push('/lobby/CODE')`. Гость по QR видит новый PS5-дизайн. Lint 0, tsc 0, build OK.
+
 ### TASK-027: Lint cleanup Волна 3 — ✅ done
 - Завершено: 2026-05-07
 - Коммит: _(pending)_

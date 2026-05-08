@@ -557,7 +557,10 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 - ✅ Keyboard navigation (TASK-010–015): arrow keys между тайлами, TopBar nav,
   Enter = «Начать партию», Escape = возврат.
 - ✅ Mobile layout (TASK-002, breakpoint 1024px, `useIsMobile` hook SSR-safe).
-- ⏳ Перенос дизайна в production `/lobby/[roomId]` — после финального утверждения socket-flow.
+- ✅ **TASK-028** Перенос дизайна в production `/lobby/[roomId]` (коммит `b5e67f6`):
+  `<Lobby initialRoomCode?>` в `src/components/lobby/Lobby.tsx`. `/` и `/lobby/[roomId]`
+  — тонкие wrapper'ы. Хост после create → `router.push('/lobby/CODE')`. Гость по QR
+  видит тот же PS5-дизайн.
 - ⏳ TiltedPreview справа: заменить mock-content на реальные in-game скриншоты каждой
   игры (после финализации UI всех игр).
 
