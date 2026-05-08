@@ -7,13 +7,7 @@
 
 ## Активные таски
 
-### TASK-024: Lint cleanup Волна 1
-- **Статус:** pending (ждёт пользователя в Codex Desktop)
-- **Исполнитель:** Codex (manual by user)
-- **Запущено:** 2026-05-07
-- **Файлы (locked):** eslint.config.mjs, scripts/generate-questions.mjs, src/app/admin/page.tsx, src/app/api/admin/quiz-item/route.ts, src/app/game/[roomId]/{alias,crocodile,quiz,mafia,hundred-to-one}/page.tsx, src/app/tv/[roomId]/[gameType]/page.tsx, src/lib/{auth-context,i18n-provider}.tsx
-- **Task spec:** `codex-tasks/024-lint-cleanup-wave-1.md`
-- **Цель:** lint 73 → ≤14, ignores `.agents/**` и `mobile/**`, автофикс + чистка unused/any. Hooks-правила НЕ ТРОГАТЬ (Волны 2/3).
+_(нет активных тасков)_
 
 <!--
 Формат записи активного таска:
@@ -43,6 +37,11 @@
 ---
 
 ## История (последние 10 завершённых)
+
+### TASK-024: Lint cleanup Волна 1 — ✅ done
+- Завершено: 2026-05-07
+- Коммит: `3e00efd`
+- Резюме: eslint.config.mjs игнорирует `.agents/**` и `mobile/**`, удалены unused vars/imports в 5 src-файлах, удалён `factCheckSingle`, заменён `any` на тип в admin. Lint 73 → 19 problems; оставшиеся 19 — react-hooks/* (Волны 2/3).
 
 ### TASK-018.1: Join-submit icon-only + arrow-nav из input — ✅ done
 - Завершено: 2026-05-04
