@@ -257,7 +257,7 @@ export default function AliasPage() {
       const assignedIds = new Set(prev.teams.flatMap((t) => t.playerIds));
       const unassigned = players.map((p) => p.id).filter((id) => !assignedIds.has(id));
 
-      let updatedTeams = [...prev.teams];
+      const updatedTeams = [...prev.teams];
       // Assign unassigned players to the smaller team
       for (const playerId of unassigned) {
         const smallerIdx = updatedTeams[0].playerIds.length <= updatedTeams[1].playerIds.length ? 0 : 1;

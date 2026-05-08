@@ -7,12 +7,13 @@
 
 ## Активные таски
 
-### TASK-020: Socket.io flow в /lobby-preview
+### TASK-024: Lint cleanup Волна 1
 - **Статус:** pending (ждёт пользователя в Codex Desktop)
 - **Исполнитель:** Codex (manual by user)
-- **Запущено:** 2026-05-04
-- **Файлы (locked):** src/app/lobby-preview/page.tsx, src/server/socket-handlers.mts (опц.), src/lib/auth-context.tsx (опц.)
-- **Task spec:** `codex-tasks/020-lobby-preview-socket-flow.md`
+- **Запущено:** 2026-05-07
+- **Файлы (locked):** eslint.config.mjs, scripts/generate-questions.mjs, src/app/admin/page.tsx, src/app/api/admin/quiz-item/route.ts, src/app/game/[roomId]/{alias,crocodile,quiz,mafia,hundred-to-one}/page.tsx, src/app/tv/[roomId]/[gameType]/page.tsx, src/lib/{auth-context,i18n-provider}.tsx
+- **Task spec:** `codex-tasks/024-lint-cleanup-wave-1.md`
+- **Цель:** lint 73 → ≤14, ignores `.agents/**` и `mobile/**`, автофикс + чистка unused/any. Hooks-правила НЕ ТРОГАТЬ (Волны 2/3).
 
 <!--
 Формат записи активного таска:

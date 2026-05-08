@@ -130,7 +130,7 @@ function getInitialState(): MafiaGameState {
 export default function MafiaPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { emit, on, isConnected } = useSocket();
-  const { t, locale } = useTranslation();
+  const { locale } = useTranslation();
   const { user } = useAuth();
 
   const [players, setPlayers] = useState<Player[]>([]);

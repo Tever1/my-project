@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -503,7 +503,6 @@ function QuestionViewer({ selection }: { selection: Selection }) {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [report, setReport] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [replaceError, setReplaceError] = useState<string | null>(null);
@@ -523,7 +522,7 @@ function QuestionViewer({ selection }: { selection: Selection }) {
     fetch(url)
       .then((r) => r.json())
       .then((d) => { setQuestions(d.questions ?? []); setLoading(false); });
-  }, [selection, refreshKey]);
+  }, [selection]);
 
   async function handleFactCheck() {
     setChecking(true);
@@ -868,7 +867,6 @@ function QuizzesTab() {
               </thead>
               <tbody>
                 {general.map((g, i) => {
-                  const rowSel: Selection = { type: 'general', topic: g.topic, difficulty: 'all', label: '' };
                   const isRowSel = selection?.type === 'general' && selection.topic === g.topic && selection.difficulty === 'all';
                   return (
                     <tr key={g.topic} className={`${i < general.length - 1 ? 'border-b border-white/5' : ''} group`}>
@@ -1314,10 +1312,24 @@ interface GameStat {
   breakdown: Record<string, unknown> | null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface HundredToOneTopicPreview {
+  id: string;
+  name: string;
+  icon: string;
+  rounds: { q: string; answers: { t: string; p: number }[] }[];
+  bigQ: { q: string; answers: { t: string; p: number }[] }[];
+}
+
+interface GameDataResponse {
+  type?: string;
+  items?: unknown[];
+  topics?: HundredToOneTopicPreview[];
+  roles?: { id: string; icon: string; nameRu: string; nameEn: string; team: string; condition: string }[];
+  roleTable?: { players: number; mafia: number; detective: boolean; doctor: boolean; citizens: number }[];
+}
+
 function GameDataViewer({ game }: { game: GameStat | null }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<GameDataResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -1426,7 +1438,8 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
       {!loading && data?.type === 'words-bilingual' && (
         <div className="flex-1 overflow-y-auto">
           <div className="flex flex-wrap gap-2">
-            {data.items.map((w: { ru: string; en: string }, i: number) => {
+            {(data.items ?? []).map((item, i: number) => {
+              const w = item as { ru: string; en: string };
               const itemId = w.ru;
               const isReplacing = replacing === itemId;
               return (
@@ -1446,7 +1459,8 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
       {!loading && data?.type === 'words-simple' && (
         <div className="flex-1 overflow-y-auto">
           <div className="flex flex-wrap gap-2">
-            {data.items.map((w: string, i: number) => {
+            {(data.items ?? []).map((item, i: number) => {
+              const w = String(item);
               const isReplacing = replacing === w;
               return (
                 <div key={i} className={`relative group bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs flex items-center gap-1 transition-opacity ${isReplacing ? 'opacity-40' : ''}`}>
@@ -1463,7 +1477,7 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
       {/* ── 100 to 1 (topics) ── */}
       {!loading && data?.type === 'hundred-to-one-topics' && (() => {
         const ROUND_NAMES = ['ПРОСТАЯ ИГРА', 'ДВОЙНАЯ ИГРА', 'ТРОЙНАЯ ИГРА', 'ИГРА НАОБОРОТ'];
-        const topics: { id: string; name: string; icon: string; rounds: { q: string; answers: { t: string; p: number }[] }[]; bigQ: { q: string; answers: { t: string; p: number }[] }[] }[] = data.topics;
+        const topics = data.topics ?? [];
         const activeTopic = topics.find((t) => t.id === filter) ?? topics[0];
 
         function QuestionCard({ q, label, labelColor }: { q: { q: string; answers: { t: string; p: number }[] }; label: string; labelColor: string }) {
@@ -1532,7 +1546,7 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
         <div className="flex-1 overflow-y-auto space-y-5">
           {/* Roles */}
           <div className="grid grid-cols-2 gap-3">
-            {data.roles.map((r: { id: string; icon: string; nameRu: string; nameEn: string; team: string; condition: string }) => (
+            {(data.roles ?? []).map((r) => (
               <div key={r.id} className={`rounded-2xl p-4 border ${
                 r.team === 'mafia' ? 'bg-red-900/20 border-red-500/30' : 'bg-blue-900/20 border-blue-500/30'
               }`}>
@@ -1563,8 +1577,8 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.roleTable.map((row: { players: number; mafia: number; detective: boolean; doctor: boolean; citizens: number }, i: number) => (
-                    <tr key={i} className={i < data.roleTable.length - 1 ? 'border-b border-white/5' : ''}>
+                  {(data.roleTable ?? []).map((row, i: number) => (
+                    <tr key={i} className={i < (data.roleTable ?? []).length - 1 ? 'border-b border-white/5' : ''}>
                       <td className="px-4 py-2 text-white font-bold">{row.players}</td>
                       <td className="px-3 py-2 text-center text-red-400 font-bold">{row.mafia}</td>
                       <td className="px-3 py-2 text-center">{row.detective ? <span className="text-blue-400">✓</span> : <span className="text-white/20">—</span>}</td>

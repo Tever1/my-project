@@ -139,45 +139,6 @@ ${existingList}
   };
 }
 
-// ─── Fact-check single question ──────────────────────────────────────────────
-
-async function factCheckSingle(q: QuizQuestion, apiKey: string): Promise<string> {
-  const letters = ['A', 'B', 'C', 'D'];
-  const opts = q.options.map((o, j) => `  ${letters[j]}) ${o.ru}`).join('\n');
-  const correct = `${letters[q.correctIndex]}) ${q.options[q.correctIndex]?.ru ?? '?'}`;
-
-  const prompt = `Ты эксперт-фактчекер. Проверь один вопрос викторины на достоверность.
-
-Ответь ОДНОЙ строкой в одном из форматов:
-✅ Верно
-⚠️ Неточность: [краткое объяснение]
-❌ Ошибка: [что не так и правильный ответ]
-
-Вопрос: ${q.questionRu}
-${opts}
-Правильный ответ: ${correct}`;
-
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'http://localhost:3000',
-      'X-Title': 'party-games-hub',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-pro-preview',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.1,
-      max_tokens: 200,
-    }),
-  });
-
-  if (!res.ok) return '⚠️ Не удалось проверить';
-  const data = await res.json();
-  return (data.choices?.[0]?.message?.content ?? '').trim() || '⚠️ Нет ответа';
-}
-
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {

@@ -89,7 +89,7 @@ const THEME_LABELS = {
 
 // ─── Build LLM prompt ────────────────────────────────────────────────────────
 
-function buildPrompt(theme, quizNumber, count, lang) {
+function buildPrompt(theme, quizNumber, count) {
   const themeLabel = THEME_LABELS[theme] ?? theme;
   const prefix = `${theme.replace(/-/g, '').slice(0, 4)}${quizNumber}`;
 
@@ -256,7 +256,7 @@ function themeToExportName(theme) {
 
 async function main() {
   loadEnv();
-  const { theme, quizNumber, count, lang, dry } = parseArgs();
+  const { theme, quizNumber, count, dry } = parseArgs();
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) {
@@ -272,7 +272,7 @@ async function main() {
   console.log(`📝 Quiz #${quizNumber} — generating ${count} questions...`);
   console.log(`📁 Output: ${path.relative(projectRoot, outPath)}\n`);
 
-  const prompt = buildPrompt(theme, quizNumber, count, lang);
+  const prompt = buildPrompt(theme, quizNumber, count);
 
   let raw;
   try {

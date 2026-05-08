@@ -2,14 +2,12 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
-import { TOPICS, ROUND_NAMES, ROUND_MULT, REVERSE_PTS, getDisplayPts } from '@/lib/hundred-to-one/questions';
-import type { H2OQuestion } from '@/lib/hundred-to-one/questions';
+import { TOPICS, ROUND_NAMES, getDisplayPts } from '@/lib/hundred-to-one/questions';
 import { sndReveal, sndClose, sndAssign, sndBuzz, sndTick, sndWin, sndDup, warmup } from '@/lib/hundred-to-one/sounds';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -95,7 +93,6 @@ const mkInitial = (): GState => ({
 
 export default function HundredToOnePage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { locale } = useTranslation();
   const { user } = useAuth();
   const { emit, on } = useSocket();
   const router = useRouter();
@@ -335,7 +332,7 @@ export default function HundredToOnePage() {
     let newT1s = s.t1s, newT2s = s.t2s;
     const newPhase = [...s.roundPhase];
     const newWonBy = [...s.roundWonBy];
-    const newBusted = s.roundBusted.map((r, ri) => [...r]);
+    const newBusted = s.roundBusted.map((r) => [...r]);
     const newActive = [...s.roundActiveTeam];
 
     // Switched phase: strike on active team = fund goes to original team
