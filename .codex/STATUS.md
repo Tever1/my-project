@@ -7,13 +7,7 @@
 
 ## Активные таски
 
-### TASK-026: Smoke QA после Волн 1 и 2
-- **Статус:** pending (ждёт пользователя в Codex Desktop)
-- **Исполнитель:** Codex (manual by user)
-- **Запущено:** 2026-05-07
-- **Файлы (locked):** только codex-reports/026-smoke-qa-wave2.md (read-only QA)
-- **Task spec:** `codex-tasks/026-smoke-qa-wave2.md`
-- **Цель:** smoke HTTP-тест всех 16 routes + проверка логов сервера на ошибки. Код не править.
+_(нет активных тасков)_
 
 <!--
 Формат записи активного таска:
@@ -43,6 +37,21 @@
 ---
 
 ## История (последние 10 завершённых)
+
+### TASK-027: Lint cleanup Волна 3 — ✅ done
+- Завершено: 2026-05-07
+- Коммит: _(pending)_
+- Резюме: 11 react-hooks/* errors закрыты в 7 файлах. queueMicrotask-обёртки для setState в init effects (i18n-provider, auth-context, admin). use-socket: добавлен `socketInstance` state (потребители socket не используют). mafia: nicknameCache ref→state с grow-only merge. quiz: countdownRef + isHostRef/gameStateRef в useEffect, runCountdown plain fn. tv: initSpyCanvas вынесен на top level (rules-of-hooks fix). Lint 11 → 0 problems. Build/tsc clean.
+
+### TASK-026: Smoke QA после Волн 1 и 2 — ✅ done
+- Завершено: 2026-05-07
+- Коммит: `470cdea`
+- Резюме: все 16 фактических routes (без `/ru`-префикса) → 200. `/api/socketio` → 200 (socket handshake OK). `tsc --noEmit` без ошибок. `npm run build` exit 0. `npm run lint` → 11 problems (все Wave 3, зарезервированы). Сервер стартует без ошибок. Путь `/ru/...` в ТЗ был неверен — это ошибка спека, не регрессия.
+
+### TASK-025: Lint cleanup Волна 2 — ✅ done
+- Завершено: 2026-05-07
+- Коммит: `c92cd96`
+- Резюме: 8 exhaustive-deps проблем закрыты в 5 файлах (alias, crocodile, mafia, quiz, tv). `isDayTimerActive` extract в mafia предотвращает параллельные таймеры. `revealResults` поднят выше useEffect в quiz (TDZ fix) + `timeLeft` удалён из его deps. `locale` добавлен в tv deps. Lint 19 → 11 problems.
 
 ### TASK-024: Lint cleanup Волна 1 — ✅ done
 - Завершено: 2026-05-07

@@ -9,7 +9,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const saved = localStorage.getItem('locale') as Locale;
     if (saved && (saved === 'ru' || saved === 'en')) {
-      setLocaleState(saved);
+      queueMicrotask(() => setLocaleState(saved));
     }
   }, []);
 

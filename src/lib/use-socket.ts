@@ -6,14 +6,18 @@ import { connectSocket } from './socket';
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
+  const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     const socket = connectSocket();
     socketRef.current = socket;
 
-    // Sync initial state — socket may already be connected
-    setIsConnected(socket.connected);
+    queueMicrotask(() => {
+      setSocketInstance(socket);
+      // Sync initial state — socket may already be connected
+      setIsConnected(socket.connected);
+    });
 
     const onConnect = () => setIsConnected(true);
     const onDisconnect = () => setIsConnected(false);
@@ -24,6 +28,8 @@ export function useSocket() {
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socketRef.current = null;
+      setSocketInstance(null);
     };
   }, []);
 
@@ -49,5 +55,5 @@ export function useSocket() {
     socketRef.current?.off(event, handler);
   }, []);
 
-  return { socket: socketRef.current, isConnected, emit, on, off };
+  return { socket: socketInstance, isConnected, emit, on, off };
 }

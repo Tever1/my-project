@@ -128,7 +128,7 @@ function BackgroundsTab() {
     setLoadingFiles(false);
   }, []);
 
-  useEffect(() => { fetchFiles(); }, [fetchFiles]);
+  useEffect(() => { queueMicrotask(fetchFiles); }, [fetchFiles]);
 
   useEffect(() => {
     if (!lightbox) return;
@@ -976,7 +976,7 @@ function RoomsTab() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchRooms(); }, [fetchRooms]);
+  useEffect(() => { queueMicrotask(fetchRooms); }, [fetchRooms]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -1338,9 +1338,11 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
 
   useEffect(() => {
     if (!game) return;
-    setLoading(true);
-    setData(null);
-    setFilter('all');
+    queueMicrotask(() => {
+      setLoading(true);
+      setData(null);
+      setFilter('all');
+    });
     fetch(`/api/admin/game-data?game=${game.id}`)
       .then((r) => r.json())
       .then((d) => { setData(d); setLoading(false); });

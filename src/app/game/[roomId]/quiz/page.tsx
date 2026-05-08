@@ -87,6 +87,7 @@ export default function QuizPage() {
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef(3);
   const gameStateRef = useRef<QuizGameState>(INITIAL_STATE);
   const isHostRef = useRef(false);
 
@@ -97,12 +98,18 @@ export default function QuizPage() {
   const shownIdsRef = useRef<Set<string>>(new Set());
 
   const isHost = gameState.players.find((p) => p.id === user?.id)?.isHost ?? false;
-  isHostRef.current = isHost;
-  gameStateRef.current = gameState;
   const myAnswer = user ? gameState.answers[user.id] : undefined;
   const totalPlayers = gameState.players.length;
   const answeredCount = Object.keys(gameState.answers).length;
   const allAnswered = totalPlayers > 0 && answeredCount >= totalPlayers;
+
+  useEffect(() => {
+    isHostRef.current = isHost;
+  }, [isHost]);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   const timePerQuestion = gameState.config.difficulty === 'easy' ? 15
     : gameState.config.difficulty === 'hard' ? 25 : 20;
@@ -291,7 +298,7 @@ export default function QuizPage() {
   useEffect(() => {
     if (!isHost || gameState.phase !== 'question' || gameState.showCorrect) return;
     if (gameState.timeLeft <= 0 || allAnswered) {
-      revealResults();
+      queueMicrotask(revealResults);
     }
   }, [gameState.timeLeft, allAnswered, isHost, gameState.phase, gameState.showCorrect, revealResults]);
 
@@ -410,67 +417,64 @@ export default function QuizPage() {
     });
   };
 
-  const runCountdown = useCallback(
-    (questionIdx: number) => {
-      let count = 3;
-      setGameState((prev) => ({ ...prev, phase: 'countdown', countdownValue: count }));
-      emit('game:action', {
-        code: roomId,
-        action: 'quiz:countdown',
-        payload: { value: count },
-      });
+  const runCountdown = (questionIdx: number) => {
+    countdownRef.current = 3;
+    setGameState((prev) => ({ ...prev, phase: 'countdown', countdownValue: countdownRef.current }));
+    emit('game:action', {
+      code: roomId,
+      action: 'quiz:countdown',
+      payload: { value: countdownRef.current },
+    });
 
-      const interval = setInterval(() => {
-        count -= 1;
-        if (count <= 0) {
-          clearInterval(interval);
-          const q = questionsRef.current[questionIdx];
-          if (!q) return;
+    const interval = setInterval(() => {
+      countdownRef.current -= 1;
+      if (countdownRef.current <= 0) {
+        clearInterval(interval);
+        const q = questionsRef.current[questionIdx];
+        if (!q) return;
 
-          // Track shown question
-          shownIdsRef.current.add(q.id);
+        // Track shown question
+        shownIdsRef.current.add(q.id);
 
-          const questionData = {
-            questionRu: q.questionRu,
-            questionEn: q.questionEn,
-            options: q.options,
-            correctIndex: q.correctIndex,
-          };
+        const questionData = {
+          questionRu: q.questionRu,
+          questionEn: q.questionEn,
+          options: q.options,
+          correctIndex: q.correctIndex,
+        };
 
-          const startPayload = {
-            questionIndex: questionIdx,
-            timeLeft: q.timeLimit,
-            question: questionData,
-          };
+        const startPayload = {
+          questionIndex: questionIdx,
+          timeLeft: q.timeLimit,
+          question: questionData,
+        };
 
-          setGameState((prev) => ({
-            ...prev,
-            phase: 'question',
-            questionIndex: questionIdx,
-            timeLeft: q.timeLimit,
-            currentQuestion: questionData,
-            answers: {},
-            showCorrect: false,
-            correctPlayers: [],
-          }));
+        setGameState((prev) => ({
+          ...prev,
+          phase: 'question',
+          questionIndex: questionIdx,
+          timeLeft: q.timeLimit,
+          currentQuestion: questionData,
+          answers: {},
+          showCorrect: false,
+          correctPlayers: [],
+        }));
 
-          emit('game:action', {
-            code: roomId,
-            action: 'quiz:start-question',
-            payload: startPayload,
-          });
-        } else {
-          setGameState((prev) => ({ ...prev, countdownValue: count }));
-          emit('game:action', {
-            code: roomId,
-            action: 'quiz:countdown',
-            payload: { value: count },
-          });
-        }
-      }, 1000);
-    },
-    [emit, roomId],
-  );
+        emit('game:action', {
+          code: roomId,
+          action: 'quiz:start-question',
+          payload: startPayload,
+        });
+      } else {
+        setGameState((prev) => ({ ...prev, countdownValue: countdownRef.current }));
+        emit('game:action', {
+          code: roomId,
+          action: 'quiz:countdown',
+          payload: { value: countdownRef.current },
+        });
+      }
+    }, 1000);
+  };
 
   const startGame = () => {
     warmupSound();
@@ -501,7 +505,7 @@ export default function QuizPage() {
     runCountdown(0);
   };
 
-  const startQuestionImmediate = useCallback((questionIdx: number) => {
+  const startQuestionImmediate = (questionIdx: number) => {
     const q = questionsRef.current[questionIdx];
     if (!q) return;
 
@@ -530,7 +534,7 @@ export default function QuizPage() {
       action: 'quiz:start-question',
       payload: { questionIndex: questionIdx, timeLeft: q.timeLimit, question: questionData },
     });
-  }, [emit, roomId]);
+  };
 
   const startNextQuestion = () => {
     const nextIndex = gameState.questionIndex + 1;

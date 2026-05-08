@@ -167,6 +167,17 @@ export default function TVGamePage() {
     : gameType;
   const gameIcon = gameInfo?.icon || '🎮';
 
+  const initSpyCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+    if (!canvas) return;
+    spyCanvasRef.current = canvas;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * 2;
+    canvas.height = rect.height * 2;
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.scale(2, 2);
+    spyCanvasSizeRef.current = { w: rect.width, h: rect.height };
+  }, []);
+
   // Join TV room
   useEffect(() => {
     if (!isConnected) return;
@@ -891,18 +902,6 @@ export default function TVGamePage() {
       : 'text-white';
     const spyFormatTime = (sec: number) =>
       `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
-
-    // Init canvas on first render
-    const initSpyCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
-      if (!canvas) return;
-      spyCanvasRef.current = canvas;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * 2;
-      canvas.height = rect.height * 2;
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.scale(2, 2);
-      spyCanvasSizeRef.current = { w: rect.width, h: rect.height };
-    }, []);
 
     return (
       <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">

@@ -139,7 +139,7 @@ export default function MafiaPage() {
   const [nightActionDone, setNightActionDone] = useState(false);
   const [dayTimerValue, setDayTimerValue] = useState(60);
   // Cache of id→nickname that only grows — survives player disconnection
-  const nicknameCacheRef = useRef<Record<string, string>>({});
+  const [nicknameCache, setNicknameCache] = useState<Record<string, string>>({});
 
   const isHost = players.find((p) => p.isHost)?.id === user?.id;
   const myRole = user ? gs.roles[user.id] : undefined;
@@ -147,8 +147,8 @@ export default function MafiaPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playerName = useCallback(
-    (id: string) => nicknameCacheRef.current[id] ?? players.find((p) => p.id === id)?.nickname ?? id,
-    [players],
+    (id: string) => nicknameCache[id] ?? players.find((p) => p.id === id)?.nickname ?? id,
+    [nicknameCache, players],
   );
 
   // -----------------------------------------------------------------------
@@ -169,7 +169,11 @@ export default function MafiaPage() {
       const room = data as { players?: Player[] };
       if (room.players) {
         // Populate cache — never evict so disconnected players keep their name
-        room.players.forEach(p => { nicknameCacheRef.current[p.id] = p.nickname; });
+        setNicknameCache((prev) => {
+          const next = { ...prev };
+          room.players!.forEach(p => { next[p.id] = p.nickname; });
+          return next;
+        });
         setPlayers(room.players);
       }
     });

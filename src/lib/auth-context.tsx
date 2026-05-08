@@ -49,12 +49,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const savedUser = localStorage.getItem('party-hub-user');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch {}
-    }
-    setIsLoading(false);
+    queueMicrotask(() => {
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser));
+        } catch {}
+      }
+      setIsLoading(false);
+    });
   }, []);
 
   const saveUser = useCallback((u: User) => {
