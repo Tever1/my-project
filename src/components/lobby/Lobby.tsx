@@ -645,6 +645,63 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         )}
       </section>
 
+      {/* Mobile room menu overlay */}
+      {isMobile && (
+        <AnimatePresence>
+          {roomMenuOpen && roomCode && (
+            <>
+              {/* Dim backdrop */}
+              <motion.div
+                key="room-menu-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setRoomMenuOpen(false)}
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  background: "rgba(0, 0, 0, 0.6)",
+                  backdropFilter: "blur(4px)",
+                  WebkitBackdropFilter: "blur(4px)",
+                  zIndex: 40,
+                }}
+              />
+              {/* Scrollable panel */}
+              <motion.div
+                key="room-menu-mobile"
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 40 }}
+                transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+                style={{
+                  position: "fixed",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  zIndex: 41,
+                  maxHeight: "88dvh",
+                  overflowY: "auto",
+                  padding: "0 12px 24px",
+                }}
+              >
+                <RoomMenu
+                  ref={roomMenuRef}
+                  roomCode={roomCode}
+                  roomState={roomState}
+                  accent={accent}
+                  deep={deep}
+                  currentUserId={user?.id ?? ""}
+                  onKick={handleKick}
+                  onTransferHost={handleTransferHost}
+                  onLeaveRoom={handleLeaveRoom}
+                />
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      )}
+
       {/* Bottom tile strip */}
       <TileStrip
         ref={tileStripRef}
