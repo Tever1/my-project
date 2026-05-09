@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-031: Встроить авторизацию в лобби, удалить /auth страницы
+### TASK-032: Выпадающее меню аккаунта в TopBar
 - **Статус:** in-progress
 - **Исполнитель:** Codex (manual by user)
 - **Запущено:** 2026-05-08
-- **Файлы (locked):** src/components/lobby/Lobby.tsx, src/app/auth/page.tsx, src/app/auth/verify/page.tsx, src/app/profile/page.tsx
-- **Task spec:** `codex-tasks/031-inline-auth-in-lobby.md`
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/032-account-dropdown.md`
 - **Report:** _(ожидается)_
 
 <!--
@@ -43,6 +43,11 @@
 ---
 
 ## История (последние 10 завершённых)
+
+### TASK-031: Встроить авторизацию в лобби, удалить /auth страницы — ✅ done
+- Завершено: 2026-05-08
+- Коммит: `8cf3527`
+- Резюме: AuthDropdown (телефон→код→никнейм) встроен в TopBar. /auth и /auth/verify удалены. AvatarPill показывает «Вход» для гостей, аватар для залогиненных.
 
 ### TASK-030: Фикс QR-кода — реальный IP вместо localhost — ✅ done
 - Завершено: 2026-05-08

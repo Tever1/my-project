@@ -185,6 +185,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [roomMenuOpen, setRoomMenuOpen] = useState(false);
   const [authMenuOpen, setAuthMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const roomMenuRef = useRef<HTMLDivElement>(null);
@@ -194,6 +195,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const isNarrowDesktop = useIsNarrowDesktop();
   const openAuth = useCallback(() => setAuthMenuOpen(true), []);
   const closeAuth = useCallback(() => setAuthMenuOpen(false), []);
+  const openAccountMenu = useCallback(() => setAccountMenuOpen(true), []);
+  const closeAccountMenu = useCallback(() => setAccountMenuOpen(false), []);
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -560,8 +563,11 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         isCreatingRoom={isCreatingRoom}
         user={user}
         authMenuOpen={authMenuOpen}
+        accountMenuOpen={accountMenuOpen}
         onOpenAuth={openAuth}
         onCloseAuth={closeAuth}
+        onOpenAccountMenu={openAccountMenu}
+        onCloseAccountMenu={closeAccountMenu}
       />
 
       {/* Hero */}
@@ -646,8 +652,11 @@ function TopBar({
   isCreatingRoom,
   user,
   authMenuOpen,
+  accountMenuOpen,
   onOpenAuth,
   onCloseAuth,
+  onOpenAccountMenu,
+  onCloseAccountMenu,
 }: {
   roomCode: string | null;
   onCreateRoom: () => void;
@@ -659,8 +668,11 @@ function TopBar({
   isCreatingRoom: boolean;
   user: User | null;
   authMenuOpen: boolean;
+  accountMenuOpen: boolean;
   onOpenAuth: () => void;
   onCloseAuth: () => void;
+  onOpenAccountMenu: () => void;
+  onCloseAccountMenu: () => void;
 }) {
   const compact = isNarrowDesktop && !isMobile;
 
@@ -719,12 +731,21 @@ function TopBar({
             isNarrowDesktop={compact}
             topbarId="avatar"
             onLoginClick={onOpenAuth}
+            onAccountClick={onOpenAccountMenu}
           />
           <AnimatePresence>
             {authMenuOpen && (
               <AuthDropdown
                 isMobile={isMobile}
                 onClose={onCloseAuth}
+              />
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {accountMenuOpen && (
+              <AccountDropdown
+                isMobile={isMobile}
+                onClose={onCloseAccountMenu}
               />
             )}
           </AnimatePresence>
@@ -937,12 +958,14 @@ function AvatarPill({
   isNarrowDesktop = false,
   topbarId,
   onLoginClick,
+  onAccountClick,
 }: {
   user: User | null;
   isMobile?: boolean;
   isNarrowDesktop?: boolean;
   topbarId?: string;
   onLoginClick: () => void;
+  onAccountClick: () => void;
 }) {
   const [focused, setFocused] = useState(false);
   if (!user) {
@@ -979,7 +1002,7 @@ function AvatarPill({
   return (
     <motion.button
       data-topbar={topbarId}
-      onClick={() => console.log("account panel — TODO")}
+      onClick={onAccountClick}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       whileHover={{ scale: 1.03 }}
@@ -1250,6 +1273,122 @@ function AuthDropdown({
             </button>
           </div>
         )}
+      </div>
+    </motion.div>
+  );
+}
+
+function AccountDropdown({
+  isMobile,
+  onClose,
+}: {
+  isMobile: boolean;
+  onClose: () => void;
+}) {
+  const { logout } = useAuth();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const containerStyle: React.CSSProperties = isMobile
+    ? {
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'flex-end',
+        zIndex: 100,
+        background: 'rgba(0,0,0,0.35)',
+        padding: '72px 16px 16px',
+      }
+    : {
+        position: 'absolute',
+        top: 'calc(100% + 8px)',
+        right: 0,
+        zIndex: 100,
+      };
+
+  const panelStyle: React.CSSProperties = {
+    width: 220,
+    background: 'rgba(18, 18, 28, 0.92)',
+    backdropFilter: 'blur(32px)',
+    WebkitBackdropFilter: 'blur(32px)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    padding: 8,
+    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+  };
+
+  const itemStyle: React.CSSProperties = {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '12px 14px',
+    borderRadius: 10,
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.88)',
+    fontFamily: 'inherit',
+    fontSize: 14,
+    fontWeight: 600,
+    textAlign: 'left',
+    cursor: 'pointer',
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+      transition={spring.snappy}
+      style={containerStyle}
+      onClick={isMobile ? onClose : undefined}
+    >
+      <div
+        ref={ref}
+        style={panelStyle}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          style={itemStyle}
+          onClick={() => undefined}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          <span aria-hidden="true">⚙️</span>
+          Настройки
+        </button>
+        <button
+          type="button"
+          style={{ ...itemStyle, color: '#ff6b6b' }}
+          onClick={() => {
+            logout();
+            onClose();
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,107,107,0.1)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          <span aria-hidden="true">🚪</span>
+          Выход
+        </button>
       </div>
     </motion.div>
   );
