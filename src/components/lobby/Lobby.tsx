@@ -1822,7 +1822,9 @@ const RoomMenu = forwardRef<HTMLDivElement, {
     ? `http://${localIp}:${typeof window !== "undefined" ? window.location.port || "3000" : "3000"}`
     : typeof window !== "undefined" ? window.location.origin : "";
   const joinUrl = roomCode ? `${origin}/lobby/${roomCode}` : "";
-  const connectedPlayers = (roomState?.players ?? []).filter((p) => p.isConnected !== false);
+  const connectedPlayers = (roomState?.players ?? []).filter(
+    (p) => p.isConnected !== false && p.nickname
+  );
   const isCurrentUserHost = currentUserId !== "" && currentUserId === roomState?.hostId;
 
   useEffect(() => {
@@ -2633,6 +2635,7 @@ function Tile({
         fontFamily: "inherit",
         color: "inherit",
         scrollSnapAlign: isMobile ? "start" : undefined,
+        touchAction: isMobile ? "pan-x" : undefined,
       }}
     >
       <div
