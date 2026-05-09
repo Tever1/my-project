@@ -2609,8 +2609,8 @@ function Tile({
         onFocus();
       }}
       onBlur={() => setFocused(false)}
-      onHoverStart={() => setHovered(true)}
-      onHoverEnd={() => setHovered(false)}
+      onHoverStart={isMobile ? undefined : () => setHovered(true)}
+      onHoverEnd={isMobile ? undefined : () => setHovered(false)}
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
