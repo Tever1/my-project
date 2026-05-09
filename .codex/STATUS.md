@@ -7,13 +7,7 @@
 
 ## Активные таски
 
-### TASK-030: Фикс QR-кода — реальный IP вместо localhost
-- **Статус:** in-progress
-- **Исполнитель:** Codex (manual by user)
-- **Запущено:** 2026-05-08
-- **Файлы (locked):** src/app/api/local-ip/route.ts, src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/030-local-ip-qr-fix.md`
-- **Report:** _(ожидается)_
+_(нет активных тасков)_
 
 <!--
 Формат записи активного таска:
@@ -43,6 +37,16 @@
 ---
 
 ## История (последние 10 завершённых)
+
+### TASK-030: Фикс QR-кода — реальный IP вместо localhost — ✅ done
+- Завершено: 2026-05-08
+- Коммит: `8b213a4`
+- Резюме: новый `GET /api/local-ip` (os.networkInterfaces → первый non-internal IPv4). RoomMenu фетчит при монте, подставляет `http://192.168.x.x:PORT` в joinUrl. Fallback на window.location.origin.
+
+### TASK-029: Кнопка «ТВ-режим» в TopBar — ✅ done
+- Завершено: 2026-05-08
+- Коммит: `8b213a4`
+- Резюме: «История» заменена на «ТВ-режим». NavButton расширен onClick/disabled. Disabled без roomCode, активна — открывает /tv/{code} в новой вкладке. Keyboard order: history → tv.
 
 ### TASK-028: Унификация дизайна лобби — ✅ done
 - Завершено: 2026-05-07
