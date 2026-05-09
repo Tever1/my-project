@@ -427,6 +427,18 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     emit('room:transfer-host', { code: roomCode, newHostId: playerId });
   }, [emit, roomCode]);
 
+  const handleLeaveRoom = useCallback(() => {
+    if (!roomCode) return;
+    emit('room:leave', {});
+    setRoomMenuOpen(false);
+    if (isRoomRoute) {
+      router.push("/");
+      return;
+    }
+    setRoomCode(null);
+    setRoomState(null);
+  }, [emit, isRoomRoute, roomCode, router]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -623,6 +635,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
                   currentUserId={user?.id ?? ""}
                   onKick={handleKick}
                   onTransferHost={handleTransferHost}
+                  onLeaveRoom={handleLeaveRoom}
                 />
               ) : (
                 <TiltedPreview key="tilted-preview" gameId={active.id} />
@@ -1806,6 +1819,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   currentUserId: string;
   onKick: (playerId: string) => void;
   onTransferHost: (playerId: string) => void;
+  onLeaveRoom: () => void;
 }>(function RoomMenu({
   roomCode,
   roomState,
@@ -1814,6 +1828,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   currentUserId,
   onKick,
   onTransferHost,
+  onLeaveRoom,
 }, ref) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [localIp, setLocalIp] = useState<string | null>(null);
@@ -1860,33 +1875,73 @@ const RoomMenu = forwardRef<HTMLDivElement, {
         gap: 26,
       }}
     >
-      <div>
-        <div
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              lineHeight: 1.1,
+              backgroundImage: `linear-gradient(90deg, ${accent}, color-mix(in srgb, ${accent} 62%, white), ${deep})`,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              marginBottom: 8,
+            }}
+          >
+            Комната · {roomCode}
+          </div>
+          <div
+            style={{
+              color: "rgba(235, 235, 245, 0.58)",
+              fontSize: 13,
+              fontFamily: "var(--font-mono)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              fontWeight: 700,
+            }}
+          >
+            В комнате · {connectedPlayers.length}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onLeaveRoom}
+          aria-label="Выйти из комнаты"
           style={{
-            fontSize: 24,
-            fontWeight: 700,
-            lineHeight: 1.1,
-            backgroundImage: `linear-gradient(90deg, ${accent}, color-mix(in srgb, ${accent} 62%, white), ${deep})`,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            marginBottom: 8,
+            flexShrink: 0,
+            padding: "8px 14px",
+            borderRadius: radius.full,
+            background: "rgba(239, 68, 68, 0.12)",
+            border: "1px solid rgba(239, 68, 68, 0.35)",
+            color: "#fca5a5",
+            fontSize: 12,
+            fontWeight: 650,
+            fontFamily: "inherit",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(239, 68, 68, 0.22)";
+            e.currentTarget.style.color = "#fee2e2";
+            e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.6)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+            e.currentTarget.style.color = "#fca5a5";
+            e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.35)";
           }}
         >
-          Комната · {roomCode}
-        </div>
-        <div
-          style={{
-            color: "rgba(235, 235, 245, 0.58)",
-            fontSize: 13,
-            fontFamily: "var(--font-mono)",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            fontWeight: 700,
-          }}
-        >
-          В комнате · {connectedPlayers.length}
-        </div>
+          Выйти
+        </button>
       </div>
 
       <div
