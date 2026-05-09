@@ -204,6 +204,14 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   }, []);
 
   useEffect(() => {
+    if (!isMobile) return;
+    document.body.classList.add("lobby-mobile-locked");
+    return () => {
+      document.body.classList.remove("lobby-mobile-locked");
+    };
+  }, [isMobile]);
+
+  useEffect(() => {
     if (initialCode) {
       queueMicrotask(() => setRoomCode(initialCode));
     }
@@ -2526,7 +2534,7 @@ const TileStrip = forwardRef<HTMLDivElement, {
           margin: "0 auto",
           padding: isMobile ? "8px 16px 10px" : "0 48px",
           overflowX: isMobile ? "auto" : undefined,
-          overflowY: isMobile ? "visible" : undefined,
+          overflowY: isMobile ? "hidden" : undefined,
           scrollSnapType: isMobile ? "x mandatory" : undefined,
           WebkitOverflowScrolling: isMobile ? "touch" : undefined,
           touchAction: isMobile ? "pan-x" : undefined,
@@ -2624,7 +2632,13 @@ function Tile({
         }
       }}
       animate={tileAnimate}
-      transition={pressed ? { type: "spring", stiffness: 700, damping: 22 } : spring.soft}
+      transition={
+        isMobile
+          ? { duration: 0.12, ease: [0.32, 0.72, 0, 1] }
+          : pressed
+            ? { type: "spring", stiffness: 700, damping: 22 }
+            : spring.soft
+      }
       style={{
         position: "relative",
         cursor: "pointer",

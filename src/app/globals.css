@@ -692,3 +692,16 @@ html.dark {
 .tile-strip-mobile * {
   touch-action: pan-x !important;
 }
+
+.tile-strip-mobile {
+  overscroll-behavior: contain;
+}
+
+/* Lock body scroll when mobile lobby is mounted. The body class is toggled
+   from Lobby.tsx via useEffect. */
+body.lobby-mobile-locked {
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
