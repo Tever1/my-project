@@ -1494,92 +1494,83 @@ function HeroLeft({
   return (
     <div style={{ position: "relative" }}>
       {/* Title — animates between games */}
-      <AnimatePresence mode="wait">
-        <motion.h1
-          key={game.id}
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={spring.soft}
+      <motion.h1
+        key={game.id}
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={spring.soft}
+        style={{
+          fontWeight: 900,
+          fontSize: isMobile ? "clamp(40px, 12vw, 44px)" : "clamp(56px, 8.5vw, 116px)",
+          lineHeight: isMobile ? 0.96 : 0.9,
+          letterSpacing: isMobile ? "-0.03em" : "-0.045em",
+          margin: 0,
+          marginBottom: isMobile ? 18 : 24,
+        }}
+      >
+        <span
           style={{
-            fontWeight: 900,
-            fontSize: isMobile ? "clamp(40px, 12vw, 44px)" : "clamp(56px, 8.5vw, 116px)",
-            lineHeight: isMobile ? 0.96 : 0.9,
-            letterSpacing: isMobile ? "-0.03em" : "-0.045em",
-            margin: 0,
-            marginBottom: isMobile ? 18 : 24,
+            display: "block",
+            backgroundImage:
+              "linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.7) 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
           }}
         >
-          <span
-            style={{
-              display: "block",
-              backgroundImage:
-                "linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.7) 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            {game.heroTitle.word}
-          </span>
-          <span
-            style={{
-              display: "block",
-              backgroundImage: `linear-gradient(90deg, ${accent} 0%, color-mix(in srgb, ${accent} 60%, white) 50%, ${deep} 100%)`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            {game.heroTitle.accent}
-          </span>
-        </motion.h1>
-      </AnimatePresence>
+          {game.heroTitle.word}
+        </span>
+        <span
+          style={{
+            display: "block",
+            backgroundImage: `linear-gradient(90deg, ${accent} 0%, color-mix(in srgb, ${accent} 60%, white) 50%, ${deep} 100%)`,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
+        >
+          {game.heroTitle.accent}
+        </span>
+      </motion.h1>
 
       {/* Meta pills */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`meta-${game.id}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: isMobile ? 10 : 20,
-            marginBottom: isMobile ? 20 : 28,
-            flexWrap: "wrap",
-            fontFamily: "var(--font-mono)",
-          }}
-        >
-          <MetaPill icon={<PersonIcon />}>{game.players}</MetaPill>
-          {!isMobile && <Dot />}
-          <MetaPill icon={<ClockIcon />}>{game.duration}</MetaPill>
-          {!isMobile && <Dot />}
-          <MetaPill icon={<TeamsIcon />}>{game.mode}</MetaPill>
-        </motion.div>
-      </AnimatePresence>
+      <motion.div
+        key={`meta-${game.id}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: isMobile ? 10 : 20,
+          marginBottom: isMobile ? 20 : 28,
+          flexWrap: "wrap",
+          fontFamily: "var(--font-mono)",
+        }}
+      >
+        <MetaPill icon={<PersonIcon />}>{game.players}</MetaPill>
+        {!isMobile && <Dot />}
+        <MetaPill icon={<ClockIcon />}>{game.duration}</MetaPill>
+        {!isMobile && <Dot />}
+        <MetaPill icon={<TeamsIcon />}>{game.mode}</MetaPill>
+      </motion.div>
 
       {/* Description */}
-      <AnimatePresence mode="wait">
-        <motion.p
-          key={`desc-${game.id}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          style={{
-            fontSize: isMobile ? 14 : 18,
-            lineHeight: 1.55,
-            color: "rgba(235, 235, 245, 0.72)",
-            maxWidth: 520,
-            margin: isMobile ? "0 0 24px" : "0 0 32px",
-          }}
-        >
-          {game.description}
-        </motion.p>
-      </AnimatePresence>
+      <motion.p
+        key={`desc-${game.id}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        style={{
+          fontSize: isMobile ? 14 : 18,
+          lineHeight: 1.55,
+          color: "rgba(235, 235, 245, 0.72)",
+          maxWidth: 520,
+          margin: isMobile ? "0 0 24px" : "0 0 32px",
+        }}
+      >
+        {game.description}
+      </motion.p>
 
       {/* CTA row */}
       <div
@@ -2592,13 +2583,19 @@ function Tile({
     pressReleaseTimerRef.current = setTimeout(() => setPressed(false), 120);
   };
 
-  const tileAnimate = pressed
-    ? { y: -2, scale: 0.92 }
-    : isActive
-      ? { y: -3, scale: 1.02 }
-      : hovered
-        ? { y: -5, scale: 1.04 }
-        : { y: 0, scale: 1 };
+  const tileAnimate = isMobile
+    ? (pressed
+        ? { y: 0, scale: 0.92 }
+        : isActive
+          ? { y: 0, scale: 1.02 }
+          : { y: 0, scale: 1 })
+    : (pressed
+        ? { y: -2, scale: 0.92 }
+        : isActive
+          ? { y: -3, scale: 1.02 }
+          : hovered
+            ? { y: -5, scale: 1.04 }
+            : { y: 0, scale: 1 });
 
   return (
     <motion.button
