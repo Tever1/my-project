@@ -2505,7 +2505,10 @@ const TileStrip = forwardRef<HTMLDivElement, {
   isMobile,
 }, ref) {
   return (
-    <div style={{ position: "relative", zIndex: 1, paddingBottom: isMobile ? 20 : 32 }}>
+    <div
+      className={isMobile ? "tile-strip-mobile" : undefined}
+      style={{ position: "relative", zIndex: 1, paddingBottom: isMobile ? 20 : 32 }}
+    >
       <p
         style={{
           fontSize: 11,

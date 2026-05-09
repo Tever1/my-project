@@ -687,3 +687,8 @@ html.dark {
 .glass-card-hover:active {
   transform: translateY(-1px) scale(0.99);
 }
+
+.tile-strip-mobile,
+.tile-strip-mobile * {
+  touch-action: pan-x !important;
+}
