@@ -7,7 +7,13 @@
 
 ## Активные таски
 
-_(нет активных тасков)_
+### TASK-031: Встроить авторизацию в лобби, удалить /auth страницы
+- **Статус:** in-progress
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-08
+- **Файлы (locked):** src/components/lobby/Lobby.tsx, src/app/auth/page.tsx, src/app/auth/verify/page.tsx, src/app/profile/page.tsx
+- **Task spec:** `codex-tasks/031-inline-auth-in-lobby.md`
+- **Report:** _(ожидается)_
 
 <!--
 Формат записи активного таска:

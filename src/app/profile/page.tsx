@@ -17,7 +17,7 @@ export default function ProfilePage() {
   const [nickname, setNickname] = useState(user?.nickname || '');
 
   if (!user) {
-    router.push('/auth');
+    router.push('/');
     return null;
   }
 
@@ -130,7 +130,7 @@ export default function ProfilePage() {
         <GlassButton
           variant="danger"
           className="w-full"
-          onClick={() => { logout(); router.push('/auth'); }}
+          onClick={() => { logout(); router.push('/'); }}
         >
           {locale === 'ru' ? 'Выйти' : 'Log out'}
         </GlassButton>

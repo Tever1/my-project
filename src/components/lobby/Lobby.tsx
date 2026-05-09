@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { GameIcon } from "@/components/GameIcon";
 import { GlassPanel, GlassToaster } from "@/components/glass";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, type User } from "@/lib/auth-context";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
 import { useSocket } from "@/lib/use-socket";
 import { QRCode } from "react-qrcode-logo";
@@ -184,6 +184,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [presenceCount, setPresenceCount] = useState(0);
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [roomMenuOpen, setRoomMenuOpen] = useState(false);
+  const [authMenuOpen, setAuthMenuOpen] = useState(false);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const roomMenuRef = useRef<HTMLDivElement>(null);
@@ -191,6 +192,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const startGameButtonRef = useRef<HTMLButtonElement>(null);
   const isMobile = useIsMobile();
   const isNarrowDesktop = useIsNarrowDesktop();
+  const openAuth = useCallback(() => setAuthMenuOpen(true), []);
+  const closeAuth = useCallback(() => setAuthMenuOpen(false), []);
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -205,8 +208,12 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
   useEffect(() => {
     if (!isRoomRoute || isLoading || user) return;
-    router.push(`/auth?redirect=/lobby/${initialCode}`);
-  }, [initialCode, isLoading, isRoomRoute, router, user]);
+    queueMicrotask(() => setAuthMenuOpen(true));
+  }, [isLoading, isRoomRoute, user]);
+
+  useEffect(() => {
+    if (user?.nickname) queueMicrotask(() => setAuthMenuOpen(false));
+  }, [user?.nickname]);
 
   useEffect(() => {
     const unsubscribe = on('presence:count', (data: unknown) => {
@@ -287,12 +294,12 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const getPlayerPayload = useCallback(() => {
     if (!user?.id || !user.nickname) {
       toast.error("Войдите в профиль, чтобы создать или присоединиться к комнате");
-      router.push("/auth?redirect=/");
+      setAuthMenuOpen(true);
       return null;
     }
 
     return { playerId: user.id, nickname: user.nickname };
-  }, [router, user]);
+  }, [user]);
 
   const createRoom = useCallback(() => {
     const player = getPlayerPayload();
@@ -551,6 +558,10 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         isNarrowDesktop={isNarrowDesktop}
         presenceCount={presenceCount}
         isCreatingRoom={isCreatingRoom}
+        user={user}
+        authMenuOpen={authMenuOpen}
+        onOpenAuth={openAuth}
+        onCloseAuth={closeAuth}
       />
 
       {/* Hero */}
@@ -633,6 +644,10 @@ function TopBar({
   isNarrowDesktop,
   presenceCount,
   isCreatingRoom,
+  user,
+  authMenuOpen,
+  onOpenAuth,
+  onCloseAuth,
 }: {
   roomCode: string | null;
   onCreateRoom: () => void;
@@ -642,6 +657,10 @@ function TopBar({
   isNarrowDesktop: boolean;
   presenceCount: number;
   isCreatingRoom: boolean;
+  user: User | null;
+  authMenuOpen: boolean;
+  onOpenAuth: () => void;
+  onCloseAuth: () => void;
 }) {
   const compact = isNarrowDesktop && !isMobile;
 
@@ -693,7 +712,23 @@ function TopBar({
           isNarrowDesktop={compact}
           isCreating={isCreatingRoom}
         />
-        <AvatarPill name="Аня" isMobile={isMobile} isNarrowDesktop={compact} topbarId="avatar" />
+        <div style={{ position: "relative" }}>
+          <AvatarPill
+            user={user}
+            isMobile={isMobile}
+            isNarrowDesktop={compact}
+            topbarId="avatar"
+            onLoginClick={onOpenAuth}
+          />
+          <AnimatePresence>
+            {authMenuOpen && (
+              <AuthDropdown
+                isMobile={isMobile}
+                onClose={onCloseAuth}
+              />
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </header>
   );
@@ -897,18 +932,50 @@ function RoomButton({
 }
 
 function AvatarPill({
-  name,
+  user,
   isMobile = false,
   isNarrowDesktop = false,
   topbarId,
+  onLoginClick,
 }: {
-  name: string;
+  user: User | null;
   isMobile?: boolean;
   isNarrowDesktop?: boolean;
   topbarId?: string;
+  onLoginClick: () => void;
 }) {
   const [focused, setFocused] = useState(false);
-  const initial = name.charAt(0);
+  if (!user) {
+    return (
+      <motion.button
+        data-topbar={topbarId}
+        onClick={onLoginClick}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
+        transition={spring.snappy}
+        style={{
+          padding: isNarrowDesktop ? "8px 14px" : "8px 20px",
+          borderRadius: radius.full,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          color: "rgba(255,255,255,0.9)",
+          fontFamily: "inherit",
+          fontSize: isNarrowDesktop ? 13 : 14,
+          fontWeight: 600,
+          cursor: "pointer",
+          outline: "none",
+          letterSpacing: "-0.01em",
+          boxShadow: focused ? "0 0 0 3px rgba(255,255,255,0.6)" : "none",
+        }}
+      >
+        Вход
+      </motion.button>
+    );
+  }
+
+  const initial = user.nickname.charAt(0);
   return (
     <motion.button
       data-topbar={topbarId}
@@ -949,8 +1016,242 @@ function AvatarPill({
       >
         {initial}
       </div>
-      {!isMobile && <span style={{ fontSize: 14, fontWeight: 600 }}>{name}</span>}
+      {!isMobile && <span style={{ fontSize: 14, fontWeight: 600 }}>{user.nickname}</span>}
     </motion.button>
+  );
+}
+
+function AuthDropdown({
+  isMobile,
+  onClose,
+}: {
+  isMobile: boolean;
+  onClose: () => void;
+}) {
+  const { sendCode, verifyCode, updateNickname } = useAuth();
+  const [step, setStep] = useState<'phone' | 'code' | 'nickname'>('phone');
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length <= 1) return '+' + digits;
+    if (digits.length <= 4) return `+${digits.slice(0, 1)} (${digits.slice(1)}`;
+    if (digits.length <= 7) return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4)}`;
+    if (digits.length <= 9) return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+  };
+
+  const handleSendCode = async () => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      setError('Введите корректный номер');
+      return;
+    }
+    setLoading(true);
+    await sendCode(digits);
+    setLoading(false);
+    setStep('code');
+    setError('');
+  };
+
+  const handleVerifyCode = async () => {
+    if (code.length < 4) {
+      setError('Введите 4-значный код');
+      return;
+    }
+    setLoading(true);
+    const digits = phone.replace(/\D/g, '');
+    const ok = await verifyCode(digits, code);
+    setLoading(false);
+    if (ok) {
+      setStep('nickname');
+      setError('');
+    } else {
+      setError('Неверный код');
+    }
+  };
+
+  const handleSetNickname = () => {
+    if (nickname.trim().length < 2) {
+      setError('Минимум 2 символа');
+      return;
+    }
+    updateNickname(nickname.trim());
+  };
+
+  const containerStyle: React.CSSProperties = isMobile
+    ? {
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+        background: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(4px)',
+        padding: 24,
+      }
+    : {
+        position: 'absolute',
+        top: 'calc(100% + 8px)',
+        right: 0,
+        zIndex: 100,
+      };
+
+  const panelStyle: React.CSSProperties = {
+    width: isMobile ? '100%' : 320,
+    maxWidth: isMobile ? 400 : undefined,
+    background: 'rgba(18, 18, 28, 0.92)',
+    backdropFilter: 'blur(32px)',
+    WebkitBackdropFilter: 'blur(32px)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    padding: 24,
+    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 16px',
+    borderRadius: 12,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    color: 'white',
+    fontFamily: 'inherit',
+    fontSize: 16,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const btnStyle = (primary = true): React.CSSProperties => ({
+    width: '100%',
+    padding: '12px 20px',
+    borderRadius: 12,
+    background: primary ? 'rgba(255,255,255,0.9)' : 'transparent',
+    border: primary ? 'none' : '1px solid rgba(255,255,255,0.15)',
+    color: primary ? '#06060c' : 'rgba(255,255,255,0.5)',
+    fontFamily: 'inherit',
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: loading ? 'not-allowed' : 'pointer',
+    opacity: loading ? 0.6 : 1,
+    letterSpacing: '-0.01em',
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+      transition={spring.snappy}
+      style={containerStyle}
+    >
+      <div ref={ref} style={panelStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
+            {step === 'phone' && 'Вход'}
+            {step === 'code' && 'Введите код'}
+            {step === 'nickname' && 'Как вас зовут?'}
+          </span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>×</button>
+        </div>
+
+        {step === 'phone' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>Номер телефона</div>
+              <input
+                style={inputStyle}
+                type="tel"
+                placeholder="+7 (999) 123-45-67"
+                value={phone}
+                onChange={(e) => { setPhone(formatPhone(e.target.value)); setError(''); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleSendCode(); }}
+                autoFocus
+              />
+            </div>
+            {error && <p style={{ fontSize: 13, color: '#ff453a', margin: 0 }}>{error}</p>}
+            <button style={btnStyle()} onClick={() => void handleSendCode()} disabled={loading}>
+              {loading ? 'Отправка...' : 'Получить код'}
+            </button>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', textAlign: 'center', margin: 0 }}>
+              Demo: код подтверждения — 1234
+            </p>
+          </div>
+        )}
+
+        {step === 'code' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', margin: 0 }}>
+              Код отправлен на <span style={{ color: 'rgba(255,255,255,0.8)', fontFamily: 'var(--font-mono)' }}>{phone}</span>
+            </p>
+            <input
+              style={{ ...inputStyle, textAlign: 'center', fontSize: 24, letterSpacing: '0.5em', fontFamily: 'var(--font-mono)' }}
+              type="text"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="1234"
+              value={code}
+              onChange={(e) => { setCode(e.target.value.replace(/\D/g, '').slice(0, 4)); setError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleVerifyCode(); }}
+              autoFocus
+            />
+            {error && <p style={{ fontSize: 13, color: '#ff453a', margin: 0 }}>{error}</p>}
+            <button style={btnStyle()} onClick={() => void handleVerifyCode()} disabled={loading}>
+              {loading ? 'Проверка...' : 'Войти'}
+            </button>
+            <button style={btnStyle(false)} onClick={() => { setStep('phone'); setCode(''); setError(''); }}>
+              Назад
+            </button>
+          </div>
+        )}
+
+        {step === 'nickname' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>Ваше имя в игре</div>
+              <input
+                style={inputStyle}
+                type="text"
+                placeholder="Введите никнейм"
+                value={nickname}
+                maxLength={20}
+                onChange={(e) => { setNickname(e.target.value); setError(''); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSetNickname(); }}
+                autoFocus
+              />
+            </div>
+            {error && <p style={{ fontSize: 13, color: '#ff453a', margin: 0 }}>{error}</p>}
+            <button style={btnStyle()} onClick={handleSetNickname} disabled={loading || nickname.trim().length < 2}>
+              Готово
+            </button>
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 }
 
