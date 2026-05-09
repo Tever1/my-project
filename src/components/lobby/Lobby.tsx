@@ -4,7 +4,7 @@
  * / — Phase D PS5 + Spotlight hybrid lobby (main page).
  *
  * Layout:
- *   Top bar:  brand + nav (Играть/Друзья/История/Комнаты)
+ *   Top bar:  brand + nav (Играть/Друзья/ТВ-режим/Комнаты)
  *             + "Друзей онлайн" + "Создать комнату"|roomCode + Avatar
  *   Hero:     left = giant title + meta + desc + CTA + room-code input
  *             right = tilted preview-card with per-game mock content
@@ -423,7 +423,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         const inTopBar = focused?.dataset?.topbar !== undefined;
         if (inTopBar) {
           e.preventDefault();
-          const order = ["play", "friends-nav", "history", "friends-online", "room", "avatar"];
+          const order = ["play", "friends-nav", "tv", "friends-online", "room", "avatar"];
           const cur = focused.dataset.topbar!;
           const idx = order.indexOf(cur);
           if (idx === -1) return;
@@ -665,7 +665,17 @@ function TopBar({
             Играть
           </NavButton>
           <NavButton topbarId="friends-nav" isNarrowDesktop={compact}>Друзья</NavButton>
-          <NavButton topbarId="history" isNarrowDesktop={compact}>История</NavButton>
+          <NavButton
+            topbarId="tv"
+            isNarrowDesktop={compact}
+            disabled={!roomCode}
+            onClick={() => {
+              if (!roomCode) return;
+              window.open(`/tv/${roomCode}`, "_blank", "noopener,noreferrer");
+            }}
+          >
+            ТВ-режим
+          </NavButton>
         </nav>
       </div>
 
@@ -729,21 +739,27 @@ function NavButton({
   active = false,
   topbarId,
   isNarrowDesktop = false,
+  onClick,
+  disabled = false,
 }: {
   children: React.ReactNode;
   active?: boolean;
   topbarId?: string;
   isNarrowDesktop?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
 
   return (
     <motion.button
       data-topbar={topbarId}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
+      whileHover={disabled ? undefined : { scale: 1.02 }}
+      whileTap={disabled ? undefined : { scale: 0.97 }}
       transition={spring.snappy}
       style={{
         padding: isNarrowDesktop ? "10px 14px" : "10px 20px",
@@ -754,7 +770,8 @@ function NavButton({
         fontFamily: "inherit",
         fontSize: isNarrowDesktop ? 14 : 15,
         fontWeight: 600,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
         letterSpacing: "-0.01em",
         outline: "none",
         boxShadow: focused ? "0 0 0 2px rgba(255,255,255,0.6)" : "none",
@@ -1360,9 +1377,20 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   onTransferHost,
 }, ref) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const joinUrl = typeof window === "undefined" ? "" : `${window.location.origin}/lobby/${roomCode}`;
+  const [localIp, setLocalIp] = useState<string | null>(null);
+  const origin = localIp
+    ? `http://${localIp}:${typeof window !== "undefined" ? window.location.port || "3000" : "3000"}`
+    : typeof window !== "undefined" ? window.location.origin : "";
+  const joinUrl = roomCode ? `${origin}/lobby/${roomCode}` : "";
   const connectedPlayers = (roomState?.players ?? []).filter((p) => p.isConnected !== false);
   const isCurrentUserHost = currentUserId !== "" && currentUserId === roomState?.hostId;
+
+  useEffect(() => {
+    fetch('/api/local-ip')
+      .then((r) => r.json())
+      .then((data) => setLocalIp(data.ip))
+      .catch(() => setLocalIp(null));
+  }, []);
 
   useEffect(() => {
     return () => setSelectedPlayerId(null);

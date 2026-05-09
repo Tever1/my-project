@@ -7,7 +7,13 @@
 
 ## Активные таски
 
-_(нет активных тасков)_
+### TASK-030: Фикс QR-кода — реальный IP вместо localhost
+- **Статус:** in-progress
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-08
+- **Файлы (locked):** src/app/api/local-ip/route.ts, src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/030-local-ip-qr-fix.md`
+- **Report:** _(ожидается)_
 
 <!--
 Формат записи активного таска:
