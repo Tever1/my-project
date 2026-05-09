@@ -338,6 +338,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         const res = response as RoomCreateResponse;
         if (res.success && res.code) {
           setRoomCode(res.code);
+          setRoomMenuOpen(true);
           router.push(`/lobby/${res.code}`);
         } else {
           toast.error(res.error || "Не удалось создать комнату");
@@ -636,6 +637,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
                   onKick={handleKick}
                   onTransferHost={handleTransferHost}
                   onLeaveRoom={handleLeaveRoom}
+                  onClose={() => setRoomMenuOpen(false)}
                 />
               ) : (
                 <TiltedPreview key="tilted-preview" gameId={active.id} />
@@ -695,6 +697,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
                   onKick={handleKick}
                   onTransferHost={handleTransferHost}
                   onLeaveRoom={handleLeaveRoom}
+                  onClose={() => setRoomMenuOpen(false)}
                 />
               </motion.div>
             </>
@@ -1025,7 +1028,34 @@ function RoomButton({
         whiteSpace: "nowrap",
       }}
     >
-      {roomCode ? `Комната · ${roomCode}` : isCreating ? "Создаём..." : "Создать комнату"}
+      {roomCode ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span>{`Комната · ${roomCode}`}</span>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden="true"
+            style={{ opacity: 0.75, flexShrink: 0 }}
+          >
+            {/* Top-left finder square */}
+            <rect x="0" y="0" width="5" height="5" rx="1" fill="currentColor" />
+            <rect x="1.5" y="1.5" width="2" height="2" fill="black" fillOpacity="0.5" />
+            {/* Top-right finder square */}
+            <rect x="9" y="0" width="5" height="5" rx="1" fill="currentColor" />
+            <rect x="10.5" y="1.5" width="2" height="2" fill="black" fillOpacity="0.5" />
+            {/* Bottom-left finder square */}
+            <rect x="0" y="9" width="5" height="5" rx="1" fill="currentColor" />
+            <rect x="1.5" y="10.5" width="2" height="2" fill="black" fillOpacity="0.5" />
+            {/* Data dots */}
+            <rect x="9" y="9" width="2" height="2" rx="0.5" fill="currentColor" />
+            <rect x="12" y="9" width="2" height="2" rx="0.5" fill="currentColor" />
+            <rect x="9" y="12" width="2" height="2" rx="0.5" fill="currentColor" />
+            <rect x="12" y="12" width="2" height="2" rx="0.5" fill="currentColor" />
+          </svg>
+        </span>
+      ) : isCreating ? "Создаём..." : "Создать комнату"}
     </motion.button>
   );
 }
@@ -1877,6 +1907,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   onKick: (playerId: string) => void;
   onTransferHost: (playerId: string) => void;
   onLeaveRoom: () => void;
+  onClose: () => void;
 }>(function RoomMenu({
   roomCode,
   roomState,
@@ -1886,6 +1917,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   onKick,
   onTransferHost,
   onLeaveRoom,
+  onClose,
 }, ref) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [localIp, setLocalIp] = useState<string | null>(null);
@@ -1998,6 +2030,38 @@ const RoomMenu = forwardRef<HTMLDivElement, {
           }}
         >
           Выйти
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Закрыть"
+          style={{
+            flexShrink: 0,
+            width: 28,
+            height: 28,
+            borderRadius: radius.full,
+            background: "rgba(255,255,255,0.07)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            color: "rgba(255,255,255,0.55)",
+            fontSize: 16,
+            lineHeight: 1,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "inherit",
+            transition: "background 150ms ease, color 150ms ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.14)";
+            e.currentTarget.style.color = "rgba(255,255,255,0.9)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+            e.currentTarget.style.color = "rgba(255,255,255,0.55)";
+          }}
+        >
+          ✕
         </button>
       </div>
 
