@@ -2510,7 +2510,7 @@ const TileStrip = forwardRef<HTMLDivElement, {
           color: "rgba(255, 255, 255, 0.4)",
           letterSpacing: "0.16em",
           textTransform: "uppercase",
-          marginBottom: 12,
+          marginBottom: isMobile ? 20 : 12,
           textAlign: "center",
           fontFamily: "var(--font-mono)",
           fontWeight: 700,
