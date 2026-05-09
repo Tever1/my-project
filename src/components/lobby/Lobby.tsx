@@ -2510,7 +2510,7 @@ const TileStrip = forwardRef<HTMLDivElement, {
           color: "rgba(255, 255, 255, 0.4)",
           letterSpacing: "0.16em",
           textTransform: "uppercase",
-          marginBottom: isMobile ? 20 : 12,
+          marginBottom: isMobile ? 32 : 12,
           textAlign: "center",
           fontFamily: "var(--font-mono)",
           fontWeight: 700,
@@ -2528,11 +2528,12 @@ const TileStrip = forwardRef<HTMLDivElement, {
           gap: isMobile ? 12 : 28,
           maxWidth: 1280,
           margin: "0 auto",
-          padding: isMobile ? "0 16px 10px" : "0 48px",
+          padding: isMobile ? "8px 16px 10px" : "0 48px",
           overflowX: isMobile ? "auto" : undefined,
           overflowY: isMobile ? "visible" : undefined,
           scrollSnapType: isMobile ? "x mandatory" : undefined,
           WebkitOverflowScrolling: isMobile ? "touch" : undefined,
+          touchAction: isMobile ? "pan-x" : undefined,
         }}
       >
         {games.map((game) => (
