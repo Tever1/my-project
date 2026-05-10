@@ -1481,13 +1481,13 @@ function AccountDropdown({
 
   const panelStyle: React.CSSProperties = {
     width: 220,
-    background: 'rgba(18, 18, 28, 0.92)',
-    backdropFilter: 'blur(32px)',
-    WebkitBackdropFilter: 'blur(32px)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.08)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 16,
     padding: 8,
-    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
   };
 
   const itemStyle: React.CSSProperties = {

@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-057: Auth inputs dark + nickname back button
+### TASK-058: AccountDropdown glass panel
 - **Статус:** in-progress
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/057-auth-inputs-dark-nickname-back.md`
+- **Task spec:** `codex-tasks/058-account-dropdown-glass.md`
 - **Report:** _(ожидается)_
 
 <!--
