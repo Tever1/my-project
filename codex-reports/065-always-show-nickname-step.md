@@ -2,15 +2,15 @@
 
 > **Метаданные** (заполняет Codex)
 > - **Старт:** 2026-05-10 16:17
-> - **Финиш:** 2026-05-10 16:17
-> - **Длительность:** 0 минут
-> - **Статус:** 🤔 needs-decision
+> - **Финиш:** 2026-05-10 16:19
+> - **Длительность:** 2 минуты
+> - **Статус:** ✅ done
 
 ---
 
 ## Резюме (TL;DR)
 
-Task-файл прочитан, изменение понятно и точечное. Реализация не выполнена, потому что `.codex/STATUS.md` содержит активный TASK-064 с lock на `src/components/lobby/Lobby.tsx`, а TASK-065 требует редактировать тот же файл.
+`handleVerifyCode` теперь всегда переводит успешную авторизацию на шаг ввода имени. Логика пропуска nickname-step для возвращающихся пользователей удалена.
 
 ---
 
@@ -18,11 +18,11 @@ Task-файл прочитан, изменение понятно и точеч�
 
 ### Изменённые файлы
 
-- (нет)
+- `src/components/lobby/Lobby.tsx` — в `AuthDropdown.handleVerifyCode` удалена проверка `localStorage`/`hasNickname`; при успешном `verifyCode` всегда вызывается `setStep('nickname')`.
 
 ### Новые файлы
 
-- `codex-reports/065-always-show-nickname-step.md` — отчёт о блокировке по правилам workflow.
+- `codex-reports/065-always-show-nickname-step.md` — отчёт по задаче.
 
 ### Удалённые файлы
 
@@ -33,8 +33,8 @@ Task-файл прочитан, изменение понятно и точеч�
 ## Diff stat
 
 ```
-codex-reports/065-always-show-nickname-step.md | 60 ++++++++++++++++++++++++++
-1 file changed, 60 insertions(+)
+src/components/lobby/Lobby.tsx | 10 +---------
+1 file changed, 1 insertion(+), 9 deletions(-)
 ```
 
 ---
@@ -43,36 +43,35 @@ codex-reports/065-always-show-nickname-step.md | 60 ++++++++++++++++++++++++++
 
 | Проверка | Результат | Заметки |
 |---|---|---|
-| `npx tsc --noEmit` | ❌ | Не запускался: production-файл не изменялся из-за lock-а. |
-| `npm run lint` | ❌ | Не запускался: production-файл не изменялся из-за lock-а. |
-| Acceptance #1 | ❌ | Не проверялось. |
-| Acceptance #2 | ❌ | Не проверялось. |
-| Acceptance #3 | ❌ | Не проверялось. |
+| `npx tsc --noEmit` | ✅ | Без ошибок. |
+| `npm run lint` | ✅ | Без ошибок. |
+| `npm run build` | ❌ | Turbopack sandbox issue: `creating new process` / `binding to a port` / `Operation not permitted` при обработке `src/app/globals.css`. |
+| Acceptance #1 | ✅ | `npx tsc --noEmit` прошёл. |
+| Acceptance #2 | ✅ | `npm run lint` прошёл. |
+| Acceptance #3 | ✅ | По коду успешный verify всегда делает `setStep('nickname')`; ручной браузерный QA не запускался. |
 
 ---
 
 ## Отклонения от ТЗ
 
-ТЗ не выполнено из-за защиты от коллизий: `src/components/lobby/Lobby.tsx` уже locked активным TASK-064 в `.codex/STATUS.md`.
+Нет отклонений по коду.
 
-Дополнительно `git pull` не выполнился: `error: cannot open '.git/FETCH_HEAD': Operation not permitted`.
+Техническое отклонение workflow: `git pull` не выполнился из-за sandbox-ограничения на `.git/FETCH_HEAD`: `Operation not permitted`.
 
 ---
 
 ## Открытые вопросы для Claude
 
-- TASK-064 завершён и lock можно считать снятым?
-- Можно ли после снятия lock-а выполнить TASK-065 в `src/components/lobby/Lobby.tsx`?
+Нет.
 
 ---
 
 ## Что НЕ сделано (если статус ⚠️ или ❌)
 
-- Не изменён `handleVerifyCode` в `src/components/lobby/Lobby.tsx`.
-- Не запущены `npx tsc --noEmit` и `npm run lint`.
+Не применимо.
 
 ---
 
 ## Подсказки для ревью
 
-- После снятия lock-а правка должна быть механической: в `handleVerifyCode` убрать чтение `localStorage` и ветку `hasNickname`, всегда выполнять `setStep('nickname')` при успешном `verifyCode`.
+- Проверь `src/components/lobby/Lobby.tsx` в `handleVerifyCode`: успешная ветка теперь только `setStep('nickname')` и `setError('')`.
