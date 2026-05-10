@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-052: Auth back button visible
+### TASK-053: Auth buttons glass 20%
 - **Статус:** in-progress
 - **Исполнитель:** Codex (manual by user)
 - **Запущено:** 2026-05-10
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/052-auth-back-button-visible.md`
+- **Task spec:** `codex-tasks/053-auth-buttons-glass.md`
 - **Report:** _(ожидается)_
 
 <!--
