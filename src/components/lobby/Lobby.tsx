@@ -481,6 +481,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       setRoomState(null);
       setRoomMenuOpen(false);
     }
+    setAccountMenuOpen(false);
     logout();
   }, [emit, logout, roomCode]);
 

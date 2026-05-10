@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-063: Fix join input + auth re-login
+### TASK-064: Fix logout → relogin without refresh
 - **Статус:** ready
 - **Исполнитель:** Codex (Desktop)
 - **Запущено:** 2026-05-10
-- **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/063-fix-join-input-and-auth-relogin.md`
+- **Файлы (locked):** src/components/lobby/Lobby.tsx, src/lib/auth-context.tsx
+- **Task spec:** `codex-tasks/064-fix-logout-relogin.md`
 - **Report:** _(ожидается)_
 
 ---

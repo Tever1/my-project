@@ -114,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('party-hub-user');
+    localStorage.removeItem('party-hub-sms-code');
+    localStorage.removeItem('party-hub-sms-phone');
   }, []);
 
   return (
