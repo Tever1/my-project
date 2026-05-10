@@ -184,7 +184,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Request current room state
     socket.on('room:get-state', (data: { code: string }) => {
       const room = getRoomByCode(data.code);
-      if (!room) return;
+      if (!room) {
+        socket.emit('room:not-found', { code: data.code });
+        return;
+      }
       const players = Array.from(room.players.values()).map(({ socketId: _socketId, ...rest }) => {
         void _socketId;
         return rest;

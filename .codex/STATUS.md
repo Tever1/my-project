@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-061: Fix stale room on browser back
+### TASK-062: Fix room:not-found on get-state
 - **Статус:** in-progress
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
-- **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/061-fix-stale-room-on-mount.md`
+- **Файлы (locked):** src/server/socket-handlers.mts, src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/062-fix-stale-room-not-found.md`
 - **Report:** _(ожидается)_
 
 <!--

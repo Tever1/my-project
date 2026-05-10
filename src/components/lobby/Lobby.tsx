@@ -301,6 +301,18 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   }, [isRoomRoute, on, router]);
 
   useEffect(() => {
+    const unsubscribe = on('room:not-found', () => {
+      setRoomCode(null);
+      setRoomState(null);
+      setRoomMenuOpen(false);
+      if (isRoomRoute) {
+        router.push('/');
+      }
+    });
+    return unsubscribe;
+  }, [isRoomRoute, on, router]);
+
+  useEffect(() => {
     if (!roomMenuOpen) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
