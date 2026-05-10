@@ -275,8 +275,15 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
   useEffect(() => {
     if (!initialCode || !user || !isConnected) return;
-    emit('room:join', { code: initialCode, playerId: user.id, nickname: user.nickname }, () => {});
-  }, [emit, initialCode, isConnected, user]);
+    emit('room:join', { code: initialCode, playerId: user.id, nickname: user.nickname }, (res: unknown) => {
+      const response = res as { success: boolean };
+      if (!response.success) {
+        setRoomCode(null);
+        setRoomState(null);
+        router.push('/');
+      }
+    });
+  }, [emit, initialCode, isConnected, router, user]);
 
   useEffect(() => {
     const unsubscribe = on('room:kicked', () => {
