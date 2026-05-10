@@ -83,7 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let userData: User;
 
       if (existingData) {
-        userData = JSON.parse(existingData);
+        const existing = JSON.parse(existingData) as User;
+        userData = { ...existing, nickname: '' };
       } else {
         userData = {
           id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,

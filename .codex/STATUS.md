@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-065: Always show nickname step on login
+### TASK-066: verifyCode clears nickname on login
 - **Статус:** ready
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
-- **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/065-always-show-nickname-step.md`
+- **Файлы (locked):** src/lib/auth-context.tsx
+- **Task spec:** `codex-tasks/066-verifycode-clear-nickname.md`
 - **Report:** _(ожидается)_
 
 ---
