@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-032: Выпадающее меню аккаунта в TopBar
+### TASK-050: Preserve activeGame on room create
 - **Статус:** in-progress
-- **Исполнитель:** Codex (manual by user)
-- **Запущено:** 2026-05-08
+- **Исполнитель:** Codex (auto by Claude)
+- **Запущено:** 2026-05-10
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/032-account-dropdown.md`
+- **Task spec:** `codex-tasks/050-preserve-active-game-on-room-create.md`
 - **Report:** _(ожидается)_
 
 <!--

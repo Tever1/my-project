@@ -295,7 +295,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // Leave room
     socket.on('room:leave', () => {
-      handleDisconnect(io, socket);
+      handleDisconnect(io, socket, true);
     });
 
     // Disconnect
@@ -308,7 +308,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
   });
 }
 
-function handleDisconnect(io: SocketIOServer, socket: Socket) {
+function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) {
   const roomCode = playerRooms.get(socket.id);
   if (!roomCode) return;
 
@@ -340,7 +340,18 @@ function handleDisconnect(io: SocketIOServer, socket: Socket) {
         }
       }
 
-      // Remove player after timeout if still disconnected
+      if (explicit || room.players.size === 1) {
+        room.players.delete(playerId);
+        playerRooms.delete(socket.id);
+        if (room.players.size === 0) {
+          rooms.delete(roomCode);
+          return;
+        }
+        broadcastRoomState(io, room);
+        return;
+      }
+
+      // Unexpected disconnect with other players present keeps the reconnect grace period.
       setTimeout(() => {
         if (!player.isConnected) {
           room.players.delete(playerId);

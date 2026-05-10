@@ -15,6 +15,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState(user?.nickname || '');
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   if (!user) {
     router.push('/');
@@ -127,13 +128,32 @@ export default function ProfilePage() {
         </GlassCard>
 
         {/* Logout */}
-        <GlassButton
-          variant="danger"
-          className="w-full"
-          onClick={() => { logout(); router.push('/'); }}
-        >
-          {locale === 'ru' ? 'Выйти' : 'Log out'}
-        </GlassButton>
+        {!confirmLogout ? (
+          <GlassButton
+            variant="danger"
+            className="w-full"
+            onClick={() => setConfirmLogout(true)}
+          >
+            {locale === 'ru' ? 'Выйти из аккаунта' : 'Log out'}
+          </GlassButton>
+        ) : (
+          <div className="flex gap-3 w-full">
+            <GlassButton
+              variant="danger"
+              className="flex-1"
+              onClick={() => { logout(); router.push('/'); }}
+            >
+              {locale === 'ru' ? 'Да, выйти' : 'Yes, log out'}
+            </GlassButton>
+            <GlassButton
+              variant="default"
+              className="flex-1"
+              onClick={() => setConfirmLogout(false)}
+            >
+              {locale === 'ru' ? 'Отмена' : 'Cancel'}
+            </GlassButton>
+          </div>
+        )}
       </div>
     </div>
   );

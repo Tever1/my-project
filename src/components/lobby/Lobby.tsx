@@ -176,7 +176,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const { emit, on, isConnected } = useSocket();
   const initialCode = initialRoomCode?.trim().toUpperCase() || null;
   const isRoomRoute = initialCode !== null;
@@ -210,6 +210,14 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     queueMicrotask(() => setRoomMenuOpen(true));
     router.replace(pathname);
   }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    const gameParam = searchParams.get("game") as GameId | null;
+    if (gameParam && games.some((g) => g.id === gameParam)) {
+      setActiveGame(gameParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -346,7 +354,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         const res = response as RoomCreateResponse;
         if (res.success && res.code) {
           setRoomCode(res.code);
-          router.push(`/lobby/${res.code}?m=1`);
+          router.push(`/lobby/${res.code}?m=1&game=${activeGame}`);
         } else {
           toast.error(res.error || "Не удалось создать комнату");
         }
@@ -361,7 +369,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         resolve({ success: false, error });
       }
     });
-  }, [emit, getPlayerPayload, isConnected, router]);
+  }, [activeGame, emit, getPlayerPayload, isConnected, router]);
 
   const handleCreateRoom = useCallback(() => {
     void createRoom();
@@ -446,6 +454,16 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     setRoomCode(null);
     setRoomState(null);
   }, [emit, isRoomRoute, roomCode, router]);
+
+  const handleLogout = useCallback(() => {
+    if (roomCode) {
+      emit('room:leave', {});
+      setRoomCode(null);
+      setRoomState(null);
+      setRoomMenuOpen(false);
+    }
+    logout();
+  }, [emit, logout, roomCode]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -585,6 +603,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         onCreateRoom={handleCreateRoom}
         onRoomMenuToggle={handleRoomButtonClick}
         accent={accent}
+        deep={deep}
         isMobile={isMobile}
         isNarrowDesktop={isNarrowDesktop}
         presenceCount={presenceCount}
@@ -596,6 +615,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         onCloseAuth={closeAuth}
         onOpenAccountMenu={openAccountMenu}
         onCloseAccountMenu={closeAccountMenu}
+        onLogout={handleLogout}
       />
 
       {/* Hero */}
@@ -734,6 +754,7 @@ function TopBar({
   onCreateRoom,
   onRoomMenuToggle,
   accent,
+  deep,
   isMobile,
   isNarrowDesktop,
   presenceCount,
@@ -745,11 +766,13 @@ function TopBar({
   onCloseAuth,
   onOpenAccountMenu,
   onCloseAccountMenu,
+  onLogout,
 }: {
   roomCode: string | null;
   onCreateRoom: () => void;
   onRoomMenuToggle: () => void;
   accent: string;
+  deep: string;
   isMobile: boolean;
   isNarrowDesktop: boolean;
   presenceCount: number;
@@ -761,6 +784,7 @@ function TopBar({
   onCloseAuth: () => void;
   onOpenAccountMenu: () => void;
   onCloseAccountMenu: () => void;
+  onLogout: () => void;
 }) {
   const compact = isNarrowDesktop && !isMobile;
 
@@ -825,6 +849,8 @@ function TopBar({
             {authMenuOpen && (
               <AuthDropdown
                 isMobile={isMobile}
+                accent={accent}
+                deep={deep}
                 onClose={onCloseAuth}
               />
             )}
@@ -834,6 +860,7 @@ function TopBar({
               <AccountDropdown
                 isMobile={isMobile}
                 onClose={onCloseAccountMenu}
+                onLogout={onLogout}
               />
             )}
           </AnimatePresence>
@@ -1161,9 +1188,13 @@ function AvatarPill({
 
 function AuthDropdown({
   isMobile,
+  accent,
+  deep,
   onClose,
 }: {
   isMobile: boolean;
+  accent: string;
+  deep: string;
   onClose: () => void;
 }) {
   const { sendCode, verifyCode, updateNickname } = useAuth();
@@ -1194,12 +1225,16 @@ function AuthDropdown({
   }, [onClose]);
 
   const formatPhone = (value: string) => {
-    const digits = value.replace(/\D/g, '');
+    let digits = value.replace(/\D/g, '');
+    if (digits.length === 0) return '';
+    // Auto-prepend country code 7 if missing
+    if (digits[0] !== '7') digits = '7' + digits;
+    digits = digits.slice(0, 11);
     if (digits.length <= 1) return '+' + digits;
-    if (digits.length <= 4) return `+${digits.slice(0, 1)} (${digits.slice(1)}`;
-    if (digits.length <= 7) return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4)}`;
-    if (digits.length <= 9) return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-    return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+    if (digits.length <= 4) return `+${digits[0]} (${digits.slice(1)}`;
+    if (digits.length <= 7) return `+${digits[0]} (${digits.slice(1, 4)}) ${digits.slice(4)}`;
+    if (digits.length <= 9) return `+${digits[0]} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    return `+${digits[0]} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
   };
 
   const handleSendCode = async () => {
@@ -1248,7 +1283,7 @@ function AuthDropdown({
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 100,
-        background: 'rgba(0,0,0,0.6)',
+        background: `radial-gradient(ellipse 120% 70% at 70% 30%, ${accent}44, transparent 60%), radial-gradient(ellipse 100% 80% at 20% 70%, ${deep}55, transparent 60%), rgba(6,6,12,0.92)`,
         backdropFilter: 'blur(4px)',
         padding: 24,
       }
@@ -1262,13 +1297,13 @@ function AuthDropdown({
   const panelStyle: React.CSSProperties = {
     width: isMobile ? '100%' : 320,
     maxWidth: isMobile ? 400 : undefined,
-    background: 'rgba(18, 18, 28, 0.92)',
-    backdropFilter: 'blur(32px)',
-    WebkitBackdropFilter: 'blur(32px)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.28)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 20,
     padding: 24,
-    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    boxShadow: `0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px ${accent}22`,
   };
 
   const inputStyle: React.CSSProperties = {
@@ -1396,12 +1431,14 @@ function AuthDropdown({
 function AccountDropdown({
   isMobile,
   onClose,
+  onLogout,
 }: {
   isMobile: boolean;
   onClose: () => void;
+  onLogout: () => void;
 }) {
-  const { logout } = useAuth();
   const ref = useRef<HTMLDivElement>(null);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -1491,19 +1528,42 @@ function AccountDropdown({
           <span aria-hidden="true">⚙️</span>
           Настройки
         </button>
-        <button
-          type="button"
-          style={{ ...itemStyle, color: '#ff6b6b' }}
-          onClick={() => {
-            logout();
-            onClose();
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,107,107,0.1)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-        >
-          <span aria-hidden="true">🚪</span>
-          Выход
-        </button>
+        {!confirmLogout ? (
+          <button
+            type="button"
+            style={{ ...itemStyle, color: '#ff6b6b' }}
+            onClick={() => setConfirmLogout(true)}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,107,107,0.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <span aria-hidden="true">🚪</span>
+            Выход
+          </button>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0' }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', padding: '0 14px 4px' }}>
+              Выйти из аккаунта?
+            </div>
+            <button
+              type="button"
+              style={{ ...itemStyle, color: '#ff6b6b', fontWeight: 700 }}
+              onClick={() => { onLogout(); onClose(); }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,107,107,0.15)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              Да, выйти
+            </button>
+            <button
+              type="button"
+              style={itemStyle}
+              onClick={() => setConfirmLogout(false)}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              Отмена
+            </button>
+          </div>
+        )}
       </div>
     </motion.div>
   );
