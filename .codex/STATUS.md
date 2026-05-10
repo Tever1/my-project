@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-054: Auth back button 0.75
+### TASK-055: Auth back button 0.30
 - **Статус:** in-progress
-- **Исполнитель:** Codex (manual by user)
+- **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/054-auth-back-button-075.md`
+- **Task spec:** `codex-tasks/055-auth-back-button-030.md`
 - **Report:** _(ожидается)_
 
 <!--

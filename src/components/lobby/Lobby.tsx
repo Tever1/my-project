@@ -1323,7 +1323,7 @@ function AuthDropdown({
     width: '100%',
     padding: '12px 20px',
     borderRadius: 12,
-    background: primary ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.75)',
+    background: primary ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.30)',
     border: primary ? 'none' : '1px solid rgba(255,255,255,0.25)',
     color: primary ? '#06060c' : 'rgba(255,255,255,0.75)',
     fontFamily: 'inherit',
