@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-051: Back button bg + close button alignment
+### TASK-052: Auth back button visible
 - **Статус:** in-progress
-- **Исполнитель:** Codex (auto by Claude)
+- **Исполнитель:** Codex (manual by user)
 - **Запущено:** 2026-05-10
-- **Файлы (locked):** src/app/profile/page.tsx, src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/051-back-button-bg-close-align.md`
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/052-auth-back-button-visible.md`
 - **Report:** _(ожидается)_
 
 <!--
