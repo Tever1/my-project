@@ -7,13 +7,21 @@
 
 ## Активные таски
 
-### TASK-066: verifyCode clears nickname on login
+### TASK-067: AuthDropdown self-close
 - **Статус:** ready
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
-- **Файлы (locked):** src/lib/auth-context.tsx
-- **Task spec:** `codex-tasks/066-verifycode-clear-nickname.md`
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/067-auth-self-close.md`
 - **Report:** _(ожидается)_
+
+---
+
+## Завершённые таски (последние)
+
+### TASK-066: verifyCode clears nickname on login — ✅ done
+- Завершено: 2026-05-10
+- Коммит: `9b439aa`
 
 ---
 

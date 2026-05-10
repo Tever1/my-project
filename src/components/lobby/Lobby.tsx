@@ -239,10 +239,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   }, [isLoading, isRoomRoute, user]);
 
   useEffect(() => {
-    if (user?.nickname) queueMicrotask(() => setAuthMenuOpen(false));
-  }, [user?.nickname]);
-
-  useEffect(() => {
     const unsubscribe = on('presence:count', (data: unknown) => {
       const payload = data as { count?: number };
       setPresenceCount(typeof payload.count === "number" ? payload.count : 0);
@@ -1293,6 +1289,7 @@ function AuthDropdown({
       return;
     }
     updateNickname(nickname.trim());
+    onClose();
   };
 
   const containerStyle: React.CSSProperties = isMobile
