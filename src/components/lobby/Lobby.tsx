@@ -15,7 +15,7 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { GameIcon } from "@/components/GameIcon";
 import { GlassPanel, GlassToaster } from "@/components/glass";
@@ -174,6 +174,8 @@ interface LobbyProps {
 
 export function Lobby({ initialRoomCode }: LobbyProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { user, isLoading } = useAuth();
   const { emit, on, isConnected } = useSocket();
   const initialCode = initialRoomCode?.trim().toUpperCase() || null;
@@ -202,6 +204,12 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     document.documentElement.classList.add("dark");
     return () => document.documentElement.classList.remove("dark");
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("m") !== "1") return;
+    queueMicrotask(() => setRoomMenuOpen(true));
+    router.replace(pathname);
+  }, [pathname, router, searchParams]);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -338,8 +346,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         const res = response as RoomCreateResponse;
         if (res.success && res.code) {
           setRoomCode(res.code);
-          setRoomMenuOpen(true);
-          router.push(`/lobby/${res.code}`);
+          router.push(`/lobby/${res.code}?m=1`);
         } else {
           toast.error(res.error || "Не удалось создать комнату");
         }
@@ -1921,6 +1928,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
 }, ref) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [localIp, setLocalIp] = useState<string | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const origin = localIp
     ? `http://${localIp}:${typeof window !== "undefined" ? window.location.port || "3000" : "3000"}`
     : typeof window !== "undefined" ? window.location.origin : "";
@@ -1929,6 +1937,10 @@ const RoomMenu = forwardRef<HTMLDivElement, {
     (p) => p.isConnected !== false && p.nickname
   );
   const isCurrentUserHost = currentUserId !== "" && currentUserId === roomState?.hostId;
+  const handleClose = () => {
+    setConfirmLeave(false);
+    onClose();
+  };
 
   useEffect(() => {
     fetch('/api/local-ip')
@@ -2000,40 +2012,89 @@ const RoomMenu = forwardRef<HTMLDivElement, {
             В комнате · {connectedPlayers.length}
           </div>
         </div>
+        {!confirmLeave ? (
+          <button
+            type="button"
+            onClick={() => setConfirmLeave(true)}
+            aria-label="Выйти из комнаты"
+            style={{
+              flexShrink: 0,
+              padding: "8px 14px",
+              borderRadius: radius.full,
+              background: "rgba(239, 68, 68, 0.12)",
+              border: "1px solid rgba(239, 68, 68, 0.35)",
+              color: "#fca5a5",
+              fontSize: 12,
+              fontWeight: 650,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.22)";
+              e.currentTarget.style.color = "#fee2e2";
+              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.6)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+              e.currentTarget.style.color = "#fca5a5";
+              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.35)";
+            }}
+          >
+            Выйти
+          </button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <span style={{
+              fontSize: 12,
+              color: "#fca5a5",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}>
+              Выйти?
+            </span>
+            <button
+              type="button"
+              onClick={onLeaveRoom}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "999px",
+                background: "rgba(239, 68, 68, 0.75)",
+                border: "1px solid rgba(239, 68, 68, 0.9)",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Да
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmLeave(false)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "999px",
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Отмена
+            </button>
+          </div>
+        )}
         <button
           type="button"
-          onClick={onLeaveRoom}
-          aria-label="Выйти из комнаты"
-          style={{
-            flexShrink: 0,
-            padding: "8px 14px",
-            borderRadius: radius.full,
-            background: "rgba(239, 68, 68, 0.12)",
-            border: "1px solid rgba(239, 68, 68, 0.35)",
-            color: "#fca5a5",
-            fontSize: 12,
-            fontWeight: 650,
-            fontFamily: "inherit",
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-            transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(239, 68, 68, 0.22)";
-            e.currentTarget.style.color = "#fee2e2";
-            e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.6)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
-            e.currentTarget.style.color = "#fca5a5";
-            e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.35)";
-          }}
-        >
-          Выйти
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Закрыть"
           style={{
             flexShrink: 0,
