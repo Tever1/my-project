@@ -1310,8 +1310,8 @@ function AuthDropdown({
     width: '100%',
     padding: '12px 16px',
     borderRadius: 12,
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(0,0,0,0.32)',
+    border: '1px solid rgba(255,255,255,0.22)',
     color: 'white',
     fontFamily: 'inherit',
     fontSize: 16,
@@ -1420,6 +1420,9 @@ function AuthDropdown({
             {error && <p style={{ fontSize: 13, color: '#ff453a', margin: 0 }}>{error}</p>}
             <button style={btnStyle()} onClick={handleSetNickname} disabled={loading || nickname.trim().length < 2}>
               Готово
+            </button>
+            <button style={btnStyle(false)} onClick={() => { setStep('code'); setNickname(''); setError(''); }}>
+              Назад
             </button>
           </div>
         )}

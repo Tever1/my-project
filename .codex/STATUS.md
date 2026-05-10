@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-056: Auth phone validation + Назад dark bg
+### TASK-057: Auth inputs dark + nickname back button
 - **Статус:** in-progress
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/056-auth-phone-validation-back-dark.md`
+- **Task spec:** `codex-tasks/057-auth-inputs-dark-nickname-back.md`
 - **Report:** _(ожидается)_
 
 <!--
