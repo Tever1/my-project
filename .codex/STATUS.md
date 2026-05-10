@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-059: Auth small back button in header
+### TASK-060: Auth back button no circle bigger icon
 - **Статус:** in-progress
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/059-auth-small-back-button.md`
+- **Task spec:** `codex-tasks/060-auth-back-btn-no-circle.md`
 - **Report:** _(ожидается)_
 
 <!--

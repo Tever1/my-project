@@ -1352,13 +1352,12 @@ function AuthDropdown({
                   if (step === 'nickname') { setStep('code'); setNickname(''); setError(''); }
                 }}
                 style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.12)',
-                  border: '1px solid rgba(255,255,255,0.20)',
-                  color: 'rgba(255,255,255,0.8)',
-                  fontSize: 14, lineHeight: 1,
-                  cursor: 'pointer', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(255,255,255,0.7)',
+                  fontSize: 28, lineHeight: 1,
+                  cursor: 'pointer',
+                  padding: '0 4px 0 0',
                   fontFamily: 'inherit', flexShrink: 0,
                 }}
               >
