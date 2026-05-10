@@ -33,7 +33,29 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gradient-main flex flex-col">
       <nav className="glass-nav flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
-          <button onClick={() => router.push('/')} className="text-white/50 hover:text-white transition-colors text-lg">
+          <button
+            onClick={() => router.push('/')}
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: 10,
+              color: 'rgba(255,255,255,0.75)',
+              fontSize: 18,
+              lineHeight: 1,
+              padding: '4px 10px',
+              cursor: 'pointer',
+              transition: 'background 150ms ease, color 150ms ease',
+              fontFamily: 'inherit',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.22)';
+              e.currentTarget.style.color = 'rgba(255,255,255,1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.12)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.75)';
+            }}
+          >
             ←
           </button>
           <span className="font-bold text-white">{t('common.settings')}</span>

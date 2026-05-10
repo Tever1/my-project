@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-050: Preserve activeGame on room create
+### TASK-051: Back button bg + close button alignment
 - **Статус:** in-progress
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
-- **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/050-preserve-active-game-on-room-create.md`
+- **Файлы (locked):** src/app/profile/page.tsx, src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/051-back-button-bg-close-align.md`
 - **Report:** _(ожидается)_
 
 <!--

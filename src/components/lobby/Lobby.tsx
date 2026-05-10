@@ -2039,7 +2039,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
       <div
         style={{
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "space-between",
           gap: 12,
         }}
