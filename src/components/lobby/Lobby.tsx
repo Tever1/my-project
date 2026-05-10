@@ -1344,11 +1344,33 @@ function AuthDropdown({
     >
       <div ref={ref} style={panelStyle}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
-            {step === 'phone' && 'Вход'}
-            {step === 'code' && 'Введите код'}
-            {step === 'nickname' && 'Как вас зовут?'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {(step === 'code' || step === 'nickname') && (
+              <button
+                onClick={() => {
+                  if (step === 'code') { setStep('phone'); setCode(''); setError(''); }
+                  if (step === 'nickname') { setStep('code'); setNickname(''); setError(''); }
+                }}
+                style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.12)',
+                  border: '1px solid rgba(255,255,255,0.20)',
+                  color: 'rgba(255,255,255,0.8)',
+                  fontSize: 14, lineHeight: 1,
+                  cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'inherit', flexShrink: 0,
+                }}
+              >
+                ‹
+              </button>
+            )}
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
+              {step === 'phone' && 'Вход'}
+              {step === 'code' && 'Введите код'}
+              {step === 'nickname' && 'Как вас зовут?'}
+            </span>
+          </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>×</button>
         </div>
 
@@ -1396,9 +1418,6 @@ function AuthDropdown({
             <button style={btnStyle()} onClick={() => void handleVerifyCode()} disabled={loading}>
               {loading ? 'Проверка...' : 'Войти'}
             </button>
-            <button style={btnStyle(false)} onClick={() => { setStep('phone'); setCode(''); setError(''); }}>
-              Назад
-            </button>
           </div>
         )}
 
@@ -1420,9 +1439,6 @@ function AuthDropdown({
             {error && <p style={{ fontSize: 13, color: '#ff453a', margin: 0 }}>{error}</p>}
             <button style={btnStyle()} onClick={handleSetNickname} disabled={loading || nickname.trim().length < 2}>
               Готово
-            </button>
-            <button style={btnStyle(false)} onClick={() => { setStep('code'); setNickname(''); setError(''); }}>
-              Назад
             </button>
           </div>
         )}

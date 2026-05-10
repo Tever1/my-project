@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-058: AccountDropdown glass panel
+### TASK-059: Auth small back button in header
 - **Статус:** in-progress
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/058-account-dropdown-glass.md`
+- **Task spec:** `codex-tasks/059-auth-small-back-button.md`
 - **Report:** _(ожидается)_
 
 <!--
