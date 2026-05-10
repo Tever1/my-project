@@ -1280,15 +1280,7 @@ function AuthDropdown({
     const ok = await verifyCode(digits, code);
     setLoading(false);
     if (ok) {
-      const existingRaw = localStorage.getItem(`party-hub-user-${digits}`);
-      const hasNickname = existingRaw
-        ? ((JSON.parse(existingRaw) as { nickname?: string }).nickname?.length ?? 0) >= 2
-        : false;
-      if (hasNickname) {
-        onClose();
-      } else {
-        setStep('nickname');
-      }
+      setStep('nickname');
       setError('');
     } else {
       setError('Неверный код');

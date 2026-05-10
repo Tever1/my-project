@@ -7,13 +7,21 @@
 
 ## Активные таски
 
-### TASK-064: Fix logout → relogin without refresh
+### TASK-065: Always show nickname step on login
 - **Статус:** ready
-- **Исполнитель:** Codex (Desktop)
+- **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
-- **Файлы (locked):** src/components/lobby/Lobby.tsx, src/lib/auth-context.tsx
-- **Task spec:** `codex-tasks/064-fix-logout-relogin.md`
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/065-always-show-nickname-step.md`
 - **Report:** _(ожидается)_
+
+---
+
+## Завершённые таски (последние)
+
+### TASK-064: Fix logout → relogin without refresh — ✅ done
+- Завершено: 2026-05-10
+- Коммит: `edc53b2`
 
 ---
 
