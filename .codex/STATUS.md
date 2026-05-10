@@ -7,13 +7,22 @@
 
 ## Активные таски
 
-### TASK-062: Fix room:not-found on get-state
-- **Статус:** in-progress
-- **Исполнитель:** Codex (auto by Claude)
+### TASK-063: Fix join input + auth re-login
+- **Статус:** ready
+- **Исполнитель:** Codex (Desktop)
 - **Запущено:** 2026-05-10
-- **Файлы (locked):** src/server/socket-handlers.mts, src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/062-fix-stale-room-not-found.md`
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/063-fix-join-input-and-auth-relogin.md`
 - **Report:** _(ожидается)_
+
+---
+
+## Завершённые таски (последние)
+
+### TASK-062: Fix room:not-found on get-state — ✅ done
+- Завершено: 2026-05-10
+- Коммит: `25d92c1`
+- Резюме: сервер эмитит `room:not-found` при отсутствии комнаты; клиент очищает roomCode/roomState и редиректит на /
 
 <!--
 Формат записи активного таска:

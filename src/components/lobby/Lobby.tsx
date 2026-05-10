@@ -665,7 +665,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
           isMobile={isMobile}
           isJoiningRoom={isJoiningRoom}
           isCurrentUserHost={isCurrentUserHost}
-          showJoinRoom={!isRoomRoute}
+          showJoinRoom={!roomCode}
         />
 
         {!isMobile && (
@@ -1279,7 +1279,15 @@ function AuthDropdown({
     const ok = await verifyCode(digits, code);
     setLoading(false);
     if (ok) {
-      setStep('nickname');
+      const existingRaw = localStorage.getItem(`party-hub-user-${digits}`);
+      const hasNickname = existingRaw
+        ? ((JSON.parse(existingRaw) as { nickname?: string }).nickname?.length ?? 0) >= 2
+        : false;
+      if (hasNickname) {
+        onClose();
+      } else {
+        setStep('nickname');
+      }
       setError('');
     } else {
       setError('Неверный код');
