@@ -1239,7 +1239,7 @@ function AuthDropdown({
 
   const handleSendCode = async () => {
     const digits = phone.replace(/\D/g, '');
-    if (digits.length < 10) {
+    if (digits.length < 11) {
       setError('Введите корректный номер');
       return;
     }
@@ -1323,9 +1323,9 @@ function AuthDropdown({
     width: '100%',
     padding: '12px 20px',
     borderRadius: 12,
-    background: primary ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.30)',
-    border: primary ? 'none' : '1px solid rgba(255,255,255,0.25)',
-    color: primary ? '#06060c' : 'rgba(255,255,255,0.75)',
+    background: primary ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.32)',
+    border: primary ? 'none' : '1px solid rgba(255,255,255,0.22)',
+    color: primary ? '#06060c' : 'rgba(255,255,255,1)',
     fontFamily: 'inherit',
     fontSize: 15,
     fontWeight: 600,

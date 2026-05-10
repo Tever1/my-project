@@ -7,12 +7,12 @@
 
 ## Активные таски
 
-### TASK-055: Auth back button 0.30
+### TASK-056: Auth phone validation + Назад dark bg
 - **Статус:** in-progress
 - **Исполнитель:** Codex (auto by Claude)
 - **Запущено:** 2026-05-10
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/055-auth-back-button-030.md`
+- **Task spec:** `codex-tasks/056-auth-phone-validation-back-dark.md`
 - **Report:** _(ожидается)_
 
 <!--
