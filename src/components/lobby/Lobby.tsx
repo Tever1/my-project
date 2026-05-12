@@ -270,7 +270,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   }, [emit, isConnected, roomCode]);
 
   useEffect(() => {
-    if (!initialCode || !user || !isConnected) return;
+    if (!initialCode || !user || !user.nickname || !isConnected) return;
     emit('room:join', { code: initialCode, playerId: user.id, nickname: user.nickname }, (res: unknown) => {
       const response = res as { success: boolean };
       if (!response.success) {
@@ -817,7 +817,7 @@ function TopBar({
       }}
     >
       {/* Left: brand + nav */}
-      <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 24, minWidth: 0, overflow: "hidden" }}>
         <BrandMark />
         <nav style={{ display: isMobile ? "none" : "flex", gap: 4 }}>
           <NavButton active topbarId="play" isNarrowDesktop={compact}>
@@ -839,7 +839,7 @@ function TopBar({
       </div>
 
       {/* Right: friends online + room button + avatar */}
-      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : compact ? 8 : 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : compact ? 8 : 12, flexShrink: 0 }}>
         {!isMobile && (
           <FriendsOnlinePill count={presenceCount} isNarrowDesktop={compact} topbarId="friends-online" />
         )}
@@ -849,6 +849,7 @@ function TopBar({
           onToggle={onRoomMenuToggle}
           accent={accent}
           topbarId="room"
+          isMobile={isMobile}
           isNarrowDesktop={compact}
           isCreating={isCreatingRoom}
         />
@@ -1027,6 +1028,7 @@ function RoomButton({
   onToggle,
   accent,
   topbarId,
+  isMobile = false,
   isNarrowDesktop = false,
   isCreating = false,
 }: {
@@ -1035,6 +1037,7 @@ function RoomButton({
   onToggle: () => void;
   accent: string;
   topbarId?: string;
+  isMobile?: boolean;
   isNarrowDesktop?: boolean;
   isCreating?: boolean;
 }) {
@@ -1075,6 +1078,9 @@ function RoomButton({
             : focusRing
           : baseShadow,
         textTransform: roomCode ? "uppercase" : undefined,
+        maxWidth: isMobile ? 180 : undefined,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
         whiteSpace: "nowrap",
       }}
     >
@@ -1225,6 +1231,7 @@ function AuthDropdown({
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
+        console.log('[AuthDropdown] mousedown OUTSIDE → onClose called. target:', e.target, new Error().stack);
         onClose();
       }
     };
@@ -1267,6 +1274,7 @@ function AuthDropdown({
   };
 
   const handleVerifyCode = async () => {
+    console.log('[AuthDropdown] handleVerifyCode start, step:', step, 'code:', code);
     if (code.length < 4) {
       setError('Введите 4-значный код');
       return;
@@ -1276,6 +1284,7 @@ function AuthDropdown({
     const ok = await verifyCode(digits, code);
     setLoading(false);
     if (ok) {
+      console.log('[AuthDropdown] verifyCode OK → setStep nickname');
       setStep('nickname');
       setError('');
     } else {
@@ -1284,6 +1293,7 @@ function AuthDropdown({
   };
 
   const handleSetNickname = () => {
+    console.log('[AuthDropdown] handleSetNickname called, nickname length:', nickname.trim().length);
     if (nickname.trim().length < 2) {
       setError('Минимум 2 символа');
       return;
