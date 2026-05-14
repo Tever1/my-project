@@ -369,7 +369,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         const res = response as RoomCreateResponse;
         if (res.success && res.code) {
           setRoomCode(res.code);
-          router.push(`/lobby/${res.code}?m=1&game=${activeGame}`);
+          setRoomMenuOpen(true);
+          window.history.pushState({}, "", `/lobby/${res.code}`);
         } else {
           toast.error(res.error || "Не удалось создать комнату");
         }
@@ -384,7 +385,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         resolve({ success: false, error });
       }
     });
-  }, [activeGame, emit, getPlayerPayload, isConnected, router]);
+  }, [emit, getPlayerPayload, isConnected]);
 
   const handleCreateRoom = useCallback(() => {
     void createRoom();
@@ -462,13 +463,12 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     if (!roomCode) return;
     emit('room:leave', {});
     setRoomMenuOpen(false);
-    if (isRoomRoute) {
-      router.push("/");
-      return;
-    }
     setRoomCode(null);
     setRoomState(null);
-  }, [emit, isRoomRoute, roomCode, router]);
+    if (typeof window !== "undefined" && window.location.pathname !== "/") {
+      window.history.pushState({}, "", "/");
+    }
+  }, [emit, roomCode]);
 
   const handleLogout = useCallback(() => {
     if (roomCode) {
@@ -610,7 +610,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
           background: `radial-gradient(1200px 800px at 70% 30%, ${accent}55, transparent 60%), radial-gradient(1000px 700px at 20% 70%, ${deep}66, transparent 60%), #06060c`,
         }}
         transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
-        style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" }}
+        style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", transform: "translateZ(0)" }}
       />
 
       {/* Top bar */}
@@ -692,32 +692,27 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
       {/* Mobile room menu overlay */}
       {isMobile && (
-        <AnimatePresence>
-          {roomMenuOpen && roomCode && (
-            <>
-              {/* Dim backdrop */}
-              <motion.div
-                key="room-menu-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                onClick={() => setRoomMenuOpen(false)}
-                style={{
-                  position: "fixed",
-                  inset: 0,
-                  background: "rgba(0, 0, 0, 0.6)",
-                  backdropFilter: "blur(4px)",
-                  WebkitBackdropFilter: "blur(4px)",
-                  zIndex: 40,
-                }}
-              />
-              {/* Scrollable panel */}
+        <>
+          <div
+            onClick={() => setRoomMenuOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0, 0, 0, 0.7)",
+              zIndex: 40,
+              opacity: roomMenuOpen && roomCode ? 1 : 0,
+              pointerEvents: roomMenuOpen && roomCode ? "auto" : "none",
+              transition: "opacity 0.28s ease-out",
+              willChange: "opacity",
+            }}
+          />
+          <AnimatePresence>
+            {roomMenuOpen && roomCode && (
               <motion.div
                 key="room-menu-mobile"
-                initial={{ opacity: 0, y: 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 40 }}
+                initial={{ y: 40 }}
+                animate={{ y: 0 }}
+                exit={{ y: 40 }}
                 transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
                 style={{
                   position: "fixed",
@@ -728,6 +723,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
                   maxHeight: "88dvh",
                   overflowY: "auto",
                   padding: "0 12px 24px",
+                  willChange: "transform",
                 }}
               >
                 <RoomMenu
@@ -737,15 +733,16 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
                   accent={accent}
                   deep={deep}
                   currentUserId={user?.id ?? ""}
+                  isMobile={true}
                   onKick={handleKick}
                   onTransferHost={handleTransferHost}
                   onLeaveRoom={handleLeaveRoom}
                   onClose={() => setRoomMenuOpen(false)}
                 />
               </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
+        </>
       )}
 
       {/* Bottom tile strip */}
@@ -818,7 +815,7 @@ function TopBar({
     >
       {/* Left: brand + nav */}
       <div style={{ display: "flex", alignItems: "center", gap: 24, minWidth: 0, overflow: "hidden" }}>
-        <BrandMark />
+        <BrandMark isMobile={isMobile} />
         <nav style={{ display: isMobile ? "none" : "flex", gap: 4 }}>
           <NavButton active topbarId="play" isNarrowDesktop={compact}>
             Играть
@@ -887,7 +884,7 @@ function TopBar({
   );
 }
 
-function BrandMark() {
+function BrandMark({ isMobile = false }: { isMobile?: boolean }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
       <div
@@ -908,16 +905,18 @@ function BrandMark() {
       >
         P
       </div>
-      <div
-        style={{
-          fontWeight: 700,
-          fontSize: 17,
-          letterSpacing: "-0.02em",
-          whiteSpace: "nowrap",
-        }}
-      >
-        Party Hub
-      </div>
+      {!isMobile && (
+        <div
+          style={{
+            fontWeight: 700,
+            fontSize: 17,
+            letterSpacing: "-0.02em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Party Hub
+        </div>
+      )}
     </div>
   );
 }
@@ -1056,7 +1055,7 @@ function RoomButton({
       whileTap={{ scale: 0.97 }}
       transition={spring.snappy}
       style={{
-        padding: isNarrowDesktop ? "8px 14px" : "8px 18px",
+        padding: isMobile ? "7px 12px" : isNarrowDesktop ? "8px 14px" : "8px 18px",
         borderRadius: radius.full,
         background: roomCode
           ? `linear-gradient(135deg, ${accent}, ${accent}CC)`
@@ -1078,7 +1077,7 @@ function RoomButton({
             : focusRing
           : baseShadow,
         textTransform: roomCode ? "uppercase" : undefined,
-        maxWidth: isMobile ? 180 : undefined,
+        maxWidth: isMobile ? 200 : undefined,
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
@@ -1710,51 +1709,50 @@ function HeroLeft({
   return (
     <div style={{ position: "relative" }}>
       {/* Title — animates between games */}
-      <motion.h1
-        key={game.id}
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={spring.soft}
-        style={{
-          fontWeight: 900,
-          fontSize: isMobile ? "clamp(40px, 12vw, 44px)" : "clamp(56px, 8.5vw, 116px)",
-          lineHeight: isMobile ? 0.96 : 0.9,
-          letterSpacing: isMobile ? "-0.03em" : "-0.045em",
-          margin: 0,
-          marginBottom: isMobile ? 18 : 24,
-        }}
-      >
-        <span
+      <AnimatePresence mode="wait">
+        <motion.h1
+          key={game.id}
+          initial={{ y: 30 }}
+          animate={{ y: 0 }}
+          exit={{ opacity: 0, transition: { duration: 0 } }}
+          transition={spring.soft}
           style={{
-            display: "block",
-            backgroundImage:
-              "linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.7) 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
+            fontWeight: 900,
+            fontSize: isMobile ? "clamp(40px, 12vw, 44px)" : "clamp(56px, 8.5vw, 116px)",
+            lineHeight: isMobile ? 0.96 : 0.9,
+            letterSpacing: isMobile ? "-0.03em" : "-0.045em",
+            margin: 0,
+            marginBottom: isMobile ? 18 : 24,
           }}
         >
-          {game.heroTitle.word}
-        </span>
-        <span
-          style={{
-            display: "block",
-            backgroundImage: `linear-gradient(90deg, ${accent} 0%, color-mix(in srgb, ${accent} 60%, white) 50%, ${deep} 100%)`,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}
-        >
-          {game.heroTitle.accent}
-        </span>
-      </motion.h1>
+          <span
+            style={{
+              display: "block",
+              backgroundImage:
+                "linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.7) 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            {game.heroTitle.word}
+          </span>
+          <span
+            style={{
+              display: "block",
+              backgroundImage: `linear-gradient(90deg, ${accent} 0%, color-mix(in srgb, ${accent} 60%, white) 50%, ${deep} 100%)`,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            {game.heroTitle.accent}
+          </span>
+        </motion.h1>
+      </AnimatePresence>
 
       {/* Meta pills */}
-      <motion.div
-        key={`meta-${game.id}`}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3 }}
+      <div
         style={{
           display: "flex",
           alignItems: "center",
@@ -1769,14 +1767,10 @@ function HeroLeft({
         <MetaPill icon={<ClockIcon />}>{game.duration}</MetaPill>
         {!isMobile && <Dot />}
         <MetaPill icon={<TeamsIcon />}>{game.mode}</MetaPill>
-      </motion.div>
+      </div>
 
       {/* Description */}
-      <motion.p
-        key={`desc-${game.id}`}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3 }}
+      <p
         style={{
           fontSize: isMobile ? 14 : 18,
           lineHeight: 1.55,
@@ -1786,7 +1780,7 @@ function HeroLeft({
         }}
       >
         {game.description}
-      </motion.p>
+      </p>
 
       {/* CTA row */}
       <div
@@ -2012,6 +2006,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   accent: string;
   deep: string;
   currentUserId: string;
+  isMobile?: boolean;
   onKick: (playerId: string) => void;
   onTransferHost: (playerId: string) => void;
   onLeaveRoom: () => void;
@@ -2022,6 +2017,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   accent,
   deep,
   currentUserId,
+  isMobile = false,
   onKick,
   onTransferHost,
   onLeaveRoom,
@@ -2060,21 +2056,22 @@ const RoomMenu = forwardRef<HTMLDivElement, {
       variant="floating"
       radius="lg"
       padding={32}
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+      initial={isMobile ? false : { opacity: 0, scale: 0.95 }}
+      animate={isMobile ? { opacity: 1, scale: 1 } : { opacity: 1, scale: 1 }}
+      exit={isMobile ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.95 }}
+      transition={isMobile ? { duration: 0 } : { duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
       style={{
         width: "100%",
         maxWidth: 460,
         minHeight: 480,
-        background: "rgba(255,255,255,0.08)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
+        background: isMobile ? "rgba(20, 18, 32, 0.92)" : "rgba(255,255,255,0.08)",
+        backdropFilter: isMobile ? undefined : "blur(24px)",
+        WebkitBackdropFilter: isMobile ? undefined : "blur(24px)",
         border: "1px solid rgba(255,255,255,0.12)",
         display: "flex",
         flexDirection: "column",
         gap: 26,
+        willChange: isMobile ? undefined : "opacity, transform",
       }}
     >
       <div
@@ -2487,6 +2484,7 @@ function TiltedPreview({ gameId }: { gameId: GameId }) {
             overflow: "hidden",
             background: `linear-gradient(155deg, ${accent} 0%, color-mix(in srgb, ${accent} 60%, white) 50%, ${deep} 100%)`,
             boxShadow: `0 40px 100px -20px ${accent}88, 0 24px 60px -12px ${deep}88, inset 0 1px 0 rgba(255,255,255,0.3)`,
+            willChange: "opacity, transform",
           }}
         >
           {/* Top-light highlight */}
