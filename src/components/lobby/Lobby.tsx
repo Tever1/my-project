@@ -1231,7 +1231,6 @@ function AuthDropdown({
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        console.log('[AuthDropdown] mousedown OUTSIDE → onClose called. target:', e.target, new Error().stack);
         onClose();
       }
     };
@@ -1274,7 +1273,6 @@ function AuthDropdown({
   };
 
   const handleVerifyCode = async () => {
-    console.log('[AuthDropdown] handleVerifyCode start, step:', step, 'code:', code);
     if (code.length < 4) {
       setError('Введите 4-значный код');
       return;
@@ -1284,7 +1282,6 @@ function AuthDropdown({
     const ok = await verifyCode(digits, code);
     setLoading(false);
     if (ok) {
-      console.log('[AuthDropdown] verifyCode OK → setStep nickname');
       setStep('nickname');
       setError('');
     } else {
@@ -1293,7 +1290,6 @@ function AuthDropdown({
   };
 
   const handleSetNickname = () => {
-    console.log('[AuthDropdown] handleSetNickname called, nickname length:', nickname.trim().length);
     if (nickname.trim().length < 2) {
       setError('Минимум 2 символа');
       return;
