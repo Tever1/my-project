@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 
 export interface User {
   id: string;
@@ -41,6 +41,16 @@ const AuthContext = createContext<AuthContextType>({
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+export function useAuthUser() {
+  const { user, isLoading } = useContext(AuthContext);
+  return { user, isLoading };
+}
+
+export function useAuthActions() {
+  const { sendCode, verifyCode, updateNickname, logout } = useContext(AuthContext);
+  return { sendCode, verifyCode, updateNickname, logout };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -119,8 +129,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('party-hub-sms-phone');
   }, []);
 
+  const value = useMemo(
+    () => ({ user, isLoading, sendCode, verifyCode, updateNickname, logout }),
+    [user, isLoading, sendCode, verifyCode, updateNickname, logout]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, sendCode, verifyCode, updateNickname, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

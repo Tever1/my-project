@@ -7,17 +7,19 @@
 
 ## Активные таски
 
-### TASK-067: AuthDropdown self-close
-- **Статус:** ready
-- **Исполнитель:** Codex (auto by Claude)
-- **Запущено:** 2026-05-10
-- **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/067-auth-self-close.md`
-- **Report:** _(ожидается)_
+_(нет активных тасков)_
 
 ---
 
 ## Завершённые таски (последние)
+
+### TASK-088: Mobile helpers (motionPropsInstant + glassMobileSolid) — ✅ done
+- Завершено: 2026-05-14
+- Резюме: создан `src/lib/design/mobile-helpers.ts`. `motionPropsInstant` и `glassMobileSolid` заменили инлайн-паттерны в AuthDropdown и AccountDropdown.
+
+### TASK-087: AuthProvider useMemo + narrow selectors — ✅ done
+- Завершено: 2026-05-14
+- Резюме: `value` в AuthProvider обёрнут в `useMemo`, добавлены `useAuthUser()` и `useAuthActions()`. `useAuth()` не тронут.
 
 ### TASK-066: verifyCode clears nickname on login — ✅ done
 - Завершено: 2026-05-10

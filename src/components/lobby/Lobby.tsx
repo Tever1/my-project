@@ -20,6 +20,7 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { GameIcon } from "@/components/GameIcon";
 import { GlassPanel, GlassToaster } from "@/components/glass";
 import { useAuth, type User } from "@/lib/auth-context";
+import { motionPropsInstant, glassMobileSolid } from "@/lib/design/mobile-helpers";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
 import { useSocket } from "@/lib/use-socket";
 import { QRCode } from "react-qrcode-logo";
@@ -1315,9 +1316,7 @@ function AuthDropdown({
   const panelStyle: React.CSSProperties = {
     width: isMobile ? '100%' : 320,
     maxWidth: isMobile ? 400 : undefined,
-    background: isMobile ? 'rgba(20, 18, 32, 0.96)' : 'rgba(255,255,255,0.28)',
-    backdropFilter: isMobile ? undefined : 'blur(24px)',
-    WebkitBackdropFilter: isMobile ? undefined : 'blur(24px)',
+    ...glassMobileSolid(isMobile, 'rgba(255,255,255,0.28)'),
     border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 20,
     padding: 24,
@@ -1354,10 +1353,12 @@ function AuthDropdown({
 
   return (
     <motion.div
-      initial={isMobile ? false : { opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={isMobile ? { opacity: 1 } : { opacity: 0 }}
-      transition={isMobile ? { duration: 0 } : { duration: 0.15, ease: 'easeOut' }}
+      {...motionPropsInstant(isMobile, {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+        transition: { duration: 0.15, ease: 'easeOut' },
+      })}
       style={containerStyle}
     >
       <div ref={ref} style={panelStyle}>
@@ -1514,9 +1515,7 @@ function AccountDropdown({
 
   const panelStyle: React.CSSProperties = {
     width: 220,
-    background: isMobile ? 'rgba(20, 18, 32, 0.96)' : 'rgba(255,255,255,0.08)',
-    backdropFilter: isMobile ? undefined : 'blur(24px)',
-    WebkitBackdropFilter: isMobile ? undefined : 'blur(24px)',
+    ...glassMobileSolid(isMobile, 'rgba(255,255,255,0.08)'),
     border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 16,
     padding: 8,
@@ -1542,10 +1541,12 @@ function AccountDropdown({
 
   return (
     <motion.div
-      initial={isMobile ? false : { opacity: 0, y: -8, scale: 0.97 }}
-      animate={isMobile ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
-      exit={isMobile ? { opacity: 1 } : { opacity: 0, y: -8, scale: 0.97 }}
-      transition={isMobile ? { duration: 0 } : spring.snappy}
+      {...motionPropsInstant(isMobile, {
+        initial: { opacity: 0, y: -8, scale: 0.97 },
+        animate: { opacity: 1, y: 0, scale: 1 },
+        exit: { opacity: 0, y: -8, scale: 0.97 },
+        transition: spring.snappy,
+      })}
       style={containerStyle}
       onClick={isMobile ? onClose : undefined}
     >
