@@ -691,7 +691,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       </section>
 
       {/* Mobile room menu overlay */}
-      {isMobile && (
+      {isMobile && roomCode && (
         <>
           <div
             onClick={() => setRoomMenuOpen(false)}
@@ -700,48 +700,43 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
               inset: 0,
               background: "rgba(0, 0, 0, 0.7)",
               zIndex: 40,
-              opacity: roomMenuOpen && roomCode ? 1 : 0,
-              pointerEvents: roomMenuOpen && roomCode ? "auto" : "none",
-              transition: "opacity 0.28s ease-out",
+              opacity: roomMenuOpen ? 1 : 0,
+              pointerEvents: roomMenuOpen ? "auto" : "none",
+              transition: "opacity 0.22s ease-out",
               willChange: "opacity",
             }}
           />
-          <AnimatePresence>
-            {roomMenuOpen && roomCode && (
-              <motion.div
-                key="room-menu-mobile"
-                initial={{ y: 40 }}
-                animate={{ y: 0 }}
-                exit={{ y: 40 }}
-                transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-                style={{
-                  position: "fixed",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  zIndex: 41,
-                  maxHeight: "88dvh",
-                  overflowY: "auto",
-                  padding: "0 12px 24px",
-                  willChange: "transform",
-                }}
-              >
-                <RoomMenu
-                  ref={roomMenuRef}
-                  roomCode={roomCode}
-                  roomState={roomState}
-                  accent={accent}
-                  deep={deep}
-                  currentUserId={user?.id ?? ""}
-                  isMobile={true}
-                  onKick={handleKick}
-                  onTransferHost={handleTransferHost}
-                  onLeaveRoom={handleLeaveRoom}
-                  onClose={() => setRoomMenuOpen(false)}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div
+            style={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 41,
+              maxHeight: "88dvh",
+              overflowY: "auto",
+              padding: "0 12px 24px",
+              transform: roomMenuOpen ? "translateY(0)" : "translateY(100%)",
+              transition: roomMenuOpen
+                ? "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)"
+                : "transform 0.22s cubic-bezier(0.4, 0, 1, 1)",
+              willChange: "transform",
+            }}
+          >
+            <RoomMenu
+              ref={roomMenuRef}
+              roomCode={roomCode}
+              roomState={roomState}
+              accent={accent}
+              deep={deep}
+              currentUserId={user?.id ?? ""}
+              isMobile={true}
+              onKick={handleKick}
+              onTransferHost={handleTransferHost}
+              onLeaveRoom={handleLeaveRoom}
+              onClose={() => setRoomMenuOpen(false)}
+            />
+          </div>
         </>
       )}
 
@@ -1306,7 +1301,6 @@ function AuthDropdown({
         justifyContent: 'center',
         zIndex: 100,
         background: `radial-gradient(ellipse 120% 70% at 70% 30%, ${accent}44, transparent 60%), radial-gradient(ellipse 100% 80% at 20% 70%, ${deep}55, transparent 60%), rgba(6,6,12,0.92)`,
-        backdropFilter: 'blur(4px)',
         padding: 24,
       }
     : {
@@ -1358,10 +1352,10 @@ function AuthDropdown({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -8, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -8, scale: 0.97 }}
-      transition={spring.snappy}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       style={containerStyle}
     >
       <div ref={ref} style={panelStyle}>
@@ -1546,10 +1540,10 @@ function AccountDropdown({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -8, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -8, scale: 0.97 }}
-      transition={spring.snappy}
+      initial={isMobile ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.97 }}
+      animate={isMobile ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+      exit={isMobile ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.97 }}
+      transition={isMobile ? { duration: 0.15, ease: 'easeOut' } : spring.snappy}
       style={containerStyle}
       onClick={isMobile ? onClose : undefined}
     >
