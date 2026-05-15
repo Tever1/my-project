@@ -857,6 +857,7 @@ function TopBar({
           <AnimatePresence>
             {authMenuOpen && (
               <AuthDropdown
+                key="auth-dropdown"
                 isMobile={isMobile}
                 accent={accent}
                 deep={deep}
@@ -867,6 +868,7 @@ function TopBar({
           <AnimatePresence>
             {accountMenuOpen && (
               <AccountDropdown
+                key="account-dropdown"
                 isMobile={isMobile}
                 onClose={onCloseAccountMenu}
                 onLogout={onLogout}
@@ -1352,10 +1354,10 @@ function AuthDropdown({
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
+      initial={isMobile ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
+      transition={isMobile ? { duration: 0.12, ease: 'easeIn' } : { duration: 0.15, ease: 'easeOut' }}
       style={containerStyle}
     >
       <div ref={ref} style={panelStyle}>
@@ -1540,10 +1542,10 @@ function AccountDropdown({
 
   return (
     <motion.div
-      initial={isMobile ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.97 }}
+      initial={isMobile ? false : { opacity: 0, y: -8, scale: 0.97 }}
       animate={isMobile ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
       exit={isMobile ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.97 }}
-      transition={isMobile ? { duration: 0.15, ease: 'easeOut' } : spring.snappy}
+      transition={isMobile ? { duration: 0.12, ease: 'easeIn' } : spring.snappy}
       style={containerStyle}
       onClick={isMobile ? onClose : undefined}
     >
