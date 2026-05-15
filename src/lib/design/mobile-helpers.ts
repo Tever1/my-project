@@ -28,23 +28,17 @@ export function motionPropsInstant(
 
 /**
  * Returns CSSProperties for a glass panel:
- * - mobile: solid dark background, no backdropFilter (A16 GPU relief)
+ * - mobile: same background as desktop, lighter blur(12px)
  * - desktop: frosted glass with blur(24px)
  */
 export function glassMobileSolid(
   isMobile: boolean,
   desktopBg: string
 ): Pick<CSSProperties, 'background' | 'backdropFilter' | 'WebkitBackdropFilter'> {
-  if (isMobile) {
-    return {
-      background: 'rgba(20, 18, 32, 0.96)',
-      backdropFilter: undefined,
-      WebkitBackdropFilter: undefined,
-    };
-  }
+  const blur = isMobile ? 'blur(12px)' : 'blur(24px)';
   return {
     background: desktopBg,
-    backdropFilter: 'blur(24px)',
-    WebkitBackdropFilter: 'blur(24px)',
+    backdropFilter: blur,
+    WebkitBackdropFilter: blur,
   };
 }
