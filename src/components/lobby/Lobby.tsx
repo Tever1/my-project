@@ -1544,8 +1544,8 @@ function AccountDropdown({
     <motion.div
       initial={isMobile ? false : { opacity: 0, y: -8, scale: 0.97 }}
       animate={isMobile ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
-      exit={isMobile ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.97 }}
-      transition={isMobile ? { duration: 0.12, ease: 'easeIn' } : spring.snappy}
+      exit={isMobile ? { opacity: 1 } : { opacity: 0, y: -8, scale: 0.97 }}
+      transition={isMobile ? { duration: 0 } : spring.snappy}
       style={containerStyle}
       onClick={isMobile ? onClose : undefined}
     >
