@@ -2106,86 +2106,96 @@ const RoomMenu = forwardRef<HTMLDivElement, {
             В комнате · {connectedPlayers.length}
           </div>
         </div>
-        {!confirmLeave ? (
-          <button
-            type="button"
-            onClick={() => setConfirmLeave(true)}
-            aria-label="Выйти из комнаты"
-            style={{
-              flexShrink: 0,
-              padding: "8px 14px",
-              borderRadius: radius.full,
-              background: "rgba(239, 68, 68, 0.12)",
-              border: "1px solid rgba(239, 68, 68, 0.35)",
-              color: "#fca5a5",
-              fontSize: 12,
-              fontWeight: 650,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.22)";
-              e.currentTarget.style.color = "#fee2e2";
-              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.6)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
-              e.currentTarget.style.color = "#fca5a5";
-              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.35)";
-            }}
-          >
-            Выйти
-          </button>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <span style={{
-              fontSize: 12,
-              color: "#fca5a5",
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-            }}>
-              Выйти?
-            </span>
+        <div
+          style={{
+            flexShrink: 0,
+            minWidth: 172,
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+          }}
+        >
+          {!confirmLeave ? (
             <button
               type="button"
-              onClick={onLeaveRoom}
+              onClick={() => setConfirmLeave(true)}
+              aria-label="Выйти из комнаты"
               style={{
-                padding: "6px 12px",
-                borderRadius: "999px",
-                background: "rgba(239, 68, 68, 0.75)",
-                border: "1px solid rgba(239, 68, 68, 0.9)",
-                color: "#fff",
+                flexShrink: 0,
+                padding: "8px 14px",
+                borderRadius: radius.full,
+                background: "rgba(239, 68, 68, 0.12)",
+                border: "1px solid rgba(239, 68, 68, 0.35)",
+                color: "#fca5a5",
                 fontSize: 12,
-                fontWeight: 700,
+                fontWeight: 650,
                 fontFamily: "inherit",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(239, 68, 68, 0.22)";
+                e.currentTarget.style.color = "#fee2e2";
+                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.6)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+                e.currentTarget.style.color = "#fca5a5";
+                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.35)";
               }}
             >
-              Да
+              Выйти
             </button>
-            <button
-              type="button"
-              onClick={() => setConfirmLeave(false)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: "999px",
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                color: "rgba(255,255,255,0.7)",
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+              <span style={{
                 fontSize: 12,
+                color: "#fca5a5",
                 fontWeight: 600,
-                fontFamily: "inherit",
-                cursor: "pointer",
                 whiteSpace: "nowrap",
-              }}
-            >
-              Отмена
-            </button>
-          </div>
-        )}
+              }}>
+                Выйти?
+              </span>
+              <button
+                type="button"
+                onClick={onLeaveRoom}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "999px",
+                  background: "rgba(239, 68, 68, 0.75)",
+                  border: "1px solid rgba(239, 68, 68, 0.9)",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Да
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmLeave(false)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "999px",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  color: "rgba(255,255,255,0.7)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={handleClose}
