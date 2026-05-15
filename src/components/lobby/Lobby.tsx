@@ -19,7 +19,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { GameIcon } from "@/components/GameIcon";
 import { GlassPanel, GlassToaster } from "@/components/glass";
-import { useAuth, type User } from "@/lib/auth-context";
+import { useAuth, useAuthActions, type User } from "@/lib/auth-context";
 import { motionPropsInstant, glassMobileSolid } from "@/lib/design/mobile-helpers";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
 import { useSocket } from "@/lib/use-socket";
@@ -1216,7 +1216,7 @@ function AuthDropdown({
   deep: string;
   onClose: () => void;
 }) {
-  const { sendCode, verifyCode, updateNickname } = useAuth();
+  const { sendCode, verifyCode, updateNickname } = useAuthActions();
   const [step, setStep] = useState<'phone' | 'code' | 'nickname'>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');

@@ -7,7 +7,13 @@
 
 ## Активные таски
 
-_(нет активных тасков)_
+### TASK-089: AuthDropdown → useAuthActions()
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-14
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/089-authdropdown-use-auth-actions.md`
+- **Report:** _(ожидается)_
 
 ---
 
