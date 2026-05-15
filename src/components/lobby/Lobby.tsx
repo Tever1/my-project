@@ -1356,8 +1356,8 @@ function AuthDropdown({
     <motion.div
       initial={isMobile ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={isMobile ? { duration: 0.12, ease: 'easeIn' } : { duration: 0.15, ease: 'easeOut' }}
+      exit={isMobile ? { opacity: 1 } : { opacity: 0 }}
+      transition={isMobile ? { duration: 0 } : { duration: 0.15, ease: 'easeOut' }}
       style={containerStyle}
     >
       <div ref={ref} style={panelStyle}>
