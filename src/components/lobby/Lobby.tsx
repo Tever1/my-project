@@ -480,7 +480,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     }
     setAccountMenuOpen(false);
     logout();
-  }, [emit, logout, roomCode]);
+    router.push('/');
+  }, [emit, logout, roomCode, router]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

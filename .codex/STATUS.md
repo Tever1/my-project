@@ -7,17 +7,22 @@
 
 ## Активные таски
 
-### TASK-089: AuthDropdown → useAuthActions()
+### TASK-090: Fix logout auto-rejoin bug
 - **Статус:** ready
 - **Исполнитель:** Codex (manual by user)
 - **Запущено:** 2026-05-14
 - **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/089-authdropdown-use-auth-actions.md`
+- **Task spec:** `codex-tasks/090-logout-no-auto-rejoin.md`
 - **Report:** _(ожидается)_
 
 ---
 
 ## Завершённые таски (последние)
+
+### TASK-089: AuthDropdown → useAuthActions() — ✅ done
+- Завершено: 2026-05-14
+- Коммит: `72634fb`
+- Резюме: AuthDropdown подписан только на actions, не ре-рендерится при смене user.
 
 ### TASK-088: Mobile helpers (motionPropsInstant + glassMobileSolid) — ✅ done
 - Завершено: 2026-05-14
