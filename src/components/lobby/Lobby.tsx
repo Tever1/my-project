@@ -1313,9 +1313,9 @@ function AuthDropdown({
   const panelStyle: React.CSSProperties = {
     width: isMobile ? '100%' : 320,
     maxWidth: isMobile ? 400 : undefined,
-    background: 'rgba(255,255,255,0.28)',
-    backdropFilter: 'blur(24px)',
-    WebkitBackdropFilter: 'blur(24px)',
+    background: isMobile ? 'rgba(20, 18, 32, 0.96)' : 'rgba(255,255,255,0.28)',
+    backdropFilter: isMobile ? undefined : 'blur(24px)',
+    WebkitBackdropFilter: isMobile ? undefined : 'blur(24px)',
     border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 20,
     padding: 24,
@@ -1512,9 +1512,9 @@ function AccountDropdown({
 
   const panelStyle: React.CSSProperties = {
     width: 220,
-    background: 'rgba(255,255,255,0.08)',
-    backdropFilter: 'blur(24px)',
-    WebkitBackdropFilter: 'blur(24px)',
+    background: isMobile ? 'rgba(20, 18, 32, 0.96)' : 'rgba(255,255,255,0.08)',
+    backdropFilter: isMobile ? undefined : 'blur(24px)',
+    WebkitBackdropFilter: isMobile ? undefined : 'blur(24px)',
     border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 16,
     padding: 8,
