@@ -16,7 +16,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { GameIcon } from "@/components/GameIcon";
 import { GlassPanel, GlassToaster } from "@/components/glass";
 import { useAuth, useAuthActions, type User } from "@/lib/auth-context";
@@ -308,31 +308,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     });
     return unsubscribe;
   }, [isRoomRoute, on, router]);
-
-  useEffect(() => {
-    if (!roomMenuOpen) return;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setRoomMenuOpen(false);
-      }
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      if (roomMenuRef.current?.contains(target)) return;
-      if (target.closest('[data-topbar="room"]')) return;
-      setRoomMenuOpen(false);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [roomMenuOpen]);
 
   const getPlayerPayload = useCallback(() => {
     if (!user?.id || !user.nickname) {
@@ -696,7 +671,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       {isMobile && roomCode && (
         <>
           <div
-            onClick={() => setRoomMenuOpen(false)}
             style={{
               position: "fixed",
               inset: 0,
@@ -1084,7 +1058,7 @@ function RoomButton({
     >
       {roomCode ? (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <span>{`Комната · ${roomCode}`}</span>
+          <span style={{ whiteSpace: "nowrap" }}>{`Комната · ${roomCode}`}</span>
           <svg
             width="14"
             height="14"
@@ -2021,6 +1995,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   onLeaveRoom,
   onClose,
 }, ref) {
+  const panelRef = useRef<HTMLDivElement>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [localIp, setLocalIp] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -2044,13 +2019,26 @@ const RoomMenu = forwardRef<HTMLDivElement, {
       .catch(() => setLocalIp(null));
   }, []);
 
+  useImperativeHandle(ref, () => panelRef.current as HTMLDivElement, []);
+
   useEffect(() => {
-    return () => setSelectedPlayerId(null);
-  }, []);
+    if (!selectedPlayerId) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // Click on the chip is handled by the chip button itself.
+      if (target.closest('[data-player-chip]')) return;
+      // Keep the menu mounted long enough for action button onClick handlers.
+      if (target.closest('[data-player-action-menu]')) return;
+      setSelectedPlayerId(null);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [selectedPlayerId]);
 
   return (
     <GlassPanel
-      ref={ref}
+      ref={panelRef}
       variant="floating"
       radius="lg"
       padding={32}
@@ -2073,26 +2061,36 @@ const RoomMenu = forwardRef<HTMLDivElement, {
       <div
         style={{
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
+          flexDirection: "column",
+          gap: 0,
         }}
       >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 24,
-              fontWeight: 700,
-              lineHeight: 1.1,
-              backgroundImage: `linear-gradient(90deg, ${accent}, color-mix(in srgb, ${accent} 62%, white), ${deep})`,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              marginBottom: 8,
-            }}
-          >
-            Комната · {roomCode}
-          </div>
+        <div
+          style={{
+            width: "100%",
+            fontSize: isMobile ? 20 : 22,
+            fontWeight: 700,
+            lineHeight: 1.1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            backgroundImage: `linear-gradient(90deg, ${accent}, color-mix(in srgb, ${accent} 62%, white), ${deep})`,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            marginBottom: 10,
+          }}
+        >
+          Комната · {roomCode}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
           <div
             style={{
               color: "rgba(235, 235, 245, 0.58)",
@@ -2105,129 +2103,122 @@ const RoomMenu = forwardRef<HTMLDivElement, {
           >
             В комнате · {connectedPlayers.length}
           </div>
-        </div>
-        <div
-          style={{
-            flexShrink: 0,
-            minWidth: 172,
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-          }}
-        >
-          {!confirmLeave ? (
+          <div
+            style={{
+              flexShrink: 0,
+              minWidth: 172,
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {!confirmLeave ? (
+              <button
+                type="button"
+                onClick={() => setConfirmLeave(true)}
+                aria-label="Выйти из комнаты"
+                style={{
+                  flexShrink: 0,
+                  padding: "8px 14px",
+                  borderRadius: radius.full,
+                  background: "rgba(239, 68, 68, 0.12)",
+                  border: "1px solid rgba(239, 68, 68, 0.35)",
+                  color: "#fca5a5",
+                  fontSize: 12,
+                  fontWeight: 650,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(239, 68, 68, 0.22)";
+                  e.currentTarget.style.color = "#fee2e2";
+                  e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.6)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+                  e.currentTarget.style.color = "#fca5a5";
+                  e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.35)";
+                }}
+              >
+                Выйти
+              </button>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={onLeaveRoom}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "999px",
+                    background: "rgba(239, 68, 68, 0.75)",
+                    border: "1px solid rgba(239, 68, 68, 0.9)",
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Да
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmLeave(false)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "999px",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    color: "rgba(255,255,255,0.7)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Отмена
+                </button>
+              </div>
+            )}
             <button
               type="button"
-              onClick={() => setConfirmLeave(true)}
-              aria-label="Выйти из комнаты"
+              onClick={handleClose}
+              aria-label="Закрыть"
               style={{
                 flexShrink: 0,
-                padding: "8px 14px",
+                width: 28,
+                height: 28,
                 borderRadius: radius.full,
-                background: "rgba(239, 68, 68, 0.12)",
-                border: "1px solid rgba(239, 68, 68, 0.35)",
-                color: "#fca5a5",
-                fontSize: 12,
-                fontWeight: 650,
-                fontFamily: "inherit",
+                background: "rgba(255,255,255,0.07)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "rgba(255,255,255,0.55)",
+                fontSize: 16,
+                lineHeight: 1,
                 cursor: "pointer",
-                whiteSpace: "nowrap",
-                transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: "inherit",
+                transition: "background 150ms ease, color 150ms ease",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(239, 68, 68, 0.22)";
-                e.currentTarget.style.color = "#fee2e2";
-                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.6)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.14)";
+                e.currentTarget.style.color = "rgba(255,255,255,0.9)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
-                e.currentTarget.style.color = "#fca5a5";
-                e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.35)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+                e.currentTarget.style.color = "rgba(255,255,255,0.55)";
               }}
             >
-              Выйти
+              ✕
             </button>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{
-                fontSize: 12,
-                color: "#fca5a5",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-              }}>
-                Выйти?
-              </span>
-              <button
-                type="button"
-                onClick={onLeaveRoom}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "999px",
-                  background: "rgba(239, 68, 68, 0.75)",
-                  border: "1px solid rgba(239, 68, 68, 0.9)",
-                  color: "#fff",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Да
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmLeave(false)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "999px",
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  color: "rgba(255,255,255,0.7)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Отмена
-              </button>
-            </div>
-          )}
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={handleClose}
-          aria-label="Закрыть"
-          style={{
-            flexShrink: 0,
-            width: 28,
-            height: 28,
-            borderRadius: radius.full,
-            background: "rgba(255,255,255,0.07)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            color: "rgba(255,255,255,0.55)",
-            fontSize: 16,
-            lineHeight: 1,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "inherit",
-            transition: "background 150ms ease, color 150ms ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.14)";
-            e.currentTarget.style.color = "rgba(255,255,255,0.9)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.07)";
-            e.currentTarget.style.color = "rgba(255,255,255,0.55)";
-          }}
-        >
-          ✕
-        </button>
       </div>
 
       <div
@@ -2238,19 +2229,21 @@ const RoomMenu = forwardRef<HTMLDivElement, {
           minHeight: 70,
           alignContent: "flex-start",
         }}
+        onClick={() => setSelectedPlayerId(null)}
       >
         {connectedPlayers.length > 0 ? (
           connectedPlayers.map((player) => {
             const isHost = player.isHost || player.id === roomState?.hostId;
             const canManagePlayer = isCurrentUserHost && player.id !== currentUserId;
-            const isSelected = selectedPlayerId === player.id;
             return (
               <div
                 key={player.id}
-                style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}
+                onClick={(e) => e.stopPropagation()}
+                style={{ position: "relative", display: "inline-flex" }}
               >
                 <button
                   type="button"
+                  data-player-chip=""
                   onClick={() => {
                     if (!canManagePlayer) return;
                     setSelectedPlayerId((id) => (id === player.id ? null : player.id));
@@ -2292,24 +2285,30 @@ const RoomMenu = forwardRef<HTMLDivElement, {
                   )}
                 </button>
                 <AnimatePresence>
-                  {isSelected && (
+                  {selectedPlayerId === player.id && (
                     <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.15 }}
+                      key="player-action-menu"
+                      data-player-action-menu=""
+                      initial={isMobile ? false : { opacity: 0, y: -4, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={isMobile ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -4, scale: 0.96 }}
+                      transition={isMobile ? { duration: 0 } : { duration: 0.13 }}
                       style={{
-                        background: "rgba(20,20,24,0.92)",
-                        backdropFilter: "blur(12px)",
-                        WebkitBackdropFilter: "blur(12px)",
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        left: 0,
+                        zIndex: 50,
+                        background: isMobile ? "rgba(10, 10, 16, 0.97)" : "rgba(14, 14, 20, 0.92)",
+                        backdropFilter: isMobile ? undefined : "blur(16px)",
+                        WebkitBackdropFilter: isMobile ? undefined : "blur(16px)",
                         border: "1px solid rgba(255,255,255,0.12)",
-                        borderRadius: radius.md,
+                        borderRadius: 12,
                         padding: 6,
-                        marginTop: 6,
                         display: "flex",
                         flexDirection: "column",
                         gap: 2,
                         minWidth: 210,
+                        boxShadow: "0 8px 32px -8px rgba(0,0,0,0.6)",
                       }}
                     >
                       <RoomMenuActionButton
