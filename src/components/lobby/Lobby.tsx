@@ -184,7 +184,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [activeGame, setActiveGame] = useState<GameId>("quiz");
   const [roomCode, setRoomCode] = useState<string | null>(initialCode);
   const [joinCode, setJoinCode] = useState("");
-  const [presenceCount, setPresenceCount] = useState(0);
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [roomMenuOpen, setRoomMenuOpen] = useState(false);
   const [authMenuOpen, setAuthMenuOpen] = useState(false);
@@ -238,19 +237,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     if (!isRoomRoute || isLoading || user) return;
     queueMicrotask(() => setAuthMenuOpen(true));
   }, [isLoading, isRoomRoute, user]);
-
-  useEffect(() => {
-    const unsubscribe = on('presence:count', (data: unknown) => {
-      const payload = data as { count?: number };
-      setPresenceCount(typeof payload.count === "number" ? payload.count : 0);
-    });
-
-    if (isConnected) {
-      emit('presence:subscribe');
-    }
-
-    return unsubscribe;
-  }, [emit, isConnected, on]);
 
   useEffect(() => {
     const unsubscribe = on('room:state', (data: unknown) => {
@@ -472,7 +458,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         const inTopBar = focused?.dataset?.topbar !== undefined;
         if (inTopBar) {
           e.preventDefault();
-          const order = ["play", "friends-nav", "tv", "friends-online", "room", "avatar"];
+          const order = ["play", "tv", "room", "avatar"];
           const cur = focused.dataset.topbar!;
           const idx = order.indexOf(cur);
           if (idx === -1) return;
@@ -599,7 +585,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         deep={deep}
         isMobile={isMobile}
         isNarrowDesktop={isNarrowDesktop}
-        presenceCount={presenceCount}
         isCreatingRoom={isCreatingRoom}
         user={user}
         authMenuOpen={authMenuOpen}
@@ -741,7 +726,6 @@ function TopBar({
   deep,
   isMobile,
   isNarrowDesktop,
-  presenceCount,
   isCreatingRoom,
   user,
   authMenuOpen,
@@ -759,7 +743,6 @@ function TopBar({
   deep: string;
   isMobile: boolean;
   isNarrowDesktop: boolean;
-  presenceCount: number;
   isCreatingRoom: boolean;
   user: User | null;
   authMenuOpen: boolean;
@@ -787,11 +770,10 @@ function TopBar({
       {/* Left: brand + nav */}
       <div style={{ display: "flex", alignItems: "center", gap: 24, minWidth: 0, overflow: "hidden" }}>
         <BrandMark isMobile={isMobile} />
-        <nav style={{ display: isMobile ? "none" : "flex", gap: 4 }}>
+        <nav style={{ display: isMobile ? "none" : "flex", gap: 4, overflow: "clip" }}>
           <NavButton active topbarId="play" isNarrowDesktop={compact}>
             Играть
           </NavButton>
-          <NavButton topbarId="friends-nav" isNarrowDesktop={compact}>Друзья</NavButton>
           <NavButton
             topbarId="tv"
             isNarrowDesktop={compact}
@@ -806,11 +788,8 @@ function TopBar({
         </nav>
       </div>
 
-      {/* Right: friends online + room button + avatar */}
+      {/* Right: room button + avatar */}
       <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : compact ? 8 : 12, flexShrink: 0 }}>
-        {!isMobile && (
-          <FriendsOnlinePill count={presenceCount} isNarrowDesktop={compact} topbarId="friends-online" />
-        )}
         <RoomButton
           roomCode={roomCode}
           onCreate={onCreateRoom}
@@ -938,58 +917,6 @@ function NavButton({
       }}
     >
       {children}
-    </motion.button>
-  );
-}
-
-function FriendsOnlinePill({
-  count,
-  isNarrowDesktop = false,
-  topbarId,
-}: {
-  count: number;
-  isNarrowDesktop?: boolean;
-  topbarId?: string;
-}) {
-  const [focused, setFocused] = useState(false);
-
-  return (
-    <motion.button
-      data-topbar={topbarId}
-      onClick={() => console.log("friends panel — TODO")}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      transition={spring.snappy}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: isNarrowDesktop ? "8px 12px" : "8px 16px",
-        borderRadius: radius.full,
-        background: "rgba(255, 255, 255, 0.04)",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
-        fontFamily: "inherit",
-        fontSize: isNarrowDesktop ? 13 : 14,
-        color: "rgba(255, 255, 255, 0.85)",
-        fontWeight: 500,
-        cursor: "pointer",
-        outline: "none",
-        boxShadow: focused ? "0 0 0 3px rgba(255,255,255,0.6)" : "none",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          background: "#30d158",
-          boxShadow: "0 0 10px rgba(48, 209, 88, 0.7)",
-        }}
-      />
-      {count} друзей онлайн
     </motion.button>
   );
 }
