@@ -7,6 +7,14 @@
 
 ## Активные таски
 
+### TASK-106: Lobby — use PlayerAvatar + Badge in AvatarPill and RoomMenu
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-19
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/106-lobby-use-new-ui-components.md`
+- **Report:** _(ожидается)_
+
 ### TASK-104: GlassButton upgrade + GlassInput focus animation
 - **Статус:** ready
 - **Исполнитель:** Codex (manual by user)

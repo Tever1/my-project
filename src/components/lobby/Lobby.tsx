@@ -19,6 +19,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { GameIcon } from "@/components/GameIcon";
 import { GlassPanel, GlassToaster } from "@/components/glass";
+import { PlayerAvatar, Badge } from "@/components/ui";
 import { useAuth, useAuthActions, type User } from "@/lib/auth-context";
 import { motionPropsInstant, glassMobileSolid } from "@/lib/design/mobile-helpers";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
@@ -1061,7 +1062,6 @@ function AvatarPill({
     );
   }
 
-  const initial = user.nickname.charAt(0);
   return (
     <motion.button
       data-topbar={topbarId}
@@ -1086,22 +1086,7 @@ function AvatarPill({
         color: "inherit",
       }}
     >
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, #ff9f0a, #ff375f)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 14,
-          fontWeight: 700,
-          color: "white",
-        }}
-      >
-        {initial}
-      </div>
+      <PlayerAvatar nickname={user.nickname} size="sm" />
       {!isMobile && <span style={{ fontSize: 14, fontWeight: 600 }}>{user.nickname}</span>}
     </motion.button>
   );
@@ -2192,23 +2177,10 @@ const RoomMenu = forwardRef<HTMLDivElement, {
                     cursor: canManagePlayer ? "pointer" : "default",
                   }}
                 >
+                  <PlayerAvatar nickname={player.nickname} size="xs" />
                   <span>{player.nickname}</span>
                   {isHost && (
-                    <span
-                      style={{
-                        padding: "3px 7px",
-                        borderRadius: radius.full,
-                        background: `linear-gradient(135deg, ${accent}, ${deep})`,
-                        color: "white",
-                        fontSize: 10,
-                        fontWeight: 800,
-                        fontFamily: "var(--font-mono)",
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      хост
-                    </span>
+                    <Badge variant="game" gameColor={accent}>хост</Badge>
                   )}
                 </button>
                 <AnimatePresence>
