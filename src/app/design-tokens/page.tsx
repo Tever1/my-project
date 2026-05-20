@@ -35,6 +35,10 @@ import {
   type GlassVariant,
 } from "@/components/glass";
 import { GameIcon } from "@/components/GameIcon";
+import { Badge } from "@/components/ui/Badge";
+import { Chip } from "@/components/ui/Chip";
+import { PlayerAvatar } from "@/components/ui/PlayerAvatar";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 const games: { id: GameId; ru: string }[] = [
   { id: "quiz", ru: "Квиз" },
@@ -623,6 +627,60 @@ export default function DesignTokensPage() {
             ))}
           </div>
         </Section>
+
+        {/* Phase E — New UI Components */}
+        <section style={{ marginBottom: 48 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24, color: "rgba(255,255,255,0.9)" }}>
+            Фаза E — UI Компоненты
+          </h2>
+
+          {/* PlayerAvatar */}
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em" }}>PlayerAvatar</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
+            <PlayerAvatar nickname="Аня" size="xs" />
+            <PlayerAvatar nickname="Боря" size="sm" />
+            <PlayerAvatar nickname="Вера" size="md" />
+            <PlayerAvatar nickname="Гена" size="lg" />
+            <PlayerAvatar nickname="Дима" size="lg" />
+            <PlayerAvatar nickname="Женя" size="lg" />
+          </div>
+
+          {/* Badge */}
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Badge</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 32 }}>
+            <Badge>По умолчанию</Badge>
+            <Badge variant="success">Хост</Badge>
+            <Badge variant="warning">8 онлайн</Badge>
+            <Badge variant="danger">Выбыл</Badge>
+            <Badge variant="game" gameColor="#8b5cf6">Мафия</Badge>
+            <Badge variant="game" gameColor="#facc15">Квиз</Badge>
+            <Badge variant="game" gameColor="#ef4444">Крокодил</Badge>
+          </div>
+
+          {/* Chip */}
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Chip</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 32 }}>
+            <Chip>Обычный</Chip>
+            <Chip selected>Выбран</Chip>
+            <Chip onRemove={() => {}}>С крестиком</Chip>
+            <Chip disabled>Disabled</Chip>
+          </div>
+
+          {/* Skeleton */}
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Skeleton</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 320 }}>
+            <Skeleton height={16} borderRadius={4} />
+            <Skeleton height={16} width="60%" borderRadius={4} />
+            <Skeleton height={40} borderRadius={8} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <Skeleton width={40} height={40} borderRadius="50%" />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, justifyContent: "center" }}>
+                <Skeleton height={12} width="70%" borderRadius={4} />
+                <Skeleton height={12} width="40%" borderRadius={4} />
+              </div>
+            </div>
+          </div>
+        </section>
 
         <p
           style={{

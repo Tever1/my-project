@@ -1,10 +1,11 @@
 'use client';
 
-import { ReactNode, ButtonHTMLAttributes } from 'react';
+import { motion, type HTMLMotionProps } from 'framer-motion';
+import { ReactNode } from 'react';
 
-interface GlassButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface GlassButtonProps extends HTMLMotionProps<'button'> {
   children: ReactNode;
-  variant?: 'default' | 'primary' | 'danger';
+  variant?: 'default' | 'primary' | 'danger' | 'secondary' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -19,6 +20,8 @@ export function GlassButton({
     default: 'glass-button',
     primary: 'glass-button-primary',
     danger: 'glass-button-danger',
+    secondary: 'glass-button-secondary',
+    ghost: 'glass-button-ghost',
   };
 
   const sizeClasses = {
@@ -28,11 +31,13 @@ export function GlassButton({
   };
 
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: 0.96 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
       className={`${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
       {...props}
     >
       {children}
-    </button>
+    </motion.button>
   );
 }

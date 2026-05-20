@@ -7,12 +7,20 @@
 
 ## Активные таски
 
-### TASK-090: Fix logout auto-rejoin bug
+### TASK-104: GlassButton upgrade + GlassInput focus animation
 - **Статус:** ready
 - **Исполнитель:** Codex (manual by user)
-- **Запущено:** 2026-05-14
-- **Файлы (locked):** src/components/lobby/Lobby.tsx
-- **Task spec:** `codex-tasks/090-logout-no-auto-rejoin.md`
+- **Запущено:** 2026-05-19
+- **Файлы (locked):** src/components/ui/GlassButton.tsx, src/components/ui/GlassInput.tsx, src/app/globals.css
+- **Task spec:** `codex-tasks/104-glassbutton-glassinput-upgrade.md`
+- **Report:** _(ожидается)_
+
+### TASK-105: New UI components (PlayerAvatar, Badge, Chip, Skeleton)
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-19
+- **Файлы (locked):** src/components/ui/PlayerAvatar.tsx (new), src/components/ui/Badge.tsx (new), src/components/ui/Chip.tsx (new), src/components/ui/Skeleton.tsx (new), src/components/ui/index.ts (new), src/app/design-tokens/page.tsx, src/app/globals.css
+- **Task spec:** `codex-tasks/105-new-ui-components.md`
 - **Report:** _(ожидается)_
 
 ---
