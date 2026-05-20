@@ -353,7 +353,7 @@ export default function SpyGamePage() {
 
   // ── Render ──
   return (
-    <GameLayout title="Шпион" icon="🕵️‍♂️" onEnd={isHost ? endGame : undefined}>
+    <GameLayout title="Шпион" icon="🕵️‍♂️" onEnd={isHost ? endGame : undefined} phaseKey={s.phase}>
 
       {/* ── MODE SELECT + RULES ── */}
       {s.phase === 'modeSelect' && (

@@ -627,6 +627,7 @@ export default function QuizPage() {
       onEnd={isHost ? endGame : undefined}
       showScoreboard={!isSetup && gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
       backgroundUrl={backgroundUrl}
+      phaseKey={gameState.phase}
     >
       {/* ==================== SETUP: MODE (first step) ==================== */}
       {gameState.phase === 'setup-mode' && (

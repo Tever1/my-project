@@ -1,5 +1,6 @@
 'use client';
 
+import { motion, AnimatePresence } from 'framer-motion';
 import { ReactNode, useState } from 'react';
 import { useTranslation } from '@/lib/i18n';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -15,6 +16,7 @@ interface GameLayoutProps {
   onEnd?: () => void;
   showScoreboard?: boolean;
   backgroundUrl?: string;
+  phaseKey?: string;
 }
 
 export function GameLayout({
@@ -27,6 +29,7 @@ export function GameLayout({
   onEnd,
   showScoreboard = false,
   backgroundUrl,
+  phaseKey,
 }: GameLayoutProps) {
   const { t, locale } = useTranslation();
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
@@ -132,9 +135,18 @@ export function GameLayout({
 
       {/* Main content area — fills remaining viewport */}
       <div className="flex-1 w-[92%] max-w-screen-2xl mx-auto px-4 py-4 flex flex-col">
-        <div className="flex-1 flex flex-col justify-center">
-          {children}
-        </div>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={phaseKey ?? 'static'}
+            className="flex-1 flex flex-col justify-center"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* End game confirmation modal */}

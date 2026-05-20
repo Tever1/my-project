@@ -7,6 +7,22 @@
 
 ## Активные таски
 
+### TASK-108: Lobby — fix game start flow (emit game:select + game:start)
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-19
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/108-lobby-game-start-flow.md`
+- **Report:** _(ожидается)_
+
+### TASK-107: Phase F — game flow transitions via GameLayout phaseKey
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-19
+- **Файлы (locked):** src/components/games/GameLayout.tsx, src/app/game/[roomId]/spy/page.tsx, src/app/game/[roomId]/mafia/page.tsx, src/app/game/[roomId]/quiz/page.tsx, src/app/game/[roomId]/crocodile/page.tsx, src/app/game/[roomId]/alias/page.tsx, src/app/game/[roomId]/who-am-i/page.tsx, src/app/game/[roomId]/hundred-to-one/page.tsx, src/app/game/[roomId]/truth-or-dare/page.tsx
+- **Task spec:** `codex-tasks/107-phase-f-game-transitions.md`
+- **Report:** _(ожидается)_
+
 ### TASK-106: Lobby — use PlayerAvatar + Badge in AvatarPill and RoomMenu
 - **Статус:** ready
 - **Исполнитель:** Codex (manual by user)

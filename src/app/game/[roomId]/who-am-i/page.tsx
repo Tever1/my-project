@@ -666,6 +666,7 @@ export default function WhoAmIPage() {
       scores={gs.phase !== 'lobby' ? layoutScores : undefined}
       onEnd={isHost ? handleEndGame : undefined}
       showScoreboard={gs.phase === 'finished'}
+      phaseKey={gs.phase}
     >
       {(phaseRenderers[gs.phase] ?? renderLobby)()}
     </GameLayout>

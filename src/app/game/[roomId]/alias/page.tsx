@@ -582,6 +582,7 @@ export default function AliasPage() {
       scores={layoutScores}
       onEnd={isHost ? endGame : undefined}
       showScoreboard={gameState?.phase === 'finished'}
+      phaseKey={gameState?.phase ?? 'modeSelect'}
     >
       {/* ---- MODE SELECT ---- */}
       {(!gameState || gameState.phase === 'modeSelect') && (

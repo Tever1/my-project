@@ -592,7 +592,8 @@ export default function HundredToOnePage() {
       round={s.phase === 'playing' ? s.curQ + 1 : undefined}
       totalRounds={s.phase === 'playing' ? 4 : undefined}
       scores={scores} onEnd={(isHost || isGameHost) ? endGame : undefined}
-      showScoreboard={s.phase === 'playing' || s.phase === 'results'}>
+      showScoreboard={s.phase === 'playing' || s.phase === 'results'}
+      phaseKey={s.phase}>
 
       {/* ── TOPIC SELECT ── */}
       {s.phase === 'topicSelect' && (

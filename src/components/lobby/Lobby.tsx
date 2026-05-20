@@ -296,6 +296,13 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     return unsubscribe;
   }, [isRoomRoute, on, router]);
 
+  useEffect(() => {
+    return on('game:started', (payload: unknown) => {
+      const data = payload as { gameType: string; roomCode: string };
+      router.push(`/game/${data.roomCode}/${data.gameType}`);
+    });
+  }, [on, router]);
+
   const getPlayerPayload = useCallback(() => {
     if (!user?.id || !user.nickname) {
       toast.error("Войдите в профиль, чтобы создать или присоединиться к комнате");
@@ -409,8 +416,9 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
     if (!code) return;
 
-    router.push(`/lobby/${code}?game=${activeGame}`);
-  }, [activeGame, createRoom, isCurrentUserHost, roomCode, router]);
+    emit('game:select', { code, gameType: activeGame });
+    emit('game:start', { code });
+  }, [activeGame, createRoom, emit, isCurrentUserHost, roomCode]);
 
   const handleKick = useCallback((playerId: string) => {
     if (!roomCode) return;

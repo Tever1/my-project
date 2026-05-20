@@ -1005,6 +1005,7 @@ export default function MafiaPage() {
       icon="🕵️"
       round={gs.round || undefined}
       onEnd={isHost ? handleEndGame : undefined}
+      phaseKey={gs.phase}
     >
       {(phaseRenderers[gs.phase] ?? renderLobby)()}
     </GameLayout>

@@ -385,6 +385,7 @@ export default function TruthOrDarePage() {
       scores={layoutScores}
       onEnd={isHost ? endGame : undefined}
       showScoreboard={gameState?.phase === 'finished'}
+      phaseKey={gameState?.phase ?? 'choosing'}
     >
       {/* ---- NOT STARTED ---- */}
       {!gameState && (

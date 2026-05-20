@@ -374,6 +374,7 @@ export default function CrocodilePage() {
       scores={layoutScores}
       onEnd={isHost ? endGame : undefined}
       showScoreboard={gameState?.phase === 'finished'}
+      phaseKey={gameState?.phase ?? 'waiting'}
     >
       {/* ---- WAITING / NOT STARTED ---- */}
       {(!gameState || gameState.phase === 'waiting') && (
