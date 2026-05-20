@@ -466,7 +466,7 @@ spring 400–600ms — должны выглядеть **дорого и пла�
 | **B** Liquid Glass | ✅ DONE | `<GlassPanel>` (5 вариантов) + `<GlassSheet>` (vaul) + `<GlassToaster>` (sonner) + depth/blur/shadow токены |
 | **C** Icon pipeline | ✅ DONE (icons) | Все 7 PNG-иконок сгенерированы и обработаны через `npm run strip-bg` (flood-fill от углов, RGBA): mafia, quiz, crocodile, spy, alias, who-am-i, hundred-to-one. Стиль — frosted matte 3D glass в цвете игры, прозрачный фон. |
 | **D** PS5 Lobby | 🟡 IN PROGRESS | `/lobby-preview` визуально готов, socket.io подключён (TASK-020/021): `room:create`, `room:join`, presence, Enter-join, popup-меню комнаты с QR. **Осталось:** keyboard nav, перенос в production `/lobby/[roomId]`. **TODO: TiltedPreview справа сейчас показывает те же иконки что и в нижнем tile-strip — заменить на реальные in-game скриншоты после финализации UI игр.** |
-| **E** Core components | ⏳ TODO | Buttons / inputs / modals / avatars / badges / skeletons |
+| **E** Core components | ✅ DONE | GlassButton (press-spring, secondary/ghost), GlassInput (focus ring), PlayerAvatar, Badge, Chip, Skeleton. Barrel `ui/index.ts`. Встроено в лобби (TASK-104/105/106, коммиты `a2ac210`, `3f222ce`). |
 | **F** Game flow transitions | ⏳ TODO | setup → playing → results unified transitions |
 | **G** In-game polish | ⏳ TODO | Таймеры, очки, celebrations, attention-grabbers |
 | **H** TV mode glow-up | ⏳ TODO | Большой шрифт, эффектные phase wipes, host visual |
