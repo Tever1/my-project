@@ -3,6 +3,7 @@
 interface PlayerAvatarProps {
   nickname: string;
   size?: 'xs' | 'sm' | 'md' | 'lg';
+  away?: boolean;
   className?: string;
 }
 
@@ -25,6 +26,7 @@ const SIZES = {
 export function PlayerAvatar({
   nickname,
   size = 'md',
+  away = false,
   className = '',
 }: PlayerAvatarProps) {
   const trimmedNickname = nickname.trim();
@@ -49,6 +51,9 @@ export function PlayerAvatar({
         fontWeight: 700,
         lineHeight: 1,
         flexShrink: 0,
+        filter: away ? 'grayscale(1)' : undefined,
+        opacity: away ? 0.5 : 1,
+        transition: 'filter 200ms ease, opacity 200ms ease',
       }}
     >
       {initial}

@@ -7,6 +7,22 @@
 
 ## Активные таски
 
+### TASK-110: Away state — visibility-based away/back + grayscale avatar
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-19
+- **Файлы (locked):** src/server/socket-handlers.mts, src/lib/use-socket.ts, src/components/ui/PlayerAvatar.tsx, src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/110-away-state-visibility.md`
+- **Report:** _(ожидается)_
+
+### TASK-109: Lobby — emit room:leave when on `/` (cleanup stale membership)
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-19
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/109-leave-room-on-home.md`
+- **Report:** _(ожидается)_
+
 ### TASK-108: Lobby — fix game start flow (emit game:select + game:start)
 - **Статус:** ready
 - **Исполнитель:** Codex (manual by user)

@@ -33,6 +33,23 @@ export function useSocket() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const onVisibilityChange = () => {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected) return;
+      if (document.hidden) {
+        socket.emit('player:away');
+      } else {
+        socket.emit('player:back');
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
+
   const emit = useCallback((event: string, data?: unknown, callback?: (response: unknown) => void): boolean => {
     const socket = socketRef.current;
     if (!socket || !socket.connected) return false;

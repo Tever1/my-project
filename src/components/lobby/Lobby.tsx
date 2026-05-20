@@ -57,6 +57,7 @@ interface RoomPlayer {
   nickname: string;
   isHost: boolean;
   isConnected: boolean;
+  isAway: boolean;
 }
 
 interface RoomState {
@@ -268,6 +269,11 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       }
     });
   }, [emit, initialCode, isConnected, router, user]);
+
+  useEffect(() => {
+    if (isRoomRoute || !isConnected) return;
+    emit('room:leave', {});
+  }, [isRoomRoute, isConnected, emit]);
 
   useEffect(() => {
     const unsubscribe = on('room:kicked', () => {
@@ -2185,7 +2191,11 @@ const RoomMenu = forwardRef<HTMLDivElement, {
                     cursor: canManagePlayer ? "pointer" : "default",
                   }}
                 >
-                  <PlayerAvatar nickname={player.nickname} size="xs" />
+                  <PlayerAvatar
+                    nickname={player.nickname}
+                    size="xs"
+                    away={!player.isConnected || player.isAway}
+                  />
                   <span>{player.nickname}</span>
                   {isHost && (
                     <Badge variant="game" gameColor={accent}>хост</Badge>

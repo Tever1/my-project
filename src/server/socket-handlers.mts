@@ -7,6 +7,7 @@ interface Player {
   nickname: string;
   isHost: boolean;
   isConnected: boolean;
+  isAway: boolean;
   team?: string;
 }
 
@@ -39,6 +40,7 @@ const presenceSubscribers = new Set<string>();
       nickname: p.nickname,
       isHost: p.isHost,
       isConnected: p.isConnected,
+      isAway: p.isAway,
     })),
     createdAt: room.createdAt,
   }));
@@ -116,6 +118,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         nickname: data.nickname,
         isHost: true,
         isConnected: true,
+        isAway: false,
       };
 
       room.players.set(data.playerId, player);
@@ -150,6 +153,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       if (existingPlayer) {
         existingPlayer.socketId = socket.id;
         existingPlayer.isConnected = true;
+        existingPlayer.isAway = false;
       } else {
         const player: Player = {
           id: data.playerId,
@@ -157,6 +161,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           nickname: data.nickname,
           isHost: false,
           isConnected: true,
+          isAway: false,
         };
         room.players.set(data.playerId, player);
       }
@@ -299,6 +304,38 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Leave room
     socket.on('room:leave', () => {
       handleDisconnect(io, socket, true);
+    });
+
+    socket.on('player:away', () => {
+      const roomCode = playerRooms.get(socket.id);
+      if (!roomCode) return;
+      const room = getRoomByCode(roomCode);
+      if (!room) return;
+      for (const player of room.players.values()) {
+        if (player.socketId === socket.id) {
+          if (!player.isAway) {
+            player.isAway = true;
+            broadcastRoomState(io, room);
+          }
+          return;
+        }
+      }
+    });
+
+    socket.on('player:back', () => {
+      const roomCode = playerRooms.get(socket.id);
+      if (!roomCode) return;
+      const room = getRoomByCode(roomCode);
+      if (!room) return;
+      for (const player of room.players.values()) {
+        if (player.socketId === socket.id) {
+          if (player.isAway) {
+            player.isAway = false;
+            broadcastRoomState(io, room);
+          }
+          return;
+        }
+      }
     });
 
     // Disconnect
