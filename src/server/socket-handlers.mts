@@ -332,7 +332,6 @@ export function setupSocketHandlers(io: SocketIOServer) {
         if (player.socketId === socket.id) {
           if (!player.isAway) {
             player.isAway = true;
-            console.log(`[Socket] player:away nickname=${player.nickname}`);
             broadcastRoomState(io, room);
           }
           return;
@@ -349,7 +348,6 @@ export function setupSocketHandlers(io: SocketIOServer) {
         if (player.socketId === socket.id) {
           if (player.isAway) {
             player.isAway = false;
-            console.log(`[Socket] player:back nickname=${player.nickname}`);
             broadcastRoomState(io, room);
           }
           return;
@@ -386,7 +384,6 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
   for (const [playerId, player] of room.players.entries()) {
     if (player.socketId === socket.id) {
       player.isConnected = false;
-      console.log(`[Socket] disconnect nickname=${player.nickname} explicit=${explicit}`);
 
       // If host disconnects, assign new host
       if (player.isHost && room.players.size > 1) {
