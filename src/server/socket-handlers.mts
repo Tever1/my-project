@@ -23,6 +23,7 @@ interface Room {
   gameState: Record<string, unknown> | null;
   tvSocketId: string | null;
   createdAt: number;
+  kickedPlayerIds: Set<string>;
 }
 
 const rooms = new Map<string, Room>();
@@ -111,6 +112,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         gameState: null,
         tvSocketId: null,
         createdAt: Date.now(),
+        kickedPlayerIds: new Set<string>(),
       };
 
       const player: Player = {
@@ -132,11 +134,21 @@ export function setupSocketHandlers(io: SocketIOServer) {
     });
 
     // Join room
-    socket.on('room:join', (data: { code: string; playerId: string; nickname: string }, callback) => {
+    socket.on('room:join', (data: { code: string; playerId: string; nickname: string; isReconnect?: boolean }, callback) => {
       const room = getRoomByCode(data.code.toUpperCase());
       if (!room) {
         callback({ success: false, error: 'Room not found' });
         return;
+      }
+
+      // Kicked-list check: auto-reconnect for a previously kicked player must fail.
+      // Manual join (isReconnect=false) clears the kicked flag and proceeds normally.
+      if (room.kickedPlayerIds.has(data.playerId)) {
+        if (data.isReconnect) {
+          callback({ success: false, error: 'Player was removed due to inactivity' });
+          return;
+        }
+        room.kickedPlayerIds.delete(data.playerId);
       }
 
       const existingPlayer = room.players.get(data.playerId);
@@ -409,6 +421,9 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
       // Unexpected disconnect with other players present keeps the reconnect grace period.
       player.reconnectTimer = setTimeout(() => {
         if (!player.isConnected) {
+          // Mark as kicked so auto-reconnect (isReconnect=true) is refused.
+          // Manual re-join via code input/QR clears this flag.
+          room.kickedPlayerIds.add(playerId);
           room.players.delete(playerId);
           if (room.players.size === 0) {
             rooms.delete(roomCode);

@@ -261,7 +261,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   useEffect(() => {
     const code = initialCode || roomCode;
     if (!code || !user || !user.nickname || !isConnected) return;
-    emit('room:join', { code, playerId: user.id, nickname: user.nickname }, (res: unknown) => {
+    emit('room:join', { code, playerId: user.id, nickname: user.nickname, isReconnect: true }, (res: unknown) => {
       const response = res as { success: boolean };
       if (!response.success) {
         setRoomCode(null);
@@ -396,7 +396,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       toast.error("Сервер не отвечает. Попробуйте ещё раз");
     }, 5000);
 
-    const sent = emit('room:join', { code, ...player }, (response: unknown) => {
+    const sent = emit('room:join', { code, ...player, isReconnect: false }, (response: unknown) => {
       clearTimeout(timeout);
       setIsJoiningRoom(false);
       const res = response as RoomJoinResponse;
