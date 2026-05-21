@@ -9,6 +9,7 @@ interface Player {
   isConnected: boolean;
   isAway: boolean;
   team?: string;
+  reconnectTimer?: ReturnType<typeof setTimeout>;
 }
 
 interface Room {
@@ -151,6 +152,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
 
       if (existingPlayer) {
+        if (existingPlayer.reconnectTimer) {
+          clearTimeout(existingPlayer.reconnectTimer);
+          existingPlayer.reconnectTimer = undefined;
+        }
         existingPlayer.socketId = socket.id;
         existingPlayer.isConnected = true;
         existingPlayer.isAway = false;
@@ -397,8 +402,12 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
       // Broadcast immediately so other clients see the grayscale avatar.
       broadcastRoomState(io, room);
 
+      // Cancel any existing grace-period timer before starting a new one.
+      // Mobile may disconnect/reconnect multiple times; only the latest timer counts.
+      if (player.reconnectTimer) clearTimeout(player.reconnectTimer);
+
       // Unexpected disconnect with other players present keeps the reconnect grace period.
-      setTimeout(() => {
+      player.reconnectTimer = setTimeout(() => {
         if (!player.isConnected) {
           room.players.delete(playerId);
           if (room.players.size === 0) {

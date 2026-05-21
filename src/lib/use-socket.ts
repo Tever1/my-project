@@ -19,7 +19,12 @@ export function useSocket() {
       setIsConnected(socket.connected);
     });
 
-    const onConnect = () => setIsConnected(true);
+    const onConnect = () => {
+      setIsConnected(true);
+      if (typeof document !== 'undefined' && !document.hidden) {
+        socket.emit('player:back');
+      }
+    };
     const onDisconnect = () => setIsConnected(false);
 
     socket.on('connect', onConnect);
