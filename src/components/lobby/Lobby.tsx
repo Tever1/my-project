@@ -270,10 +270,13 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     });
   }, [emit, initialCode, isConnected, router, user]);
 
+  // Only emit room:leave when navigating away from a room route,
+  // NOT on socket reconnect (isConnected changes must not trigger this).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isRoomRoute || !isConnected) return;
     emit('room:leave', {});
-  }, [isRoomRoute, isConnected, emit]);
+  }, [isRoomRoute, emit]);
 
   useEffect(() => {
     const unsubscribe = on('room:kicked', () => {
@@ -1930,7 +1933,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
     : typeof window !== "undefined" ? window.location.origin : "";
   const joinUrl = roomCode ? `${origin}/lobby/${roomCode}` : "";
   const connectedPlayers = (roomState?.players ?? []).filter(
-    (p) => p.isConnected !== false && p.nickname
+    (p) => p.nickname
   );
   const isCurrentUserHost = currentUserId !== "" && currentUserId === roomState?.hostId;
   const handleClose = () => {

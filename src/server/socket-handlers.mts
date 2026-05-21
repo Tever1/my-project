@@ -315,6 +315,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         if (player.socketId === socket.id) {
           if (!player.isAway) {
             player.isAway = true;
+            console.log(`[Socket] player:away nickname=${player.nickname}`);
             broadcastRoomState(io, room);
           }
           return;
@@ -331,6 +332,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         if (player.socketId === socket.id) {
           if (player.isAway) {
             player.isAway = false;
+            console.log(`[Socket] player:back nickname=${player.nickname}`);
             broadcastRoomState(io, room);
           }
           return;
@@ -367,6 +369,7 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
   for (const [playerId, player] of room.players.entries()) {
     if (player.socketId === socket.id) {
       player.isConnected = false;
+      console.log(`[Socket] disconnect nickname=${player.nickname} explicit=${explicit}`);
 
       // If host disconnects, assign new host
       if (player.isHost && room.players.size > 1) {
@@ -380,7 +383,7 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
         }
       }
 
-      if (explicit || room.players.size === 1) {
+      if (explicit) {
         room.players.delete(playerId);
         playerRooms.delete(socket.id);
         if (room.players.size === 0) {
@@ -390,6 +393,9 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
         broadcastRoomState(io, room);
         return;
       }
+
+      // Broadcast immediately so other clients see the grayscale avatar.
+      broadcastRoomState(io, room);
 
       // Unexpected disconnect with other players present keeps the reconnect grace period.
       setTimeout(() => {
@@ -401,7 +407,7 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
             broadcastRoomState(io, room);
           }
         }
-      }, 30000);
+      }, 300000); // 5 min grace — mobile browsers kill WS when backgrounded
 
       break;
     }
