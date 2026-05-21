@@ -273,12 +273,12 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
   // Only emit room:leave when navigating away from a room route,
   // NOT on socket reconnect (isConnected changes must not trigger this).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isRoomRoute || !isConnected) return;
     emit('room:leave', {});
     setRoomCode(null);
     setRoomState(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRoomRoute, emit]);
 
   useEffect(() => {
