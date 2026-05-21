@@ -259,16 +259,17 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   }, [emit, isConnected, roomCode]);
 
   useEffect(() => {
-    if (!initialCode || !user || !user.nickname || !isConnected) return;
-    emit('room:join', { code: initialCode, playerId: user.id, nickname: user.nickname }, (res: unknown) => {
+    const code = initialCode || roomCode;
+    if (!code || !user || !user.nickname || !isConnected) return;
+    emit('room:join', { code, playerId: user.id, nickname: user.nickname }, (res: unknown) => {
       const response = res as { success: boolean };
       if (!response.success) {
         setRoomCode(null);
         setRoomState(null);
-        router.push('/');
+        if (isRoomRoute) router.push('/');
       }
     });
-  }, [emit, initialCode, isConnected, router, user]);
+  }, [emit, initialCode, roomCode, isConnected, isRoomRoute, router, user]);
 
   // Only emit room:leave when navigating away from a room route,
   // NOT on socket reconnect (isConnected changes must not trigger this).
@@ -276,6 +277,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   useEffect(() => {
     if (isRoomRoute || !isConnected) return;
     emit('room:leave', {});
+    setRoomCode(null);
+    setRoomState(null);
   }, [isRoomRoute, emit]);
 
   useEffect(() => {
@@ -700,6 +703,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
                 ? "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)"
                 : "transform 0.22s cubic-bezier(0.4, 0, 1, 1)",
               willChange: "transform",
+              pointerEvents: roomMenuOpen ? "auto" : "none",
             }}
           >
             <RoomMenu
