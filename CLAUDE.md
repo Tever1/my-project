@@ -297,6 +297,59 @@ script просто возьмёт её как есть и обернёт в с�
       - `src/app/tv/[roomId]/[gameType]/page.tsx`: TV crocodile теперь показывает
         и `wordsGuessed` и `wordsSkipped`.
 
+- [x] **Мобильный реконнект — серия TASK-111…119** (сессия 2026-05-20,
+      коммиты `6e69d54` → `95bcf40`, всё запушено):
+      - **Проблема:** при сворачивании браузера / блокировке телефона игроки
+        пропадали из комнаты через 20-30с (мобильный OS убивает WebSocket за
+        ~5-30с в фоне). На реконнекте — silent rejoin даже если был кикнут.
+      - **Целевая UX:**
+        - Свернул → аватар сразу серый, игрок в комнате.
+        - Вернулся в течение 5 минут → аватар цветной.
+        - 5 минут не вернулся → удалён навсегда, на главное меню без
+          авто-возврата. Ручной повторный ввод кода — работает.
+      - **Серверная архитектура** (`src/server/socket-handlers.mts`):
+        - `Player.reconnectTimer?: ReturnType<typeof setTimeout>` — один
+          таймер на игрока. Мобильный делает несколько disconnect/reconnect
+          циклов в фоне; `clearTimeout(player.reconnectTimer)` перед новым +
+          в `room:join` на reconnect. Без этого первый таймер срабатывал
+          раньше срока (~4 мин вместо 5).
+        - `Room.kickedPlayerIds: Set<string>` — playerIds удалённые grace
+          timer-ом. На room:join: если `isReconnect=true` и в kicked-list →
+          reject (`{ success: false, error: 'Player was removed due to
+          inactivity' }`). Если `isReconnect=false` (ручной join) → clear
+          из kicked-list и нормальный join. Memory очищается с самой
+          комнатой (`rooms.delete(roomCode)`).
+        - Grace period: `300000` (5 мин) вместо прежних 30с.
+        - Убран `|| room.players.size === 1` из immediate-delete пути —
+          одиночный игрок тоже идёт через grace period.
+        - `broadcastRoomState` сразу после `isConnected = false` в grace
+          path — чтобы другие клиенты видели серый аватар немедленно, а
+          не через 5 минут.
+      - **Клиентская архитектура** (`src/lib/use-socket.ts`,
+        `src/components/lobby/Lobby.tsx`):
+        - `useSocket().onConnect` дополнительно emit'ит `player:back` если
+          `!document.hidden` — на случай когда сокет умер пока был в фоне.
+        - Page Visibility API → `player:away` / `player:back` (живой сокет).
+        - Auto-reconnect useEffect использует `initialCode || roomCode` —
+          работает для обоих сценариев входа (URL `/lobby/CODE` и код-инпут
+          на `/`). Передаёт `isReconnect: true`.
+        - `handleJoinRoom` (ручной join) передаёт `isReconnect: false`.
+        - room:leave effect: убран `isConnected` из deps (иначе срабатывал
+          на каждый socket reconnect, удаляя игрока навсегда). Также чистит
+          `roomCode` / `roomState` после leave чтобы не было stale state.
+        - `connectedPlayers` фильтр (Lobby.tsx:1935) больше **не режет** по
+          `isConnected !== false`. Disconnected игроки остаются в списке как
+          серые (`away={!player.isConnected || player.isAway}`).
+        - Mobile bottom-sheet (zIndex 41) получил
+          `pointerEvents: roomMenuOpen ? "auto" : "none"` — иначе закрытое
+          меню перехватывало тапы на топ-баре в iOS Safari.
+      - **9 коммитов:** `6e69d54` (TASK-111+112+113+114), `6638224` (TASK-115),
+        `5a82bb2` (TASK-116), `33f5652` (TASK-117), `09fba1d` (TASK-118
+        cleanup debug-логов), `95bcf40` (TASK-119 eslint-disable placement).
+      - **QA:** подтверждено пользователем на реальном мобильном — все 4
+        сценария работают (свернуть/вернуться/5мин-вылет/после-вылета нет
+        авто-возврата).
+
 ### В работе
 
 1. ✅ Крокодил и Alias letter mode переписаны.
