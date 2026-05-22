@@ -8,6 +8,7 @@ import { useSocket } from '@/lib/use-socket';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
+import { UrgencyTimer, AnimatedScore, BreathingPlaceholder } from '@/components/ingame';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
 import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getSpecialQuizzesByTheme } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
@@ -235,6 +236,11 @@ export default function QuizPage() {
         const next = prev.timeLeft - 1;
         if (next <= 0) {
           if (timerRef.current) clearInterval(timerRef.current);
+          emit('game:action', {
+            code: roomId,
+            action: 'quiz:timer',
+            payload: { timeLeft: 0 },
+          });
           return { ...prev, timeLeft: 0 };
         }
         emit('game:action', {
@@ -684,9 +690,10 @@ export default function QuizPage() {
               </button>
             </div>
           ) : (
-            <p className="text-white/40 italic">
-              {locale === 'ru' ? 'Ведущий выбирает тип квиза...' : 'Host is choosing quiz type...'}
-            </p>
+            <BreathingPlaceholder
+              text={locale === 'ru' ? 'Ведущий выбирает тип квиза...' : 'Host is choosing quiz type...'}
+              variant="breathing-text"
+            />
           )}
 
           <p className="text-white/30 text-sm mt-6">
@@ -740,9 +747,10 @@ export default function QuizPage() {
               ))}
             </div>
           ) : (
-            <p className="text-white/40 italic">
-              {locale === 'ru' ? 'Ведущий выбирает сложность...' : 'Host is choosing difficulty...'}
-            </p>
+            <BreathingPlaceholder
+              text={locale === 'ru' ? 'Ведущий выбирает сложность...' : 'Host is choosing difficulty...'}
+              variant="breathing-text"
+            />
           )}
         </div>
       )}
@@ -796,9 +804,10 @@ export default function QuizPage() {
               ))}
             </div>
           ) : (
-            <p className="text-white/70 italic">
-              {locale === 'ru' ? 'Ведущий выбирает тему...' : 'Host is choosing a theme...'}
-            </p>
+            <BreathingPlaceholder
+              text={locale === 'ru' ? 'Ведущий выбирает тему...' : 'Host is choosing a theme...'}
+              variant="breathing-text"
+            />
           )}
         </div>
       )}
@@ -842,9 +851,10 @@ export default function QuizPage() {
               ))}
             </div>
           ) : (
-            <p className="text-white/70 italic">
-              {locale === 'ru' ? 'Ведущий выбирает квиз...' : 'Host is choosing a quiz...'}
-            </p>
+            <BreathingPlaceholder
+              text={locale === 'ru' ? 'Ведущий выбирает квиз...' : 'Host is choosing a quiz...'}
+              variant="breathing-text"
+            />
           )}
         </div>
       )}
@@ -895,9 +905,10 @@ export default function QuizPage() {
               ))}
             </div>
           ) : (
-            <div className="text-white/40 italic">
-              <p>{locale === 'ru' ? 'Ведущий выбирает тему...' : 'Host is choosing topic...'}</p>
-            </div>
+            <BreathingPlaceholder
+              text={locale === 'ru' ? 'Ведущий выбирает тему...' : 'Host is choosing topic...'}
+              variant="breathing-text"
+            />
           )}
         </div>
       )}
@@ -949,9 +960,10 @@ export default function QuizPage() {
               {locale === 'ru' ? 'Начать игру' : 'Start Game'}
             </GlassButton>
           ) : (
-            <p className="text-white/40 italic text-xl">
-              {locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
-            </p>
+            <BreathingPlaceholder
+              text={locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
+              variant="breathing-text"
+            />
           )}
         </div>
       )}
@@ -972,25 +984,19 @@ export default function QuizPage() {
 
       {/* ==================== QUESTION ==================== */}
       {gameState.phase === 'question' && currentQuestion && (
-        <div className="max-w-5xl mx-auto w-full">
-          {/* Timer bar */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-white/40">
-                {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}/{gameState.totalQuestions}
-              </span>
-              <span className={`text-lg font-bold ${gameState.timeLeft <= 5 ? 'text-red-400' : 'text-white/70'}`}>
-                {gameState.timeLeft}s
-              </span>
-            </div>
-            <div className="w-full h-3 rounded-full bg-white/10 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-                  gameState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
-                }`}
-                style={{ width: `${(gameState.timeLeft / timePerQuestion) * 100}%` }}
-              />
-            </div>
+        <div className="max-w-5xl mx-auto w-full relative">
+          {/* Timer */}
+          <div className="mb-6 flex items-center justify-between">
+            <span className="text-sm text-white/40">
+              {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}/{gameState.totalQuestions}
+            </span>
+            <UrgencyTimer
+              total={timePerQuestion}
+              current={gameState.timeLeft}
+              variant="ring"
+              color="var(--color-game-quiz)"
+              size="sm"
+            />
           </div>
 
           {/* Question card */}
@@ -1126,7 +1132,7 @@ export default function QuizPage() {
                   </span>
                   <span className="text-white font-semibold text-lg">{entry.name}</span>
                 </div>
-                <span className="text-purple-400 font-bold text-xl">{entry.score}</span>
+                <AnimatedScore value={entry.score} variant="pop" size="sm" color="#a855f7" />
               </div>
             ))}
           </div>
@@ -1137,9 +1143,10 @@ export default function QuizPage() {
             </GlassButton>
           )}
           {!isHost && (
-            <p className="text-white/40 italic">
-              {locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
-            </p>
+            <BreathingPlaceholder
+              text={locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
+              variant="breathing-text"
+            />
           )}
         </div>
       )}
@@ -1179,7 +1186,7 @@ export default function QuizPage() {
                   </span>
                   <span className="text-white font-semibold text-lg">{entry.name}</span>
                 </div>
-                <span className="text-purple-400 font-bold text-xl">{entry.score}</span>
+                <AnimatedScore value={entry.score} variant="pop" size="sm" color="#a855f7" />
               </div>
             ))}
           </div>

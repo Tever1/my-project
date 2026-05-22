@@ -58,6 +58,16 @@ const springEntries: { name: keyof typeof spring; label: string }[] = [
   { name: "stiff", label: "жёсткий (500/35) — мгновенный" },
 ];
 
+const QUIZ_ACCENT = "#facc15";
+const QUIZ_ANSWERS = ["Юпитер", "Сатурн", "Нептун", "Марс"];
+const QUIZ_OPTION_LABELS = ["A", "B", "C", "D"];
+const OPTION_COLORS_A = [
+  "from-blue-600/60 to-blue-500/40 border-blue-400/60",
+  "from-emerald-600/60 to-emerald-500/40 border-emerald-400/60",
+  "from-amber-600/60 to-amber-500/40 border-amber-400/60",
+  "from-pink-600/60 to-pink-500/40 border-pink-400/60",
+];
+
 export default function DesignTokensPage() {
   // Force-dark for this page
   useEffect(() => {
@@ -69,6 +79,34 @@ export default function DesignTokensPage() {
   const [activeGame, setActiveGame] = useState<GameId>("mafia");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sideSheetOpen, setSideSheetOpen] = useState(false);
+  const [quizShowCorrect, setQuizShowCorrect] = useState(false);
+  const [quizSelectedAnswer, setQuizSelectedAnswer] = useState<number | null>(1);
+  const [countVal, setCountVal] = useState(3);
+  const [isCountRunning, setIsCountRunning] = useState(false);
+  const [revealState, setRevealState] = useState<"idle" | "correct" | "wrong">("idle");
+  const [answeredCount, setAnsweredCount] = useState(0);
+
+  useEffect(() => {
+    if (!isCountRunning) return;
+
+    const interval = window.setInterval(() => {
+      setCountVal((value) => {
+        if (value <= 1) {
+          window.clearInterval(interval);
+          setIsCountRunning(false);
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 800);
+
+    return () => window.clearInterval(interval);
+  }, [isCountRunning]);
+
+  function startQuizCountdown() {
+    setCountVal(3);
+    setIsCountRunning(true);
+  }
 
   return (
     <main
@@ -682,6 +720,111 @@ export default function DesignTokensPage() {
           </div>
         </section>
 
+        <Section title="Quiz Design Variants" subtitle="Выбор дизайна для компонентов квиза">
+          <QuizSubsection title="Кнопки ответов">
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+              <DemoButton
+                accent={QUIZ_ACCENT}
+                onClick={() => {
+                  setQuizShowCorrect((value) => !value);
+                  setQuizSelectedAnswer((value) => value ?? 1);
+                }}
+              >
+                {quizShowCorrect ? "Сбросить" : "Показать правильный"}
+              </DemoButton>
+              <DemoButton accent={QUIZ_ACCENT} onClick={() => setQuizSelectedAnswer(null)}>
+                Очистить выбор
+              </DemoButton>
+            </div>
+            <QuizVariantGrid>
+              <QuizVariantCard label="ВАРИАНТ A">
+                <QuizQuestionPreview />
+                <AnswerVariantA
+                  selectedAnswer={quizSelectedAnswer}
+                  showCorrect={quizShowCorrect}
+                  onSelect={setQuizSelectedAnswer}
+                />
+              </QuizVariantCard>
+              <QuizVariantCard label="ВАРИАНТ B">
+                <QuizQuestionPreview />
+                <AnswerVariantB
+                  selectedAnswer={quizSelectedAnswer}
+                  showCorrect={quizShowCorrect}
+                  onSelect={setQuizSelectedAnswer}
+                />
+              </QuizVariantCard>
+              <QuizVariantCard label="ВАРИАНТ C">
+                <QuizQuestionPreview />
+                <AnswerVariantC
+                  selectedAnswer={quizSelectedAnswer}
+                  showCorrect={quizShowCorrect}
+                  onSelect={setQuizSelectedAnswer}
+                />
+              </QuizVariantCard>
+            </QuizVariantGrid>
+          </QuizSubsection>
+
+          <QuizSubsection title="Отсчёт 3-2-1">
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}>
+              <DemoButton accent={QUIZ_ACCENT} onClick={startQuizCountdown}>
+                Запустить
+              </DemoButton>
+            </div>
+            <QuizVariantGrid>
+              <QuizVariantCard label="ВАРИАНТ A">
+                <CountdownBaseline countVal={countVal} />
+              </QuizVariantCard>
+              <QuizVariantCard label="ВАРИАНТ B">
+                <CountdownGlow countVal={countVal} />
+              </QuizVariantCard>
+              <QuizVariantCard label="ВАРИАНТ C">
+                <CountdownRing countVal={countVal} />
+              </QuizVariantCard>
+            </QuizVariantGrid>
+          </QuizSubsection>
+
+          <QuizSubsection title="Reveal правильного ответа">
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+              <DemoButton accent="#22c55e" onClick={() => setRevealState("correct")}>
+                Правильно
+              </DemoButton>
+              <DemoButton accent="#ef4444" onClick={() => setRevealState("wrong")}>
+                Неправильно
+              </DemoButton>
+              <DemoButton accent={QUIZ_ACCENT} onClick={() => setRevealState("idle")}>
+                Сбросить
+              </DemoButton>
+            </div>
+            <QuizVariantGrid>
+              <QuizVariantCard label="ВАРИАНТ A">
+                <RevealBaseline state={revealState} />
+              </QuizVariantCard>
+              <QuizVariantCard label="ВАРИАНТ B">
+                <RevealAnimated state={revealState} />
+              </QuizVariantCard>
+            </QuizVariantGrid>
+          </QuizSubsection>
+
+          <QuizSubsection title="Счётчик ответивших">
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+              <DemoButton accent={QUIZ_ACCENT} onClick={() => setAnsweredCount((value) => Math.min(5, value + 1))}>
+                +1 ответ
+              </DemoButton>
+              <DemoButton accent={QUIZ_ACCENT} onClick={() => setAnsweredCount(0)}>
+                Сбросить
+              </DemoButton>
+            </div>
+            <QuizVariantGrid>
+              <QuizVariantCard label="ВАРИАНТ A">
+                <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 18 }}>{answeredCount}/5</p>
+              </QuizVariantCard>
+              <QuizVariantCard label="ВАРИАНТ B">
+                <AnsweredAvatarPills answeredCount={answeredCount} />
+              </QuizVariantCard>
+            </QuizVariantGrid>
+          </QuizSubsection>
+        </Section>
+
         <p
           style={{
             textAlign: "center",
@@ -824,6 +967,444 @@ function TileNaked({ gameId, label }: { gameId: GameId; label: string }) {
       >
         {label}
       </div>
+    </div>
+  );
+}
+
+function QuizSubsection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 48 }}>
+      <h3
+        style={{
+          fontSize: 16,
+          fontWeight: 600,
+          color: "rgba(255,255,255,0.7)",
+          marginBottom: 16,
+        }}
+      >
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+function QuizVariantGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        gap: 16,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function QuizVariantCard({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div
+      className="bg-gray-900"
+      style={{
+        borderRadius: 16,
+        padding: 24,
+        border: "1px solid rgba(255,255,255,0.08)",
+        minHeight: 260,
+      }}
+    >
+      <p
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: "rgba(255,255,255,0.4)",
+          marginBottom: 16,
+          letterSpacing: "0.08em",
+        }}
+      >
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function QuizQuestionPreview() {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 6 }}>
+        Вопрос
+      </p>
+      <p style={{ fontSize: 17, fontWeight: 700, color: "white", lineHeight: 1.35 }}>
+        Какая планета самая большая в Солнечной системе?
+      </p>
+    </div>
+  );
+}
+
+function AnswerVariantA({
+  selectedAnswer,
+  showCorrect,
+  onSelect,
+}: {
+  selectedAnswer: number | null;
+  showCorrect: boolean;
+  onSelect: (value: number) => void;
+}) {
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {QUIZ_ANSWERS.map((answer, index) => {
+        const isSelected = selectedAnswer === index;
+        const isCorrect = index === 0;
+        const isWrongSelected = showCorrect && isSelected && !isCorrect;
+
+        return (
+          <button
+            key={answer}
+            onClick={() => onSelect(index)}
+            className={`rounded-2xl border p-4 text-left backdrop-blur-xl transition-all ${
+              showCorrect && isCorrect
+                ? "border-green-400 bg-green-500/40 ring-2 ring-green-400/50"
+                : isWrongSelected
+                  ? "border-red-400 bg-red-500/40 ring-2 ring-red-400/50"
+                  : `bg-gradient-to-br ${OPTION_COLORS_A[index]}`
+            }`}
+            style={{ color: "white", cursor: "pointer" }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "rgba(255,255,255,0.1)",
+                  color: "rgba(255,255,255,0.75)",
+                  fontWeight: 800,
+                }}
+              >
+                {QUIZ_OPTION_LABELS[index]}
+              </span>
+              <span style={{ fontWeight: 700 }}>{answer}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function AnswerVariantB({
+  selectedAnswer,
+  showCorrect,
+  onSelect,
+}: {
+  selectedAnswer: number | null;
+  showCorrect: boolean;
+  onSelect: (value: number) => void;
+}) {
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {QUIZ_ANSWERS.map((answer, index) => {
+        const isSelected = selectedAnswer === index;
+        const isCorrect = index === 0;
+        const isWrongSelected = showCorrect && isSelected && !isCorrect;
+        const isMuted = showCorrect && !isCorrect && !isWrongSelected;
+
+        return (
+          <motion.button
+            key={answer}
+            onClick={() => onSelect(index)}
+            whileHover={{ scale: 1.01 }}
+            animate={
+              showCorrect && isCorrect
+                ? { scale: [1, 1.03, 1], x: 0 }
+                : isWrongSelected
+                  ? { x: [-4, 4, -4, 0], scale: 1 }
+                  : { x: 0, scale: 1 }
+            }
+            transition={
+              showCorrect && (isCorrect || isWrongSelected)
+                ? { duration: 0.3, ease: easing.outBack }
+                : spring.snappy
+            }
+            style={{
+              padding: 16,
+              borderRadius: 16,
+              border: showCorrect && isCorrect
+                ? "1px solid rgba(74,222,128,0.9)"
+                : isWrongSelected
+                  ? "1px solid rgba(248,113,113,0.9)"
+                  : isSelected
+                    ? "1px solid rgba(250,204,21,0.6)"
+                    : "1px solid rgba(255,255,255,0.15)",
+              background: showCorrect && isCorrect
+                ? "rgba(34,197,94,0.2)"
+                : isWrongSelected
+                  ? "rgba(239,68,68,0.15)"
+                  : isSelected
+                    ? "rgba(234,179,8,0.15)"
+                    : "rgba(255,255,255,0.08)",
+              boxShadow: isSelected && !showCorrect ? "0 0 0 2px rgba(250,204,21,0.6)" : "none",
+              backdropFilter: "blur(16px)",
+              opacity: isMuted ? 0.5 : 1,
+              color: "white",
+              cursor: "pointer",
+              textAlign: "left",
+              fontFamily: "inherit",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  display: "grid",
+                  placeItems: "center",
+                  background: showCorrect && isCorrect ? "rgba(250,204,21,0.2)" : "rgba(255,255,255,0.1)",
+                  color: showCorrect && isCorrect ? "#fde047" : "rgba(255,255,255,0.7)",
+                  fontWeight: 800,
+                }}
+              >
+                {QUIZ_OPTION_LABELS[index]}
+              </span>
+              <span style={{ fontWeight: 700 }}>{answer}</span>
+            </span>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
+function AnswerVariantC({
+  selectedAnswer,
+  showCorrect,
+  onSelect,
+}: {
+  selectedAnswer: number | null;
+  showCorrect: boolean;
+  onSelect: (value: number) => void;
+}) {
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {QUIZ_ANSWERS.map((answer, index) => {
+        const isSelected = selectedAnswer === index;
+        const isCorrect = showCorrect && index === 0;
+        const isWrongSelected = showCorrect && isSelected && index !== 0;
+        const accent = isCorrect ? "#22c55e" : isWrongSelected ? "#ef4444" : isSelected ? QUIZ_ACCENT : "rgba(255,255,255,0.12)";
+
+        return (
+          <button
+            key={answer}
+            onClick={() => onSelect(index)}
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              padding: "15px 16px 15px 20px",
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: isCorrect
+                ? "rgba(34,197,94,0.1)"
+                : isWrongSelected
+                  ? "rgba(239,68,68,0.1)"
+                  : "rgba(255,255,255,0.05)",
+              color: "white",
+              cursor: "pointer",
+              textAlign: "left",
+              fontFamily: "inherit",
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 4,
+                borderRadius: 999,
+                background: accent,
+              }}
+            />
+            <span
+              style={{
+                width: 34,
+                fontSize: 26,
+                fontWeight: 900,
+                color: isCorrect ? "#4ade80" : isWrongSelected ? "#f87171" : "white",
+              }}
+            >
+              {index + 1}
+            </span>
+            <span style={{ fontWeight: 700 }}>{answer}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CountdownBaseline({ countVal }: { countVal: number }) {
+  return (
+    <div style={{ minHeight: 150, display: "grid", placeItems: "center" }}>
+      {countVal > 0 ? (
+        <div key={countVal} className="animate-bounce text-8xl font-black text-white">
+          {countVal}
+        </div>
+      ) : (
+        <span style={{ color: "rgba(255,255,255,0.35)" }}>Готово</span>
+      )}
+    </div>
+  );
+}
+
+function CountdownGlow({ countVal }: { countVal: number }) {
+  return (
+    <div style={{ minHeight: 150, display: "grid", placeItems: "center" }}>
+      <AnimatePresence mode="wait">
+        {countVal > 0 ? (
+          <motion.div
+            key={countVal}
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: [0.5, 1.2, 1], opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0, y: -20 }}
+            transition={{ duration: 0.4, ease: easing.outBack }}
+            style={{
+              fontSize: 120,
+              fontWeight: 900,
+              color: QUIZ_ACCENT,
+              textShadow: "0 0 40px rgba(250, 204, 21, 0.6), 0 0 80px rgba(250, 204, 21, 0.3)",
+              lineHeight: 1,
+            }}
+          >
+            {countVal}
+          </motion.div>
+        ) : (
+          <motion.span key="done" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ color: "rgba(255,255,255,0.35)" }}>
+            Готово
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function CountdownRing({ countVal }: { countVal: number }) {
+  return (
+    <div style={{ minHeight: 150, display: "grid", placeItems: "center" }}>
+      {countVal > 0 ? (
+        <div style={{ position: "relative", width: 140, height: 140, display: "grid", placeItems: "center" }}>
+          <svg width={140} height={140} className="-rotate-90">
+            <circle cx={70} cy={70} r={60} stroke="rgba(255,255,255,0.1)" strokeWidth={8} fill="none" />
+            <motion.circle
+              key={countVal}
+              cx={70}
+              cy={70}
+              r={60}
+              stroke={QUIZ_ACCENT}
+              strokeWidth={8}
+              fill="none"
+              strokeLinecap="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.75, ease: "linear" }}
+            />
+          </svg>
+          <span style={{ position: "absolute", fontSize: 64, fontWeight: 900, color: "white" }}>
+            {countVal}
+          </span>
+        </div>
+      ) : (
+        <span style={{ color: "rgba(255,255,255,0.35)" }}>Готово</span>
+      )}
+    </div>
+  );
+}
+
+function RevealBaseline({ state }: { state: "idle" | "correct" | "wrong" }) {
+  return (
+    <div
+      style={{
+        borderRadius: 18,
+        border: state === "correct" ? "1px solid #4ade80" : state === "wrong" ? "1px solid #f87171" : "1px solid rgba(255,255,255,0.15)",
+        background: state === "correct" ? "rgba(34,197,94,0.4)" : state === "wrong" ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.08)",
+        padding: 18,
+        color: "white",
+        fontWeight: 700,
+      }}
+    >
+      Юпитер
+    </div>
+  );
+}
+
+function RevealAnimated({ state }: { state: "idle" | "correct" | "wrong" }) {
+  return (
+    <motion.div
+      animate={state === "correct" ? { scale: [1, 1.04, 1], x: 0 } : state === "wrong" ? { x: [-6, 6, -6, 0], scale: 1 } : { x: 0, scale: 1 }}
+      transition={state === "idle" ? spring.snappy : { duration: 0.35, ease: easing.outBack }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        borderRadius: 18,
+        border: state === "correct" ? "1px solid #4ade80" : state === "wrong" ? "1px solid #f87171" : "1px solid rgba(255,255,255,0.15)",
+        background: state === "correct" ? "rgba(34,197,94,0.22)" : state === "wrong" ? "rgba(239,68,68,0.22)" : "rgba(255,255,255,0.08)",
+        padding: 18,
+        color: "white",
+        fontWeight: 700,
+      }}
+    >
+      <AnimatePresence mode="wait">
+        {state === "correct" ? (
+          <motion.svg key="check" width="24" height="24" viewBox="0 0 24 24" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+            <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </motion.svg>
+        ) : state === "wrong" ? (
+          <motion.span key="wrong" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} style={{ fontSize: 24, lineHeight: 1 }}>
+            ×
+          </motion.span>
+        ) : null}
+      </AnimatePresence>
+      Юпитер
+    </motion.div>
+  );
+}
+
+function AnsweredAvatarPills({ answeredCount }: { answeredCount: number }) {
+  return (
+    <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+      {[1, 2, 3, 4, 5].map((player) => {
+        const isAnswered = player <= answeredCount;
+        return (
+          <motion.div
+            key={`${player}-${isAnswered}`}
+            initial={isAnswered ? { scale: 0.85 } : false}
+            animate={isAnswered ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+            transition={isAnswered ? { duration: 0.28, ease: easing.outBack } : spring.snappy}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 999,
+              display: "grid",
+              placeItems: "center",
+              background: isAnswered ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.1)",
+              border: isAnswered ? "1px solid rgba(255,255,255,0.3)" : "1px solid rgba(255,255,255,0.15)",
+              color: isAnswered ? "white" : "rgba(255,255,255,0.45)",
+              fontSize: 13,
+              fontWeight: 800,
+            }}
+          >
+            П{player}
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
