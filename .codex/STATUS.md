@@ -55,12 +55,12 @@
 - **Task spec:** `codex-tasks/104-glassbutton-glassinput-upgrade.md`
 - **Report:** _(ожидается)_
 
-### TASK-105: New UI components (PlayerAvatar, Badge, Chip, Skeleton)
-- **Статус:** ready
-- **Исполнитель:** Codex (manual by user)
-- **Запущено:** 2026-05-19
-- **Файлы (locked):** src/components/ui/PlayerAvatar.tsx (new), src/components/ui/Badge.tsx (new), src/components/ui/Chip.tsx (new), src/components/ui/Skeleton.tsx (new), src/components/ui/index.ts (new), src/app/design-tokens/page.tsx, src/app/globals.css
-- **Task spec:** `codex-tasks/105-new-ui-components.md`
+### TASK-127: Game Backgrounds — секция в /design-tokens
+- **Статус:** in-progress
+- **Исполнитель:** Codex (auto by Claude)
+- **Запущено:** 2026-05-21
+- **Файлы (locked):** src/app/design-tokens/page.tsx
+- **Task spec:** `codex-tasks/127-bg-variants-design-tokens.md`
 - **Report:** _(ожидается)_
 
 ---

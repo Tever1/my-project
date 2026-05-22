@@ -67,6 +67,23 @@ const OPTION_COLORS_A = [
   "from-amber-600/60 to-amber-500/40 border-amber-400/60",
   "from-pink-600/60 to-pink-500/40 border-pink-400/60",
 ];
+const BACKGROUND_VARIANTS = [
+  {
+    label: "A",
+    background:
+      "radial-gradient(ellipse at 50% -10%, rgba(250,204,21,0.12) 0%, transparent 55%), linear-gradient(135deg, #0c0a15 0%, #1a1035 30%, #0f172a 60%, #0c0a15 100%)",
+  },
+  {
+    label: "B",
+    background:
+      "radial-gradient(ellipse at 50% 100%, rgba(255,255,255,0.03) 0%, transparent 60%), #08080f",
+  },
+  {
+    label: "C",
+    background: "#09090f",
+    noise: true,
+  },
+];
 
 export default function DesignTokensPage() {
   // Force-dark for this page
@@ -825,6 +842,30 @@ export default function DesignTokensPage() {
           </QuizSubsection>
         </Section>
 
+        <Section title="Game Backgrounds" subtitle="Варианты фона игровых экранов — выбор атмосферы">
+          <style>{`
+            .bg-noise::before {
+              content: '';
+              position: absolute;
+              inset: 0;
+              background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+              background-size: 200px 200px;
+              pointer-events: none;
+              z-index: 1;
+            }
+          `}</style>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+            {BACKGROUND_VARIANTS.map((variant) => (
+              <GameBackgroundPreview
+                key={variant.label}
+                label={variant.label}
+                background={variant.background}
+                noise={variant.noise}
+              />
+            ))}
+          </div>
+        </Section>
+
         <p
           style={{
             textAlign: "center",
@@ -1026,6 +1067,113 @@ function QuizVariantCard({ label, children }: { label: string; children: React.R
         {label}
       </p>
       {children}
+    </div>
+  );
+}
+
+function GameBackgroundPreview({
+  label,
+  background,
+  noise = false,
+}: {
+  label: string;
+  background: string;
+  noise?: boolean;
+}) {
+  const contentLayer = noise ? { position: "relative" as const, zIndex: 2 } : { position: "relative" as const };
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        aspectRatio: "2/3",
+        borderRadius: 20,
+        overflow: "hidden",
+        border: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      <div
+        className={noise ? "bg-noise" : undefined}
+        style={{
+          position: "absolute",
+          inset: 0,
+          background,
+        }}
+      />
+
+      <div
+        style={{
+          ...contentLayer,
+          padding: "16px 20px 12px",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <span style={{ color: "white", fontWeight: 700, fontSize: 16 }}>Квиз</span>
+        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>Раунд 3/10</span>
+      </div>
+
+      <div
+        style={{
+          ...contentLayer,
+          margin: "20px 16px 16px",
+          background: "rgba(255,255,255,0.06)",
+          borderRadius: 14,
+          padding: "16px 18px",
+          border: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
+        <p style={{ color: "white", fontWeight: 600, fontSize: 14, lineHeight: 1.5, margin: 0 }}>
+          Какая планета самая большая в Солнечной системе?
+        </p>
+      </div>
+
+      {QUIZ_ANSWERS.map((answer, index) => (
+        <div
+          key={answer}
+          style={{
+            ...contentLayer,
+            margin: "0 16px 8px",
+            background: "rgba(255,255,255,0.05)",
+            borderRadius: 12,
+            padding: "10px 14px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, width: 20 }}>
+            {index + 1}
+          </span>
+          <span style={{ color: "white", fontSize: 13, fontWeight: 500 }}>{answer}</span>
+        </div>
+      ))}
+
+      <div
+        style={{
+          position: "absolute",
+          bottom: 16,
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          ...(noise ? { zIndex: 2 } : {}),
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            color: "rgba(255,255,255,0.35)",
+          }}
+        >
+          ВАРИАНТ {label}
+        </span>
+      </div>
     </div>
   );
 }
