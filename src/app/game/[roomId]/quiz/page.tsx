@@ -80,7 +80,7 @@ export default function QuizPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { locale } = useTranslation();
   const { user } = useAuth();
-  const { emit, on } = useSocket();
+  const { emit, on, isConnected } = useSocket();
   const router = useRouter();
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
@@ -101,6 +101,22 @@ export default function QuizPage() {
   const totalPlayers = gameState.players.length;
   const answeredCount = Object.keys(gameState.answers).length;
   const allAnswered = totalPlayers > 0 && answeredCount >= totalPlayers;
+
+  // Auto-reconnect: re-join room channel on socket reconnect (e.g. page refresh mid-game)
+  useEffect(() => {
+    if (!user || !isConnected || !roomId) return;
+    emit(
+      'room:join',
+      { code: roomId, playerId: user.id, nickname: user.nickname, isReconnect: true },
+      (res: unknown) => {
+        const response = res as { success: boolean; error?: string };
+        if (!response.success) {
+          // Kicked (grace expired) or room gone — send to home
+          router.push('/');
+        }
+      }
+    );
+  }, [isConnected, emit, user, roomId, router]);
 
   useEffect(() => {
     isHostRef.current = isHost;
@@ -599,9 +615,12 @@ export default function QuizPage() {
 
   // ------- Derived data -------
 
-  const scoreboard = gameState.players
-    .map((p) => ({ name: p.nickname, score: gameState.scores[p.id] || 0 }))
-    .sort((a, b) => b.score - a.score);
+  const scoreboard = gameState.players.map((p) => ({
+    name: p.nickname,
+    score: gameState.scores[p.id] || 0,
+    hasAnswered: p.id in gameState.answers,
+    isCorrect: gameState.showCorrect && gameState.correctPlayers.includes(p.id),
+  }));
 
   const getPlayerName = (id: string) =>
     gameState.players.find((p) => p.id === id)?.nickname || id;
@@ -621,7 +640,7 @@ export default function QuizPage() {
     <GameLayout
       title={locale === 'ru' ? 'Квиз' : 'Quiz'}
       scores={scoreboard}
-      onEnd={isHost ? endGame : undefined}
+      onEnd={isHost ? confirmEndGame : undefined}
       showScoreboard={!isSetup && gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
       backgroundUrl={backgroundUrl}
       phaseKey={gameState.phase}
@@ -1046,7 +1065,7 @@ export default function QuizPage() {
                   key={index}
                   onClick={() => submitAnswer(index)}
                   disabled={isDisabled}
-                  className={`relative overflow-hidden rounded-xl border p-5 md:p-6 text-left backdrop-blur-xl transition-colors duration-200 ${bgClass}`}
+                  className={`relative overflow-hidden rounded-md border p-5 md:p-6 text-left backdrop-blur-xl transition-colors duration-200 ${bgClass}`}
                   variants={answerVariants}
                   animate={
                     isCorrectRevealed
@@ -1067,7 +1086,7 @@ export default function QuizPage() {
                 >
                   {/* Left accent strip */}
                   <div
-                    className="absolute left-0 top-3 bottom-3 w-1 rounded-full transition-colors duration-200"
+                    className="absolute left-0 inset-y-0 w-1.5 transition-colors duration-200"
                     style={{ backgroundColor: stripColor }}
                   />
 

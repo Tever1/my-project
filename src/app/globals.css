@@ -776,6 +776,15 @@ html.dark {
   overscroll-behavior: contain;
 }
 
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Lock body scroll when mobile lobby is mounted. The body class is toggled
    from Lobby.tsx via useEffect. */
 body.lobby-mobile-locked {

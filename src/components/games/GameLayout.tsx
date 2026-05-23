@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ReactNode, useState } from 'react';
 import { useTranslation } from '@/lib/i18n';
+import { PlayerAvatar } from '@/components/ui';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 
@@ -12,7 +13,12 @@ interface GameLayoutProps {
   icon?: string;
   round?: number;
   totalRounds?: number;
-  scores?: { name: string; score: number }[];
+  scores?: {
+    name: string;
+    score: number;
+    hasAnswered?: boolean;
+    isCorrect?: boolean;
+  }[];
   onEnd?: () => void;
   showScoreboard?: boolean;
   backgroundUrl?: string;
@@ -32,12 +38,7 @@ export function GameLayout({
   phaseKey,
 }: GameLayoutProps) {
   const { t, locale } = useTranslation();
-  const [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
-
-  const sortedScores = scores
-    ? [...scores].sort((a, b) => b.score - a.score)
-    : [];
 
   return (
     <div
@@ -60,35 +61,6 @@ export function GameLayout({
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Inline player scores in header */}
-            {showScoreboard && sortedScores.length > 0 && (
-              <>
-                {/* Desktop: show all players inline */}
-                <div className="hidden md:flex items-center gap-1.5">
-                  {sortedScores.map((entry, i) => (
-                    <div
-                      key={entry.name}
-                      className="flex items-center gap-1.5 glass-badge px-2.5 py-1 rounded-full text-xs"
-                    >
-                      <span className="w-4 text-center">
-                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
-                      </span>
-                      <span className="text-white/80 max-w-[80px] truncate">{entry.name}</span>
-                      <span className="text-white font-bold">{entry.score}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Mobile: toggle button */}
-                <button
-                  onClick={() => setScoreboardOpen(!scoreboardOpen)}
-                  className="md:hidden glass-button px-3 py-2 text-sm"
-                >
-                  🏆 {sortedScores.length}
-                </button>
-              </>
-            )}
-
             {onEnd && (
               <GlassButton variant="danger" size="sm" onClick={() => setEndConfirmOpen(true)}>
                 {t('game.end')}
@@ -96,42 +68,51 @@ export function GameLayout({
             )}
           </div>
         </div>
-      </header>
 
-      {/* Mobile scoreboard dropdown */}
-      {showScoreboard && scoreboardOpen && sortedScores.length > 0 && (
-        <div className="md:hidden fixed inset-0 z-40" onClick={() => setScoreboardOpen(false)}>
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <div
-            className="absolute top-16 right-4 w-72 z-50"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <GlassCard className="p-4">
-              <h3 className="text-base font-bold mb-3 flex items-center gap-2">
-                🏆 {t('game.scoreboard')}
-              </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {sortedScores.map((entry, i) => (
+        {showScoreboard && scores && scores.length > 0 && (
+          <div className="border-t border-white/10 px-4 py-2">
+            <div className="flex items-center gap-3 overflow-x-auto scrollbar-none">
+              <div className="flex-shrink-0 pr-3 border-r border-white/15">
+                <p className="text-[10px] uppercase tracking-widest text-white/40 leading-tight">
+                  {locale === 'ru' ? 'В ИГРЕ' : 'PLAYING'}
+                </p>
+                <p className="text-sm font-bold leading-tight">{scores.length}</p>
+              </div>
+
+              {scores.map((entry) => {
+                const isAnswered = entry.hasAnswered;
+                const isCorrect = entry.isCorrect;
+
+                return (
                   <div
                     key={entry.name}
-                    className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-white/5"
+                    className={`
+                      flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl
+                      border transition-colors duration-300
+                      ${isCorrect
+                        ? 'border-green-400/60 bg-green-500/10'
+                        : 'border-white/10 bg-white/5'}
+                    `}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm font-mono text-white/50 w-5 text-right flex-shrink-0">
-                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                      </span>
-                      <span className="text-sm truncate">{entry.name}</span>
+                    <PlayerAvatar nickname={entry.name} size="xs" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium truncate max-w-[72px] leading-tight">
+                        {entry.name}
+                      </p>
+                      <p className="text-[11px] font-bold text-green-400 leading-tight">
+                        {entry.score}
+                      </p>
                     </div>
-                    <span className="glass-badge text-xs ml-2 flex-shrink-0">
-                      {entry.score}
+                    <span className={`text-xs ml-1 ${isAnswered ? 'text-green-400' : 'text-white/30'}`}>
+                      {isAnswered ? '✓' : '…'}
                     </span>
                   </div>
-                ))}
-              </div>
-            </GlassCard>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </header>
 
       {/* Main content area — fills remaining viewport */}
       <div className="flex-1 w-[92%] max-w-screen-2xl mx-auto px-4 py-4 flex flex-col">

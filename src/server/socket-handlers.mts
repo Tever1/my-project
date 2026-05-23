@@ -385,18 +385,6 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
     if (player.socketId === socket.id) {
       player.isConnected = false;
 
-      // If host disconnects, assign new host
-      if (player.isHost && room.players.size > 1) {
-        player.isHost = false;
-        for (const [, p] of room.players.entries()) {
-          if (p.id !== playerId && p.isConnected) {
-            p.isHost = true;
-            room.hostId = p.id;
-            break;
-          }
-        }
-      }
-
       if (explicit) {
         room.players.delete(playerId);
         playerRooms.delete(socket.id);
@@ -418,6 +406,19 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
       // Unexpected disconnect with other players present keeps the reconnect grace period.
       player.reconnectTimer = setTimeout(() => {
         if (!player.isConnected) {
+          // Transfer host role only after grace period expires (player never came back).
+          if (player.isHost && room.players.size > 1) {
+            player.isHost = false;
+            for (const [, p] of room.players.entries()) {
+              if (p.id !== playerId && p.isConnected) {
+                p.isHost = true;
+                room.hostId = p.id;
+                break;
+              }
+            }
+            broadcastRoomState(io, room);
+          }
+
           // Mark as kicked so auto-reconnect (isReconnect=true) is refused.
           // Manual re-join via code input/QR clears this flag.
           room.kickedPlayerIds.add(playerId);
