@@ -7,10 +7,11 @@ interface UrgencyTimerProps {
   current: number;
   variant: "ring" | "bar" | "pulse";
   color?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
 }
 
 const sizeConfig = {
+  xs: { box: 56, stroke: 5, text: "text-sm", bar: "h-1.5" },
   sm: { box: 88, stroke: 8, text: "text-2xl", bar: "h-2" },
   md: { box: 120, stroke: 10, text: "text-4xl", bar: "h-3" },
   lg: { box: 156, stroke: 12, text: "text-6xl", bar: "h-4" },

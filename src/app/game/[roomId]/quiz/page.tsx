@@ -66,6 +66,12 @@ const INITIAL_STATE: QuizGameState = {
   currentQuestion: null,
 };
 
+const answerVariants = {
+  idle: { scale: 1, x: 0 },
+  correct: { scale: [1, 1.03, 1] },
+  wrong: { x: [-6, 6, -6, 0] },
+};
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -614,13 +620,6 @@ export default function QuizPage() {
   return (
     <GameLayout
       title={locale === 'ru' ? 'Квиз' : 'Quiz'}
-      icon="🧠"
-      round={gameState.phase === 'question' || gameState.phase === 'countdown'
-        ? gameState.questionIndex + 1
-        : gameState.phase === 'final'
-          ? gameState.totalQuestions
-          : undefined}
-      totalRounds={!isSetup && gameState.phase !== 'waiting' ? gameState.totalQuestions : undefined}
       scores={scoreboard}
       onEnd={isHost ? endGame : undefined}
       showScoreboard={!isSetup && gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
@@ -1002,7 +1001,7 @@ export default function QuizPage() {
               current={gameState.timeLeft}
               variant="ring"
               color="var(--color-game-quiz)"
-              size="sm"
+              size="xs"
             />
           </div>
 
@@ -1047,13 +1046,14 @@ export default function QuizPage() {
                   key={index}
                   onClick={() => submitAnswer(index)}
                   disabled={isDisabled}
-                  className={`relative overflow-hidden rounded-2xl border p-5 md:p-6 text-left backdrop-blur-xl transition-colors duration-200 ${bgClass}`}
+                  className={`relative overflow-hidden rounded-xl border p-5 md:p-6 text-left backdrop-blur-xl transition-colors duration-200 ${bgClass}`}
+                  variants={answerVariants}
                   animate={
                     isCorrectRevealed
-                      ? { scale: [1, 1.03, 1] }
+                      ? 'correct'
                       : isWrongRevealed
-                        ? { x: [-6, 6, -6, 0] }
-                        : { scale: 1, x: 0 }
+                        ? 'wrong'
+                        : 'idle'
                   }
                   transition={
                     isCorrectRevealed

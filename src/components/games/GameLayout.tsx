@@ -9,7 +9,7 @@ import { GlassButton } from '@/components/ui/GlassButton';
 interface GameLayoutProps {
   children: ReactNode;
   title: string;
-  icon: string;
+  icon?: string;
   round?: number;
   totalRounds?: number;
   scores?: { name: string; score: number }[];
@@ -48,7 +48,7 @@ export function GameLayout({
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-black/20 border-b border-white/10">
         <div className="w-[92%] max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="text-2xl flex-shrink-0">{icon}</span>
+            {icon && <span className="text-2xl flex-shrink-0">{icon}</span>}
             <div className="min-w-0">
               <h1 className="text-lg font-bold truncate">{title}</h1>
               {round != null && totalRounds != null && (
