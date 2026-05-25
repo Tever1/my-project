@@ -7,6 +7,15 @@
 
 ## Активные таски
 
+### TASK-132: Splash-экран выбора режима (desktop / mobile) + persistence
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Запущено:** 2026-05-23
+- **Файлы (locked):** src/app/page.tsx, src/components/Splash.tsx (new), src/components/ModeGate.tsx (new), src/lib/use-play-mode.ts (new), src/lib/use-is-mobile.ts (new, рефактор из Lobby.tsx)
+- **Task spec:** `codex-tasks/132-splash-mobile-detect.md`
+- **Report:** _(ожидается)_
+- **Часть пивота:** TV-mode (132…136), шаг 1/5.
+
 ### TASK-110: Away state — visibility-based away/back + grayscale avatar
 - **Статус:** ready
 - **Исполнитель:** Codex (manual by user)
