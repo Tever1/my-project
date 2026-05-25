@@ -23,9 +23,12 @@ import { PlayerAvatar, Badge } from "@/components/ui";
 import { useAuth, useAuthActions, type User } from "@/lib/auth-context";
 import { motionPropsInstant, glassMobileSolid } from "@/lib/design/mobile-helpers";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
+import { useIsMobile } from "@/lib/use-is-mobile";
 import { useSocket } from "@/lib/use-socket";
 import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
+
+export { useIsMobile } from "@/lib/use-is-mobile";
 
 interface GameInfo {
   id: GameId;
@@ -137,20 +140,6 @@ const games: GameInfo[] = [
     mode: "Шоу",
   },
 ];
-
-function useIsMobile(breakpoint = 1024) {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
-    const onChange = () => setIsMobile(mq.matches);
-    onChange();
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, [breakpoint]);
-
-  return isMobile;
-}
 
 function useIsNarrowDesktop() {
   const [isNarrowDesktop, setIsNarrowDesktop] = useState(false);
