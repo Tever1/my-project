@@ -8,6 +8,7 @@ interface Player {
   isHost: boolean;
   isConnected: boolean;
   isAway: boolean;
+  role: 'tv' | 'player';
   team?: string;
   reconnectTimer?: ReturnType<typeof setTimeout>;
 }
@@ -24,6 +25,7 @@ interface Room {
   tvSocketId: string | null;
   createdAt: number;
   kickedPlayerIds: Set<string>;
+  gameHostPlayerId: string | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -77,6 +79,8 @@ function broadcastRoomState(io: SocketIOServer, room: Room) {
     status: room.status,
     currentGame: room.currentGame,
     gameState: room.gameState,
+    tvConnected: players.some((p) => p.role === 'tv' && p.isConnected),
+    gameHostPlayerId: room.gameHostPlayerId,
   };
   io.to(`room:${room.code}`).emit('room:state', state);
 }
@@ -99,7 +103,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
     });
 
     // Create room
-    socket.on('room:create', (data: { playerId: string; nickname: string }, callback) => {
+    socket.on('room:create', (data: { playerId: string; nickname: string; role?: 'tv' | 'player' }, callback) => {
       const code = generateRoomCode();
       const room: Room = {
         id: uuidv4(),
@@ -113,6 +117,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         tvSocketId: null,
         createdAt: Date.now(),
         kickedPlayerIds: new Set<string>(),
+        gameHostPlayerId: null,
       };
 
       const player: Player = {
@@ -122,6 +127,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         isHost: true,
         isConnected: true,
         isAway: false,
+        role: data.role ?? 'player',
       };
 
       room.players.set(data.playerId, player);
@@ -134,7 +140,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
     });
 
     // Join room
-    socket.on('room:join', (data: { code: string; playerId: string; nickname: string; isReconnect?: boolean }, callback) => {
+    socket.on('room:join', (data: { code: string; playerId: string; nickname: string; isReconnect?: boolean; role?: 'tv' | 'player' }, callback) => {
       const room = getRoomByCode(data.code.toUpperCase());
       if (!room) {
         callback({ success: false, error: 'Room not found' });
@@ -179,8 +185,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
           isHost: false,
           isConnected: true,
           isAway: false,
+          role: data.role ?? 'player',
         };
         room.players.set(data.playerId, player);
+        // First phone player becomes the game host for starting the selected game.
+        if (player.role === 'player' && room.gameHostPlayerId === null) {
+          room.gameHostPlayerId = player.id;
+        }
       }
 
       playerRooms.set(socket.id, room.code);
@@ -223,6 +234,8 @@ export function setupSocketHandlers(io: SocketIOServer) {
         status: room.status,
         currentGame: room.currentGame,
         gameState: room.gameState,
+        tvConnected: players.some((p) => p.role === 'tv' && p.isConnected),
+        gameHostPlayerId: room.gameHostPlayerId,
       };
       socket.emit('room:state', state);
     });

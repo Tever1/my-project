@@ -4,8 +4,7 @@
  * / — Phase D PS5 + Spotlight hybrid lobby (main page).
  *
  * Layout:
- *   Top bar:  brand + nav (Играть/Друзья/ТВ-режим/Комнаты)
- *             + "Друзей онлайн" + "Создать комнату"|roomCode + Avatar
+ *   Top bar:  brand + nav (Играть) + Avatar
  *   Hero:     left = giant title + meta + desc + CTA + room-code input
  *             right = tilted preview-card with per-game mock content
  *   Bottom:   tile strip (all 7 games, smaller radii)
@@ -24,6 +23,7 @@ import { useAuth, useAuthActions, type User } from "@/lib/auth-context";
 import { motionPropsInstant, glassMobileSolid } from "@/lib/design/mobile-helpers";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
 import { useIsMobile } from "@/lib/use-is-mobile";
+import { usePlayMode } from "@/lib/use-play-mode";
 import { useSocket } from "@/lib/use-socket";
 import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
@@ -61,11 +61,14 @@ interface RoomPlayer {
   isHost: boolean;
   isConnected: boolean;
   isAway: boolean;
+  role?: "tv" | "player";
 }
 
 interface RoomState {
   players: RoomPlayer[];
   hostId: string;
+  tvConnected?: boolean;
+  currentGame?: string | null;
 }
 
 const games: GameInfo[] = [
@@ -170,6 +173,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const pathname = usePathname();
   const { user, isLoading, logout } = useAuth();
   const { emit, on, isConnected } = useSocket();
+  const { mode } = usePlayMode();
+  const myRole: "tv" | "player" = mode === "desktop" ? "tv" : "player";
   const initialCode = initialRoomCode?.trim().toUpperCase() || null;
   const isRoomRoute = initialCode !== null;
   const [activeGame, setActiveGame] = useState<GameId>("quiz");
@@ -179,7 +184,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [roomMenuOpen, setRoomMenuOpen] = useState(false);
   const [authMenuOpen, setAuthMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isWaitingForPlayers, setIsWaitingForPlayers] = useState(false);
+  const [, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const roomMenuRef = useRef<HTMLDivElement>(null);
   const tileStripRef = useRef<HTMLDivElement>(null);
@@ -235,6 +241,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       setRoomState({
         players: Array.isArray(payload.players) ? payload.players : [],
         hostId: typeof payload.hostId === "string" ? payload.hostId : "",
+        tvConnected: typeof payload.tvConnected === "boolean" ? payload.tvConnected : false,
+        currentGame: typeof payload.currentGame === "string" ? payload.currentGame : null,
       });
     });
 
@@ -250,7 +258,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   useEffect(() => {
     const code = initialCode || roomCode;
     if (!code || !user || !user.nickname || !isConnected) return;
-    emit('room:join', { code, playerId: user.id, nickname: user.nickname, isReconnect: true }, (res: unknown) => {
+    emit('room:join', { code, playerId: user.id, nickname: user.nickname, isReconnect: true, role: myRole }, (res: unknown) => {
       const response = res as { success: boolean };
       if (!response.success) {
         setRoomCode(null);
@@ -258,7 +266,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         if (isRoomRoute) router.push('/');
       }
     });
-  }, [emit, initialCode, roomCode, isConnected, isRoomRoute, router, user]);
+  }, [emit, initialCode, roomCode, isConnected, isRoomRoute, myRole, router, user]);
 
   // Only emit room:leave when navigating away from a room route,
   // NOT on socket reconnect (isConnected changes must not trigger this).
@@ -300,9 +308,15 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   useEffect(() => {
     return on('game:started', (payload: unknown) => {
       const data = payload as { gameType: string; roomCode: string };
-      router.push(`/game/${data.roomCode}/${data.gameType}`);
+      setIsWaitingForPlayers(false);
+      // TV screen goes to the TV view; mobile players go to the player game view.
+      if (myRole === "tv") {
+        router.push(`/tv/${data.roomCode}/${data.gameType}`);
+      } else {
+        router.push(`/game/${data.roomCode}/${data.gameType}`);
+      }
     });
-  }, [on, router]);
+  }, [myRole, on, router]);
 
   const getPlayerPayload = useCallback(() => {
     if (!user?.id || !user.nickname) {
@@ -334,7 +348,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         resolve({ success: false, error });
       }, 5000);
 
-      const sent = emit('room:create', player, (response: unknown) => {
+      const sent = emit('room:create', { ...player, role: myRole }, (response: unknown) => {
         clearTimeout(timeout);
         setIsCreatingRoom(false);
         const res = response as RoomCreateResponse;
@@ -356,15 +370,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         resolve({ success: false, error });
       }
     });
-  }, [emit, getPlayerPayload, isConnected]);
-
-  const handleCreateRoom = useCallback(() => {
-    void createRoom();
-  }, [createRoom]);
-
-  const handleRoomButtonClick = useCallback(() => {
-    setRoomMenuOpen((open) => !open);
-  }, []);
+  }, [emit, getPlayerPayload, isConnected, myRole]);
 
   const handleJoinRoom = useCallback(() => {
     const code = joinCode.trim().toUpperCase();
@@ -385,7 +391,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       toast.error("Сервер не отвечает. Попробуйте ещё раз");
     }, 5000);
 
-    const sent = emit('room:join', { code, ...player, isReconnect: false }, (response: unknown) => {
+    const sent = emit('room:join', { code, ...player, isReconnect: false, role: myRole }, (response: unknown) => {
       clearTimeout(timeout);
       setIsJoiningRoom(false);
       const res = response as RoomJoinResponse;
@@ -402,7 +408,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       setIsJoiningRoom(false);
       toast.error("Нет подключения к серверу");
     }
-  }, [emit, getPlayerPayload, isConnected, joinCode]);
+  }, [emit, getPlayerPayload, isConnected, joinCode, myRole]);
 
   const isCurrentUserHost =
     !roomCode ||
@@ -418,8 +424,13 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     if (!code) return;
 
     emit('game:select', { code, gameType: activeGame });
-    emit('game:start', { code });
+    setRoomMenuOpen(false);
+    setIsWaitingForPlayers(true);
   }, [activeGame, createRoom, emit, isCurrentUserHost, roomCode]);
+
+  const handleCancelWaiting = useCallback(() => {
+    setIsWaitingForPlayers(false);
+  }, []);
 
   const handleKick = useCallback((playerId: string) => {
     if (!roomCode) return;
@@ -468,7 +479,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         const inTopBar = focused?.dataset?.topbar !== undefined;
         if (inTopBar) {
           e.preventDefault();
-          const order = ["play", "tv", "room", "avatar"];
+          const order = ["play", "avatar"];
           const cur = focused.dataset.topbar!;
           const idx = order.indexOf(cur);
           if (idx === -1) return;
@@ -559,11 +570,145 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeGame, handleStartGame, joinCode]);
+  }, [activeGame, handleStartGame, joinCode, myRole]);
 
   const active = games.find((g) => g.id === activeGame)!;
   const accent = gameColors[active.id].accent;
   const deep = gameColors[active.id].deep;
+
+  // QR waiting screen — shown on desktop after "Start game" is pressed.
+  if (myRole === "tv" && isWaitingForPlayers && roomCode) {
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ??
+      (typeof window !== "undefined" ? window.location.origin : "");
+    const joinUrl = `${siteUrl}/join/${roomCode}`;
+    const gamePlayers = (roomState?.players ?? []).filter((player) => player.role !== "tv" && player.nickname);
+
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          background:
+            `radial-gradient(900px 620px at 65% 20%, ${accent}33, transparent 62%), radial-gradient(760px 560px at 25% 85%, ${deep}38, transparent 64%), #08080d`,
+          color: "white",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 28,
+          padding: 32,
+          textAlign: "center",
+        }}
+      >
+        <p
+          style={{
+            color: "rgba(255,255,255,0.52)",
+            fontSize: 16,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            fontWeight: 750,
+            margin: 0,
+          }}
+        >
+          {active.name}
+        </p>
+
+        <div
+          style={{
+            background: "white",
+            borderRadius: 24,
+            padding: 20,
+            boxShadow: `0 0 72px ${accent}22, 0 28px 80px rgba(0,0,0,0.45)`,
+          }}
+        >
+          <QRCode
+            value={joinUrl}
+            size={240}
+            qrStyle="dots"
+            eyeRadius={8}
+            removeQrCodeBehindLogo={false}
+          />
+        </div>
+
+        <div>
+          <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 13, margin: "0 0 8px" }}>
+            Отсканируй QR или открой на телефоне:
+          </p>
+          <p
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              letterSpacing: "0.04em",
+              color: "white",
+              fontFamily: "var(--font-mono)",
+              margin: 0,
+              overflowWrap: "anywhere",
+            }}
+          >
+            {joinUrl}
+          </p>
+        </div>
+
+        <div style={{ textAlign: "center", minHeight: 70 }}>
+          {gamePlayers.length === 0 ? (
+            <p style={{ color: "rgba(255,255,255,0.34)", fontSize: 15, margin: 0 }}>
+              Ожидание игроков...
+            </p>
+          ) : (
+            <>
+              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, margin: "0 0 12px" }}>
+                Подключились ({gamePlayers.length}):
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                {gamePlayers.map((player) => (
+                  <span
+                    key={player.id}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "7px 14px 7px 8px",
+                      borderRadius: radius.full,
+                      background: player.isConnected ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      color: player.isConnected ? "white" : "rgba(255,255,255,0.35)",
+                      fontSize: 15,
+                      fontWeight: 650,
+                    }}
+                  >
+                    <PlayerAvatar
+                      nickname={player.nickname}
+                      size="xs"
+                      away={!player.isConnected || player.isAway}
+                    />
+                    {player.nickname}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCancelWaiting}
+          style={{
+            padding: "10px 24px",
+            borderRadius: 10,
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.16)",
+            color: "rgba(255,255,255,0.52)",
+            fontSize: 14,
+            fontWeight: 650,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          ← Назад к лобби
+        </button>
+      </main>
+    );
+  }
 
   return (
     <main
@@ -588,14 +733,10 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
       {/* Top bar */}
       <TopBar
-        roomCode={roomCode}
-        onCreateRoom={handleCreateRoom}
-        onRoomMenuToggle={handleRoomButtonClick}
         accent={accent}
         deep={deep}
         isMobile={isMobile}
         isNarrowDesktop={isNarrowDesktop}
-        isCreatingRoom={isCreatingRoom}
         user={user}
         authMenuOpen={authMenuOpen}
         accountMenuOpen={accountMenuOpen}
@@ -617,27 +758,40 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
           margin: "0 auto",
           padding: isMobile ? "16px 16px" : "32px 32px",
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gridTemplateColumns: myRole === "player" || isMobile ? "1fr" : "1fr 1fr",
           gap: isMobile ? 32 : 120,
           alignItems: "center",
         }}
       >
-        <HeroLeft
-          game={active}
-          accent={accent}
-          deep={deep}
-          joinCode={joinCode}
-          onJoinCodeChange={setJoinCode}
-          onJoinRoom={handleJoinRoom}
-          onStartGame={handleStartGame}
-          startGameButtonRef={startGameButtonRef}
-          isMobile={isMobile}
-          isJoiningRoom={isJoiningRoom}
-          isCurrentUserHost={isCurrentUserHost}
-          showJoinRoom={!roomCode}
-        />
+        {myRole === "player" ? (
+          <PlayerJoinView
+            roomCode={roomCode}
+            roomState={roomState}
+            joinCode={joinCode}
+            setJoinCode={setJoinCode}
+            onJoin={handleJoinRoom}
+            isJoiningRoom={isJoiningRoom}
+            isMobile={isMobile}
+            accent={accent}
+          />
+        ) : (
+          <HeroLeft
+            game={active}
+            accent={accent}
+            deep={deep}
+            joinCode={joinCode}
+            onJoinCodeChange={setJoinCode}
+            onJoinRoom={handleJoinRoom}
+            onStartGame={handleStartGame}
+            startGameButtonRef={startGameButtonRef}
+            isMobile={isMobile}
+            isJoiningRoom={isJoiningRoom}
+            isCurrentUserHost={isCurrentUserHost}
+            showJoinRoom={!roomCode}
+          />
+        )}
 
-        {!isMobile && (
+        {myRole === "tv" && !isMobile && (
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <AnimatePresence mode="wait">
               {roomMenuOpen && roomCode ? (
@@ -713,13 +867,15 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       )}
 
       {/* Bottom tile strip */}
-      <TileStrip
-        ref={tileStripRef}
-        games={games}
-        activeId={activeGame}
-        onSelect={setActiveGame}
-        isMobile={isMobile}
-      />
+      {myRole === "tv" && (
+        <TileStrip
+          ref={tileStripRef}
+          games={games}
+          activeId={activeGame}
+          onSelect={setActiveGame}
+          isMobile={isMobile}
+        />
+      )}
       <GlassToaster accentColor={accent} />
     </main>
   );
@@ -730,14 +886,10 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 // ============================================================
 
 function TopBar({
-  roomCode,
-  onCreateRoom,
-  onRoomMenuToggle,
   accent,
   deep,
   isMobile,
   isNarrowDesktop,
-  isCreatingRoom,
   user,
   authMenuOpen,
   accountMenuOpen,
@@ -747,14 +899,10 @@ function TopBar({
   onCloseAccountMenu,
   onLogout,
 }: {
-  roomCode: string | null;
-  onCreateRoom: () => void;
-  onRoomMenuToggle: () => void;
   accent: string;
   deep: string;
   isMobile: boolean;
   isNarrowDesktop: boolean;
-  isCreatingRoom: boolean;
   user: User | null;
   authMenuOpen: boolean;
   accountMenuOpen: boolean;
@@ -785,32 +933,11 @@ function TopBar({
           <NavButton active topbarId="play" isNarrowDesktop={compact}>
             Играть
           </NavButton>
-          <NavButton
-            topbarId="tv"
-            isNarrowDesktop={compact}
-            disabled={!roomCode}
-            onClick={() => {
-              if (!roomCode) return;
-              window.open(`/tv/${roomCode}`, "_blank", "noopener,noreferrer");
-            }}
-          >
-            ТВ-режим
-          </NavButton>
         </nav>
       </div>
 
-      {/* Right: room button + avatar */}
+      {/* Right: avatar */}
       <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : compact ? 8 : 12, flexShrink: 0 }}>
-        <RoomButton
-          roomCode={roomCode}
-          onCreate={onCreateRoom}
-          onToggle={onRoomMenuToggle}
-          accent={accent}
-          topbarId="room"
-          isMobile={isMobile}
-          isNarrowDesktop={compact}
-          isCreating={isCreatingRoom}
-        />
         <div style={{ position: "relative" }}>
           <AvatarPill
             user={user}
@@ -928,100 +1055,6 @@ function NavButton({
       }}
     >
       {children}
-    </motion.button>
-  );
-}
-
-function RoomButton({
-  roomCode,
-  onCreate,
-  onToggle,
-  accent,
-  topbarId,
-  isMobile = false,
-  isNarrowDesktop = false,
-  isCreating = false,
-}: {
-  roomCode: string | null;
-  onCreate: () => void;
-  onToggle: () => void;
-  accent: string;
-  topbarId?: string;
-  isMobile?: boolean;
-  isNarrowDesktop?: boolean;
-  isCreating?: boolean;
-}) {
-  const [focused, setFocused] = useState(false);
-  const baseShadow = roomCode ? `0 6px 20px -4px ${accent}80` : "none";
-  const focusRing = roomCode ? `0 0 0 3px ${accent}99` : "0 0 0 3px rgba(255,255,255,0.7)";
-
-  return (
-    <motion.button
-      data-topbar={topbarId}
-      onClick={() => roomCode ? onToggle() : onCreate()}
-      disabled={isCreating}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      whileHover={{ scale: 1.03, y: -1 }}
-      whileTap={{ scale: 0.97 }}
-      transition={spring.snappy}
-      style={{
-        padding: isMobile ? "7px 12px" : isNarrowDesktop ? "8px 14px" : "8px 18px",
-        borderRadius: radius.full,
-        background: roomCode
-          ? `linear-gradient(135deg, ${accent}, ${accent}CC)`
-          : "rgba(255, 255, 255, 0.04)",
-        border: roomCode
-          ? `1px solid ${accent}`
-          : "1px solid rgba(255, 255, 255, 0.12)",
-        color: roomCode ? "white" : "rgba(255, 255, 255, 0.85)",
-        fontFamily: roomCode ? "var(--font-mono)" : "inherit",
-        fontSize: roomCode || isNarrowDesktop ? 13 : 14,
-        fontWeight: roomCode ? 700 : 600,
-        letterSpacing: roomCode ? "0.12em" : "-0.01em",
-        cursor: isCreating ? "wait" : "pointer",
-        opacity: isCreating ? 0.72 : 1,
-        outline: "none",
-        boxShadow: focused
-          ? baseShadow !== "none"
-            ? `${focusRing}, ${baseShadow}`
-            : focusRing
-          : baseShadow,
-        textTransform: roomCode ? "uppercase" : undefined,
-        maxWidth: isMobile ? 200 : undefined,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {roomCode ? (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <span style={{ whiteSpace: "nowrap" }}>{`Комната · ${roomCode}`}</span>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            aria-hidden="true"
-            style={{ opacity: 0.75, flexShrink: 0 }}
-          >
-            {/* Top-left finder square */}
-            <rect x="0" y="0" width="5" height="5" rx="1" fill="currentColor" />
-            <rect x="1.5" y="1.5" width="2" height="2" fill="black" fillOpacity="0.5" />
-            {/* Top-right finder square */}
-            <rect x="9" y="0" width="5" height="5" rx="1" fill="currentColor" />
-            <rect x="10.5" y="1.5" width="2" height="2" fill="black" fillOpacity="0.5" />
-            {/* Bottom-left finder square */}
-            <rect x="0" y="9" width="5" height="5" rx="1" fill="currentColor" />
-            <rect x="1.5" y="10.5" width="2" height="2" fill="black" fillOpacity="0.5" />
-            {/* Data dots */}
-            <rect x="9" y="9" width="2" height="2" rx="0.5" fill="currentColor" />
-            <rect x="12" y="9" width="2" height="2" rx="0.5" fill="currentColor" />
-            <rect x="9" y="12" width="2" height="2" rx="0.5" fill="currentColor" />
-            <rect x="12" y="12" width="2" height="2" rx="0.5" fill="currentColor" />
-          </svg>
-        </span>
-      ) : isCreating ? "Создаём..." : "Создать комнату"}
     </motion.button>
   );
 }
@@ -1503,6 +1536,192 @@ function AccountDropdown({
   );
 }
 
+// Inline component — join screen for mobile players
+function PlayerJoinView({
+  roomCode,
+  roomState,
+  joinCode,
+  setJoinCode,
+  onJoin,
+  isJoiningRoom,
+  isMobile,
+  accent,
+}: {
+  roomCode: string | null;
+  roomState: RoomState | null;
+  joinCode: string;
+  setJoinCode: (v: string) => void;
+  onJoin: () => void;
+  isJoiningRoom: boolean;
+  isMobile: boolean;
+  accent: string;
+}) {
+  const gamePlayers = (roomState?.players ?? []).filter((p) => p.role !== "tv" && p.nickname);
+  const selectedGame = roomState?.currentGame
+    ? games.find((game) => game.id === roomState.currentGame)?.name ?? roomState.currentGame
+    : null;
+  const canJoin = joinCode.length === 6 && !isJoiningRoom;
+
+  if (roomCode) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          margin: "0 auto",
+          textAlign: "center",
+          padding: isMobile ? "32px 4px 96px" : "56px 16px",
+        }}
+      >
+        {selectedGame && (
+          <p
+            style={{
+              color: "rgba(255,255,255,0.56)",
+              margin: "0 0 10px",
+              fontSize: 14,
+              fontWeight: 650,
+            }}
+          >
+            Игра: {selectedGame}
+          </p>
+        )}
+        <h1
+          style={{
+            margin: "0 0 24px",
+            fontSize: isMobile ? 28 : 34,
+            lineHeight: 1.08,
+            fontWeight: 850,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          Ожидание хоста...
+        </h1>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            justifyContent: "center",
+            marginBottom: 22,
+          }}
+        >
+          {gamePlayers.map((player) => (
+            <span
+              key={player.id}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                minHeight: 38,
+                padding: "7px 12px 7px 8px",
+                borderRadius: radius.full,
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: player.isConnected ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.36)",
+                fontSize: 14,
+                fontWeight: 650,
+              }}
+            >
+              <PlayerAvatar
+                nickname={player.nickname}
+                size="xs"
+                away={!player.isConnected || player.isAway}
+              />
+              {player.nickname}
+            </span>
+          ))}
+        </div>
+        <p style={{ margin: 0, color: "rgba(255,255,255,0.46)", fontSize: 14 }}>
+          Хост запустит игру на большом экране
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 440,
+        margin: "0 auto",
+        textAlign: "center",
+        padding: isMobile ? "32px 4px 96px" : "56px 16px",
+      }}
+    >
+      <h1
+        style={{
+          margin: "0 0 10px",
+          fontSize: isMobile ? 30 : 38,
+          lineHeight: 1.05,
+          fontWeight: 900,
+          letterSpacing: "-0.03em",
+        }}
+      >
+        Введи код комнаты
+      </h1>
+      <p style={{ color: "rgba(255,255,255,0.52)", margin: "0 0 26px", fontSize: 14 }}>
+        Попроси хоста показать код на экране
+      </p>
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          justifyContent: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          value={joinCode}
+          onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 6))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && canJoin) onJoin();
+          }}
+          placeholder="ABCD12"
+          maxLength={6}
+          autoCapitalize="characters"
+          inputMode="text"
+          style={{
+            width: isMobile ? "min(100%, 190px)" : 190,
+            minWidth: 0,
+            padding: "14px 16px",
+            borderRadius: 14,
+            border: `1.5px solid ${joinCode.length === 6 ? `${accent}aa` : "rgba(255,255,255,0.2)"}`,
+            background: "rgba(255,255,255,0.06)",
+            color: "white",
+            outline: "none",
+            fontFamily: "var(--font-mono)",
+            fontSize: 24,
+            fontWeight: 800,
+            letterSpacing: "0.14em",
+            textAlign: "center",
+            boxShadow: joinCode.length === 6 ? `0 0 0 3px ${accent}22` : undefined,
+          }}
+        />
+        <button
+          type="button"
+          onClick={onJoin}
+          disabled={!canJoin}
+          style={{
+            minHeight: 56,
+            padding: "0 24px",
+            borderRadius: 14,
+            background: canJoin ? "white" : "rgba(255,255,255,0.14)",
+            color: canJoin ? "#08080d" : "rgba(255,255,255,0.42)",
+            fontWeight: 800,
+            fontSize: 16,
+            border: "none",
+            cursor: canJoin ? "pointer" : "not-allowed",
+            fontFamily: "inherit",
+            transition: "background 150ms ease, color 150ms ease, transform 150ms ease",
+          }}
+        >
+          {isJoiningRoom ? "..." : "Войти"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // Hero left (title + meta + desc + CTA)
 // ============================================================
@@ -1925,8 +2144,9 @@ const RoomMenu = forwardRef<HTMLDivElement, {
     ? `http://${localIp}:${typeof window !== "undefined" ? window.location.port || "3000" : "3000"}`
     : typeof window !== "undefined" ? window.location.origin : "";
   const joinUrl = roomCode ? `${origin}/lobby/${roomCode}` : "";
+  // TV screen participates in the room transport, but is not a game player.
   const connectedPlayers = (roomState?.players ?? []).filter(
-    (p) => p.nickname
+    (p) => p.nickname && p.role !== "tv"
   );
   const isCurrentUserHost = currentUserId !== "" && currentUserId === roomState?.hostId;
   const handleClose = () => {

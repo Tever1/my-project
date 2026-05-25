@@ -7,14 +7,50 @@
 
 ## Активные таски
 
-### TASK-132: Splash-экран выбора режима (desktop / mobile) + persistence
+### TASK-139: /join/[code] + gameHostPlayerId
 - **Статус:** ready
 - **Исполнитель:** Codex (manual by user)
-- **Запущено:** 2026-05-23
-- **Файлы (locked):** src/app/page.tsx, src/components/Splash.tsx (new), src/components/ModeGate.tsx (new), src/lib/use-play-mode.ts (new), src/lib/use-is-mobile.ts (new, рефактор из Lobby.tsx)
-- **Task spec:** `codex-tasks/132-splash-mobile-detect.md`
+- **Файлы (locked):** src/server/socket-handlers.mts, src/app/join/[code]/page.tsx
+- **Task spec:** `codex-tasks/139-join-page-and-game-host.md`
+- **Часть пивота:** TV-mode, шаг 8/8. Запускать после 138.
+
+### TASK-138: QR-экран ожидания на десктопе
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/138-desktop-qr-waiting-screen.md`
+- **Часть пивота:** TV-mode, шаг 7/8. Запускать после 137.
+
+### TASK-137: Убрать кнопки ТВ-режим и Создать комнату из лобби
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/137-remove-topbar-buttons.md`
+- **Часть пивота:** TV-mode, шаг 6/8. Запускать первым.
+
+### TASK-136: TV навигация при старте игры
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/136-tv-game-start-navigation.md`
 - **Report:** _(ожидается)_
-- **Часть пивота:** TV-mode (132…136), шаг 1/5.
+- **Часть пивота:** TV-mode (132…136), шаг 5/5. Запускать после 135.
+
+### TASK-135: Мобильный лобби — только join, без create
+- **Статус:** ready
+- **Исполнитель:** Codex (manual by user)
+- **Файлы (locked):** src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/135-mobile-join-only-lobby.md`
+- **Report:** _(ожидается)_
+- **Часть пивота:** TV-mode (132…136), шаг 4/5. Запускать перед 136.
+
+### TASK-134: Player.role — 'tv' | 'player' на сервере и клиенте
+- **Статус:** ✅ done (ревью пройдено, не закоммичено)
+- **Исполнитель:** Codex (manual by user)
+- **Файлы:** src/server/socket-handlers.mts, src/components/lobby/Lobby.tsx
+- **Task spec:** `codex-tasks/134-player-role-tv-player.md`
+- **Report:** `codex-reports/134-player-role-tv-player.md`
+- **Часть пивота:** TV-mode (132…136), шаг 3/5.
 
 ### TASK-110: Away state — visibility-based away/back + grayscale avatar
 - **Статус:** ready
