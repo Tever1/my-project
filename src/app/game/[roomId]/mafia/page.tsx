@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
@@ -129,6 +129,7 @@ function getInitialState(): MafiaGameState {
 
 export default function MafiaPage() {
   const { roomId } = useParams<{ roomId: string }>();
+  const router = useRouter();
   const { emit, on, isConnected } = useSocket();
   const { locale } = useTranslation();
   const { user } = useAuth();
@@ -312,8 +313,14 @@ export default function MafiaPage() {
           break;
       }
     });
-    return cleanup;
-  }, [on, isHost, user]);
+    const unsubEnded = on('game:ended', () => {
+      router.push(`/join/${roomId}`);
+    });
+    return () => {
+      cleanup();
+      unsubEnded();
+    };
+  }, [on, isHost, user, router, roomId]);
 
   // -----------------------------------------------------------------------
   // Day timer

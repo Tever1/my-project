@@ -156,7 +156,7 @@ export default function CrocodilePage() {
         }
       },
     );
-    const unsub2 = on('game:ended', () => router.push(`/lobby/${roomId}`));
+    const unsub2 = on('game:ended', () => router.push(`/join/${roomId}`));
     return () => { unsub1(); unsub2(); };
   }, [on, emit, router, roomId]);
 

@@ -155,7 +155,7 @@ export default function HundredToOnePage() {
         }
       }
     });
-    const u3 = on('game:ended', () => router.push(`/lobby/${roomId}`));
+    const u3 = on('game:ended', () => router.push(`/join/${roomId}`));
     emit('room:get-state', { code: roomId });
     return () => { u1(); u2(); u3(); };
   }, [on, emit, router, roomId, user?.id]);

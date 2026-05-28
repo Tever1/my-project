@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
@@ -83,6 +83,7 @@ function getInitialState(): WhoAmIGameState {
 
 export default function WhoAmIPage() {
   const { roomId } = useParams<{ roomId: string }>();
+  const router = useRouter();
   const { emit, on } = useSocket();
   const { locale } = useTranslation();
   const { user } = useAuth();
@@ -235,8 +236,14 @@ export default function WhoAmIPage() {
           break;
       }
     });
-    return cleanup;
-  }, [on, currentPlayerId]);
+    const unsubEnded = on('game:ended', () => {
+      router.push(`/join/${roomId}`);
+    });
+    return () => {
+      cleanup();
+      unsubEnded();
+    };
+  }, [on, currentPlayerId, router, roomId]);
 
   // -----------------------------------------------------------------------
   // Host: start game
