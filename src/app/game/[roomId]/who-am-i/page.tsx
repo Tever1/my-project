@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
+import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
@@ -124,12 +125,7 @@ export default function WhoAmIPage() {
   // -----------------------------------------------------------------------
   // Broadcast helper
   // -----------------------------------------------------------------------
-  const broadcast = useCallback(
-    (action: GameAction) => {
-      emit('game:action', { code: roomId, action: 'who-am-i', payload: action });
-    },
-    [emit, roomId],
-  );
+  const broadcast = useGameBroadcast(roomId, 'who-am-i') as (payload: GameAction) => void;
 
   // -----------------------------------------------------------------------
   // Listen for room state

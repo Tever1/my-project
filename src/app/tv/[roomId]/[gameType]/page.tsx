@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
+import { useGameAction } from '@/lib/use-game-action';
 import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
@@ -107,6 +108,7 @@ const QUESTIONS_PER_GAME = 10;
 export default function TVGamePage() {
   const { roomId, gameType } = useParams<{ roomId: string; gameType: string }>();
   const { emit, on, isConnected } = useSocket();
+  const sendAction = useGameAction(roomId);
   const { locale } = useTranslation();
   useNavigateOnGameEnd(roomId, 'tv');
 
@@ -188,16 +190,16 @@ export default function TVGamePage() {
       // Request full game state only after the socket has joined the room,
       // otherwise the h2o:sync response won't be delivered to this socket yet.
       if (gameType === 'hundred-to-one') {
-        emit('game:action', { code: roomId, action: 'h2o:request-state', payload: {} });
+        sendAction('h2o:request-state');
       } else if (gameType === 'crocodile') {
-        emit('game:action', { code: roomId, action: 'croc:request-state', payload: {} });
+        sendAction('croc:request-state');
       } else if (gameType === 'alias') {
-        emit('game:action', { code: roomId, action: 'alias:request-state', payload: {} });
+        sendAction('alias:request-state');
       } else if (gameType === 'quiz') {
-        emit('game:action', { code: roomId, action: 'quiz:request-state', payload: {} });
+        sendAction('quiz:request-state');
       }
     });
-  }, [isConnected, roomId, emit, gameType]);
+  }, [isConnected, roomId, emit, gameType, sendAction]);
 
   // Socket listeners
   useEffect(() => {
@@ -453,15 +455,11 @@ export default function TVGamePage() {
         }));
       });
 
-      emit('game:action', {
-        code: roomId,
-        action: 'quiz:config',
-        payload: { config: quizConfig, phase: 'waiting', totalQuestions: total },
-      });
+      sendAction('quiz:config', { config: quizConfig, phase: 'waiting', totalQuestions: total });
     } catch {
       localStorage.removeItem('party-hub-quiz-config');
     }
-  }, [gameType, emit, isConnected, roomId]);
+  }, [gameType, isConnected, sendAction]);
 
   const getPlayerName = useCallback(
     (id: string) => players.find((p) => p.id === id)?.nickname || id,

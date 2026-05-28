@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
+import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -90,6 +91,7 @@ export default function QuizPage() {
   const { locale } = useTranslation();
   const { user } = useAuth();
   const { emit, on, isConnected } = useSocket();
+  const sendAction = useGameAction(roomId);
   const router = useRouter();
   useNavigateOnGameEnd(roomId);
 
@@ -180,11 +182,7 @@ export default function QuizPage() {
           phase: 'waiting',
           totalQuestions: total,
         }));
-        emit('game:action', {
-          code: roomId,
-          action: 'quiz:config',
-          payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
-        });
+        sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
       } else if (config.mode === 'special' && config.specialQuizId) {
         const specialQuiz = SPECIAL_QUIZZES.find((quiz) => quiz.id === config.specialQuizId);
         const newConfig: QuizConfig = {
@@ -204,16 +202,12 @@ export default function QuizPage() {
           phase: 'waiting',
           totalQuestions: total,
         }));
-        emit('game:action', {
-          code: roomId,
-          action: 'quiz:config',
-          payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
-        });
+        sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
       }
     } catch {
       localStorage.removeItem('party-hub-quiz-config');
     }
-  }, [emit, isGameHost, roomId]);
+  }, [isGameHost, sendAction]);
 
   // ------- Socket listeners -------
 
@@ -311,7 +305,7 @@ export default function QuizPage() {
         case 'quiz:request-state':
           // TV joined mid-game — host re-broadcasts current state
           if (isGameHostRef.current) {
-            emit('game:action', { code: roomId, action: 'quiz:sync', payload: gameStateRef.current as unknown as Record<string, unknown> });
+            sendAction('quiz:sync', gameStateRef.current);
           }
           break;
       }
@@ -323,7 +317,7 @@ export default function QuizPage() {
       unsub1();
       unsub2();
     };
-  }, [on, emit, roomId]);
+  }, [on, emit, roomId, sendAction]);
 
   // ------- Host timer logic -------
 
@@ -338,18 +332,10 @@ export default function QuizPage() {
         const next = prev.timeLeft - 1;
         if (next <= 0) {
           if (timerRef.current) clearInterval(timerRef.current);
-          emit('game:action', {
-            code: roomId,
-            action: 'quiz:timer',
-            payload: { timeLeft: 0 },
-          });
+          sendAction('quiz:timer', { timeLeft: 0 });
           return { ...prev, timeLeft: 0 };
         }
-        emit('game:action', {
-          code: roomId,
-          action: 'quiz:timer',
-          payload: { timeLeft: next },
-        });
+        sendAction('quiz:timer', { timeLeft: next });
         return { ...prev, timeLeft: next };
       });
     }, 1000);
@@ -357,7 +343,7 @@ export default function QuizPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isGameHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, emit, roomId]);
+  }, [isGameHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, sendAction]);
 
   // ------- Timer sound effect -------
 
@@ -389,17 +375,13 @@ export default function QuizPage() {
 
     setGameState((prev) => ({ ...prev, showCorrect: true, scores: newScores, correctPlayers: correct }));
 
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:show-results',
-      payload: { scores: newScores, correctPlayers: correct },
-    });
+    sendAction('quiz:show-results', { scores: newScores, correctPlayers: correct });
 
     emit('game:state-update', {
       code: roomId,
       gameState: { scores: newScores },
     });
-  }, [gameState.currentQuestion, gameState.answers, gameState.scores, emit, roomId]);
+  }, [gameState.currentQuestion, gameState.answers, gameState.scores, emit, roomId, sendAction]);
 
   // ------- Auto-reveal -------
 
@@ -417,11 +399,7 @@ export default function QuizPage() {
     const newConfig = { ...gameState.config, mode };
     const nextPhase: Phase = mode === 'general' ? 'setup-difficulty' : 'setup-special-theme';
     setGameState((prev) => ({ ...prev, config: newConfig, phase: nextPhase }));
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:config',
-      payload: { config: newConfig, phase: nextPhase },
-    });
+    sendAction('quiz:config', { config: newConfig, phase: nextPhase });
   };
 
   const goBack = () => {
@@ -459,31 +437,19 @@ export default function QuizPage() {
     }
 
     setGameState((prev) => ({ ...prev, config: newConfig, phase: prevPhase }));
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:config',
-      payload: { config: newConfig, phase: prevPhase },
-    });
+    sendAction('quiz:config', { config: newConfig, phase: prevPhase });
   };
 
   const selectSpecialTheme = (themeId: string) => {
     const newConfig = { ...gameState.config, specialTheme: themeId };
     setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-special-quiz' }));
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:config',
-      payload: { config: newConfig, phase: 'setup-special-quiz' },
-    });
+    sendAction('quiz:config', { config: newConfig, phase: 'setup-special-quiz' });
   };
 
   const selectDifficulty = (difficulty: QuizDifficulty) => {
     const newConfig = { ...gameState.config, difficulty };
     setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-topic' }));
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:config',
-      payload: { config: newConfig, phase: 'setup-topic' },
-    });
+    sendAction('quiz:config', { config: newConfig, phase: 'setup-topic' });
   };
 
   const selectTopic = (topic: QuizTopic) => {
@@ -499,11 +465,7 @@ export default function QuizPage() {
       phase: 'waiting',
       totalQuestions: total,
     }));
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:config',
-      payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
-    });
+    sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
   };
 
   const selectSpecialQuiz = (quizId: string) => {
@@ -518,21 +480,13 @@ export default function QuizPage() {
       phase: 'waiting',
       totalQuestions: total,
     }));
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:config',
-      payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
-    });
+    sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
   };
 
   const runCountdown = (questionIdx: number) => {
     countdownRef.current = 3;
     setGameState((prev) => ({ ...prev, phase: 'countdown', countdownValue: countdownRef.current }));
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:countdown',
-      payload: { value: countdownRef.current },
-    });
+    sendAction('quiz:countdown', { value: countdownRef.current });
 
     const interval = setInterval(() => {
       countdownRef.current -= 1;
@@ -568,18 +522,10 @@ export default function QuizPage() {
           correctPlayers: [],
         }));
 
-        emit('game:action', {
-          code: roomId,
-          action: 'quiz:start-question',
-          payload: startPayload,
-        });
+        sendAction('quiz:start-question', startPayload);
       } else {
         setGameState((prev) => ({ ...prev, countdownValue: countdownRef.current }));
-        emit('game:action', {
-          code: roomId,
-          action: 'quiz:countdown',
-          payload: { value: countdownRef.current },
-        });
+        sendAction('quiz:countdown', { value: countdownRef.current });
       }
     }, 1000);
   };
@@ -604,11 +550,7 @@ export default function QuizPage() {
 
     setGameState((prev) => ({ ...prev, scores: initialScores }));
 
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:sync',
-      payload: { scores: initialScores },
-    });
+    sendAction('quiz:sync', { scores: initialScores });
 
     runCountdown(0);
   };
@@ -637,24 +579,20 @@ export default function QuizPage() {
       correctPlayers: [],
     }));
 
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:start-question',
-      payload: { questionIndex: questionIdx, timeLeft: q.timeLimit, question: questionData },
-    });
+    sendAction('quiz:start-question', { questionIndex: questionIdx, timeLeft: q.timeLimit, question: questionData });
   };
 
   const startNextQuestion = () => {
     const nextIndex = gameState.questionIndex + 1;
     if (nextIndex >= gameState.totalQuestions) {
       setGameState((prev) => ({ ...prev, phase: 'final' }));
-      emit('game:action', { code: roomId, action: 'quiz:final', payload: {} });
+      sendAction('quiz:final');
       return;
     }
     // Show mid-game leaderboard after round 5
     if (nextIndex === 5) {
       setGameState((prev) => ({ ...prev, phase: 'mid-leaderboard' }));
-      emit('game:action', { code: roomId, action: 'quiz:sync', payload: { phase: 'mid-leaderboard' } });
+      sendAction('quiz:sync', { phase: 'mid-leaderboard' });
       return;
     }
     startQuestionImmediate(nextIndex);
@@ -664,11 +602,7 @@ export default function QuizPage() {
     warmupSound();
     if (myAnswer !== undefined || gameState.showCorrect || !effectivePlayerId) return;
 
-    emit('game:action', {
-      code: roomId,
-      action: 'quiz:answer',
-      payload: { playerId: effectivePlayerId, answerIndex },
-    });
+    sendAction('quiz:answer', { playerId: effectivePlayerId, answerIndex });
     setGameState((prev) => ({
       ...prev,
       answers: { ...prev.answers, [effectivePlayerId]: answerIndex },

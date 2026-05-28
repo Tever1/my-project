@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
+import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -114,6 +115,7 @@ export default function HundredToOnePage() {
   const topic = TOPICS.find(t => t.id === s.topicId) || TOPICS[0];
   const ROUNDS = topic.rounds;
   const BIG_Q = topic.bigQ;
+  const broadcast = useGameBroadcast(roomId, 'h2o:sync') as (payload: Partial<GState>) => void;
   const q = ROUNDS[s.curQ];
 
   // ── Role selection ──
@@ -152,17 +154,13 @@ export default function HundredToOnePage() {
         const cur = sRef.current;
         const myId = user?.id;
         if (myId && cur.roles[myId] === 'host') {
-          emit('game:action', { code: roomId, action: 'h2o:sync', payload: cur });
+          broadcast(cur);
         }
       }
     });
     emit('room:get-state', { code: roomId });
     return () => { u1(); u2(); };
-  }, [on, emit, roomId, user?.id]);
-
-  const broadcast = useCallback((payload: Partial<GState>) => {
-    emit('game:action', { code: roomId, action: 'h2o:sync', payload });
-  }, [emit, roomId]);
+  }, [on, emit, roomId, user?.id, broadcast]);
 
   const update = useCallback((patch: Partial<GState>) => {
     setS(prev => ({ ...prev, ...patch }));

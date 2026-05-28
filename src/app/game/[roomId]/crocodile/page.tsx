@@ -6,6 +6,7 @@ import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { useSocket } from '@/lib/use-socket';
+import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useAuth } from '@/lib/auth-context';
 import { useTranslation } from '@/lib/i18n';
@@ -113,12 +114,7 @@ export default function CrocodilePage() {
   // Broadcast helper (host -> all via game:action)
   // ------------------------------------------------------------------
 
-  const broadcast = useCallback(
-    (action: string, payload: unknown) => {
-      emit('game:action', { code: roomId, action, payload });
-    },
-    [emit, roomId],
-  );
+  const broadcast = useGameAction(roomId);
 
   // ------------------------------------------------------------------
   // Listen for game:action events
@@ -151,14 +147,14 @@ export default function CrocodilePage() {
           case 'croc:request-state':
             // TV joined mid-game — host re-broadcasts current state
             if (isHostRef.current && gameStateRef.current) {
-              emit('game:action', { code: roomId, action: 'croc:state', payload: gameStateRef.current });
+              broadcast('croc:state', gameStateRef.current);
             }
             break;
         }
       },
     );
     return () => { unsub1(); };
-  }, [on, emit, roomId]);
+  }, [on, broadcast]);
 
   // ------------------------------------------------------------------
   // Host: timer management
@@ -310,9 +306,9 @@ export default function CrocodilePage() {
 
   const emitAction = useCallback(
     (action: string) => {
-      emit('game:action', { code: roomId, action, payload: {} });
+      broadcast(action, {});
     },
-    [emit, roomId],
+    [broadcast],
   );
 
   // Non-host explainer actions -> host listens

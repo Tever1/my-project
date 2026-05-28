@@ -6,6 +6,7 @@ import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { useSocket } from '@/lib/use-socket';
+import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useAuth } from '@/lib/auth-context';
 import { useTranslation } from '@/lib/i18n';
@@ -136,12 +137,7 @@ export default function AliasPage() {
   // Broadcast
   // ------------------------------------------------------------------
 
-  const broadcast = useCallback(
-    (action: string, payload: unknown) => {
-      emit('game:action', { code: roomId, action, payload });
-    },
-    [emit, roomId],
-  );
+  const broadcast = useGameAction(roomId);
 
   // ------------------------------------------------------------------
   // Listen for game actions
@@ -171,13 +167,13 @@ export default function AliasPage() {
         case 'alias:request-state':
           // TV joined mid-game — host re-broadcasts current state
           if (isHostRef.current && gameStateRef.current) {
-            emit('game:action', { code: roomId, action: 'alias:state', payload: gameStateRef.current });
+            broadcast('alias:state', gameStateRef.current);
           }
           break;
       }
     });
     return () => { unsub1(); };
-  }, [on, emit, roomId]);
+  }, [on, broadcast]);
 
   // ------------------------------------------------------------------
   // Host: timer
@@ -513,9 +509,9 @@ export default function AliasPage() {
 
   const emitAction = useCallback(
     (action: string) => {
-      emit('game:action', { code: roomId, action, payload: {} });
+      broadcast(action, {});
     },
-    [emit, roomId],
+    [broadcast],
   );
 
   useEffect(() => {
@@ -600,7 +596,7 @@ export default function AliasPage() {
               }`}
               onClick={() => {
                 setSelectedMode('classic');
-                if (!isHost) emit('game:action', { code: roomId, action: 'alias:select-mode', payload: { mode: 'classic' } });
+                if (!isHost) broadcast('alias:select-mode', { mode: 'classic' });
               }}
             >
               <div className="flex items-center gap-4">
@@ -628,7 +624,7 @@ export default function AliasPage() {
               }`}
               onClick={() => {
                 setSelectedMode('letter');
-                if (!isHost) emit('game:action', { code: roomId, action: 'alias:select-mode', payload: { mode: 'letter' } });
+                if (!isHost) broadcast('alias:select-mode', { mode: 'letter' });
               }}
             >
               <div className="flex items-center gap-4">
@@ -700,7 +696,7 @@ export default function AliasPage() {
                   if (isHost) {
                     handleJoinTeam(myId, ti);
                   } else {
-                    emit('game:action', { code: roomId, action: 'alias:join-team', payload: { teamIndex: ti } });
+                    broadcast('alias:join-team', { teamIndex: ti });
                   }
                 }}
               >

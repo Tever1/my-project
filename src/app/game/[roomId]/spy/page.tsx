@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
+import { useGameAction, useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -183,6 +184,8 @@ export default function SpyGamePage() {
   const isActivePlayer = user?.id === activePlayerId;
   const activePlayerName = s.players.find(p => p.id === activePlayerId)?.nickname || '???';
   const isDrawer = s.mode === 'draw' && isActivePlayer;
+  const sendAction = useGameAction(roomId);
+  const broadcast = useGameBroadcast(roomId, 'spy:sync') as (payload: Partial<SpyGameState>) => void;
 
   // ── Socket ──
   useEffect(() => {
@@ -228,7 +231,7 @@ export default function SpyGamePage() {
         const newLeft = cur.timerLeft - 1;
         const patch = { timerLeft: newLeft, timerRunning: newLeft > 0 };
         setS(prev => ({ ...prev, ...patch }));
-        emit('game:action', { code: roomId, action: 'spy:sync', payload: patch });
+        broadcast(patch);
       }, 1000);
     }
 
@@ -239,10 +242,6 @@ export default function SpyGamePage() {
   }, [s.timerRunning, isHost]);
 
   // ── Helpers ──
-  const broadcast = useCallback((payload: Partial<SpyGameState>) => {
-    emit('game:action', { code: roomId, action: 'spy:sync', payload });
-  }, [emit, roomId]);
-
   // Broadcast patch AND update local state
   const update = useCallback((patch: Partial<SpyGameState>) => {
     setS(prev => ({ ...prev, ...patch }));
@@ -250,12 +249,12 @@ export default function SpyGamePage() {
   }, [broadcast]);
 
   const sendStroke = useCallback((stroke: DrawStroke) => {
-    emit('game:action', { code: roomId, action: 'spy:stroke', payload: stroke });
-  }, [emit, roomId]);
+    sendAction('spy:stroke', stroke);
+  }, [sendAction]);
 
   const sendClear = useCallback(() => {
-    emit('game:action', { code: roomId, action: 'spy:clear', payload: {} });
-  }, [emit, roomId]);
+    sendAction('spy:clear');
+  }, [sendAction]);
 
   const shufflePlayers = (players: GamePlayer[]): string[] => {
     const ids = players.map(p => p.id);
