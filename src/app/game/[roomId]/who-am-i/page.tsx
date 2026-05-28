@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
+import { useRoomState } from '@/lib/use-room-state';
 import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useTranslation } from '@/lib/i18n';
@@ -130,14 +131,10 @@ export default function WhoAmIPage() {
   // -----------------------------------------------------------------------
   // Listen for room state
   // -----------------------------------------------------------------------
-  useEffect(() => {
-    const cleanup = on('room:state', (data: unknown) => {
-      const room = data as { players?: Player[] };
-      if (room.players) setPlayers(room.players);
-    });
-    emit('room:get-state', { code: roomId });
-    return cleanup;
-  }, [on, emit, roomId]);
+  useRoomState(roomId, (data) => {
+    const room = data as { players?: Player[] };
+    if (room.players) setPlayers(room.players);
+  });
 
   // -----------------------------------------------------------------------
   // Listen for game actions

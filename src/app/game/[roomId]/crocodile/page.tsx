@@ -6,6 +6,7 @@ import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { useSocket } from '@/lib/use-socket';
+import { useRoomState } from '@/lib/use-room-state';
 import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useAuth } from '@/lib/auth-context';
@@ -100,15 +101,11 @@ export default function CrocodilePage() {
   // Listen for room:state to get players list
   // ------------------------------------------------------------------
 
-  useEffect(() => {
-    const cleanup = on('room:state', (data: unknown) => {
-      const d = data as { players: Player[]; hostId: string };
-      if (d.players) setPlayers(d.players);
-      if (d.hostId) setHostId(d.hostId);
-    });
-    emit('room:get-state', { code: roomId });
-    return cleanup;
-  }, [on, emit, roomId]);
+  useRoomState(roomId, (data) => {
+    const d = data as { players: Player[]; hostId: string };
+    if (d.players) setPlayers(d.players);
+    if (d.hostId) setHostId(d.hostId);
+  });
 
   // ------------------------------------------------------------------
   // Broadcast helper (host -> all via game:action)

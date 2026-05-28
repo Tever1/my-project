@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
+import { useRoomState } from '@/lib/use-room-state';
 import { useGameAction, useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { GameLayout } from '@/components/games/GameLayout';
@@ -187,13 +188,14 @@ export default function SpyGamePage() {
   const sendAction = useGameAction(roomId);
   const broadcast = useGameBroadcast(roomId, 'spy:sync') as (payload: Partial<SpyGameState>) => void;
 
+  useRoomState(roomId, (data) => {
+    const room = data as { players: GamePlayer[] };
+    setS(prev => ({ ...prev, players: room.players }));
+  });
+
   // ── Socket ──
   useEffect(() => {
-    const u1 = on('room:state', (data: unknown) => {
-      const room = data as { players: GamePlayer[] };
-      setS(prev => ({ ...prev, players: room.players }));
-    });
-    const u2 = on('game:action', (data: unknown) => {
+    const unsub = on('game:action', (data: unknown) => {
       const { action, payload } = data as { action: string; payload: Record<string, unknown> };
       if (action === 'spy:sync') {
         setS(prev => ({ ...prev, ...(payload as Partial<SpyGameState>) }));
@@ -208,9 +210,8 @@ export default function SpyGamePage() {
         if (canvas) (canvas as unknown as { _clearAll?: () => void })._clearAll?.();
       }
     });
-    emit('room:get-state', { code: roomId });
-    return () => { u1(); u2(); };
-  }, [on, emit, roomId]);
+    return unsub;
+  }, [on]);
 
   // ── Timer (host only) ──
   useEffect(() => {

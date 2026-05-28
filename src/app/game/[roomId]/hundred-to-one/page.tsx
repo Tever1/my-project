@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
+import { useRoomState } from '@/lib/use-room-state';
 import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { GameLayout } from '@/components/games/GameLayout';
@@ -141,12 +142,13 @@ export default function HundredToOnePage() {
   };
 
   // ── Socket ──
+  useRoomState(roomId, (data) => {
+    const room = data as { players: GamePlayer[] };
+    setS(prev => ({ ...prev, players: room.players }));
+  });
+
   useEffect(() => {
-    const u1 = on('room:state', (data: unknown) => {
-      const room = data as { players: GamePlayer[] };
-      setS(prev => ({ ...prev, players: room.players }));
-    });
-    const u2 = on('game:action', (data: unknown) => {
+    const unsub = on('game:action', (data: unknown) => {
       const { action, payload } = data as { action: string; payload: Partial<GState> };
       if (action === 'h2o:sync') setS(prev => ({ ...prev, ...payload }));
       else if (action === 'h2o:request-state') {
@@ -158,9 +160,8 @@ export default function HundredToOnePage() {
         }
       }
     });
-    emit('room:get-state', { code: roomId });
-    return () => { u1(); u2(); };
-  }, [on, emit, roomId, user?.id, broadcast]);
+    return unsub;
+  }, [on, user?.id, broadcast]);
 
   const update = useCallback((patch: Partial<GState>) => {
     setS(prev => ({ ...prev, ...patch }));
