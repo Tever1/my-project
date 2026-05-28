@@ -51,6 +51,9 @@ interface GameInfo {
   players: string;
   duration: string;
   mode: string;
+  rules: {
+    sections: Array<{ title: string; items: string[] }>;
+  };
 }
 
 interface RoomCreateResponse {
@@ -94,6 +97,32 @@ const games: GameInfo[] = [
     players: "6–14 игроков",
     duration: "≈ 20 минут",
     mode: "Роли",
+    rules: { sections: [
+        {
+          title: "Роли",
+          items: [
+            "Мафия — убивает одного игрока каждую ночь",
+            "Доктор — спасает одного игрока каждую ночь",
+            "Детектив — узнаёт роль одного игрока за ночь",
+            "Мирный житель — не имеет особых способностей",
+          ],
+        },
+        {
+          title: "Ход игры",
+          items: [
+            "Ночь: мафия выбирает жертву → доктор спасает → детектив проверяет",
+            "День: игроки обсуждают и голосуют за подозреваемого",
+            "Набравший больше голосов выбывает из игры",
+          ],
+        },
+        {
+          title: "Победа",
+          items: [
+            "Мирные: устранить всех членов мафии",
+            "Мафия: сравняться по числу с мирными",
+          ],
+        },
+      ] },
   },
   {
     id: "quiz",
@@ -104,6 +133,29 @@ const games: GameInfo[] = [
     players: "2–20 игроков",
     duration: "≈ 15 минут",
     mode: "Команды",
+    rules: { sections: [
+        {
+          title: "Как играть",
+          items: [
+            "Ведущий выбирает тему и сложность вопросов",
+            "Вопрос и 4 варианта ответа появляются на экране",
+            "Каждый игрок отвечает на своём телефоне",
+            "Таймер ограничивает время на ответ",
+          ],
+        },
+        {
+          title: "Очки",
+          items: [
+            "Правильный ответ приносит очки",
+            "Чем быстрее ответишь — тем больше бонус за скорость",
+            "Неправильный ответ очков не приносит",
+          ],
+        },
+        {
+          title: "Победа",
+          items: ["Побеждает игрок с наибольшим количеством очков"],
+        },
+      ] },
   },
   {
     id: "crocodile",
@@ -114,6 +166,28 @@ const games: GameInfo[] = [
     players: "4–20 игроков",
     duration: "≈ 15 минут",
     mode: "По очереди",
+    rules: { sections: [
+        {
+          title: "Как играть",
+          items: [
+            "По очереди один игрок объясняет слово",
+            "Можно использовать жесты, мимику, звуки",
+            "Нельзя говорить само слово и однокоренные",
+            "Нельзя показывать буквы руками",
+          ],
+        },
+        {
+          title: "Очки",
+          items: [
+            "+1 очко объясняющему за каждое угаданное слово",
+            "Пропущенные слова очков не приносят",
+          ],
+        },
+        {
+          title: "Победа",
+          items: ["Побеждает игрок с наибольшим количеством угаданных слов"],
+        },
+      ] },
   },
   {
     id: "spy",
@@ -124,6 +198,23 @@ const games: GameInfo[] = [
     players: "3–10 игроков",
     duration: "≈ 10 минут",
     mode: "Дедукция",
+    rules: { sections: [
+        {
+          title: "Как играть",
+          items: [
+            "Все получают карточку с секретной локацией — кроме шпиона",
+            "Игроки по очереди задают друг другу вопросы о локации",
+            "Шпион пытается не раскрыться, отвечая уклончиво",
+          ],
+        },
+        {
+          title: "Победа",
+          items: [
+            "Мирные: проголосовать за шпиона до конца раунда",
+            "Шпион: угадать локацию до разоблачения",
+          ],
+        },
+      ] },
   },
   {
     id: "alias",
@@ -134,6 +225,27 @@ const games: GameInfo[] = [
     players: "4–20 игроков",
     duration: "≈ 20 минут",
     mode: "На скорость",
+    rules: { sections: [
+        {
+          title: "Режимы",
+          items: [
+            "Классика: объясняй слова команде любыми словами",
+            "Буква: слова на определённую букву, каждый сам за себя",
+          ],
+        },
+        {
+          title: "Правила",
+          items: [
+            "Нельзя использовать однокоренные слова",
+            "Нельзя называть само слово или его часть",
+            "Таймер ограничивает каждый ход",
+          ],
+        },
+        {
+          title: "Победа",
+          items: ["Побеждает набравший наибольшее количество очков"],
+        },
+      ] },
   },
   {
     id: "who-am-i",
@@ -144,6 +256,24 @@ const games: GameInfo[] = [
     players: "3–12 игроков",
     duration: "≈ 15 минут",
     mode: "Вопросы",
+    rules: { sections: [
+        {
+          title: "Как играть",
+          items: [
+            "Каждому игроку тайно присваивается персонаж или понятие",
+            "Ты не знаешь своего персонажа — зато знают все остальные",
+            "По очереди задавай вопросы с ответом «Да» или «Нет»",
+            "За один ход можно задать несколько вопросов подряд",
+          ],
+        },
+        {
+          title: "Победа",
+          items: [
+            "Угадай своего персонажа первым",
+            "Чем быстрее угадаешь — тем лучше",
+          ],
+        },
+      ] },
   },
   {
     id: "hundred-to-one",
@@ -154,6 +284,33 @@ const games: GameInfo[] = [
     players: "4–10 игроков",
     duration: "≈ 30 минут",
     mode: "Шоу",
+    rules: { sections: [
+        {
+          title: "Как играть",
+          items: [
+            "Две команды соревнуются за банк очков",
+            "100 человек уже ответили на вопрос — нужно угадать их ответы",
+            "Три страйка (неверных ответа) — ход уходит к сопернику",
+          ],
+        },
+        {
+          title: "Раунды",
+          items: [
+            "Простая: стандартные очки",
+            "Двойная: очки удвоены",
+            "Тройная: очки утроены",
+            "Наоборот: побеждает набравший меньше (редкие ответы)",
+          ],
+        },
+        {
+          title: "Финал",
+          items: [
+            "После 4 раундов — Большая игра",
+            "Два игрока от победившей команды отвечают по очереди",
+            "Набери 200 очков — и весь приз достанется команде",
+          ],
+        },
+      ] },
   },
 ];
 
@@ -201,6 +358,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [isWaitingForPlayers, setIsWaitingForPlayers] = useState(false);
   const [quizSelectionOpen, setQuizSelectionOpen] = useState(false);
   const [quizGeneralConfigOpen, setQuizGeneralConfigOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [quizMode, setQuizMode] = useState<"general" | "special">("general");
   const [quizDifficulty, setQuizDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [quizTopic, setQuizTopic] = useState<"random" | "science" | "history" | "pop-culture">("random");
@@ -563,10 +721,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
         if (focusedCta) {
           e.preventDefault();
-          const ctaOrder =
-            joinCode.length === 6
-              ? ["start", "rules", "join-code", "join-submit"]
-              : ["start", "rules", "join-code"];
+          const ctaOrder = ["start", "rules"];
           const idx = ctaOrder.indexOf(focusedCta);
           if (idx === -1) return;
 
@@ -643,7 +798,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeGame, handleStartGame, joinCode, myRole]);
+  }, [activeGame, handleStartGame, myRole]);
 
   const active = games.find((g) => g.id === activeGame)!;
   const accent = gameColors[active.id].accent;
@@ -876,16 +1031,12 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
             game={active}
             accent={accent}
             deep={deep}
-            joinCode={joinCode}
-            onJoinCodeChange={setJoinCode}
-            onJoinRoom={handleJoinRoom}
             onStartGame={handleStartGame}
             onOpenQuizConfig={() => setQuizSelectionOpen(true)}
             startGameButtonRef={startGameButtonRef}
             isMobile={isMobile}
-            isJoiningRoom={isJoiningRoom}
             isCurrentUserHost={isCurrentUserHost}
-            showJoinRoom={!roomCode}
+            onRules={() => setRulesOpen(true)}
           />
         )}
 
@@ -1041,6 +1192,144 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         />
       )}
       <GlassToaster accentColor={accent} />
+      <AnimatePresence>
+        {rulesOpen && (
+          <motion.div
+            key="rules-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={() => setRulesOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 80,
+              background: "rgba(0,0,0,0.65)",
+              backdropFilter: "blur(6px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px 16px",
+            }}
+          >
+            <motion.div
+              key="rules-panel"
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              transition={{ duration: 0.22, ease: [0.34, 1.56, 0.64, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "rgba(18,20,32,0.92)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: 20,
+                padding: "28px 28px 32px",
+                maxWidth: 480,
+                width: "100%",
+                maxHeight: "85vh",
+                overflowY: "auto",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 24,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: `${accent}cc`,
+                      fontWeight: 700,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Правила
+                  </div>
+                  <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>
+                    {active.name}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setRulesOpen(false)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    color: "rgba(255,255,255,0.7)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 18,
+                    lineHeight: 1,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {active.rules.sections.map((section) => (
+                  <div key={section.title}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        color: "rgba(255,255,255,0.45)",
+                        fontWeight: 700,
+                        marginBottom: 8,
+                      }}
+                    >
+                      {section.title}
+                    </div>
+                    <ul
+                      style={{
+                        margin: 0,
+                        padding: 0,
+                        listStyle: "none",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                      }}
+                    >
+                      {section.items.map((item, i) => (
+                        <li
+                          key={i}
+                          style={{
+                            display: "flex",
+                            gap: 10,
+                            alignItems: "flex-start",
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            color: "rgba(255,255,255,0.82)",
+                          }}
+                        >
+                          <span style={{ color: `${accent}cc`, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>
+                            —
+                          </span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
@@ -1918,96 +2207,26 @@ function HeroLeft({
   game,
   accent,
   deep,
-  joinCode,
-  onJoinCodeChange,
-  onJoinRoom,
   onStartGame,
   onOpenQuizConfig,
   startGameButtonRef,
   isMobile,
-  isJoiningRoom,
   isCurrentUserHost,
-  showJoinRoom,
+  onRules,
 }: {
   game: GameInfo;
   accent: string;
   deep: string;
-  joinCode: string;
-  onJoinCodeChange: (v: string) => void;
-  onJoinRoom: () => void;
   onStartGame: () => void;
   onOpenQuizConfig: () => void;
   startGameButtonRef: React.RefObject<HTMLButtonElement | null>;
   isMobile: boolean;
-  isJoiningRoom: boolean;
   isCurrentUserHost: boolean;
-  showJoinRoom: boolean;
+  onRules: () => void;
 }) {
   const [startFocused, setStartFocused] = useState(false);
   const [rulesFocused, setRulesFocused] = useState(false);
-  const [joinWrapperFocused, setJoinWrapperFocused] = useState(false);
-  const [joinInputFocused, setJoinInputFocused] = useState(false);
-  const [submitFocused, setSubmitFocused] = useState(false);
-  const joinInputRef = useRef<HTMLInputElement>(null);
-  const joinWrapperRef = useRef<HTMLButtonElement>(null);
-  const joinSelectedByEscRef = useRef(false);
   const startButtonShadow = `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`;
-  const joinFocusRing = joinWrapperFocused || joinInputFocused;
-
-  const handleJoinWrapperFocus = () => {
-    setJoinWrapperFocused(true);
-    if (joinSelectedByEscRef.current) {
-      joinSelectedByEscRef.current = false;
-      return;
-    }
-    joinInputRef.current?.focus();
-  };
-
-  const handleJoinWrapperKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.target !== e.currentTarget) return;
-
-    if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      e.stopPropagation();
-      document.querySelector<HTMLElement>('[data-lobby-cta="rules"]')?.focus();
-      return;
-    }
-
-    if (e.key === "ArrowRight" || e.key === "Enter") {
-      e.preventDefault();
-      e.stopPropagation();
-      joinInputRef.current?.focus();
-    }
-  };
-
-  const handleJoinInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && e.currentTarget.value.length === 6) {
-      e.preventDefault();
-      e.stopPropagation();
-      onJoinRoom();
-      return;
-    }
-
-    if (e.key === "ArrowRight") {
-      const target = e.currentTarget;
-      const isAtEnd =
-        target.selectionStart === target.value.length &&
-        target.selectionEnd === target.value.length;
-
-      if (isAtEnd && target.value.length === 6) {
-        e.preventDefault();
-        document.querySelector<HTMLElement>('[data-lobby-cta="join-submit"]')?.focus();
-      }
-      return;
-    }
-
-    if (e.key !== "Escape") return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    joinSelectedByEscRef.current = true;
-    joinWrapperRef.current?.focus();
-  };
 
   return (
     <div style={{ position: "relative" }}>
@@ -2148,6 +2367,7 @@ function HeroLeft({
 
         <motion.button
           data-lobby-cta="rules"
+          onClick={onRules}
           onFocus={() => setRulesFocused(true)}
           onBlur={() => setRulesFocused(false)}
           whileHover={{ scale: 1.02 }}
@@ -2171,137 +2391,6 @@ function HeroLeft({
         >
           Правила
         </motion.button>
-
-        {showJoinRoom && (
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 12,
-              width: isMobile ? "100%" : undefined,
-              flexShrink: 0,
-            }}
-          >
-            {/* Join code input */}
-            <button
-              ref={joinWrapperRef}
-              type="button"
-              tabIndex={-1}
-              data-lobby-cta="join-code"
-              onFocus={handleJoinWrapperFocus}
-              onBlur={() => setJoinWrapperFocused(false)}
-              onKeyDown={handleJoinWrapperKeyDown}
-              onClick={() => joinInputRef.current?.focus()}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 12,
-                height: isMobile ? 54 : 51,
-                flex: isMobile ? "1 1 auto" : undefined,
-                minWidth: 0,
-                padding: isMobile ? "0 18px" : "0 15px",
-                borderRadius: radius.md,
-                background: "rgba(0, 0, 0, 0.32)",
-                border: "1px dashed rgba(255, 255, 255, 0.22)",
-                boxShadow: joinFocusRing ? `0 0 0 3px ${accent}99` : "none",
-                cursor: "text",
-                fontFamily: "inherit",
-                outline: "none",
-                color: "inherit",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
-                <span
-                  style={{
-                    fontSize: isMobile ? 10 : 9,
-                    letterSpacing: "0.15em",
-                    textTransform: "uppercase",
-                    color: "rgba(235, 235, 245, 0.45)",
-                    fontWeight: 700,
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  Код комнаты
-                </span>
-                <input
-                  ref={joinInputRef}
-                  data-lobby-cta="join-code-input"
-                  value={joinCode}
-                  onChange={(e) =>
-                    onJoinCodeChange(e.target.value.toUpperCase().slice(0, 6))
-                  }
-                  onFocus={() => setJoinInputFocused(true)}
-                  onBlur={() => setJoinInputFocused(false)}
-                  onKeyDown={handleJoinInputKeyDown}
-                  placeholder="ABXY7K"
-                  maxLength={6}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    outline: "none",
-                    color: "white",
-                    fontFamily: "var(--font-mono)",
-                    fontWeight: 700,
-                    fontSize: isMobile ? 17 : 15,
-                    letterSpacing: "0.3em",
-                    width: isMobile ? "100%" : 110,
-                    padding: 0,
-                  }}
-                />
-              </div>
-            </button>
-
-            {joinCode.length === 6 && (
-              <motion.button
-                data-lobby-cta="join-submit"
-                aria-label="Присоединиться к комнате"
-                onClick={onJoinRoom}
-                onFocus={() => setSubmitFocused(true)}
-                onBlur={() => setSubmitFocused(false)}
-                disabled={isJoiningRoom}
-                whileHover={{ scale: 1.03, y: -2 }}
-                whileTap={{ scale: 0.97 }}
-                transition={spring.snappy}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: isMobile ? 54 : 51,
-                  width: isMobile ? 60 : 51,
-                  padding: 0,
-                  flexShrink: 0,
-                  borderRadius: radius.md,
-                  background: `linear-gradient(180deg, ${accent}, ${deep})`,
-                  color: "white",
-                  border: `1px solid color-mix(in srgb, ${accent} 60%, white)`,
-                  boxShadow: submitFocused
-                    ? `0 0 0 3px rgba(255,255,255,0.7), 0 12px 32px -8px ${accent}99`
-                    : `0 12px 32px -8px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.35)`,
-                  cursor: isJoiningRoom ? "wait" : "pointer",
-                  opacity: isJoiningRoom ? 0.72 : 1,
-                  fontFamily: "inherit",
-                  outline: "none",
-                }}
-              >
-                <svg
-                  width={isMobile ? 22 : 19}
-                  height={isMobile ? 22 : 19}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-label="Присоединиться"
-                >
-                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                  <polyline points="10 17 15 12 10 7" />
-                  <line x1="15" y1="12" x2="3" y2="12" />
-                </svg>
-              </motion.button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
