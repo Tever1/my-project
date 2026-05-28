@@ -31,6 +31,17 @@ import { toast } from "sonner";
 
 export { useIsMobile } from "@/lib/use-is-mobile";
 
+const GUEST_ID_KEY = 'party-hub-join-guest-id';
+
+function getGuestPlayerId(): string {
+  if (typeof window === 'undefined') return '';
+  const existing = window.localStorage.getItem(GUEST_ID_KEY);
+  if (existing) return existing;
+  const next = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  window.localStorage.setItem(GUEST_ID_KEY, next);
+  return next;
+}
+
 interface GameInfo {
   id: GameId;
   name: string;
@@ -183,6 +194,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [roomCode, setRoomCode] = useState<string | null>(initialCode);
   const [joinCode, setJoinCode] = useState("");
   const [roomState, setRoomState] = useState<RoomState | null>(null);
+  const [guestPlayerId, setGuestPlayerId] = useState('');
   const [roomMenuOpen, setRoomMenuOpen] = useState(false);
   const [authMenuOpen, setAuthMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -207,6 +219,10 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   useEffect(() => {
     document.documentElement.classList.add("dark");
     return () => document.documentElement.classList.remove("dark");
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => setGuestPlayerId(getGuestPlayerId()));
   }, []);
 
   useEffect(() => {
@@ -424,8 +440,10 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     !roomCode ||
     roomState?.hostId === user?.id ||
     (!isRoomRoute && roomState == null);
+  const effectivePlayerId = user?.id ?? guestPlayerId;
   const isGameHostPhone = Boolean(
-    user?.id && roomState?.gameHostPlayerId && user.id === roomState.gameHostPlayerId
+    effectivePlayerId && roomState?.gameHostPlayerId &&
+    effectivePlayerId === roomState.gameHostPlayerId
   );
   const canAddPlayer = isCurrentUserHost || isGameHostPhone;
 
@@ -639,8 +657,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     myRole === "player" &&
     !isWaitingForPlayers &&
     Boolean(roomState?.currentGame) &&
-    Boolean(user?.id) &&
-    user?.id === roomState?.gameHostPlayerId;
+    Boolean(effectivePlayerId) &&
+    effectivePlayerId === roomState?.gameHostPlayerId;
 
   // QR waiting screen — shown on desktop after "Start game" is pressed.
   if (myRole === "tv" && isWaitingForPlayers && roomCode) {
