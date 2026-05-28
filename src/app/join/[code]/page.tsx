@@ -77,6 +77,18 @@ export default function JoinPage() {
     });
   }, [on, router]);
 
+  useEffect(() => {
+    if (!roomState || !playerId || joined) return;
+    const existingPlayer = roomState.players.find((player) => player.id === playerId);
+    if (!existingPlayer) return;
+    queueMicrotask(() => {
+      setJoined(true);
+      if (!nickname && existingPlayer.nickname) {
+        setNickname(existingPlayer.nickname);
+      }
+    });
+  }, [roomState, playerId, joined, nickname]);
+
   const handleJoin = useCallback(() => {
     const trimmedNickname = nickname.trim();
     if (!trimmedNickname || !code || !isConnected || !playerId) return;
@@ -110,7 +122,7 @@ export default function JoinPage() {
     emit("game:start", { code });
   }, [code, emit]);
 
-  const visiblePlayers = roomState?.players.filter((player) => player.role !== "tv") ?? [];
+  const visiblePlayers = (roomState?.players ?? []).filter((player) => player.role !== "tv");
   const gameHostPlayer = visiblePlayers.find((player) => player.id === roomState?.gameHostPlayerId);
   const canStartGame =
     joined &&

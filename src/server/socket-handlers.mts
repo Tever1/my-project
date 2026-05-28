@@ -66,10 +66,14 @@ function getRoomByCode(code: string): Room | undefined {
 }
 
 function broadcastRoomState(io: SocketIOServer, room: Room) {
-  const players = Array.from(room.players.values()).map(({ socketId: _socketId, ...rest }) => {
-    void _socketId;
-    return rest;
-  });
+  const allPlayers = Array.from(room.players.values());
+  const tvConnected = allPlayers.some((p) => p.role === 'tv' && p.isConnected);
+  const players = allPlayers
+    .filter((p) => p.role !== 'tv')
+    .map(({ socketId: _socketId, ...rest }) => {
+      void _socketId;
+      return rest;
+    });
   const state = {
     id: room.id,
     code: room.code,
@@ -79,7 +83,7 @@ function broadcastRoomState(io: SocketIOServer, room: Room) {
     status: room.status,
     currentGame: room.currentGame,
     gameState: room.gameState,
-    tvConnected: players.some((p) => p.role === 'tv' && p.isConnected),
+    tvConnected,
     gameHostPlayerId: room.gameHostPlayerId,
   };
   io.to(`room:${room.code}`).emit('room:state', state);
@@ -221,10 +225,14 @@ export function setupSocketHandlers(io: SocketIOServer) {
         socket.emit('room:not-found', { code: data.code });
         return;
       }
-      const players = Array.from(room.players.values()).map(({ socketId: _socketId, ...rest }) => {
-        void _socketId;
-        return rest;
-      });
+      const allPlayers = Array.from(room.players.values());
+      const tvConnected = allPlayers.some((p) => p.role === 'tv' && p.isConnected);
+      const players = allPlayers
+        .filter((p) => p.role !== 'tv')
+        .map(({ socketId: _socketId, ...rest }) => {
+          void _socketId;
+          return rest;
+        });
       const state = {
         id: room.id,
         code: room.code,
@@ -234,7 +242,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         status: room.status,
         currentGame: room.currentGame,
         gameState: room.gameState,
-        tvConnected: players.some((p) => p.role === 'tv' && p.isConnected),
+        tvConnected,
         gameHostPlayerId: room.gameHostPlayerId,
       };
       socket.emit('room:state', state);
@@ -329,6 +337,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
       newHost.isHost = true;
       room.hostId = data.newHostId;
       broadcastRoomState(io, room);
+    });
+
+    // Show QR screen on TV lobby when host/game-host wants to add players.
+    socket.on('room:show-qr', (data: { code: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      io.to(`room:${room.code}`).emit('room:show-qr');
     });
 
     // Leave room

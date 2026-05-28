@@ -69,6 +69,7 @@ interface RoomState {
   hostId: string;
   tvConnected?: boolean;
   currentGame?: string | null;
+  gameHostPlayerId?: string | null;
 }
 
 const games: GameInfo[] = [
@@ -185,6 +186,11 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [authMenuOpen, setAuthMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [isWaitingForPlayers, setIsWaitingForPlayers] = useState(false);
+  const [quizSelectionOpen, setQuizSelectionOpen] = useState(false);
+  const [quizGeneralConfigOpen, setQuizGeneralConfigOpen] = useState(false);
+  const [quizMode, setQuizMode] = useState<"general" | "special">("general");
+  const [quizDifficulty, setQuizDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [quizTopic, setQuizTopic] = useState<"random" | "science" | "history" | "pop-culture">("random");
   const [, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const roomMenuRef = useRef<HTMLDivElement>(null);
@@ -243,6 +249,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         hostId: typeof payload.hostId === "string" ? payload.hostId : "",
         tvConnected: typeof payload.tvConnected === "boolean" ? payload.tvConnected : false,
         currentGame: typeof payload.currentGame === "string" ? payload.currentGame : null,
+        gameHostPlayerId: typeof payload.gameHostPlayerId === "string" ? payload.gameHostPlayerId : null,
       });
     });
 
@@ -317,6 +324,13 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       }
     });
   }, [myRole, on, router]);
+
+  useEffect(() => {
+    return on('room:show-qr', () => {
+      if (myRole !== "tv") return;
+      setIsWaitingForPlayers(true);
+    });
+  }, [myRole, on]);
 
   const getPlayerPayload = useCallback(() => {
     if (!user?.id || !user.nickname) {
@@ -414,6 +428,10 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     !roomCode ||
     roomState?.hostId === user?.id ||
     (!isRoomRoute && roomState == null);
+  const isGameHostPhone = Boolean(
+    user?.id && roomState?.gameHostPlayerId && user.id === roomState.gameHostPlayerId
+  );
+  const canAddPlayer = isCurrentUserHost || isGameHostPhone;
 
   const handleStartGame = useCallback(async () => {
     if (!isCurrentUserHost) return;
@@ -428,9 +446,46 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     setIsWaitingForPlayers(true);
   }, [activeGame, createRoom, emit, isCurrentUserHost, roomCode]);
 
+  const handleQuizGeneralConfigConfirm = useCallback(() => {
+    const config = {
+      mode: quizMode,
+      difficulty: quizDifficulty,
+      topic: quizTopic,
+      specialQuizId: null,
+    };
+    localStorage.setItem("party-hub-quiz-config", JSON.stringify(config));
+    setQuizGeneralConfigOpen(false);
+    setQuizSelectionOpen(false);
+    void handleStartGame();
+  }, [handleStartGame, quizDifficulty, quizMode, quizTopic]);
+
+  const handleSelectSpecialQuiz = useCallback((specialQuizId: string) => {
+    localStorage.setItem("party-hub-quiz-config", JSON.stringify({
+      mode: "special",
+      difficulty: "medium",
+      topic: "random",
+      specialQuizId,
+    }));
+    setQuizSelectionOpen(false);
+    void handleStartGame();
+  }, [handleStartGame]);
+
   const handleCancelWaiting = useCallback(() => {
     setIsWaitingForPlayers(false);
   }, []);
+
+  const handleAddPlayer = useCallback(() => {
+    if (!roomCode) return;
+    if (myRole === "tv" && !roomState?.currentGame) {
+      emit('game:select', { code: roomCode, gameType: activeGame });
+    }
+    emit('room:show-qr', { code: roomCode });
+  }, [activeGame, emit, myRole, roomCode, roomState?.currentGame]);
+
+  const handleEmitStartGame = useCallback(() => {
+    if (!roomCode) return;
+    emit('game:start', { code: roomCode });
+  }, [emit, roomCode]);
 
   const handleKick = useCallback((playerId: string) => {
     if (!roomCode) return;
@@ -558,7 +613,11 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         }
 
         if (tag !== "BUTTON" && tag !== "A") {
-          handleStartGame();
+          if (activeGame === "quiz") {
+            setQuizSelectionOpen(true);
+          } else {
+            handleStartGame();
+          }
         }
       } else if (e.key === "Escape") {
         const activeElement = document.activeElement as HTMLElement | null;
@@ -575,6 +634,17 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const active = games.find((g) => g.id === activeGame)!;
   const accent = gameColors[active.id].accent;
   const deep = gameColors[active.id].deep;
+  const startGameLabel = pathname.startsWith("/en") ? "START GAME" : "НАЧАТЬ ИГРУ";
+  const selectedRoomGame = roomState?.currentGame
+    ? games.find((game) => game.id === roomState.currentGame)
+    : null;
+  const selectedRoomGameName = selectedRoomGame?.name ?? roomState?.currentGame ?? "";
+  const shouldShowGameHostStartBanner =
+    myRole === "player" &&
+    !isWaitingForPlayers &&
+    Boolean(roomState?.currentGame) &&
+    Boolean(user?.id) &&
+    user?.id === roomState?.gameHostPlayerId;
 
   // QR waiting screen — shown on desktop after "Start game" is pressed.
   if (myRole === "tv" && isWaitingForPlayers && roomCode) {
@@ -630,22 +700,33 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
           />
         </div>
 
-        <div>
-          <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 13, margin: "0 0 8px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+          <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 13, margin: 0 }}>
             Отсканируй QR или открой на телефоне:
           </p>
           <p
             style={{
-              fontSize: 22,
-              fontWeight: 800,
-              letterSpacing: "0.04em",
+              fontSize: 15,
+              fontWeight: 600,
+              color: "rgba(255,255,255,0.55)",
+              fontFamily: "var(--font-mono)",
+              margin: 0,
+              letterSpacing: "0.02em",
+            }}
+          >
+            {siteUrl}/join
+          </p>
+          <p
+            style={{
+              fontSize: 36,
+              fontWeight: 900,
               color: "white",
               fontFamily: "var(--font-mono)",
               margin: 0,
-              overflowWrap: "anywhere",
+              letterSpacing: "0.18em",
             }}
           >
-            {joinUrl}
+            {roomCode}
           </p>
         </div>
 
@@ -745,6 +826,8 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         onOpenAccountMenu={openAccountMenu}
         onCloseAccountMenu={closeAccountMenu}
         onLogout={handleLogout}
+        roomCode={roomCode}
+        onOpenRoomMenu={() => setRoomMenuOpen(true)}
       />
 
       {/* Hero */}
@@ -783,6 +866,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
             onJoinCodeChange={setJoinCode}
             onJoinRoom={handleJoinRoom}
             onStartGame={handleStartGame}
+            onOpenQuizConfig={() => setQuizSelectionOpen(true)}
             startGameButtonRef={startGameButtonRef}
             isMobile={isMobile}
             isJoiningRoom={isJoiningRoom}
@@ -791,29 +875,29 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
           />
         )}
 
-        {myRole === "tv" && !isMobile && (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <AnimatePresence mode="wait">
-              {roomMenuOpen && roomCode ? (
-                <RoomMenu
-                  key="room-menu"
-                  ref={roomMenuRef}
-                  roomCode={roomCode}
-                  roomState={roomState}
-                  accent={accent}
-                  deep={deep}
-                  currentUserId={user?.id ?? ""}
-                  onKick={handleKick}
-                  onTransferHost={handleTransferHost}
-                  onLeaveRoom={handleLeaveRoom}
-                  onClose={() => setRoomMenuOpen(false)}
-                />
-              ) : (
-                <TiltedPreview key="tilted-preview" gameId={active.id} />
-              )}
-            </AnimatePresence>
-          </div>
-        )}
+        <div style={{ display: isMobile ? "none" : "flex", justifyContent: "flex-end" }}>
+          <AnimatePresence mode="wait">
+            {roomMenuOpen && roomCode ? (
+              <RoomMenu
+                key="room-menu"
+                ref={roomMenuRef}
+                roomCode={roomCode}
+                roomState={roomState}
+                accent={accent}
+                deep={deep}
+                currentUserId={user?.id ?? ""}
+                canAddPlayer={canAddPlayer}
+                onKick={handleKick}
+                onTransferHost={handleTransferHost}
+                onLeaveRoom={handleLeaveRoom}
+                onAddPlayer={handleAddPlayer}
+                onClose={() => setRoomMenuOpen(false)}
+              />
+            ) : (
+              <TiltedPreview key="tilted-preview" gameId={active.id} />
+            )}
+          </AnimatePresence>
+        </div>
       </section>
 
       {/* Mobile room menu overlay */}
@@ -856,10 +940,12 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
               accent={accent}
               deep={deep}
               currentUserId={user?.id ?? ""}
+              canAddPlayer={canAddPlayer}
               isMobile={true}
               onKick={handleKick}
               onTransferHost={handleTransferHost}
               onLeaveRoom={handleLeaveRoom}
+              onAddPlayer={handleAddPlayer}
               onClose={() => setRoomMenuOpen(false)}
             />
           </div>
@@ -874,6 +960,70 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
           activeId={activeGame}
           onSelect={setActiveGame}
           isMobile={isMobile}
+        />
+      )}
+      {shouldShowGameHostStartBanner && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 30,
+            background: "rgba(255,255,255,0.97)",
+            color: "#08080d",
+            borderRadius: 20,
+            padding: "16px 28px",
+            display: "flex",
+            gap: 16,
+            alignItems: "center",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.45)",
+          }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 750, whiteSpace: "nowrap" }}>
+            {selectedRoomGameName}
+          </span>
+          <button
+            type="button"
+            onClick={handleEmitStartGame}
+            style={{
+              fontWeight: 900,
+              fontSize: 16,
+              cursor: "pointer",
+              border: "none",
+              background: "transparent",
+              color: "#08080d",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {startGameLabel}
+          </button>
+        </div>
+      )}
+      {quizSelectionOpen && (
+        <QuizSelectionScreen
+          accent={gameColors.quiz.accent}
+          onBack={() => {
+            setQuizGeneralConfigOpen(false);
+            setQuizSelectionOpen(false);
+          }}
+          onSelectGeneral={() => {
+            setQuizMode("general");
+            setQuizGeneralConfigOpen(true);
+          }}
+          onSelectSpecial={(specialQuizId) => handleSelectSpecialQuiz(specialQuizId)}
+        />
+      )}
+      {quizSelectionOpen && quizGeneralConfigOpen && (
+        <QuizConfigOverlay
+          accent={gameColors.quiz.accent}
+          difficulty={quizDifficulty}
+          topic={quizTopic}
+          onDifficultyChange={setQuizDifficulty}
+          onTopicChange={setQuizTopic}
+          onConfirm={handleQuizGeneralConfigConfirm}
+          onClose={() => setQuizGeneralConfigOpen(false)}
         />
       )}
       <GlassToaster accentColor={accent} />
@@ -898,6 +1048,8 @@ function TopBar({
   onOpenAccountMenu,
   onCloseAccountMenu,
   onLogout,
+  roomCode,
+  onOpenRoomMenu,
 }: {
   accent: string;
   deep: string;
@@ -911,6 +1063,8 @@ function TopBar({
   onOpenAccountMenu: () => void;
   onCloseAccountMenu: () => void;
   onLogout: () => void;
+  roomCode?: string | null;
+  onOpenRoomMenu?: () => void;
 }) {
   const compact = isNarrowDesktop && !isMobile;
 
@@ -938,6 +1092,26 @@ function TopBar({
 
       {/* Right: avatar */}
       <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : compact ? 8 : 12, flexShrink: 0 }}>
+        {roomCode && onOpenRoomMenu && (
+          <button
+            type="button"
+            onClick={onOpenRoomMenu}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.09)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              color: "white",
+              fontWeight: 700,
+              fontSize: 13,
+              letterSpacing: "0.08em",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {roomCode}
+          </button>
+        )}
         <div style={{ position: "relative" }}>
           <AvatarPill
             user={user}
@@ -1734,6 +1908,7 @@ function HeroLeft({
   onJoinCodeChange,
   onJoinRoom,
   onStartGame,
+  onOpenQuizConfig,
   startGameButtonRef,
   isMobile,
   isJoiningRoom,
@@ -1747,6 +1922,7 @@ function HeroLeft({
   onJoinCodeChange: (v: string) => void;
   onJoinRoom: () => void;
   onStartGame: () => void;
+  onOpenQuizConfig: () => void;
   startGameButtonRef: React.RefObject<HTMLButtonElement | null>;
   isMobile: boolean;
   isJoiningRoom: boolean;
@@ -1907,7 +2083,13 @@ function HeroLeft({
       >
         <motion.button
           ref={startGameButtonRef}
-          onClick={onStartGame}
+          onClick={() => {
+            if (game.id === "quiz") {
+              onOpenQuizConfig();
+            } else {
+              onStartGame();
+            }
+          }}
           disabled={!isCurrentUserHost}
           data-lobby-cta="start"
           onFocus={() => setStartFocused(true)}
@@ -1945,7 +2127,9 @@ function HeroLeft({
           }}
         >
           {isCurrentUserHost && <PlayIcon />}
-          {isCurrentUserHost ? "Начать партию" : "Ожидание хоста"}
+          {isCurrentUserHost
+            ? game.id === "quiz" ? "Выбрать квиз" : "Начать партию"
+            : "Ожидание хоста"}
         </motion.button>
 
         <motion.button
@@ -2119,10 +2303,12 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   accent: string;
   deep: string;
   currentUserId: string;
+  canAddPlayer: boolean;
   isMobile?: boolean;
   onKick: (playerId: string) => void;
   onTransferHost: (playerId: string) => void;
   onLeaveRoom: () => void;
+  onAddPlayer: () => void;
   onClose: () => void;
 }>(function RoomMenu({
   roomCode,
@@ -2130,36 +2316,25 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   accent,
   deep,
   currentUserId,
+  canAddPlayer,
   isMobile = false,
   onKick,
   onTransferHost,
   onLeaveRoom,
+  onAddPlayer,
   onClose,
 }, ref) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [localIp, setLocalIp] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
-  const origin = localIp
-    ? `http://${localIp}:${typeof window !== "undefined" ? window.location.port || "3000" : "3000"}`
-    : typeof window !== "undefined" ? window.location.origin : "";
-  const joinUrl = roomCode ? `${origin}/lobby/${roomCode}` : "";
-  // TV screen participates in the room transport, but is not a game player.
   const connectedPlayers = (roomState?.players ?? []).filter(
-    (p) => p.nickname && p.role !== "tv"
+    (p) => p.nickname
   );
   const isCurrentUserHost = currentUserId !== "" && currentUserId === roomState?.hostId;
   const handleClose = () => {
     setConfirmLeave(false);
     onClose();
   };
-
-  useEffect(() => {
-    fetch('/api/local-ip')
-      .then((r) => r.json())
-      .then((data) => setLocalIp(data.ip))
-      .catch(() => setLocalIp(null));
-  }, []);
 
   useImperativeHandle(ref, () => panelRef.current as HTMLDivElement, []);
 
@@ -2475,56 +2650,369 @@ const RoomMenu = forwardRef<HTMLDivElement, {
         )}
       </div>
 
-      <div
-        style={{
-          marginTop: "auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 14,
-          paddingTop: 8,
-        }}
-      >
-        <div
+      {canAddPlayer && (
+        <button
+          type="button"
+          onClick={() => {
+            onAddPlayer();
+            onClose();
+          }}
           style={{
-            width: 206,
-            height: 206,
-            borderRadius: 24,
-            background: "rgba(255, 255, 255, 0.94)",
-            border: "1px solid rgba(255, 255, 255, 0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 24px 60px -28px rgba(0,0,0,0.85)",
+            width: "100%",
+            padding: "14px 20px",
+            borderRadius: 14,
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            color: "white",
+            fontWeight: 800,
+            fontSize: 16,
+            cursor: "pointer",
+            fontFamily: "inherit",
           }}
         >
-          {joinUrl && (
-            <QRCode
-              value={joinUrl}
-              size={180}
-              quietZone={4}
-              bgColor="#ffffff"
-              fgColor="#06060c"
-              qrStyle="dots"
-              eyeRadius={10}
-            />
-          )}
-        </div>
-        <div
-          style={{
-            maxWidth: 280,
-            textAlign: "center",
-            color: "rgba(235, 235, 245, 0.62)",
-            fontSize: 13,
-            lineHeight: 1.45,
-          }}
-        >
-          Покажи QR друзьям для быстрого подключения
-        </div>
-      </div>
+          + Добавить игрока
+        </button>
+      )}
+
     </GlassPanel>
   );
 });
+
+function QuizSelectionScreen({
+  accent,
+  onBack,
+  onSelectGeneral,
+  onSelectSpecial,
+}: {
+  accent: string;
+  onBack: () => void;
+  onSelectGeneral: () => void;
+  onSelectSpecial: (specialQuizId: string, backgroundUrl: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 20,
+        color: "white",
+        background:
+          `radial-gradient(900px 620px at 70% 20%, ${accent}33, transparent 62%), radial-gradient(760px 560px at 18% 82%, rgba(48, 88, 255, 0.22), transparent 64%), #08080d`,
+        padding: "clamp(24px, 5vw, 56px)",
+        display: "flex",
+        flexDirection: "column",
+        overflowY: "auto",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 18,
+          marginBottom: 36,
+        }}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 999,
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            color: "rgba(255,255,255,0.86)",
+            fontWeight: 750,
+            fontSize: 14,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          ← Назад
+        </button>
+        <h1 style={{ margin: 0, fontSize: "clamp(34px, 6vw, 72px)", lineHeight: 0.95, fontWeight: 900 }}>
+          Выбери квиз
+        </h1>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 22,
+          alignItems: "stretch",
+        }}
+      >
+        <QuizSelectionTile
+          title="Общие квизы"
+          subtitle="Наука, история, поп-культура"
+          icon="🎲"
+          gradient="linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)"
+          onClick={onSelectGeneral}
+        />
+        <QuizSelectionTile
+          title="Гарри Поттер #1"
+          backgroundUrl="/backgrounds/harry-potter.png"
+          onClick={() => onSelectSpecial("harry-potter-1", "/backgrounds/harry-potter.png")}
+        />
+        <QuizSelectionTile
+          title="Marvel #1"
+          backgroundUrl="/backgrounds/marvel.png"
+          onClick={() => onSelectSpecial("marvel-1", "/backgrounds/marvel.png")}
+        />
+      </div>
+    </div>
+  );
+}
+
+function QuizSelectionTile({
+  title,
+  subtitle,
+  icon,
+  gradient,
+  backgroundUrl,
+  onClick,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: string;
+  gradient?: string;
+  backgroundUrl?: string;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ scale: 1.03, boxShadow: "0 14px 44px rgba(0,0,0,0.52)" }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.15 }}
+      style={{
+        width: 280,
+        height: 180,
+        borderRadius: 16,
+        overflow: "hidden",
+        cursor: "pointer",
+        position: "relative",
+        border: "1px solid rgba(255,255,255,0.12)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+        transition: "transform 150ms ease, box-shadow 150ms ease",
+        padding: 0,
+        textAlign: "left",
+        fontFamily: "inherit",
+        background: gradient ?? "#11131f",
+      }}
+    >
+      {backgroundUrl && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `url(${backgroundUrl})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+      )}
+      {icon && (
+        <div
+          style={{
+            position: "absolute",
+            top: 22,
+            left: 22,
+            fontSize: 42,
+            lineHeight: 1,
+          }}
+        >
+          {icon}
+        </div>
+      )}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: "linear-gradient(transparent, rgba(0,0,0,0.85))",
+          padding: "32px 16px 14px",
+          color: "white",
+        }}
+      >
+        <div style={{ fontWeight: 750, fontSize: 16 }}>
+          {title}
+        </div>
+        {subtitle && (
+          <div style={{ marginTop: 5, color: "rgba(255,255,255,0.68)", fontSize: 13, fontWeight: 600 }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </motion.button>
+  );
+}
+
+function QuizConfigOverlay({
+  accent,
+  difficulty,
+  topic,
+  onDifficultyChange,
+  onTopicChange,
+  onConfirm,
+  onClose,
+}: {
+  accent: string;
+  difficulty: "easy" | "medium" | "hard";
+  topic: "random" | "science" | "history" | "pop-culture";
+  onDifficultyChange: (difficulty: "easy" | "medium" | "hard") => void;
+  onTopicChange: (topic: "random" | "science" | "history" | "pop-culture") => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const optionStyle = (active: boolean): React.CSSProperties => ({
+    padding: "10px 16px",
+    borderRadius: 10,
+    background: active ? `${accent}22` : "rgba(255,255,255,0.06)",
+    border: active ? `1px solid ${accent}66` : "1px solid rgba(255,255,255,0.12)",
+    color: active ? "white" : "rgba(255,255,255,0.7)",
+    fontWeight: active ? 750 : 600,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  });
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 30,
+          background: "rgba(0,0,0,0.7)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+        }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Настройки квиза"
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          zIndex: 31,
+          width: "calc(100% - 32px)",
+          maxWidth: 480,
+          background: "rgba(20,20,32,0.95)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 24,
+          padding: "32px 28px",
+          boxShadow: "0 32px 96px rgba(0,0,0,0.6)",
+          color: "white",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+          <h2 style={{ margin: 0, fontSize: 26, lineHeight: 1.1, fontWeight: 850 }}>
+            Настройки квиза
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Закрыть"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: radius.full,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "rgba(255,255,255,0.72)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 16,
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <QuizConfigGroup title="Сложность">
+          <button type="button" onClick={() => onDifficultyChange("easy")} style={optionStyle(difficulty === "easy")}>
+            Лёгкий
+          </button>
+          <button type="button" onClick={() => onDifficultyChange("medium")} style={optionStyle(difficulty === "medium")}>
+            Средний
+          </button>
+          <button type="button" onClick={() => onDifficultyChange("hard")} style={optionStyle(difficulty === "hard")}>
+            Сложный
+          </button>
+        </QuizConfigGroup>
+        <QuizConfigGroup title="Тема">
+          <button type="button" onClick={() => onTopicChange("random")} style={optionStyle(topic === "random")}>
+            Случайные
+          </button>
+          <button type="button" onClick={() => onTopicChange("science")} style={optionStyle(topic === "science")}>
+            Наука
+          </button>
+          <button type="button" onClick={() => onTopicChange("history")} style={optionStyle(topic === "history")}>
+            История
+          </button>
+          <button type="button" onClick={() => onTopicChange("pop-culture")} style={optionStyle(topic === "pop-culture")}>
+            Поп-культура
+          </button>
+        </QuizConfigGroup>
+
+        <button
+          type="button"
+          onClick={onConfirm}
+          style={{
+            width: "100%",
+            padding: "16px",
+            borderRadius: 14,
+            background: "white",
+            color: "#08080d",
+            fontWeight: 900,
+            fontSize: 18,
+            border: "none",
+            cursor: "pointer",
+            marginTop: 8,
+            fontFamily: "inherit",
+          }}
+        >
+          ВЫБРАТЬ
+        </button>
+      </div>
+    </>
+  );
+}
+
+function QuizConfigGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section style={{ marginBottom: 20 }}>
+      <div
+        style={{
+          marginBottom: 10,
+          color: "rgba(255,255,255,0.52)",
+          fontSize: 12,
+          fontWeight: 800,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        {children}
+      </div>
+    </section>
+  );
+}
 
 function RoomMenuActionButton({
   icon,

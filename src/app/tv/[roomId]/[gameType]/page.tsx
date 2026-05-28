@@ -5,8 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
-import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES } from '@/lib/quiz';
+import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
+import type { QuizDifficulty, QuizTopic } from '@/types/game';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -96,6 +97,7 @@ const OPTION_COLORS_TV = [
 ];
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+const QUESTIONS_PER_GAME = 10;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -386,7 +388,7 @@ export default function TVGamePage() {
     });
 
     const unsub3 = on('game:ended', () => {
-      router.push(`/tv/${roomId}`);
+      router.push(`/lobby/${roomId}`);
     });
 
     emit('room:get-state', { code: roomId });
@@ -399,6 +401,71 @@ export default function TVGamePage() {
       unsub3();
     };
   }, [on, emit, router, roomId, gameType, locale]);
+
+  // TV-pivot: read lobby quiz config and broadcast it to all clients.
+  useEffect(() => {
+    if (gameType !== 'quiz') return;
+    if (!isConnected) return;
+    const raw = localStorage.getItem('party-hub-quiz-config');
+    if (!raw) return;
+
+    try {
+      const config = JSON.parse(raw) as {
+        mode: 'general' | 'special';
+        difficulty: string;
+        topic: string;
+        specialQuizId: string | null;
+      };
+      localStorage.removeItem('party-hub-quiz-config');
+
+      let quizConfig: QuizConfig;
+      let total: number;
+
+      if (config.mode === 'general') {
+        quizConfig = {
+          mode: 'general',
+          difficulty: config.difficulty,
+          topic: config.topic,
+          specialTheme: null,
+          specialQuizId: null,
+        };
+        const questions = getQuizQuestions(
+          quizConfig.topic as QuizTopic,
+          quizConfig.difficulty as QuizDifficulty,
+          new Set<string>(),
+        );
+        total = Math.min(QUESTIONS_PER_GAME, questions.length);
+      } else {
+        const specialQuiz = SPECIAL_QUIZZES.find((q) => q.id === config.specialQuizId);
+        quizConfig = {
+          mode: 'special',
+          difficulty: null,
+          topic: null,
+          specialTheme: specialQuiz?.theme ?? null,
+          specialQuizId: config.specialQuizId,
+        };
+        const questions = getSpecialQuizQuestions(config.specialQuizId ?? '', new Set<string>());
+        total = Math.min(QUESTIONS_PER_GAME, questions.length);
+      }
+
+      queueMicrotask(() => {
+        setQuizState((prev) => ({
+          ...prev,
+          config: quizConfig,
+          phase: 'waiting',
+          totalQuestions: total,
+        }));
+      });
+
+      emit('game:action', {
+        code: roomId,
+        action: 'quiz:config',
+        payload: { config: quizConfig, phase: 'waiting', totalQuestions: total },
+      });
+    } catch {
+      localStorage.removeItem('party-hub-quiz-config');
+    }
+  }, [gameType, emit, isConnected, roomId]);
 
   const getPlayerName = useCallback(
     (id: string) => players.find((p) => p.id === id)?.nickname || id,

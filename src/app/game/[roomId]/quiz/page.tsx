@@ -38,6 +38,7 @@ interface QuizGameState {
   scores: Record<string, number>;
   showCorrect: boolean;
   players: { id: string; nickname: string; isHost: boolean }[];
+  gameHostPlayerId: string | null;
   countdownValue: number;
   correctPlayers: string[];
   // Synced question data (so non-host players see the question)
@@ -50,6 +51,12 @@ interface QuizGameState {
 }
 
 const QUESTIONS_PER_GAME = 10;
+const GUEST_ID_KEY = 'party-hub-join-guest-id';
+
+function getGuestPlayerId() {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(GUEST_ID_KEY) ?? '';
+}
 
 const INITIAL_STATE: QuizGameState = {
   phase: 'setup-mode',
@@ -61,6 +68,7 @@ const INITIAL_STATE: QuizGameState = {
   scores: {},
   showCorrect: false,
   players: [],
+  gameHostPlayerId: null,
   countdownValue: 3,
   correctPlayers: [],
   currentQuestion: null,
@@ -84,11 +92,13 @@ export default function QuizPage() {
   const router = useRouter();
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
+  const [guestPlayerId, setGuestPlayerId] = useState('');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef(3);
   const gameStateRef = useRef<QuizGameState>(INITIAL_STATE);
   const isHostRef = useRef(false);
+  const isGameHostRef = useRef(false);
 
   const { tick: timerTick, stop: stopTimerSound, warmup: warmupSound } = useTimerSound();
 
@@ -96,11 +106,17 @@ export default function QuizPage() {
   const questionsRef = useRef<QuizQuestion[]>([]);
   const shownIdsRef = useRef<Set<string>>(new Set());
 
+  const effectivePlayerId = user?.id ?? guestPlayerId;
   const isHost = gameState.players.find((p) => p.id === user?.id)?.isHost ?? false;
-  const myAnswer = user ? gameState.answers[user.id] : undefined;
+  const isGameHost = Boolean(effectivePlayerId && gameState.gameHostPlayerId && effectivePlayerId === gameState.gameHostPlayerId);
+  const myAnswer = effectivePlayerId ? gameState.answers[effectivePlayerId] : undefined;
   const totalPlayers = gameState.players.length;
   const answeredCount = Object.keys(gameState.answers).length;
   const allAnswered = totalPlayers > 0 && answeredCount >= totalPlayers;
+
+  useEffect(() => {
+    queueMicrotask(() => setGuestPlayerId(getGuestPlayerId()));
+  }, []);
 
   // Auto-reconnect: re-join room channel on socket reconnect (e.g. page refresh mid-game)
   useEffect(() => {
@@ -120,7 +136,8 @@ export default function QuizPage() {
 
   useEffect(() => {
     isHostRef.current = isHost;
-  }, [isHost]);
+    isGameHostRef.current = isGameHost;
+  }, [isHost, isGameHost]);
 
   useEffect(() => {
     gameStateRef.current = gameState;
@@ -129,12 +146,86 @@ export default function QuizPage() {
   const timePerQuestion = gameState.config.difficulty === 'easy' ? 15
     : gameState.config.difficulty === 'hard' ? 25 : 20;
 
+  useEffect(() => {
+    if (!isGameHost) return;
+    const raw = localStorage.getItem('party-hub-quiz-config');
+    if (!raw) return;
+
+    try {
+      const config = JSON.parse(raw) as {
+        mode: 'general' | 'special';
+        difficulty: string;
+        topic: string;
+        specialQuizId: string | null;
+      };
+      localStorage.removeItem('party-hub-quiz-config');
+
+      if (config.mode === 'general') {
+        const newConfig: QuizConfig = {
+          mode: 'general',
+          difficulty: config.difficulty as QuizDifficulty,
+          topic: config.topic as QuizTopic,
+          specialTheme: null,
+          specialQuizId: null,
+        };
+        const questions = getQuizQuestions(newConfig.topic!, newConfig.difficulty!, shownIdsRef.current);
+        const total = Math.min(QUESTIONS_PER_GAME, questions.length);
+        questionsRef.current = questions.slice(0, total);
+
+        setGameState((prev) => ({
+          ...prev,
+          config: newConfig,
+          phase: 'waiting',
+          totalQuestions: total,
+        }));
+        emit('game:action', {
+          code: roomId,
+          action: 'quiz:config',
+          payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
+        });
+      } else if (config.mode === 'special' && config.specialQuizId) {
+        const specialQuiz = SPECIAL_QUIZZES.find((quiz) => quiz.id === config.specialQuizId);
+        const newConfig: QuizConfig = {
+          mode: 'special',
+          difficulty: null,
+          topic: null,
+          specialTheme: specialQuiz?.theme ?? null,
+          specialQuizId: config.specialQuizId,
+        };
+        const questions = getSpecialQuizQuestions(config.specialQuizId, shownIdsRef.current);
+        const total = Math.min(QUESTIONS_PER_GAME, questions.length);
+        questionsRef.current = questions.slice(0, total);
+
+        setGameState((prev) => ({
+          ...prev,
+          config: newConfig,
+          phase: 'waiting',
+          totalQuestions: total,
+        }));
+        emit('game:action', {
+          code: roomId,
+          action: 'quiz:config',
+          payload: { config: newConfig, phase: 'waiting', totalQuestions: total },
+        });
+      }
+    } catch {
+      localStorage.removeItem('party-hub-quiz-config');
+    }
+  }, [emit, isGameHost, roomId]);
+
   // ------- Socket listeners -------
 
   useEffect(() => {
     const unsub1 = on('room:state', (data: unknown) => {
-      const room = data as { players: { id: string; nickname: string; isHost: boolean }[] };
-      setGameState((prev) => ({ ...prev, players: room.players }));
+      const room = data as {
+        players: { id: string; nickname: string; isHost: boolean }[];
+        gameHostPlayerId?: string | null;
+      };
+      setGameState((prev) => ({
+        ...prev,
+        players: room.players,
+        gameHostPlayerId: room.gameHostPlayerId ?? prev.gameHostPlayerId,
+      }));
     });
 
     const unsub2 = on('game:action', (data: unknown) => {
@@ -217,7 +308,7 @@ export default function QuizPage() {
 
         case 'quiz:request-state':
           // TV joined mid-game — host re-broadcasts current state
-          if (isHostRef.current) {
+          if (isGameHostRef.current) {
             emit('game:action', { code: roomId, action: 'quiz:sync', payload: gameStateRef.current as unknown as Record<string, unknown> });
           }
           break;
@@ -225,7 +316,7 @@ export default function QuizPage() {
     });
 
     const unsub3 = on('game:ended', () => {
-      router.push(`/lobby/${roomId}`);
+      router.push(`/join/${roomId}`);
     });
 
     emit('room:get-state', { code: roomId });
@@ -240,7 +331,7 @@ export default function QuizPage() {
   // ------- Host timer logic -------
 
   useEffect(() => {
-    if (!isHost) return;
+    if (!isGameHost) return;
     if (gameState.phase !== 'question' || gameState.showCorrect) return;
 
     if (timerRef.current) clearInterval(timerRef.current);
@@ -269,7 +360,7 @@ export default function QuizPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, emit, roomId]);
+  }, [isGameHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, emit, roomId]);
 
   // ------- Timer sound effect -------
 
@@ -316,11 +407,11 @@ export default function QuizPage() {
   // ------- Auto-reveal -------
 
   useEffect(() => {
-    if (!isHost || gameState.phase !== 'question' || gameState.showCorrect) return;
+    if (!isGameHost || gameState.phase !== 'question' || gameState.showCorrect) return;
     if (gameState.timeLeft <= 0 || allAnswered) {
       queueMicrotask(revealResults);
     }
-  }, [gameState.timeLeft, allAnswered, isHost, gameState.phase, gameState.showCorrect, revealResults]);
+  }, [gameState.timeLeft, allAnswered, isGameHost, gameState.phase, gameState.showCorrect, revealResults]);
 
   // ------- Setup Actions (host only) -------
 
@@ -574,16 +665,16 @@ export default function QuizPage() {
 
   const submitAnswer = (answerIndex: number) => {
     warmupSound();
-    if (myAnswer !== undefined || gameState.showCorrect || !user) return;
+    if (myAnswer !== undefined || gameState.showCorrect || !effectivePlayerId) return;
 
     emit('game:action', {
       code: roomId,
       action: 'quiz:answer',
-      payload: { playerId: user.id, answerIndex },
+      payload: { playerId: effectivePlayerId, answerIndex },
     });
     setGameState((prev) => ({
       ...prev,
-      answers: { ...prev.answers, [user.id]: answerIndex },
+      answers: { ...prev.answers, [effectivePlayerId]: answerIndex },
     }));
   };
 
@@ -640,7 +731,7 @@ export default function QuizPage() {
     <GameLayout
       title={locale === 'ru' ? 'Квиз' : 'Quiz'}
       scores={scoreboard}
-      onEnd={isHost ? confirmEndGame : undefined}
+      onEnd={isGameHost ? confirmEndGame : undefined}
       showScoreboard={!isSetup && gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
       backgroundUrl={backgroundUrl}
       phaseKey={gameState.phase}
@@ -648,7 +739,7 @@ export default function QuizPage() {
       {/* ==================== SETUP: MODE (first step) ==================== */}
       {gameState.phase === 'setup-mode' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {isHost && (
+          {isGameHost && (
             <button
               onClick={() => router.push(`/lobby/${roomId}`)}
               className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
@@ -664,7 +755,7 @@ export default function QuizPage() {
             {locale === 'ru' ? 'Общие темы или специальные квизы' : 'General topics or special quizzes'}
           </p>
 
-          {isHost ? (
+          {isGameHost ? (
             <div className="space-y-3">
               <button
                 onClick={() => selectMode('general')}
@@ -715,7 +806,7 @@ export default function QuizPage() {
       {/* ==================== SETUP: DIFFICULTY (after mode=general) ==================== */}
       {gameState.phase === 'setup-difficulty' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {isHost && (
+          {isGameHost && (
             <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
               ← {locale === 'ru' ? 'Назад' : 'Back'}
             </button>
@@ -730,7 +821,7 @@ export default function QuizPage() {
             {locale === 'ru' ? 'Выберите уровень сложности' : 'Choose difficulty level'}
           </h2>
 
-          {isHost ? (
+          {isGameHost ? (
             <div className="space-y-3 mt-8">
               {QUIZ_DIFFICULTIES.map((d) => (
                 <button
@@ -768,7 +859,7 @@ export default function QuizPage() {
       {/* ==================== SETUP: SPECIAL THEME (after mode=special) ==================== */}
       {gameState.phase === 'setup-special-theme' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {isHost && (
+          {isGameHost && (
             <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
               ← {locale === 'ru' ? 'Назад' : 'Back'}
             </button>
@@ -786,7 +877,7 @@ export default function QuizPage() {
             {locale === 'ru' ? 'Тематическая подборка, без уровней сложности' : 'Themed set, no difficulty levels'}
           </p>
 
-          {isHost ? (
+          {isGameHost ? (
             <div className="space-y-3">
               {SPECIAL_QUIZ_THEMES.map((theme) => (
                 <button
@@ -826,7 +917,7 @@ export default function QuizPage() {
       {gameState.phase === 'setup-special-quiz' && specialThemeInfo && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
           {/* Back button */}
-          {isHost && (
+          {isGameHost && (
             <button
               onClick={goBack}
               className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
@@ -843,7 +934,7 @@ export default function QuizPage() {
             {locale === 'ru' ? 'Выберите квиз' : 'Choose a quiz'}
           </p>
 
-          {isHost ? (
+          {isGameHost ? (
             <div className="space-y-3">
               {getSpecialQuizzesByTheme(specialThemeInfo.id).map((q) => (
                 <button
@@ -872,7 +963,7 @@ export default function QuizPage() {
       {/* ==================== SETUP: TOPIC ==================== */}
       {gameState.phase === 'setup-topic' && (
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {isHost && (
+          {isGameHost && (
             <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
               ← {locale === 'ru' ? 'Назад' : 'Back'}
             </button>
@@ -890,7 +981,7 @@ export default function QuizPage() {
             {locale === 'ru' ? '10 вопросов по выбранной теме' : '10 questions on the chosen topic'}
           </p>
 
-          {isHost ? (
+          {isGameHost ? (
             <div className="space-y-3">
               {QUIZ_TOPICS.map((topic) => (
                 <button
@@ -926,7 +1017,7 @@ export default function QuizPage() {
       {/* ==================== WAITING (ready to start) ==================== */}
       {gameState.phase === 'waiting' && (
         <div className="text-center pt-2 pb-8 animate-fade-in">
-          {isHost && (
+          {isGameHost && (
             <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-8 mx-auto transition-colors">
               ← {locale === 'ru' ? 'Назад' : 'Back'}
             </button>
@@ -965,7 +1056,7 @@ export default function QuizPage() {
           <p className="text-white/80 text-lg mb-10">
             {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
           </p>
-          {isHost ? (
+          {isGameHost ? (
             <GlassButton variant="primary" size="lg" className="text-xl px-12 py-5" onClick={startGame}>
               {locale === 'ru' ? 'Начать игру' : 'Start Game'}
             </GlassButton>
@@ -1176,7 +1267,7 @@ export default function QuizPage() {
                 )}
               </div>
 
-              {isHost && (
+              {isGameHost && (
                 <div className="text-center mt-4">
                   <GlassButton variant="primary" size="lg" onClick={startNextQuestion}>
                     {gameState.questionIndex + 1 < gameState.totalQuestions
@@ -1222,12 +1313,12 @@ export default function QuizPage() {
             ))}
           </div>
 
-          {isHost && (
+          {isGameHost && (
             <GlassButton variant="primary" size="lg" onClick={() => startQuestionImmediate(5)}>
               {locale === 'ru' ? 'Продолжить' : 'Continue'}
             </GlassButton>
           )}
-          {!isHost && (
+          {!isGameHost && (
             <BreathingPlaceholder
               text={locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
               variant="breathing-text"
@@ -1276,7 +1367,7 @@ export default function QuizPage() {
             ))}
           </div>
 
-          {isHost && (
+          {isGameHost && (
             <div className="mt-10 flex gap-3 justify-center">
               <GlassButton onClick={endGame}>
                 {locale === 'ru' ? 'В лобби' : 'Back to Lobby'}
