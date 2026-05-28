@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useTranslation } from '@/lib/i18n';
+import { useNavigateOnGameStart } from '@/lib/use-navigate-on-game-start';
 import { GAMES } from '@/lib/games-config';
 import { QRCodeCanvas } from '@/components/ui/QRCode';
 
@@ -21,7 +22,6 @@ export default function TVPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { emit, on, isConnected } = useSocket();
   const { locale } = useTranslation();
-  const router = useRouter();
   const [room, setRoom] = useState<RoomState | null>(null);
   const [networkIP, setNetworkIP] = useState<string | null>(null);
 
@@ -40,20 +40,14 @@ export default function TVPage() {
   const joinUrl = qrOrigin ? `${qrOrigin}/lobby/${roomId}` : '';
 
   useEffect(() => {
-    const unsub = on('room:state', (data: unknown) => {
+    return on('room:state', (data: unknown) => {
       setRoom(data as RoomState);
     });
+  }, [on]);
 
-    const unsubStarted = on('game:started', (data: unknown) => {
-      const { gameType, roomCode } = data as { gameType: string; roomCode: string };
-      router.push(`/tv/${roomCode}/${gameType}`);
-    });
-
-    return () => {
-      unsub();
-      unsubStarted();
-    };
-  }, [roomId, on, router]);
+  useNavigateOnGameStart(
+    ({ roomCode, gameType }) => `/tv/${roomCode}/${gameType}`,
+  );
 
   // Join TV room only when socket is connected
   useEffect(() => {
@@ -128,7 +122,7 @@ export default function TVPage() {
           </div>
         )}
 
-        {/* In-game fallback (shouldn't normally show - game:started navigates away) */}
+        {/* In-game fallback (shouldn't normally show after navigation) */}
         {room?.status === 'in-game' && room.gameState && (
           <div className="text-center animate-fade-in">
             <p className="text-4xl text-white font-semibold">

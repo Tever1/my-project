@@ -1,8 +1,9 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
 import { useSocket } from "@/lib/use-socket";
 
 type JoinRoomPlayer = {
@@ -34,7 +35,6 @@ function getGuestPlayerId() {
 // Narrow centered layout regardless of device — works on both phone and desktop.
 export default function JoinPage() {
   const params = useParams<{ code: string }>();
-  const router = useRouter();
   const code = params.code?.toUpperCase() ?? "";
   const { emit, on, isConnected } = useSocket();
   const { user } = useAuth();
@@ -70,12 +70,9 @@ export default function JoinPage() {
     });
   }, [on]);
 
-  useEffect(() => {
-    return on("game:started", (payload: unknown) => {
-      const data = payload as { gameType: string; roomCode: string };
-      router.push(`/game/${data.roomCode}/${data.gameType}`);
-    });
-  }, [on, router]);
+  useNavigateOnGameStart(
+    ({ roomCode, gameType }) => `/game/${roomCode}/${gameType}`,
+  );
 
   useEffect(() => {
     if (!roomState || !playerId || joined) return;

@@ -22,6 +22,7 @@ import { PlayerAvatar, Badge } from "@/components/ui";
 import { useAuth, useAuthActions, type User } from "@/lib/auth-context";
 import { motionPropsInstant, glassMobileSolid } from "@/lib/design/mobile-helpers";
 import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
+import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
 import { useIsMobile } from "@/lib/use-is-mobile";
 import { usePlayMode } from "@/lib/use-play-mode";
 import { useSocket } from "@/lib/use-socket";
@@ -312,18 +313,13 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     return unsubscribe;
   }, [isRoomRoute, on, router]);
 
-  useEffect(() => {
-    return on('game:started', (payload: unknown) => {
-      const data = payload as { gameType: string; roomCode: string };
-      setIsWaitingForPlayers(false);
-      // TV screen goes to the TV view; mobile players go to the player game view.
-      if (myRole === "tv") {
-        router.push(`/tv/${data.roomCode}/${data.gameType}`);
-      } else {
-        router.push(`/game/${data.roomCode}/${data.gameType}`);
-      }
-    });
-  }, [myRole, on, router]);
+  useNavigateOnGameStart(
+    ({ roomCode, gameType }) =>
+      myRole === 'tv'
+        ? `/tv/${roomCode}/${gameType}`
+        : `/game/${roomCode}/${gameType}`,
+    () => setIsWaitingForPlayers(false),
+  );
 
   useEffect(() => {
     return on('room:show-qr', () => {
