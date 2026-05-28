@@ -7,6 +7,7 @@ import { useGameAction } from '@/lib/use-game-action';
 import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
+import { useRoomState } from '@/lib/use-room-state';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import type { QuizDifficulty, QuizTopic } from '@/types/game';
@@ -202,12 +203,12 @@ export default function TVGamePage() {
   }, [isConnected, roomId, emit, gameType, sendAction]);
 
   // Socket listeners
-  useEffect(() => {
-    const unsub1 = on('room:state', (data: unknown) => {
-      const room = data as { players: PlayerInfo[]; status: string };
-      setPlayers(room.players);
-    });
+  useRoomState(roomId, (data) => {
+    const room = data as { players: PlayerInfo[]; status: string };
+    setPlayers(room.players);
+  });
 
+  useEffect(() => {
     const unsub2 = on('game:action', (data: unknown) => {
       const { action, payload } = data as {
         action: string;
@@ -390,15 +391,11 @@ export default function TVGamePage() {
       setGenericState((prev) => ({ ...prev, lastAction: action, ...payload }));
     });
 
-    emit('room:get-state', { code: roomId });
     // Note: game state request (h2o:request-state etc.) is sent in the tv:join
     // callback above, after the socket has confirmed it joined the room.
 
-    return () => {
-      unsub1();
-      unsub2();
-    };
-  }, [on, emit, roomId, gameType, locale]);
+    return unsub2;
+  }, [on, gameType, locale]);
 
   // TV-pivot: read lobby quiz config and broadcast it to all clients.
   useEffect(() => {

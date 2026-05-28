@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
 import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
+import { useRoomState } from '@/lib/use-room-state';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -211,19 +212,19 @@ export default function QuizPage() {
 
   // ------- Socket listeners -------
 
-  useEffect(() => {
-    const unsub1 = on('room:state', (data: unknown) => {
-      const room = data as {
-        players: { id: string; nickname: string; isHost: boolean }[];
-        gameHostPlayerId?: string | null;
-      };
-      setGameState((prev) => ({
-        ...prev,
-        players: room.players,
-        gameHostPlayerId: room.gameHostPlayerId ?? prev.gameHostPlayerId,
-      }));
-    });
+  useRoomState(roomId, (data) => {
+    const room = data as {
+      players: { id: string; nickname: string; isHost: boolean }[];
+      gameHostPlayerId?: string | null;
+    };
+    setGameState((prev) => ({
+      ...prev,
+      players: room.players,
+      gameHostPlayerId: room.gameHostPlayerId ?? prev.gameHostPlayerId,
+    }));
+  });
 
+  useEffect(() => {
     const unsub2 = on('game:action', (data: unknown) => {
       const { action, payload } = data as {
         action: string;
@@ -311,13 +312,8 @@ export default function QuizPage() {
       }
     });
 
-    emit('room:get-state', { code: roomId });
-
-    return () => {
-      unsub1();
-      unsub2();
-    };
-  }, [on, emit, roomId, sendAction]);
+    return unsub2;
+  }, [on, sendAction]);
 
   // ------- Host timer logic -------
 
