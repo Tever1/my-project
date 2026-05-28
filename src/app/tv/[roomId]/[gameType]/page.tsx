@@ -12,6 +12,14 @@ import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, g
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import type { QuizDifficulty, QuizTopic } from '@/types/game';
 
+/** Maps gameType to the action that requests a full state broadcast from the host. */
+const TV_STATE_REQUEST: Partial<Record<string, string>> = {
+  'hundred-to-one': 'h2o:request-state',
+  crocodile: 'croc:request-state',
+  alias: 'alias:request-state',
+  quiz: 'quiz:request-state',
+};
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -190,15 +198,8 @@ export default function TVGamePage() {
     emit('tv:join', { code: roomId }, () => {
       // Request full game state only after the socket has joined the room,
       // otherwise the h2o:sync response won't be delivered to this socket yet.
-      if (gameType === 'hundred-to-one') {
-        sendAction('h2o:request-state');
-      } else if (gameType === 'crocodile') {
-        sendAction('croc:request-state');
-      } else if (gameType === 'alias') {
-        sendAction('alias:request-state');
-      } else if (gameType === 'quiz') {
-        sendAction('quiz:request-state');
-      }
+      const requestAction = TV_STATE_REQUEST[gameType];
+      if (requestAction) sendAction(requestAction);
     });
   }, [isConnected, roomId, emit, gameType, sendAction]);
 
@@ -391,7 +392,7 @@ export default function TVGamePage() {
       setGenericState((prev) => ({ ...prev, lastAction: action, ...payload }));
     });
 
-    // Note: game state request (h2o:request-state etc.) is sent in the tv:join
+    // Note: the full-state request is sent in the tv:join
     // callback above, after the socket has confirmed it joined the room.
 
     return unsub2;
