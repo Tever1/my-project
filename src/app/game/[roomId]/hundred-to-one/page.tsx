@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
+import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -93,9 +94,9 @@ const mkInitial = (): GState => ({
 
 export default function HundredToOnePage() {
   const { roomId } = useParams<{ roomId: string }>();
+  useNavigateOnGameEnd(roomId);
   const { user } = useAuth();
   const { emit, on } = useSocket();
-  const router = useRouter();
 
   const [s, setS] = useState<GState>(mkInitial);
   const sRef = useRef<GState>(s);
@@ -155,10 +156,9 @@ export default function HundredToOnePage() {
         }
       }
     });
-    const u3 = on('game:ended', () => router.push(`/join/${roomId}`));
     emit('room:get-state', { code: roomId });
-    return () => { u1(); u2(); u3(); };
-  }, [on, emit, router, roomId, user?.id]);
+    return () => { u1(); u2(); };
+  }, [on, emit, roomId, user?.id]);
 
   const broadcast = useCallback((payload: Partial<GState>) => {
     emit('game:action', { code: roomId, action: 'h2o:sync', payload });

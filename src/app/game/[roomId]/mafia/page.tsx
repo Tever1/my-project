@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
+import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 import { GameLayout } from '@/components/games/GameLayout';
@@ -129,7 +130,7 @@ function getInitialState(): MafiaGameState {
 
 export default function MafiaPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const router = useRouter();
+  useNavigateOnGameEnd(roomId);
   const { emit, on, isConnected } = useSocket();
   const { locale } = useTranslation();
   const { user } = useAuth();
@@ -313,14 +314,8 @@ export default function MafiaPage() {
           break;
       }
     });
-    const unsubEnded = on('game:ended', () => {
-      router.push(`/join/${roomId}`);
-    });
-    return () => {
-      cleanup();
-      unsubEnded();
-    };
-  }, [on, isHost, user, router, roomId]);
+    return cleanup;
+  }, [on, isHost, user]);
 
   // -----------------------------------------------------------------------
   // Day timer
@@ -478,7 +473,7 @@ export default function MafiaPage() {
 
   const handleEndGame = () => {
     broadcast({ type: 'end-game' });
-    // Tell the server the game is over — this triggers 'game:ended' on TV and all clients
+    // Tell the server the game is over so TV and all clients leave the game screen
     emit('game:end', { code: roomId });
   };
 

@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
+import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -160,9 +161,9 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
 
 export default function SpyGamePage() {
   const { roomId } = useParams<{ roomId: string }>();
+  useNavigateOnGameEnd(roomId);
   const { user } = useAuth();
   const { emit, on } = useSocket();
-  const router = useRouter();
 
   const [s, setS] = useState<SpyGameState>(mkInitial);
 
@@ -204,10 +205,9 @@ export default function SpyGamePage() {
         if (canvas) (canvas as unknown as { _clearAll?: () => void })._clearAll?.();
       }
     });
-    const u3 = on('game:ended', () => router.push(`/join/${roomId}`));
     emit('room:get-state', { code: roomId });
-    return () => { u1(); u2(); u3(); };
-  }, [on, emit, router, roomId]);
+    return () => { u1(); u2(); };
+  }, [on, emit, roomId]);
 
   // ── Timer (host only) ──
   useEffect(() => {

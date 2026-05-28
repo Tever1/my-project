@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth-context';
 import { useSocket } from '@/lib/use-socket';
+import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -90,6 +91,7 @@ export default function QuizPage() {
   const { user } = useAuth();
   const { emit, on, isConnected } = useSocket();
   const router = useRouter();
+  useNavigateOnGameEnd(roomId);
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const [guestPlayerId, setGuestPlayerId] = useState('');
@@ -315,18 +317,13 @@ export default function QuizPage() {
       }
     });
 
-    const unsub3 = on('game:ended', () => {
-      router.push(`/join/${roomId}`);
-    });
-
     emit('room:get-state', { code: roomId });
 
     return () => {
       unsub1();
       unsub2();
-      unsub3();
     };
-  }, [on, emit, router, roomId]);
+  }, [on, emit, roomId]);
 
   // ------- Host timer logic -------
 

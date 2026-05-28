@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { useSocket } from '@/lib/use-socket';
+import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useAuth } from '@/lib/auth-context';
 import { useTranslation } from '@/lib/i18n';
 import { ALIAS_WORDS } from '@/lib/game-data';
@@ -80,7 +81,7 @@ function splitIntoTeams(playerIds: string[]): [string[], string[]] {
 
 export default function AliasPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const router = useRouter();
+  useNavigateOnGameEnd(roomId);
   const { emit, on } = useSocket();
   const { user } = useAuth();
   const { locale } = useTranslation();
@@ -175,9 +176,8 @@ export default function AliasPage() {
           break;
       }
     });
-    const unsub2 = on('game:ended', () => router.push(`/join/${roomId}`));
-    return () => { unsub1(); unsub2(); };
-  }, [on, emit, router, roomId]);
+    return () => { unsub1(); };
+  }, [on, emit, roomId]);
 
   // ------------------------------------------------------------------
   // Host: timer
