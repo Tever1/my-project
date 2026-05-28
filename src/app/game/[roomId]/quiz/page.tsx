@@ -98,6 +98,7 @@ export default function QuizPage() {
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const [guestPlayerId, setGuestPlayerId] = useState('');
+  const [guestNickname, setGuestNickname] = useState('');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef(3);
@@ -123,6 +124,12 @@ export default function QuizPage() {
     queueMicrotask(() => setGuestPlayerId(getGuestPlayerId()));
   }, []);
 
+  useEffect(() => {
+    if (user || !guestPlayerId || guestNickname) return;
+    const player = gameState.players.find((p) => p.id === guestPlayerId);
+    if (player) queueMicrotask(() => setGuestNickname(player.nickname));
+  }, [user, guestPlayerId, guestNickname, gameState.players]);
+
   // Auto-reconnect: re-join room channel on socket reconnect (e.g. page refresh mid-game)
   useEffect(() => {
     if (!user || !isConnected || !roomId) return;
@@ -138,6 +145,20 @@ export default function QuizPage() {
       }
     );
   }, [isConnected, emit, user, roomId, router]);
+
+  useEffect(() => {
+    if (user || !isConnected || !roomId || !guestPlayerId || !guestNickname) return;
+    emit(
+      'room:join',
+      { code: roomId, playerId: guestPlayerId, nickname: guestNickname, isReconnect: true },
+      (res: unknown) => {
+        const response = res as { success: boolean; error?: string };
+        if (!response.success) {
+          router.push('/');
+        }
+      }
+    );
+  }, [isConnected, emit, user, roomId, guestPlayerId, guestNickname, router]);
 
   useEffect(() => {
     isHostRef.current = isHost;
@@ -629,6 +650,7 @@ export default function QuizPage() {
     setShowEndConfirm(false);
     stopTimerSound();
     emit('game:end', { code: roomId });
+    router.push(`/join/${roomId}`);
   };
 
   // ------- Derived data -------
@@ -1003,13 +1025,13 @@ export default function QuizPage() {
             <p className="text-white/80 text-lg mb-4">
               {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}
             </p>
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="popLayout">
               <motion.div
                 key={gameState.countdownValue}
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: [0.5, 1.2, 1], opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0, y: -20 }}
-                transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
                 style={{
                   fontSize: 120,
                   fontWeight: 900,

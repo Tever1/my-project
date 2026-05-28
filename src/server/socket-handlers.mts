@@ -292,7 +292,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
     // End game
     socket.on('game:end', (data: { code: string }) => {
-      const room = getRoomByCode(data.code);
+      const room = getRoomByCode(data.code.toUpperCase());
       if (!room) return;
       room.status = 'lobby';
       room.currentGame = null;

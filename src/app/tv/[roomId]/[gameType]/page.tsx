@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket } from '@/lib/use-socket';
 import { useGameAction } from '@/lib/use-game-action';
 import { useTranslation } from '@/lib/i18n';
@@ -486,8 +487,17 @@ export default function TVGamePage() {
     return (
       <div
         className={`h-screen bg-gradient-main text-white flex flex-col overflow-hidden relative ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
-        style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : undefined}
       >
+        {backgroundUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={backgroundUrl}
+            alt=""
+            fetchPriority="high"
+            className="absolute inset-0 w-full h-full object-cover -z-10"
+            aria-hidden="true"
+          />
+        )}
         {/* Top bar */}
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -575,9 +585,22 @@ export default function TVGamePage() {
               <p className="text-2xl text-white/50 mb-4">
                 {locale === 'ru' ? 'Вопрос' : 'Question'} {quizState.questionIndex + 1}
               </p>
-              <div key={quizState.countdownValue} className="text-[clamp(5rem,18vh,12rem)] font-black leading-none animate-bounce">
-                {quizState.countdownValue}
-              </div>
+              <AnimatePresence mode="popLayout">
+                <motion.div
+                  key={quizState.countdownValue}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: [0.5, 1.2, 1], opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
+                  className="text-[clamp(5rem,18vh,12rem)] font-black leading-none"
+                  style={{
+                    color: '#facc15',
+                    textShadow: '0 0 40px rgba(250, 204, 21, 0.6), 0 0 80px rgba(250, 204, 21, 0.3)',
+                  }}
+                >
+                  {quizState.countdownValue}
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
 
@@ -623,7 +646,7 @@ export default function TVGamePage() {
                     >
                       <div className="flex items-center gap-3">
                         <span className={`
-                          flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black
+                          flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black
                           ${isCorrectRevealed ? 'bg-green-500/40 text-green-200' : 'bg-white/10 text-white/70'}
                         `}>
                           {isCorrectRevealed ? '✓' : OPTION_LABELS[index]}

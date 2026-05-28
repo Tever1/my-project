@@ -43,8 +43,17 @@ export function GameLayout({
   return (
     <div
       className={`bg-gradient-main min-h-[100dvh] text-white flex flex-col relative ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
-      style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : undefined}
     >
+      {backgroundUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={backgroundUrl}
+          alt=""
+          fetchPriority="high"
+          className="absolute inset-0 w-full h-full object-cover -z-10"
+          aria-hidden="true"
+        />
+      )}
       {/* Header */}
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-black/20 border-b border-white/10">
         <div className="w-[92%] max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
