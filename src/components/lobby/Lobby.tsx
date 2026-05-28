@@ -2817,14 +2817,13 @@ function QuizSelectionTile({
       }}
     >
       {backgroundUrl && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `url(${backgroundUrl})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={backgroundUrl}
+          alt=""
+          fetchPriority="high"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+          aria-hidden="true"
         />
       )}
       {icon && (
