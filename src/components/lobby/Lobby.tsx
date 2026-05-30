@@ -497,7 +497,9 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
   useEffect(() => {
     return on('room:show-qr', () => {
-      if (myRole !== "tv") return;
+      // TV clients do NOT show the QR waiting screen.
+      // QR is only for the host device (player/creator role).
+      if (myRole === "tv") return;
       setIsWaitingForPlayers(true);
     });
   }, [myRole, on]);

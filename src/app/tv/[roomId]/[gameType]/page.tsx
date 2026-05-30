@@ -9,6 +9,7 @@ import { useTranslation } from '@/lib/i18n';
 import { GAMES } from '@/lib/games-config';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useRoomState } from '@/lib/use-room-state';
+import { GameIcon } from '@/components/GameIcon';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import type { QuizDifficulty, QuizTopic } from '@/types/game';
@@ -101,14 +102,6 @@ const mkH2OInitial = (): H2OState => ({
   buzzerWinner: 0, buzzerCountdown: -1,
 });
 
-const OPTION_COLORS_TV = [
-  'from-blue-600/30 to-blue-500/10 border-blue-400/40',
-  'from-emerald-600/30 to-emerald-500/10 border-emerald-400/40',
-  'from-amber-600/30 to-amber-500/10 border-amber-400/40',
-  'from-pink-600/30 to-pink-500/10 border-pink-400/40',
-];
-
-const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 const QUESTIONS_PER_GAME = 10;
 
 // ---------------------------------------------------------------------------
@@ -180,7 +173,6 @@ export default function TVGamePage() {
   const gameTitle = gameInfo
     ? locale === 'ru' ? gameInfo.titleRu : gameInfo.titleEn
     : gameType;
-  const gameIcon = gameInfo?.icon || '🎮';
 
   const initSpyCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
     if (!canvas) return;
@@ -486,7 +478,7 @@ export default function TVGamePage() {
 
     return (
       <div
-        className={`h-screen bg-gradient-main text-white flex flex-col overflow-hidden relative ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
+        className={`h-screen bg-gradient-main text-white flex flex-col overflow-hidden relative isolate ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
       >
         {backgroundUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -501,7 +493,7 @@ export default function TVGamePage() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
-            <span className="text-4xl">{gameIcon}</span>
+            <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={36} className="flex-shrink-0" />
             <h1 className="text-3xl font-bold">{gameTitle}</h1>
             {specialQuizInfo ? (
               <span className="glass-badge px-3 py-1 text-sm">
@@ -543,7 +535,9 @@ export default function TVGamePage() {
           {/* SETUP / WAITING */}
           {(isSetup || quizState.phase === 'waiting') && (
             <div className="text-center animate-fade-in">
-              <div className="text-8xl mb-6">{gameIcon}</div>
+              <div className="mb-6 flex justify-center">
+                <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={96} />
+              </div>
               <h2 className="text-5xl font-bold mb-4">{gameTitle}</h2>
               <p className="text-2xl text-white/50 animate-pulse">
                 {isSetup
@@ -630,28 +624,32 @@ export default function TVGamePage() {
                   const isCorrectAnswer = index === currentQuestion.correctIndex;
                   const isCorrectRevealed = quizState.showCorrect && isCorrectAnswer;
                   const isWrongRevealed = quizState.showCorrect && !isCorrectAnswer;
+                  const stripColor = isCorrectRevealed ? '#4ade80' : isWrongRevealed ? '#f87171' : 'transparent';
+                  const bgClass = isCorrectRevealed
+                    ? 'bg-green-500/10 border-green-400/30'
+                    : isWrongRevealed
+                      ? 'bg-white/5 border-white/10 opacity-40'
+                      : 'bg-white/5 border-white/10';
 
                   return (
                     <div
                       key={index}
-                      className={`
-                        rounded-2xl border-2 p-4 transition-all duration-500
-                        ${isCorrectRevealed
-                          ? 'border-green-400 bg-green-500/25 ring-4 ring-green-400/30 scale-105'
-                          : isWrongRevealed
-                            ? 'border-white/10 bg-white/5 opacity-40'
-                            : `bg-gradient-to-br ${OPTION_COLORS_TV[index]}`
-                        }
-                      `}
+                      className={`relative overflow-hidden rounded-md border p-5 text-left backdrop-blur-xl transition-colors duration-300 ${bgClass}`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div
+                        className="absolute left-0 inset-y-0 w-1.5 transition-colors duration-300"
+                        style={{ backgroundColor: stripColor }}
+                      />
+                      <div className="flex items-center gap-4 pl-3">
                         <span className={`
-                          flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black
-                          ${isCorrectRevealed ? 'bg-green-500/40 text-green-200' : 'bg-white/10 text-white/70'}
+                          flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black
+                          ${isCorrectRevealed ? 'bg-green-500/20 text-green-300' : 'bg-white/8 text-white/50'}
                         `}>
-                          {isCorrectRevealed ? '✓' : OPTION_LABELS[index]}
+                          {isCorrectRevealed ? '✓' : index + 1}
                         </span>
-                        <span className="text-xl font-semibold line-clamp-2 leading-tight">
+                        <span className={`text-xl font-semibold line-clamp-2 leading-tight ${
+                          isCorrectRevealed ? 'text-green-100' : 'text-white'
+                        }`}>
                           {locale === 'ru' ? option.ru : option.en}
                         </span>
                       </div>
@@ -1505,7 +1503,7 @@ export default function TVGamePage() {
     <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
         <div className="flex items-center gap-4">
-          <span className="text-4xl">{gameIcon}</span>
+          <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={36} className="flex-shrink-0" />
           <h1 className="text-3xl font-bold">{gameTitle}</h1>
         </div>
         <div className="flex items-center gap-4">
@@ -1521,7 +1519,9 @@ export default function TVGamePage() {
 
       <div className="flex-1 flex items-center justify-center px-8">
         <div className="text-center">
-          <div className="text-8xl mb-6">{gameIcon}</div>
+          <div className="mb-6 flex justify-center">
+            <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={96} />
+          </div>
           <h2 className="text-4xl font-bold mb-4">{gameTitle}</h2>
           <p className="text-2xl text-white/50">
             {locale === 'ru' ? 'Игра идёт — смотрите на телефонах!' : 'Game in progress — check your phones!'}
