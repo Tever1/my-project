@@ -82,6 +82,36 @@ const answerVariants = {
   wrong: { x: [-6, 6, -6, 0] },
 };
 
+function QuizIcon({ iconUrl, fallback, size = 32 }: { iconUrl?: string; fallback: string; size?: number }) {
+  if (iconUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={iconUrl}
+        alt=""
+        width={size}
+        height={size}
+        style={{ objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' }}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return <span aria-hidden="true">{fallback}</span>;
+}
+
+function DifficultyIcon({ difficulty, size = 24 }: { difficulty?: QuizDifficulty | null; size?: number }) {
+  const color = difficulty === 'easy' ? '#22c55e' : difficulty === 'hard' ? '#ef4444' : '#eab308';
+
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block rounded-full border border-white/30 align-middle"
+      style={{ width: size, height: size, backgroundColor: color, boxShadow: `0 0 ${Math.round(size / 2)}px ${color}66` }}
+    />
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -773,7 +803,7 @@ export default function QuizPage() {
                   className={`w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br ${d.color}`}
                 >
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">{d.icon}</span>
+                    <DifficultyIcon difficulty={d.id} size={32} />
                     <div>
                       <p className="text-lg font-semibold text-white">
                         {locale === 'ru' ? d.titleRu : d.titleEn}
@@ -829,7 +859,7 @@ export default function QuizPage() {
                   className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
                 >
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">{theme.icon}</span>
+                    <QuizIcon iconUrl={theme.iconUrl} fallback={theme.icon} size={36} />
                     <div>
                       <p className="text-lg font-semibold text-white">
                         {locale === 'ru' ? theme.titleRu : theme.titleEn}
@@ -886,6 +916,7 @@ export default function QuizPage() {
                   className="w-full rounded-md border p-5 text-center transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
                 >
                   <div className="flex items-center justify-center gap-3">
+                    <QuizIcon iconUrl={q.iconUrl} fallback={q.icon} size={32} />
                     <span className="text-3xl font-black text-white">#{q.number}</span>
                     <p className="text-lg font-semibold text-white">
                       {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
@@ -912,7 +943,7 @@ export default function QuizPage() {
             </button>
           )}
           <div className="flex items-center justify-center gap-2 mb-6">
-            <span className="text-2xl">{diffInfo?.icon}</span>
+            <DifficultyIcon difficulty={diffInfo?.id} size={24} />
             <span className="text-white/60 font-medium">
               {locale === 'ru' ? diffInfo?.titleRu : diffInfo?.titleEn}
             </span>
@@ -933,7 +964,7 @@ export default function QuizPage() {
                   className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-indigo-600/20 to-indigo-500/5 border-indigo-500/30"
                 >
                   <div className="flex items-center gap-4">
-                    <span className="text-3xl">{topic.icon}</span>
+                    <QuizIcon iconUrl={topic.iconUrl} fallback={topic.icon} size={36} />
                     <div>
                       <p className="text-lg font-semibold text-white">
                         {locale === 'ru' ? topic.titleRu : topic.titleEn}
@@ -972,19 +1003,22 @@ export default function QuizPage() {
           {/* Config badges */}
           <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
             {specialQuizInfo ? (
-              <span className="glass-badge px-5 py-2.5 text-lg">
-                {specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
+              <span className="glass-badge px-5 py-2.5 text-lg inline-flex items-center gap-2">
+                <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={20} />
+                {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
               </span>
             ) : (
               <>
                 {diffInfo && (
-                  <span className="glass-badge px-5 py-2.5 text-lg">
-                    {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+                  <span className="glass-badge px-5 py-2.5 text-lg inline-flex items-center gap-2">
+                    <DifficultyIcon difficulty={diffInfo.id} size={16} />
+                    {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
                   </span>
                 )}
                 {topicInfo && (
-                  <span className="glass-badge px-5 py-2.5 text-lg">
-                    {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+                  <span className="glass-badge px-5 py-2.5 text-lg inline-flex items-center gap-2">
+                    <QuizIcon iconUrl={topicInfo.iconUrl} fallback={topicInfo.icon} size={20} />
+                    {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
                   </span>
                 )}
               </>
@@ -1241,12 +1275,21 @@ export default function QuizPage() {
           </h2>
           {specialQuizInfo ? (
             <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="glass-badge text-xs">{specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}</span>
+              <span className="glass-badge text-xs inline-flex items-center gap-1.5">
+                <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={16} />
+                {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
+              </span>
             </div>
           ) : topicInfo && diffInfo ? (
             <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="glass-badge text-xs">{diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}</span>
-              <span className="glass-badge text-xs">{topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}</span>
+              <span className="glass-badge text-xs inline-flex items-center gap-1.5">
+                <DifficultyIcon difficulty={diffInfo.id} size={12} />
+                {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+              </span>
+              <span className="glass-badge text-xs inline-flex items-center gap-1.5">
+                <QuizIcon iconUrl={topicInfo.iconUrl} fallback={topicInfo.icon} size={16} />
+                {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+              </span>
             </div>
           ) : null}
 

@@ -22,6 +22,36 @@ const TV_STATE_REQUEST: Partial<Record<string, string>> = {
   quiz: 'quiz:request-state',
 };
 
+function QuizIcon({ iconUrl, fallback, size = 20 }: { iconUrl?: string; fallback: string; size?: number }) {
+  if (iconUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={iconUrl}
+        alt=""
+        width={size}
+        height={size}
+        style={{ objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' }}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return <span aria-hidden="true">{fallback}</span>;
+}
+
+function DifficultyIcon({ difficulty, size = 16 }: { difficulty?: QuizDifficulty | string | null; size?: number }) {
+  const color = difficulty === 'easy' ? '#22c55e' : difficulty === 'hard' ? '#ef4444' : '#eab308';
+
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block rounded-full border border-white/30 align-middle"
+      style={{ width: size, height: size, backgroundColor: color, boxShadow: `0 0 ${Math.round(size / 2)}px ${color}66` }}
+    />
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -496,23 +526,27 @@ export default function TVGamePage() {
             <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={36} className="flex-shrink-0" />
             <h1 className="text-3xl font-bold">{gameTitle}</h1>
             {specialQuizInfo ? (
-              <span className="glass-badge px-3 py-1 text-sm">
-                {specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
+              <span className="glass-badge px-3 py-1 text-sm inline-flex items-center gap-1.5">
+                <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={18} />
+                {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
               </span>
             ) : specialThemeInfo ? (
-              <span className="glass-badge px-3 py-1 text-sm">
-                {specialThemeInfo.icon} {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
+              <span className="glass-badge px-3 py-1 text-sm inline-flex items-center gap-1.5">
+                <QuizIcon iconUrl={specialThemeInfo.iconUrl} fallback={specialThemeInfo.icon} size={18} />
+                {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
               </span>
             ) : (
               <>
                 {diffInfo && (
-                  <span className="glass-badge px-3 py-1 text-sm">
-                    {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+                  <span className="glass-badge px-3 py-1 text-sm inline-flex items-center gap-1.5">
+                    <DifficultyIcon difficulty={diffInfo.id} size={12} />
+                    {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
                   </span>
                 )}
                 {topicInfo && (
-                  <span className="glass-badge px-3 py-1 text-sm">
-                    {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+                  <span className="glass-badge px-3 py-1 text-sm inline-flex items-center gap-1.5">
+                    <QuizIcon iconUrl={topicInfo.iconUrl} fallback={topicInfo.icon} size={18} />
+                    {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
                   </span>
                 )}
               </>
@@ -570,26 +604,30 @@ export default function TVGamePage() {
               </p>
               {specialQuizInfo ? (
                 <div className="mt-6 flex items-center justify-center gap-4">
-                  <span className="glass-badge px-4 py-2 text-lg">
-                    {specialQuizInfo.icon} {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
+                  <span className="glass-badge px-4 py-2 text-lg inline-flex items-center gap-2">
+                    <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={24} />
+                    {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
                   </span>
                 </div>
               ) : specialThemeInfo ? (
                 <div className="mt-6 flex items-center justify-center gap-4">
-                  <span className="glass-badge px-4 py-2 text-lg">
-                    {specialThemeInfo.icon} {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
+                  <span className="glass-badge px-4 py-2 text-lg inline-flex items-center gap-2">
+                    <QuizIcon iconUrl={specialThemeInfo.iconUrl} fallback={specialThemeInfo.icon} size={24} />
+                    {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
                   </span>
                 </div>
               ) : (diffInfo || topicInfo) && (
                 <div className="mt-6 flex items-center justify-center gap-4">
                   {diffInfo && (
-                    <span className="glass-badge px-4 py-2 text-lg">
-                      {diffInfo.icon} {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
+                    <span className="glass-badge px-4 py-2 text-lg inline-flex items-center gap-2">
+                      <DifficultyIcon difficulty={diffInfo.id} size={16} />
+                      {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
                     </span>
                   )}
                   {topicInfo && (
-                    <span className="glass-badge px-4 py-2 text-lg">
-                      {topicInfo.icon} {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
+                    <span className="glass-badge px-4 py-2 text-lg inline-flex items-center gap-2">
+                      <QuizIcon iconUrl={topicInfo.iconUrl} fallback={topicInfo.icon} size={24} />
+                      {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
                     </span>
                   )}
                 </div>

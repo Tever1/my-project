@@ -5,6 +5,10 @@ import { POP_CULTURE_QUESTIONS } from './pop-culture';
 import { HARRY_POTTER_1_QUESTIONS } from './themed/harry-potter';
 import { MARVEL_1_QUESTIONS } from './themed/marvel';
 
+type QuizTopicInfoWithIcon = QuizTopicInfo & { iconUrl: string };
+type SpecialQuizThemeInfoWithIcon = SpecialQuizThemeInfo & { iconUrl: string };
+type SpecialQuizInfoWithIcon = SpecialQuizInfo & { iconUrl: string };
+
 // All general quiz questions combined
 export const ALL_QUIZ_QUESTIONS: QuizQuestion[] = [
   ...SCIENCE_QUESTIONS,
@@ -13,28 +17,28 @@ export const ALL_QUIZ_QUESTIONS: QuizQuestion[] = [
 ];
 
 // Topic metadata (general quizzes — split by difficulty)
-export const QUIZ_TOPICS: QuizTopicInfo[] = [
-  { id: 'random', titleRu: 'Случайные вопросы', titleEn: 'Random Questions', icon: '🎲' },
-  { id: 'science', titleRu: 'Наука', titleEn: 'Science', icon: '🔬' },
-  { id: 'history', titleRu: 'История', titleEn: 'History', icon: '📜' },
-  { id: 'pop-culture', titleRu: 'Поп-культура', titleEn: 'Pop Culture', icon: '🎬' },
-];
+export const QUIZ_TOPICS = [
+  { id: 'random', titleRu: 'Случайные вопросы', titleEn: 'Random Questions', icon: '🎲', iconUrl: '/icons/quiz/random.png' },
+  { id: 'science', titleRu: 'Наука', titleEn: 'Science', icon: '🔬', iconUrl: '/icons/quiz/science.png' },
+  { id: 'history', titleRu: 'История', titleEn: 'History', icon: '📜', iconUrl: '/icons/quiz/history.png' },
+  { id: 'pop-culture', titleRu: 'Поп-культура', titleEn: 'Pop Culture', icon: '🎬', iconUrl: '/icons/quiz/pop-culture.png' },
+] satisfies QuizTopicInfoWithIcon[];
 
 // Special quiz theme groups. Each theme contains one or more numbered quizzes (#1, #2, ...).
-export const SPECIAL_QUIZ_THEMES: SpecialQuizThemeInfo[] = [
-  { id: 'harry-potter', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter', icon: '⚡', backgroundUrl: '/backgrounds/harry-potter.png' },
-  { id: 'marvel',       titleRu: 'Marvel',        titleEn: 'Marvel',       icon: '🦸', backgroundUrl: '/backgrounds/marvel.png' },
-];
+export const SPECIAL_QUIZ_THEMES = [
+  { id: 'harry-potter', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter', icon: '⚡', iconUrl: '/icons/quiz/harry-potter.png', backgroundUrl: '/backgrounds/harry-potter.png' },
+  { id: 'marvel',       titleRu: 'Marvel',        titleEn: 'Marvel',       icon: '🦸', iconUrl: '/icons/quiz/marvel.png',       backgroundUrl: '/backgrounds/marvel.png' },
+] satisfies SpecialQuizThemeInfoWithIcon[];
 
 // Special quizzes — themed, no difficulty levels.
 // Each theme can have multiple quizzes differentiated by #number.
-export const SPECIAL_QUIZZES: SpecialQuizInfo[] = [
-  { id: 'harry-potter-1', theme: 'harry-potter', number: 1, titleRu: 'Гарри Поттер #1', titleEn: 'Harry Potter #1', icon: '⚡', backgroundUrl: '/backgrounds/harry-potter.png' },
-  { id: 'marvel-1',       theme: 'marvel',       number: 1, titleRu: 'Marvel #1',        titleEn: 'Marvel #1',       icon: '🦸', backgroundUrl: '/backgrounds/marvel.png' },
-];
+export const SPECIAL_QUIZZES = [
+  { id: 'harry-potter-1', theme: 'harry-potter', number: 1, titleRu: 'Гарри Поттер #1', titleEn: 'Harry Potter #1', icon: '⚡', iconUrl: '/icons/quiz/harry-potter.png', backgroundUrl: '/backgrounds/harry-potter.png' },
+  { id: 'marvel-1',       theme: 'marvel',       number: 1, titleRu: 'Marvel #1',        titleEn: 'Marvel #1',       icon: '🦸', iconUrl: '/icons/quiz/marvel.png',       backgroundUrl: '/backgrounds/marvel.png' },
+] satisfies SpecialQuizInfoWithIcon[];
 
 /** Return all special quizzes belonging to a theme, sorted by number. */
-export function getSpecialQuizzesByTheme(themeId: string): SpecialQuizInfo[] {
+export function getSpecialQuizzesByTheme(themeId: string): SpecialQuizInfoWithIcon[] {
   return SPECIAL_QUIZZES
     .filter((q) => q.theme === themeId)
     .sort((a, b) => a.number - b.number);
