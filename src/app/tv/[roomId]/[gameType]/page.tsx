@@ -521,13 +521,22 @@ export default function TVGamePage() {
           {/* Center: player scores in header */}
           {scoreboard.length > 0 && (quizState.phase === 'question' || quizState.phase === 'countdown') && (
             <div className="flex items-center justify-center gap-2 flex-wrap min-w-0">
-              {scoreboard.map((entry, i) => (
-                <div key={entry.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 border border-white/15">
-                  <span className="text-xs text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
-                  <span className="text-sm font-semibold text-white">{entry.name}</span>
-                  <span className="text-sm font-black text-purple-400">{entry.score}</span>
-                </div>
-              ))}
+              {scoreboard.map((entry, i) => {
+                const guessedRight = quizState.showCorrect && quizState.correctPlayers.includes(entry.id);
+                const guessedWrong = quizState.showCorrect && !quizState.correctPlayers.includes(entry.id);
+                const chipClass = guessedRight
+                  ? 'bg-green-500/15 border-green-400/50'
+                  : guessedWrong
+                    ? 'bg-red-500/15 border-red-400/50'
+                    : 'bg-white/10 border-white/15';
+                return (
+                  <div key={entry.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition-colors duration-300 ${chipClass}`}>
+                    <span className="text-xs text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
+                    <span className="text-sm font-semibold text-white">{entry.name}</span>
+                    <span className="text-sm font-black text-purple-400">{entry.score}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
           {quizState.phase === 'question' && (
@@ -675,25 +684,6 @@ export default function TVGamePage() {
                   })}
                 </div>
 
-                {/* Result message box */}
-                {quizState.showCorrect && (
-                  <div className={`relative overflow-hidden rounded-md border p-5 backdrop-blur-xl transition-colors duration-300 text-center ${
-                    quizState.correctPlayers.length > 0
-                      ? 'bg-green-500/10 border-green-400/30'
-                      : 'bg-red-500/10 border-red-400/30'
-                  }`}>
-                    {quizState.correctPlayers.length > 0 ? (
-                      <p className="text-xl font-semibold text-green-300">
-                        {locale === 'ru' ? '✓ Правильно: ' : '✓ Correct: '}
-                        {quizState.correctPlayers.map((id) => getPlayerName(id)).join(', ')}
-                      </p>
-                    ) : (
-                      <p className="text-xl font-semibold text-red-300">
-                        {locale === 'ru' ? 'Никто не угадал!' : 'Nobody got it right!'}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           )}

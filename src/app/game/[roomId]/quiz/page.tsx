@@ -704,7 +704,7 @@ export default function QuizPage() {
             <div className="space-y-3">
               <button
                 onClick={() => selectMode('general')}
-                className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-purple-600/20 to-purple-500/5 border-purple-500/30"
+                className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-purple-600/20 to-purple-500/5 border-purple-500/30"
               >
                 <div className="flex items-center gap-4">
                   <span className="text-3xl">📚</span>
@@ -720,7 +720,7 @@ export default function QuizPage() {
               </button>
               <button
                 onClick={() => selectMode('special')}
-                className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
+                className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
               >
                 <div className="flex items-center gap-4">
                   <span className="text-3xl">🌟</span>
@@ -772,7 +772,7 @@ export default function QuizPage() {
                 <button
                   key={d.id}
                   onClick={() => selectDifficulty(d.id)}
-                  className={`w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br ${d.color}`}
+                  className={`w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br ${d.color}`}
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-3xl">{d.icon}</span>
@@ -828,7 +828,7 @@ export default function QuizPage() {
                 <button
                   key={theme.id}
                   onClick={() => selectSpecialTheme(theme.id)}
-                  className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
+                  className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-3xl">{theme.icon}</span>
@@ -885,7 +885,7 @@ export default function QuizPage() {
                 <button
                   key={q.id}
                   onClick={() => selectSpecialQuiz(q.id)}
-                  className="w-full rounded-2xl border-2 p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-700/70 to-amber-600/50 border-amber-400/80"
+                  className="w-full rounded-md border-2 p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-700/70 to-amber-600/50 border-amber-400/80"
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-3xl font-black text-white">#{q.number}</span>
@@ -932,7 +932,7 @@ export default function QuizPage() {
                 <button
                   key={topic.id}
                   onClick={() => selectTopic(topic.id)}
-                  className="w-full rounded-2xl border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-indigo-600/20 to-indigo-500/5 border-indigo-500/30"
+                  className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-indigo-600/20 to-indigo-500/5 border-indigo-500/30"
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-3xl">{topic.icon}</span>
@@ -1062,6 +1062,7 @@ export default function QuizPage() {
             <span className="text-sm text-white/40">
               {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}/{gameState.totalQuestions}
             </span>
+            <span className="text-sm text-white/40 tabular-nums">{answeredCount}/{totalPlayers}</span>
           </div>
 
           {/* Answer options */}
@@ -1174,13 +1175,12 @@ export default function QuizPage() {
           </div>
 
           {/* Status bar */}
-          <div className="mt-5 flex items-center justify-between text-base">
+          <div className="mt-5 text-base">
             <p className="text-white/30">
               {myAnswer !== undefined
                 ? locale === 'ru' ? 'Ответ принят!' : 'Answer submitted!'
                 : gameState.showCorrect ? '' : locale === 'ru' ? 'Выберите ответ' : 'Choose an answer'}
             </p>
-            <p className="text-white/30">{answeredCount}/{totalPlayers}</p>
           </div>
 
           {gameState.showCorrect && isGameHost && (
@@ -1209,11 +1209,14 @@ export default function QuizPage() {
             {scoreboard.map((entry, i) => (
               <div
                 key={entry.name}
-                className={`p-4 flex items-center justify-between rounded-2xl border backdrop-blur-2xl transition-all ${
-                  i === 0 ? 'bg-white/10 border-yellow-400/50 ring-2 ring-yellow-400/30'
-                    : i === 1 ? 'bg-white/10 border-white/15 ring-1 ring-white/15'
-                      : i === 2 ? 'bg-white/10 border-amber-600/30 ring-1 ring-amber-600/20'
-                        : 'bg-white/10 border-white/10'
+                className={`relative overflow-hidden flex items-center justify-between p-4 rounded-md border backdrop-blur-xl transition-all ${
+                  i === 0
+                    ? 'bg-yellow-500/20 border-yellow-400/40'
+                    : i === 1
+                      ? 'bg-white/8 border-white/15'
+                      : i === 2
+                        ? 'bg-amber-700/10 border-amber-700/20'
+                        : 'bg-white/5 border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -1263,11 +1266,14 @@ export default function QuizPage() {
             {scoreboard.map((entry, i) => (
               <div
                 key={entry.name}
-                className={`p-4 flex items-center justify-between rounded-2xl border backdrop-blur-2xl transition-all ${
-                  i === 0 ? 'bg-white/10 border-yellow-400/50 ring-2 ring-yellow-400/30'
-                    : i === 1 ? 'bg-white/10 border-white/15 ring-1 ring-white/15'
-                      : i === 2 ? 'bg-white/10 border-amber-600/30 ring-1 ring-amber-600/20'
-                        : 'bg-white/10 border-white/10'
+                className={`relative overflow-hidden flex items-center justify-between p-4 rounded-md border backdrop-blur-xl transition-all ${
+                  i === 0
+                    ? 'bg-yellow-500/20 border-yellow-400/40'
+                    : i === 1
+                      ? 'bg-white/8 border-white/15'
+                      : i === 2
+                        ? 'bg-amber-700/10 border-amber-700/20'
+                        : 'bg-white/5 border-white/10'
                 }`}
               >
                 <div className="flex items-center gap-3">
