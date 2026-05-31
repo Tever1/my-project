@@ -86,10 +86,10 @@ function getInitialState(): WhoAmIGameState {
 
 export default function WhoAmIPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  useNavigateOnGameEnd(roomId, 'lobby');
   const { emit, on } = useSocket();
   const { locale } = useTranslation();
   const { user } = useAuth();
+  useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [gs, setGs] = useState<WhoAmIGameState>(getInitialState);

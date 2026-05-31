@@ -93,7 +93,7 @@ export default function QuizPage() {
   const { emit, on, isConnected } = useSocket();
   const sendAction = useGameAction(roomId);
   const router = useRouter();
-  useNavigateOnGameEnd(roomId, 'lobby');
+  useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const [guestPlayerId, setGuestPlayerId] = useState('');
@@ -649,7 +649,7 @@ export default function QuizPage() {
     setShowEndConfirm(false);
     stopTimerSound();
     emit('game:end', { code: roomId });
-    router.push(`/lobby/${roomId}`);
+    router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
   };
 
   // ------- Derived data -------
@@ -686,7 +686,7 @@ export default function QuizPage() {
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
           {isGameHost && (
             <button
-              onClick={() => router.push(`/lobby/${roomId}`)}
+              onClick={() => router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`)}
               className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
             >
               ← {locale === 'ru' ? 'В лобби' : 'Back to Lobby'}

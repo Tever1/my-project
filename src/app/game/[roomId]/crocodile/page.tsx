@@ -63,9 +63,9 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 export default function CrocodilePage() {
   const { roomId } = useParams<{ roomId: string }>();
-  useNavigateOnGameEnd(roomId, 'lobby');
   const { emit, on } = useSocket();
   const { user } = useAuth();
+  useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
   const { locale } = useTranslation();
 
   // Room players (from room:state)

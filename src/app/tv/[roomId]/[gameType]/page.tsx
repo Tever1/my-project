@@ -491,8 +491,8 @@ export default function TVGamePage() {
           />
         )}
         {/* Top bar */}
-        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between gap-4 px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-4 min-w-0">
             <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={36} className="flex-shrink-0" />
             <h1 className="text-3xl font-bold">{gameTitle}</h1>
             {specialQuizInfo ? (
@@ -518,6 +518,18 @@ export default function TVGamePage() {
               </>
             )}
           </div>
+          {/* Center: player scores in header */}
+          {scoreboard.length > 0 && (quizState.phase === 'question' || quizState.phase === 'countdown') && (
+            <div className="flex items-center justify-center gap-2 flex-wrap min-w-0">
+              {scoreboard.map((entry, i) => (
+                <div key={entry.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 border border-white/15">
+                  <span className="text-xs text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
+                  <span className="text-sm font-semibold text-white">{entry.name}</span>
+                  <span className="text-sm font-black text-purple-400">{entry.score}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {quizState.phase === 'question' && (
             <div className="flex items-center gap-6">
               <span className="text-lg text-white/50">
@@ -534,7 +546,7 @@ export default function TVGamePage() {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col justify-between px-8 py-4 min-h-0">
+        <div className="flex-1 flex flex-col justify-center px-8 py-4 min-h-0">
           {/* SETUP / WAITING */}
           {(isSetup || quizState.phase === 'waiting') && (
             <div className="text-center animate-fade-in">
@@ -603,22 +615,7 @@ export default function TVGamePage() {
 
           {/* QUESTION */}
           {quizState.phase === 'question' && currentQuestion && (
-            <div className="flex flex-col h-full justify-between">
-              {/* TOP: Player scores */}
-              {scoreboard.length > 0 && (
-                <div className="flex items-center justify-center gap-4 flex-wrap flex-shrink-0 pb-4">
-                  {scoreboard.map((entry, i) => (
-                    <div key={entry.id} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15">
-                      <span className="text-sm text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
-                      <span className="font-semibold text-white">{entry.name}</span>
-                      <span className="font-black text-purple-400">{entry.score}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex-1" />
-
+            <div className="flex-1 w-full flex flex-col justify-end">
               {/* BOTTOM: Question + timer + options + result */}
               <div className="flex flex-col gap-3 flex-shrink-0">
                 {/* Question */}
@@ -750,44 +747,29 @@ export default function TVGamePage() {
                 {scoreboard.map((entry, i) => (
                   <div
                     key={entry.id}
-                    className={`flex items-center justify-between py-3 px-6 rounded-2xl transition-all ${
+                    className={`relative overflow-hidden flex items-center justify-between py-4 px-8 rounded-md border backdrop-blur-xl transition-all ${
                       i === 0
-                        ? 'bg-yellow-500/20 border-2 border-yellow-400/40 scale-105'
+                        ? 'bg-yellow-500/20 border-yellow-400/40 scale-105'
                         : i === 1
-                          ? 'bg-gray-300/10 border border-gray-300/20'
+                          ? 'bg-white/8 border-white/15'
                           : i === 2
-                            ? 'bg-amber-700/10 border border-amber-700/20'
-                            : 'bg-white/5 border border-white/10'
+                            ? 'bg-amber-700/10 border-amber-700/20'
+                            : 'bg-white/5 border-white/10'
                     }`}
                   >
-                    <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex items-center gap-4">
                       <span className="text-3xl w-10 text-center flex-shrink-0">
                         {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
                       </span>
-                      <span className="text-xl font-bold truncate">{entry.name}</span>
+                      <span className="text-2xl font-bold">{entry.name}</span>
                     </div>
-                    <span className="text-2xl font-black text-purple-400 flex-shrink-0">{entry.score}</span>
+                    <span className="text-3xl font-black text-purple-400">{entry.score}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
         </div>
-
-        {/* Bottom scoreboard bar */}
-        {(quizState.phase === 'question' || quizState.phase === 'countdown') && scoreboard.length > 0 && (
-          <div className="flex items-center justify-center gap-6 px-8 py-3 bg-black/20 backdrop-blur-sm border-t border-white/10 flex-shrink-0">
-            {scoreboard.slice(0, 8).map((entry, i) => (
-              <div key={entry.id} className="flex items-center gap-2">
-                <span className="text-sm">
-                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                </span>
-                <span className="text-sm font-medium text-white/80">{entry.name}</span>
-                <span className="text-sm font-bold text-purple-400">{entry.score}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     );
   }

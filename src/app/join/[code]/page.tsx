@@ -70,6 +70,13 @@ export default function JoinPage() {
     });
   }, [on]);
 
+  // Request a room-state snapshot on connect so a player returning from a
+  // finished game is recognized as an existing member (auto-rejoin below).
+  useEffect(() => {
+    if (!isConnected || !code || !playerId) return;
+    emit("room:get-state", { code });
+  }, [isConnected, code, playerId, emit]);
+
   useNavigateOnGameStart(
     ({ roomCode, gameType }) => `/game/${roomCode}/${gameType}`,
   );
@@ -83,8 +90,17 @@ export default function JoinPage() {
       if (!nickname && existingPlayer.nickname) {
         setNickname(existingPlayer.nickname);
       }
+      // Re-subscribe this socket to the room channel for live updates
+      // (new players, game start). isReconnect=true reuses the existing player.
+      emit("room:join", {
+        code,
+        playerId,
+        nickname: existingPlayer.nickname,
+        isReconnect: true,
+        role: "player",
+      });
     });
-  }, [roomState, playerId, joined, nickname]);
+  }, [roomState, playerId, joined, nickname, emit, code]);
 
   const handleJoin = useCallback(() => {
     const trimmedNickname = nickname.trim();
