@@ -670,14 +670,12 @@ export default function QuizPage() {
 
   // ------- Render -------
 
-  const isSetup = gameState.phase.startsWith('setup-');
-
   return (
     <GameLayout
       title={locale === 'ru' ? 'Квиз' : 'Quiz'}
       scores={scoreboard}
       onEnd={isGameHost ? confirmEndGame : undefined}
-      showScoreboard={!isSetup && gameState.phase !== 'waiting' && gameState.phase !== 'countdown'}
+      showScoreboard={false}
       backgroundUrl={backgroundUrl}
       phaseKey={gameState.phase}
     >
@@ -885,7 +883,7 @@ export default function QuizPage() {
                 <button
                   key={q.id}
                   onClick={() => selectSpecialQuiz(q.id)}
-                  className="w-full rounded-md border-2 p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-700/70 to-amber-600/50 border-amber-400/80"
+                  className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-3xl font-black text-white">#{q.number}</span>
@@ -1172,15 +1170,6 @@ export default function QuizPage() {
                 </motion.button>
               );
             })}
-          </div>
-
-          {/* Status bar */}
-          <div className="mt-5 text-base">
-            <p className="text-white/30">
-              {myAnswer !== undefined
-                ? locale === 'ru' ? 'Ответ принят!' : 'Answer submitted!'
-                : gameState.showCorrect ? '' : locale === 'ru' ? 'Выберите ответ' : 'Choose an answer'}
-            </p>
           </div>
 
           {gameState.showCorrect && isGameHost && (
