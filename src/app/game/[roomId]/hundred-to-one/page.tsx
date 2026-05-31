@@ -96,7 +96,7 @@ const mkInitial = (): GState => ({
 
 export default function HundredToOnePage() {
   const { roomId } = useParams<{ roomId: string }>();
-  useNavigateOnGameEnd(roomId);
+  useNavigateOnGameEnd(roomId, 'lobby');
   const { user } = useAuth();
   const { emit, on } = useSocket();
 

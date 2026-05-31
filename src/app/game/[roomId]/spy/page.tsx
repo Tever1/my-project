@@ -163,7 +163,7 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
 
 export default function SpyGamePage() {
   const { roomId } = useParams<{ roomId: string }>();
-  useNavigateOnGameEnd(roomId);
+  useNavigateOnGameEnd(roomId, 'lobby');
   const { user } = useAuth();
   const { emit, on } = useSocket();
 

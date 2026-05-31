@@ -86,7 +86,7 @@ function getInitialState(): WhoAmIGameState {
 
 export default function WhoAmIPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  useNavigateOnGameEnd(roomId);
+  useNavigateOnGameEnd(roomId, 'lobby');
   const { emit, on } = useSocket();
   const { locale } = useTranslation();
   const { user } = useAuth();

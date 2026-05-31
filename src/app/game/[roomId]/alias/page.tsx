@@ -83,7 +83,7 @@ function splitIntoTeams(playerIds: string[]): [string[], string[]] {
 
 export default function AliasPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  useNavigateOnGameEnd(roomId);
+  useNavigateOnGameEnd(roomId, 'lobby');
   const { emit, on } = useSocket();
   const { user } = useAuth();
   const { locale } = useTranslation();
