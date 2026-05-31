@@ -10,9 +10,8 @@ import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useRoomState } from '@/lib/use-room-state';
 import { GameLayout } from '@/components/games/GameLayout';
-import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
-import { UrgencyTimer, AnimatedScore, BreathingPlaceholder } from '@/components/ingame';
+import { AnimatedScore, BreathingPlaceholder } from '@/components/ingame';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
 import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getSpecialQuizzesByTheme } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
@@ -94,7 +93,7 @@ export default function QuizPage() {
   const { emit, on, isConnected } = useSocket();
   const sendAction = useGameAction(roomId);
   const router = useRouter();
-  useNavigateOnGameEnd(roomId);
+  useNavigateOnGameEnd(roomId, 'lobby');
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const [guestPlayerId, setGuestPlayerId] = useState('');
@@ -650,7 +649,7 @@ export default function QuizPage() {
     setShowEndConfirm(false);
     stopTimerSound();
     emit('game:end', { code: roomId });
-    router.push(`/join/${roomId}`);
+    router.push(`/lobby/${roomId}`);
   };
 
   // ------- Derived data -------
@@ -1050,26 +1049,23 @@ export default function QuizPage() {
       {/* ==================== QUESTION ==================== */}
       {gameState.phase === 'question' && currentQuestion && (
         <div className="max-w-5xl mx-auto w-full relative">
+          {/* Timer bar - full width, matches TV style */}
+          <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden mb-4">
+            <motion.div
+              className={`h-full rounded-full ${
+                gameState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
+              }`}
+              style={{ width: `${(gameState.timeLeft / timePerQuestion) * 100}%` }}
+              transition={{ duration: 1, ease: 'linear' }}
+            />
+          </div>
+
           {/* Timer */}
           <div className="mb-6 flex items-center justify-between">
             <span className="text-sm text-white/40">
               {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}/{gameState.totalQuestions}
             </span>
-            <UrgencyTimer
-              total={timePerQuestion}
-              current={gameState.timeLeft}
-              variant="ring"
-              color="var(--color-game-quiz)"
-              size="xs"
-            />
           </div>
-
-          {/* Question card */}
-          <GlassCard className="p-8 mb-8">
-            <h3 className="text-2xl md:text-3xl lg:text-4xl font-semibold text-white leading-snug">
-              {locale === 'ru' ? currentQuestion.questionRu : currentQuestion.questionEn}
-            </h3>
-          </GlassCard>
 
           {/* Answer options */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

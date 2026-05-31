@@ -4,11 +4,12 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 
-type NavigateTarget = 'phone' | 'tv';
+type NavigateTarget = 'phone' | 'tv' | 'lobby';
 
 const TARGET_PATHS: Record<NavigateTarget, (roomId: string) => string> = {
   phone: (roomId) => `/join/${roomId}`,
   tv: (roomId) => `/lobby/${roomId}`,
+  lobby: (roomId) => `/lobby/${roomId}`,
 };
 
 /**

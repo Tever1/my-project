@@ -684,6 +684,44 @@ export default function TVGamePage() {
             </div>
           )}
 
+          {/* MID-LEADERBOARD */}
+          {quizState.phase === 'mid-leaderboard' && (
+            <div className="text-center animate-fade-in">
+              <h2 className="text-5xl font-bold mb-2">
+                {locale === 'ru' ? 'Промежуточные результаты' : 'Halftime Results'}
+              </h2>
+              <p className="text-white/60 mb-8 text-xl">
+                {locale === 'ru'
+                  ? `После ${quizState.questionIndex + 1} из ${quizState.totalQuestions} вопросов`
+                  : `After ${quizState.questionIndex + 1} of ${quizState.totalQuestions} questions`}
+              </p>
+              <div className="w-full max-w-3xl mx-auto space-y-3">
+                {scoreboard.map((entry, i) => (
+                  <div
+                    key={entry.id}
+                    className={`flex items-center justify-between py-4 px-8 rounded-2xl border-2 transition-all ${
+                      i === 0
+                        ? 'bg-yellow-500/20 border-yellow-400/40 scale-105'
+                        : i === 1
+                          ? 'bg-gray-300/10 border-gray-300/20'
+                          : i === 2
+                            ? 'bg-amber-700/10 border-amber-700/20'
+                            : 'bg-white/5 border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="text-3xl w-10 text-center flex-shrink-0">
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
+                      </span>
+                      <span className="text-2xl font-bold">{entry.name}</span>
+                    </div>
+                    <span className="text-3xl font-black text-purple-400">{entry.score}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* FINAL */}
           {quizState.phase === 'final' && (
             <div className="text-center animate-fade-in">
