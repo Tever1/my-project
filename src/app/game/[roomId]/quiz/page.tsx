@@ -666,7 +666,7 @@ export default function QuizPage() {
   const diffInfo = gameState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === gameState.config.difficulty) : null;
   const specialQuizInfo = gameState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === gameState.config.specialQuizId) : null;
   const specialThemeInfo = gameState.config.specialTheme ? SPECIAL_QUIZ_THEMES.find((t) => t.id === gameState.config.specialTheme) : null;
-  const backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
+  const backgroundUrl: string | undefined = undefined;
 
   // ------- Render -------
 
