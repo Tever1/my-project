@@ -2733,15 +2733,17 @@ const RoomMenu = forwardRef<HTMLDivElement, {
                           setSelectedPlayerId(null);
                         }}
                       />
-                      <RoomMenuActionButton
-                        icon={<HostCrownIcon />}
-                        label="Передать роль хоста"
-                        hoverColor={accent}
-                        onClick={() => {
-                          onTransferHost(player.id);
-                          setSelectedPlayerId(null);
-                        }}
-                      />
+                      {!isHost && (
+                        <RoomMenuActionButton
+                          icon={<HostCrownIcon />}
+                          label="Передать роль хоста"
+                          hoverColor={accent}
+                          onClick={() => {
+                            onTransferHost(player.id);
+                            setSelectedPlayerId(null);
+                          }}
+                        />
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
