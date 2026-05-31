@@ -150,7 +150,7 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
       {canDraw && (
         <button
           onClick={() => { clearAll(); onClear(); }}
-          className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-white/10 text-white/50 text-xs hover:bg-white/20"
+          className="absolute top-2 right-2 px-3 py-1 rounded-md bg-white/10 text-white/50 text-xs hover:bg-white/20"
         >
           Очистить
         </button>
@@ -442,7 +442,7 @@ export default function SpyGamePage() {
               <div className="flex gap-2">
                 <button
                   onClick={toggleTimer}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+                  className={`px-3 py-1.5 rounded-md text-sm font-bold transition-colors ${
                     s.timerRunning
                       ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
                       : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
@@ -452,7 +452,7 @@ export default function SpyGamePage() {
                 </button>
                 <button
                   onClick={resetTimer}
-                  className="px-3 py-1.5 rounded-lg text-sm text-white/40 bg-white/5 hover:bg-white/10 transition-colors"
+                  className="px-3 py-1.5 rounded-md text-sm text-white/40 bg-white/5 hover:bg-white/10 transition-colors"
                 >
                   ↺
                 </button>

@@ -1269,7 +1269,7 @@ export default function HundredToOnePage() {
                       <div className="flex flex-wrap gap-2 justify-center">
                         {winTeamPlayers.map(p => (
                           <button key={p.id} onClick={() => bgSelectPlayer(1, p.id)}
-                            className={`px-4 py-2 rounded-lg border transition-all text-sm font-bold
+                            className={`px-4 py-2 rounded-md border transition-all text-sm font-bold
                               ${s.bgP1Id === p.id ? 'bg-yellow-500/30 border-yellow-400 text-yellow-200' : 'bg-white/5 border-white/20 text-white/60 hover:border-yellow-400/60'}`}>
                             {p.nickname}
                           </button>
@@ -1281,7 +1281,7 @@ export default function HundredToOnePage() {
                       <div className="flex flex-wrap gap-2 justify-center">
                         {winTeamPlayers.map(p => (
                           <button key={p.id} onClick={() => bgSelectPlayer(2, p.id)}
-                            className={`px-4 py-2 rounded-lg border transition-all text-sm font-bold
+                            className={`px-4 py-2 rounded-md border transition-all text-sm font-bold
                               ${s.bgP2Id === p.id ? 'bg-amber-500/30 border-amber-400 text-amber-200' : 'bg-white/5 border-white/20 text-white/60 hover:border-amber-400/60'}`}>
                             {p.nickname}
                           </button>
