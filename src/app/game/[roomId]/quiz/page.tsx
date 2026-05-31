@@ -666,7 +666,7 @@ export default function QuizPage() {
   const diffInfo = gameState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === gameState.config.difficulty) : null;
   const specialQuizInfo = gameState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === gameState.config.specialQuizId) : null;
   const specialThemeInfo = gameState.config.specialTheme ? SPECIAL_QUIZ_THEMES.find((t) => t.id === gameState.config.specialTheme) : null;
-  const backgroundUrl = specialQuizInfo?.backgroundUrl ?? specialThemeInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
+  const backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
 
   // ------- Render -------
 
@@ -684,7 +684,7 @@ export default function QuizPage() {
         <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
           {isGameHost && (
             <button
-              onClick={() => router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`)}
+              onClick={confirmEndGame}
               className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
             >
               ← {locale === 'ru' ? 'В лобби' : 'Back to Lobby'}
@@ -885,9 +885,9 @@ export default function QuizPage() {
                   onClick={() => selectSpecialQuiz(q.id)}
                   className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="text-3xl font-black text-white">#{q.number}</span>
-                    <p className="text-lg font-semibold text-white">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <span className="text-3xl font-black text-white flex-shrink-0">#{q.number}</span>
+                    <p className="text-lg font-semibold text-white min-w-0 break-words">
                       {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
                     </p>
                   </div>
@@ -1046,12 +1046,11 @@ export default function QuizPage() {
         <div className="max-w-5xl mx-auto w-full relative">
           {/* Timer bar - full width, matches TV style */}
           <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden mb-4">
-            <motion.div
-              className={`h-full rounded-full ${
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ease-linear ${
                 gameState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
               }`}
               style={{ width: `${(gameState.timeLeft / timePerQuestion) * 100}%` }}
-              transition={{ duration: 1, ease: 'linear' }}
             />
           </div>
 

@@ -473,7 +473,7 @@ export default function TVGamePage() {
     const diffInfo = quizState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === quizState.config.difficulty) : null;
     const specialQuizInfo = quizState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === quizState.config.specialQuizId) : null;
     const specialThemeInfo = quizState.config.specialTheme ? SPECIAL_QUIZ_THEMES.find((t) => t.id === quizState.config.specialTheme) : null;
-    const backgroundUrl = specialQuizInfo?.backgroundUrl ?? specialThemeInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
+    const backgroundUrl = specialQuizInfo?.backgroundUrl ?? topicInfo?.backgroundUrl;
     const isSetup = quizState.phase.startsWith('setup-');
 
     return (
