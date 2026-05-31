@@ -2655,7 +2655,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
       >
         {connectedPlayers.length > 0 ? (
           connectedPlayers.map((player) => {
-            const isHost = player.isHost || player.id === roomState?.hostId;
+            const isHost = Boolean(player.isHost) || (player.id !== "" && player.id === roomState?.hostId);
             const canManagePlayer = isCurrentUserHost && player.id !== currentUserId;
             return (
               <div

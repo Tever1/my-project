@@ -661,9 +661,6 @@ export default function QuizPage() {
     isCorrect: gameState.showCorrect && gameState.correctPlayers.includes(p.id),
   }));
 
-  const getPlayerName = (id: string) =>
-    gameState.players.find((p) => p.id === id)?.nickname || id;
-
   const currentQuestion = gameState.currentQuestion;
   const topicInfo = gameState.config.topic ? QUIZ_TOPICS.find((t) => t.id === gameState.config.topic) : null;
   const diffInfo = gameState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === gameState.config.difficulty) : null;
@@ -1186,41 +1183,13 @@ export default function QuizPage() {
             <p className="text-white/30">{answeredCount}/{totalPlayers}</p>
           </div>
 
-          {/* Post-question results */}
-          {gameState.showCorrect && (
-            <div className="mt-6 animate-fade-in">
-              <div className={`p-5 rounded-2xl border backdrop-blur-2xl ${
-                gameState.correctPlayers.length > 0
-                  ? 'bg-green-900/40 border-green-400/40'
-                  : 'bg-red-900/40 border-red-400/40'
-              }`}>
-                {gameState.correctPlayers.length > 0 ? (
-                  <>
-                    <p className="text-green-400 font-medium mb-2">
-                      {locale === 'ru' ? 'Правильно ответили:' : 'Answered correctly:'}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {gameState.correctPlayers.map((id) => (
-                        <span key={id} className="glass-badge text-xs">{getPlayerName(id)}</span>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-red-400 font-medium">
-                    {locale === 'ru' ? 'Никто не ответил правильно!' : 'Nobody answered correctly!'}
-                  </p>
-                )}
-              </div>
-
-              {isGameHost && (
-                <div className="text-center mt-4">
-                  <GlassButton variant="primary" size="lg" onClick={startNextQuestion}>
-                    {gameState.questionIndex + 1 < gameState.totalQuestions
-                      ? locale === 'ru' ? 'Следующий вопрос' : 'Next Question'
-                      : locale === 'ru' ? 'Показать результаты' : 'Show Results'}
-                  </GlassButton>
-                </div>
-              )}
+          {gameState.showCorrect && isGameHost && (
+            <div className="text-center mt-6 animate-fade-in">
+              <GlassButton variant="primary" size="lg" onClick={startNextQuestion}>
+                {gameState.questionIndex + 1 < gameState.totalQuestions
+                  ? locale === 'ru' ? 'Следующий вопрос' : 'Next Question'
+                  : locale === 'ru' ? 'Показать результаты' : 'Show Results'}
+              </GlassButton>
             </div>
           )}
         </div>

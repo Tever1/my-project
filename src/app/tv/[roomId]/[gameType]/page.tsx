@@ -520,6 +520,9 @@ export default function TVGamePage() {
           </div>
           {quizState.phase === 'question' && (
             <div className="flex items-center gap-6">
+              <span className="text-lg text-white/50">
+                {locale === 'ru' ? 'Ответили' : 'Answered'}: {answeredCount}/{totalPlayers}
+              </span>
               <span className="text-xl text-white/60">
                 {quizState.questionIndex + 1} / {quizState.totalQuestions}
               </span>
@@ -531,7 +534,7 @@ export default function TVGamePage() {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col justify-center px-8 py-4 min-h-0">
+        <div className="flex-1 flex flex-col justify-between px-8 py-4 min-h-0">
           {/* SETUP / WAITING */}
           {(isSetup || quizState.phase === 'waiting') && (
             <div className="text-center animate-fade-in">
@@ -600,81 +603,95 @@ export default function TVGamePage() {
 
           {/* QUESTION */}
           {quizState.phase === 'question' && currentQuestion && (
-            <div className="flex flex-col h-full justify-center">
-              {/* Timer bar */}
-              <div className="w-full h-3 rounded-full bg-white/10 overflow-hidden mb-6 flex-shrink-0">
-                <div
-                  className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-                    quizState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
-                  }`}
-                  style={{ width: `${(quizState.timeLeft / timePerQuestion) * 100}%` }}
-                />
-              </div>
-
-              {/* Question */}
-              <div className="glass-card p-6 mb-4 flex-shrink-0">
-                <h3 className="text-2xl xl:text-3xl font-bold text-center leading-snug line-clamp-3">
-                  {locale === 'ru' ? currentQuestion.questionRu : currentQuestion.questionEn}
-                </h3>
-              </div>
-
-              {/* Options grid */}
-              <div className="grid grid-cols-2 gap-3 flex-shrink-0">
-                {currentQuestion.options.map((option, index) => {
-                  const isCorrectAnswer = index === currentQuestion.correctIndex;
-                  const isCorrectRevealed = quizState.showCorrect && isCorrectAnswer;
-                  const isWrongRevealed = quizState.showCorrect && !isCorrectAnswer;
-                  const stripColor = isCorrectRevealed ? '#4ade80' : isWrongRevealed ? '#f87171' : 'transparent';
-                  const bgClass = isCorrectRevealed
-                    ? 'bg-green-500/10 border-green-400/30'
-                    : isWrongRevealed
-                      ? 'bg-white/5 border-white/10 opacity-40'
-                      : 'bg-white/5 border-white/10';
-
-                  return (
-                    <div
-                      key={index}
-                      className={`relative overflow-hidden rounded-md border p-5 text-left backdrop-blur-xl transition-colors duration-300 ${bgClass}`}
-                    >
-                      <div
-                        className="absolute left-0 inset-y-0 w-1.5 transition-colors duration-300"
-                        style={{ backgroundColor: stripColor }}
-                      />
-                      <div className="flex items-center gap-4 pl-3">
-                        <span className={`
-                          flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black
-                          ${isCorrectRevealed ? 'bg-green-500/20 text-green-300' : 'bg-white/8 text-white/50'}
-                        `}>
-                          {isCorrectRevealed ? '✓' : index + 1}
-                        </span>
-                        <span className={`text-xl font-semibold line-clamp-2 leading-tight ${
-                          isCorrectRevealed ? 'text-green-100' : 'text-white'
-                        }`}>
-                          {locale === 'ru' ? option.ru : option.en}
-                        </span>
-                      </div>
+            <div className="flex flex-col h-full justify-between">
+              {/* TOP: Player scores */}
+              {scoreboard.length > 0 && (
+                <div className="flex items-center justify-center gap-4 flex-wrap flex-shrink-0 pb-4">
+                  {scoreboard.map((entry, i) => (
+                    <div key={entry.id} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15">
+                      <span className="text-sm text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
+                      <span className="font-semibold text-white">{entry.name}</span>
+                      <span className="font-black text-purple-400">{entry.score}</span>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Answer status */}
-              <div className="mt-4 text-center flex-shrink-0">
-                {!quizState.showCorrect ? (
-                  <p className="text-xl text-white/40">
-                    {locale === 'ru'
-                      ? `Ответили: ${answeredCount} / ${totalPlayers}`
-                      : `Answered: ${answeredCount} / ${totalPlayers}`}
-                  </p>
-                ) : (
-                  <div className="flex items-center justify-center gap-6">
+              <div className="flex-1" />
+
+              {/* BOTTOM: Question + timer + options + result */}
+              <div className="flex flex-col gap-3 flex-shrink-0">
+                {/* Question */}
+                <div className="glass-card p-6 flex-shrink-0">
+                  <h3 className="text-2xl xl:text-3xl font-bold text-center leading-snug line-clamp-3">
+                    {locale === 'ru' ? currentQuestion.questionRu : currentQuestion.questionEn}
+                  </h3>
+                </div>
+
+                {/* Timer bar */}
+                <div className="w-full h-3 rounded-full bg-white/10 overflow-hidden flex-shrink-0">
+                  <div
+                    className={`h-full rounded-full transition-all duration-1000 ease-linear ${
+                      quizState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
+                    }`}
+                    style={{ width: `${(quizState.timeLeft / timePerQuestion) * 100}%` }}
+                  />
+                </div>
+
+                {/* Options grid */}
+                <div className="grid grid-cols-2 gap-3 flex-shrink-0">
+                  {currentQuestion.options.map((option, index) => {
+                    const isCorrectAnswer = index === currentQuestion.correctIndex;
+                    const isCorrectRevealed = quizState.showCorrect && isCorrectAnswer;
+                    const isWrongRevealed = quizState.showCorrect && !isCorrectAnswer;
+                    const stripColor = isCorrectRevealed ? '#4ade80' : isWrongRevealed ? '#f87171' : 'transparent';
+                    const bgClass = isCorrectRevealed
+                      ? 'bg-green-500/10 border-green-400/30'
+                      : isWrongRevealed
+                        ? 'bg-white/5 border-white/10 opacity-40'
+                        : 'bg-white/5 border-white/10';
+
+                    return (
+                      <div
+                        key={index}
+                        className={`relative overflow-hidden rounded-md border p-5 text-left backdrop-blur-xl transition-colors duration-300 ${bgClass}`}
+                      >
+                        <div
+                          className="absolute left-0 inset-y-0 w-1.5 transition-colors duration-300"
+                          style={{ backgroundColor: stripColor }}
+                        />
+                        <div className="flex items-center gap-4 pl-3">
+                          <span className={`
+                            flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black
+                            ${isCorrectRevealed ? 'bg-green-500/20 text-green-300' : 'bg-white/8 text-white/50'}
+                          `}>
+                            {isCorrectRevealed ? '✓' : index + 1}
+                          </span>
+                          <span className={`text-xl font-semibold line-clamp-2 leading-tight ${
+                            isCorrectRevealed ? 'text-green-100' : 'text-white'
+                          }`}>
+                            {locale === 'ru' ? option.ru : option.en}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Result message box */}
+                {quizState.showCorrect && (
+                  <div className={`relative overflow-hidden rounded-md border p-5 backdrop-blur-xl transition-colors duration-300 text-center ${
+                    quizState.correctPlayers.length > 0
+                      ? 'bg-green-500/10 border-green-400/30'
+                      : 'bg-red-500/10 border-red-400/30'
+                  }`}>
                     {quizState.correctPlayers.length > 0 ? (
-                      <p className="text-xl text-green-400">
-                        {locale === 'ru' ? 'Правильно: ' : 'Correct: '}
+                      <p className="text-xl font-semibold text-green-300">
+                        {locale === 'ru' ? '✓ Правильно: ' : '✓ Correct: '}
                         {quizState.correctPlayers.map((id) => getPlayerName(id)).join(', ')}
                       </p>
                     ) : (
-                      <p className="text-xl text-red-400">
+                      <p className="text-xl font-semibold text-red-300">
                         {locale === 'ru' ? 'Никто не угадал!' : 'Nobody got it right!'}
                       </p>
                     )}
@@ -699,11 +716,11 @@ export default function TVGamePage() {
                 {scoreboard.map((entry, i) => (
                   <div
                     key={entry.id}
-                    className={`flex items-center justify-between py-4 px-8 rounded-2xl border-2 transition-all ${
+                    className={`relative overflow-hidden flex items-center justify-between py-4 px-8 rounded-md border backdrop-blur-xl transition-all ${
                       i === 0
                         ? 'bg-yellow-500/20 border-yellow-400/40 scale-105'
-                        : i === 1
-                          ? 'bg-gray-300/10 border-gray-300/20'
+                      : i === 1
+                          ? 'bg-white/8 border-white/15'
                           : i === 2
                             ? 'bg-amber-700/10 border-amber-700/20'
                             : 'bg-white/5 border-white/10'
