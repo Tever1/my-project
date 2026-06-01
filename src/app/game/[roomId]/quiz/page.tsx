@@ -679,8 +679,7 @@ export default function QuizPage() {
           {/* Config badges */}
           <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
             {specialQuizInfo ? (
-              <span className="glass-badge px-10 py-6 text-4xl inline-flex items-center gap-4">
-                <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={56} />
+              <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-10 py-6 text-4xl font-semibold inline-flex items-center">
                 {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
               </span>
             ) : (

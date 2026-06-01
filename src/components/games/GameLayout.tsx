@@ -42,7 +42,7 @@ export function GameLayout({
 
   return (
     <div
-      className={`bg-gradient-main min-h-[100dvh] text-white flex flex-col relative ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
+      className={`bg-gradient-main min-h-[100dvh] text-white flex flex-col relative isolate ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
     >
       {backgroundUrl && (
         // eslint-disable-next-line @next/next/no-img-element
