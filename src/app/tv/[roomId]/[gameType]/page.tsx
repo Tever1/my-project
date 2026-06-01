@@ -784,7 +784,7 @@ export default function TVGamePage() {
     const activeTeam = h.roundActiveTeam[h.curQ] || 0;
 
     return (
-      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between px-8 py-3 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -1000,7 +1000,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
-      </div>
+      </GameSurface>
     );
   }
 
@@ -1023,7 +1023,7 @@ export default function TVGamePage() {
       `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
 
     return (
-      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -1106,7 +1106,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
-      </div>
+      </GameSurface>
     );
   }
 
@@ -1121,7 +1121,7 @@ export default function TVGamePage() {
       .map(([id, score]) => ({ id, name: getPlayerName(id), score }))
       .sort((a, b) => b.score - a.score);
     return (
-      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -1224,7 +1224,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
-      </div>
+      </GameSurface>
     );
   }
 
@@ -1240,7 +1240,7 @@ export default function TVGamePage() {
     const explainerName = getPlayerName(explainerId);
 
     return (
-      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -1455,7 +1455,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
-      </div>
+      </GameSurface>
     );
   }
 
@@ -1477,7 +1477,7 @@ export default function TVGamePage() {
       : players.map(p => p.nickname);
 
     return (
-      <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -1533,13 +1533,13 @@ export default function TVGamePage() {
             </p>
           )}
         </div>
-      </div>
+      </GameSurface>
     );
   }
 
   // ===================== GENERIC TV RENDER =====================
   return (
-    <div className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+    <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
         <div className="flex items-center gap-4">
           <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={36} className="flex-shrink-0" />
@@ -1575,6 +1575,6 @@ export default function TVGamePage() {
           </div>
         </div>
       </div>
-    </div>
+    </GameSurface>
   );
 }
