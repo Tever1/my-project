@@ -526,32 +526,6 @@ export default function TVGamePage() {
           <div className="flex items-center gap-4 min-w-0">
             <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={36} className="flex-shrink-0" />
             <h1 className="text-3xl font-bold">{gameTitle}</h1>
-            {specialQuizInfo ? (
-              <span className="glass-badge px-3 py-1 text-sm inline-flex items-center gap-1.5">
-                <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={18} />
-                {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
-              </span>
-            ) : specialThemeInfo ? (
-              <span className="glass-badge px-3 py-1 text-sm inline-flex items-center gap-1.5">
-                <QuizIcon iconUrl={specialThemeInfo.iconUrl} fallback={specialThemeInfo.icon} size={18} />
-                {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
-              </span>
-            ) : (
-              <>
-                {diffInfo && (
-                  <span className="glass-badge px-3 py-1 text-sm inline-flex items-center gap-1.5">
-                    <DifficultyIcon difficulty={diffInfo.id} size={12} />
-                    {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
-                  </span>
-                )}
-                {topicInfo && (
-                  <span className="glass-badge px-3 py-1 text-sm inline-flex items-center gap-1.5">
-                    <QuizIcon iconUrl={topicInfo.iconUrl} fallback={topicInfo.icon} size={18} />
-                    {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
-                  </span>
-                )}
-              </>
-            )}
           </div>
           {/* Center: player scores in header */}
           {scoreboard.length > 0 && (quizState.phase === 'question' || quizState.phase === 'countdown') && (
@@ -629,6 +603,18 @@ export default function TVGamePage() {
                       {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
                     </span>
                   )}
+                </div>
+              )}
+              {quizState.phase === 'waiting' && (
+                <div className="mt-8 space-y-2">
+                  <p className="text-2xl text-white/90">
+                    {locale === 'ru'
+                      ? `${quizState.totalQuestions} вопросов. 1 очко за правильный ответ!`
+                      : `${quizState.totalQuestions} questions. 1 point for each correct answer!`}
+                  </p>
+                  <p className="text-xl text-white/70">
+                    {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
+                  </p>
                 </div>
               )}
             </div>
