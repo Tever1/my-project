@@ -298,7 +298,7 @@ export default function QuizPage() {
       players: room.players,
       gameHostPlayerId: nextGameHostPlayerId,
     }));
-    if (room.pendingQuizConfig && effectivePlayerId && effectivePlayerId === nextGameHostPlayerId) {
+    if (room.pendingQuizConfig && isGameHostRef.current) {
       applyPreconfiguredQuiz(room.pendingQuizConfig);
     }
   });
@@ -658,8 +658,8 @@ export default function QuizPage() {
           {/* Config badges */}
           <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
             {specialQuizInfo ? (
-              <span className="glass-badge px-5 py-2.5 text-lg inline-flex items-center gap-2">
-                <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={20} />
+              <span className="glass-badge px-10 py-6 text-4xl inline-flex items-center gap-4">
+                <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={56} />
                 {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
               </span>
             ) : (
