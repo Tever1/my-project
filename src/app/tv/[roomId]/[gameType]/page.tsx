@@ -10,6 +10,7 @@ import { GAMES } from '@/lib/games-config';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useRoomState } from '@/lib/use-room-state';
 import { GameIcon } from '@/components/GameIcon';
+import { GameSurface } from '@/components/games/GameSurface';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import type { QuizDifficulty, QuizTopic } from '@/types/game';
@@ -508,19 +509,7 @@ export default function TVGamePage() {
     const isSetup = quizState.phase.startsWith('setup-');
 
     return (
-      <div
-        className={`h-screen bg-gradient-main text-white flex flex-col overflow-hidden relative isolate ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
-      >
-        {backgroundUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={backgroundUrl}
-            alt=""
-            fetchPriority="high"
-            className="absolute inset-0 w-full h-full object-cover -z-10"
-            aria-hidden="true"
-          />
-        )}
+      <GameSurface backgroundUrl={backgroundUrl} className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between gap-4 px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4 min-w-0">
@@ -783,7 +772,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
-      </div>
+      </GameSurface>
     );
   }
 

@@ -6,6 +6,7 @@ import { useTranslation } from '@/lib/i18n';
 import { PlayerAvatar } from '@/components/ui';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
+import { GameSurface } from './GameSurface';
 
 interface GameLayoutProps {
   children: ReactNode;
@@ -41,19 +42,7 @@ export function GameLayout({
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
   return (
-    <div
-      className={`bg-gradient-main min-h-[100dvh] text-white flex flex-col relative isolate ${backgroundUrl ? '[text-shadow:_0_2px_8px_rgb(0_0_0_/_80%)]' : ''}`}
-    >
-      {backgroundUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={backgroundUrl}
-          alt=""
-          fetchPriority="high"
-          className="absolute inset-0 w-full h-full object-cover -z-10"
-          aria-hidden="true"
-        />
-      )}
+    <GameSurface backgroundUrl={backgroundUrl} className="bg-gradient-main min-h-[100dvh] text-white flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-black/20 border-b border-white/10">
         <div className="w-[92%] max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -184,6 +173,6 @@ export function GameLayout({
           </div>
         </div>
       )}
-    </div>
+    </GameSurface>
   );
 }
