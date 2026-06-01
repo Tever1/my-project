@@ -13,14 +13,14 @@ import { GameLayout } from '@/components/games/GameLayout';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { AnimatedScore, BreathingPlaceholder } from '@/components/ingame';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
-import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getSpecialQuizzesByTheme } from '@/lib/quiz';
+import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Phase = 'setup-mode' | 'setup-difficulty' | 'setup-topic' | 'setup-special-theme' | 'setup-special-quiz' | 'waiting' | 'countdown' | 'question' | 'results' | 'mid-leaderboard' | 'final';
+type Phase = 'waiting' | 'countdown' | 'question' | 'results' | 'mid-leaderboard' | 'final';
 
 interface QuizConfig {
   mode: 'general' | 'special' | null;
@@ -52,6 +52,13 @@ interface QuizGameState {
   } | null;
 }
 
+type PreconfiguredQuizConfig = {
+  mode: 'general' | 'special';
+  difficulty: string;
+  topic: string;
+  specialQuizId: string | null;
+};
+
 const QUESTIONS_PER_GAME = 10;
 const GUEST_ID_KEY = 'party-hub-join-guest-id';
 
@@ -61,7 +68,7 @@ function getGuestPlayerId() {
 }
 
 const INITIAL_STATE: QuizGameState = {
-  phase: 'setup-mode',
+  phase: 'waiting',
   config: { mode: null, difficulty: null, topic: null, specialTheme: null, specialQuizId: null },
   questionIndex: 0,
   totalQuestions: QUESTIONS_PER_GAME,
@@ -134,6 +141,7 @@ export default function QuizPage() {
   const gameStateRef = useRef<QuizGameState>(INITIAL_STATE);
   const isHostRef = useRef(false);
   const isGameHostRef = useRef(false);
+  const appliedPreconfigRef = useRef<string | null>(null);
 
   const { tick: timerTick, stop: stopTimerSound, warmup: warmupSound } = useTimerSound();
 
@@ -201,6 +209,53 @@ export default function QuizPage() {
   const timePerQuestion = gameState.config.difficulty === 'easy' ? 15
     : gameState.config.difficulty === 'hard' ? 25 : 20;
 
+  const applyPreconfiguredQuiz = useCallback((config: PreconfiguredQuizConfig) => {
+    const key = JSON.stringify(config);
+    if (appliedPreconfigRef.current === key) return;
+    appliedPreconfigRef.current = key;
+
+    if (config.mode === 'general') {
+      const newConfig: QuizConfig = {
+        mode: 'general',
+        difficulty: config.difficulty as QuizDifficulty,
+        topic: config.topic as QuizTopic,
+        specialTheme: null,
+        specialQuizId: null,
+      };
+      const questions = getQuizQuestions(newConfig.topic!, newConfig.difficulty!, shownIdsRef.current);
+      const total = Math.min(QUESTIONS_PER_GAME, questions.length);
+      questionsRef.current = questions.slice(0, total);
+
+      setGameState((prev) => ({
+        ...prev,
+        config: newConfig,
+        phase: 'waiting',
+        totalQuestions: total,
+      }));
+      sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
+    } else if (config.mode === 'special' && config.specialQuizId) {
+      const specialQuiz = SPECIAL_QUIZZES.find((quiz) => quiz.id === config.specialQuizId);
+      const newConfig: QuizConfig = {
+        mode: 'special',
+        difficulty: null,
+        topic: null,
+        specialTheme: specialQuiz?.theme ?? null,
+        specialQuizId: config.specialQuizId,
+      };
+      const questions = getSpecialQuizQuestions(config.specialQuizId, shownIdsRef.current);
+      const total = Math.min(QUESTIONS_PER_GAME, questions.length);
+      questionsRef.current = questions.slice(0, total);
+
+      setGameState((prev) => ({
+        ...prev,
+        config: newConfig,
+        phase: 'waiting',
+        totalQuestions: total,
+      }));
+      sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
+    }
+  }, [sendAction]);
+
   useEffect(() => {
     if (!isGameHost) return;
     const raw = localStorage.getItem('party-hub-quiz-config');
@@ -215,50 +270,19 @@ export default function QuizPage() {
       };
       localStorage.removeItem('party-hub-quiz-config');
 
-      if (config.mode === 'general') {
-        const newConfig: QuizConfig = {
-          mode: 'general',
-          difficulty: config.difficulty as QuizDifficulty,
-          topic: config.topic as QuizTopic,
-          specialTheme: null,
-          specialQuizId: null,
-        };
-        const questions = getQuizQuestions(newConfig.topic!, newConfig.difficulty!, shownIdsRef.current);
-        const total = Math.min(QUESTIONS_PER_GAME, questions.length);
-        questionsRef.current = questions.slice(0, total);
-
-        setGameState((prev) => ({
-          ...prev,
-          config: newConfig,
-          phase: 'waiting',
-          totalQuestions: total,
-        }));
-        sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
-      } else if (config.mode === 'special' && config.specialQuizId) {
-        const specialQuiz = SPECIAL_QUIZZES.find((quiz) => quiz.id === config.specialQuizId);
-        const newConfig: QuizConfig = {
-          mode: 'special',
-          difficulty: null,
-          topic: null,
-          specialTheme: specialQuiz?.theme ?? null,
-          specialQuizId: config.specialQuizId,
-        };
-        const questions = getSpecialQuizQuestions(config.specialQuizId, shownIdsRef.current);
-        const total = Math.min(QUESTIONS_PER_GAME, questions.length);
-        questionsRef.current = questions.slice(0, total);
-
-        setGameState((prev) => ({
-          ...prev,
-          config: newConfig,
-          phase: 'waiting',
-          totalQuestions: total,
-        }));
-        sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
-      }
+      applyPreconfiguredQuiz(config);
     } catch {
       localStorage.removeItem('party-hub-quiz-config');
     }
-  }, [isGameHost, sendAction]);
+  }, [applyPreconfiguredQuiz, isGameHost]);
+
+  useEffect(() => {
+    return on('game:started', (payload: unknown) => {
+      const data = payload as { quizConfig?: PreconfiguredQuizConfig | null };
+      if (!data.quizConfig || !isGameHostRef.current) return;
+      applyPreconfiguredQuiz(data.quizConfig);
+    });
+  }, [applyPreconfiguredQuiz, on]);
 
   // ------- Socket listeners -------
 
@@ -266,12 +290,17 @@ export default function QuizPage() {
     const room = data as {
       players: { id: string; nickname: string; isHost: boolean }[];
       gameHostPlayerId?: string | null;
+      pendingQuizConfig?: PreconfiguredQuizConfig | null;
     };
+    const nextGameHostPlayerId = room.gameHostPlayerId ?? gameStateRef.current.gameHostPlayerId;
     setGameState((prev) => ({
       ...prev,
       players: room.players,
-      gameHostPlayerId: room.gameHostPlayerId ?? prev.gameHostPlayerId,
+      gameHostPlayerId: nextGameHostPlayerId,
     }));
+    if (room.pendingQuizConfig && effectivePlayerId && effectivePlayerId === nextGameHostPlayerId) {
+      applyPreconfiguredQuiz(room.pendingQuizConfig);
+    }
   });
 
   useEffect(() => {
@@ -437,97 +466,6 @@ export default function QuizPage() {
       queueMicrotask(revealResults);
     }
   }, [gameState.timeLeft, allAnswered, isGameHost, gameState.phase, gameState.showCorrect, revealResults]);
-
-  // ------- Setup Actions (host only) -------
-
-  const selectMode = (mode: 'general' | 'special') => {
-    warmupSound();
-    const newConfig = { ...gameState.config, mode };
-    const nextPhase: Phase = mode === 'general' ? 'setup-difficulty' : 'setup-special-theme';
-    setGameState((prev) => ({ ...prev, config: newConfig, phase: nextPhase }));
-    sendAction('quiz:config', { config: newConfig, phase: nextPhase });
-  };
-
-  const goBack = () => {
-    let newConfig = { ...gameState.config };
-    let prevPhase: Phase = 'setup-mode';
-
-    switch (gameState.phase) {
-      case 'setup-difficulty':
-        newConfig = { ...newConfig, mode: null };
-        prevPhase = 'setup-mode';
-        break;
-      case 'setup-topic':
-        newConfig = { ...newConfig, difficulty: null };
-        prevPhase = 'setup-difficulty';
-        break;
-      case 'setup-special-theme':
-        newConfig = { ...newConfig, mode: null };
-        prevPhase = 'setup-mode';
-        break;
-      case 'setup-special-quiz':
-        newConfig = { ...newConfig, specialTheme: null, specialQuizId: null };
-        prevPhase = 'setup-special-theme';
-        break;
-      case 'waiting':
-        if (newConfig.mode === 'special') {
-          newConfig = { ...newConfig, specialQuizId: null };
-          prevPhase = 'setup-special-quiz';
-        } else {
-          newConfig = { ...newConfig, topic: null };
-          prevPhase = 'setup-topic';
-        }
-        break;
-      default:
-        return;
-    }
-
-    setGameState((prev) => ({ ...prev, config: newConfig, phase: prevPhase }));
-    sendAction('quiz:config', { config: newConfig, phase: prevPhase });
-  };
-
-  const selectSpecialTheme = (themeId: string) => {
-    const newConfig = { ...gameState.config, specialTheme: themeId };
-    setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-special-quiz' }));
-    sendAction('quiz:config', { config: newConfig, phase: 'setup-special-quiz' });
-  };
-
-  const selectDifficulty = (difficulty: QuizDifficulty) => {
-    const newConfig = { ...gameState.config, difficulty };
-    setGameState((prev) => ({ ...prev, config: newConfig, phase: 'setup-topic' }));
-    sendAction('quiz:config', { config: newConfig, phase: 'setup-topic' });
-  };
-
-  const selectTopic = (topic: QuizTopic) => {
-    const newConfig = { ...gameState.config, topic };
-    // Generate questions for this session
-    const questions = getQuizQuestions(topic, newConfig.difficulty!, shownIdsRef.current);
-    const total = Math.min(QUESTIONS_PER_GAME, questions.length);
-    questionsRef.current = questions.slice(0, total);
-
-    setGameState((prev) => ({
-      ...prev,
-      config: newConfig,
-      phase: 'waiting',
-      totalQuestions: total,
-    }));
-    sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
-  };
-
-  const selectSpecialQuiz = (quizId: string) => {
-    const newConfig = { ...gameState.config, specialQuizId: quizId };
-    const questions = getSpecialQuizQuestions(quizId, shownIdsRef.current);
-    const total = Math.min(QUESTIONS_PER_GAME, questions.length);
-    questionsRef.current = questions.slice(0, total);
-
-    setGameState((prev) => ({
-      ...prev,
-      config: newConfig,
-      phase: 'waiting',
-      totalQuestions: total,
-    }));
-    sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
-  };
 
   const runCountdown = (questionIdx: number) => {
     countdownRef.current = 3;
@@ -696,7 +634,8 @@ export default function QuizPage() {
   const diffInfo = gameState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === gameState.config.difficulty) : null;
   const specialQuizInfo = gameState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === gameState.config.specialQuizId) : null;
   const specialThemeInfo = gameState.config.specialTheme ? SPECIAL_QUIZ_THEMES.find((t) => t.id === gameState.config.specialTheme) : null;
-  const backgroundUrl: string | undefined = undefined;
+  const backgroundUrl: string | undefined =
+    specialQuizInfo?.backgroundUrl ?? specialThemeInfo?.backgroundUrl ?? undefined;
 
   // ------- Render -------
 
@@ -709,293 +648,9 @@ export default function QuizPage() {
       backgroundUrl={backgroundUrl}
       phaseKey={gameState.phase}
     >
-      {/* ==================== SETUP: MODE (first step) ==================== */}
-      {gameState.phase === 'setup-mode' && (
-        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {isGameHost && (
-            <button
-              onClick={confirmEndGame}
-              className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
-            >
-              ← {locale === 'ru' ? 'В лобби' : 'Back to Lobby'}
-            </button>
-          )}
-          <div className="text-6xl mb-4">🧠</div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Выберите тип квиза' : 'Choose quiz type'}
-          </h2>
-          <p className="text-white/80 mb-8">
-            {locale === 'ru' ? 'Общие темы или специальные квизы' : 'General topics or special quizzes'}
-          </p>
-
-          {isGameHost ? (
-            <div className="space-y-3">
-              <button
-                onClick={() => selectMode('general')}
-                className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-purple-600/20 to-purple-500/5 border-purple-500/30"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">📚</span>
-                  <div>
-                    <p className="text-lg font-semibold text-white">
-                      {locale === 'ru' ? 'Общие темы' : 'General Topics'}
-                    </p>
-                    <p className="text-sm text-white/80">
-                      {locale === 'ru' ? 'Наука, история, поп-культура и др.' : 'Science, history, pop culture, etc.'}
-                    </p>
-                  </div>
-                </div>
-              </button>
-              <button
-                onClick={() => selectMode('special')}
-                className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">🌟</span>
-                  <div>
-                    <p className="text-lg font-semibold text-white">
-                      {locale === 'ru' ? 'Специальные квизы' : 'Special Quizzes'}
-                    </p>
-                    <p className="text-sm text-white/80">
-                      {locale === 'ru' ? 'Тематические подборки без уровней сложности' : 'Themed sets, no difficulty levels'}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            </div>
-          ) : (
-            <BreathingPlaceholder
-              text={locale === 'ru' ? 'Ведущий выбирает тип квиза...' : 'Host is choosing quiz type...'}
-              variant="breathing-text"
-            />
-          )}
-
-          <p className="text-white/30 text-sm mt-6">
-            {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
-          </p>
-        </div>
-      )}
-
-      {/* ==================== SETUP: DIFFICULTY (after mode=general) ==================== */}
-      {gameState.phase === 'setup-difficulty' && (
-        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {isGameHost && (
-            <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
-              ← {locale === 'ru' ? 'Назад' : 'Back'}
-            </button>
-          )}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <span className="text-2xl">📚</span>
-            <span className="text-white/60 font-medium">
-              {locale === 'ru' ? 'Общие темы' : 'General Topics'}
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Выберите уровень сложности' : 'Choose difficulty level'}
-          </h2>
-
-          {isGameHost ? (
-            <div className="space-y-3 mt-8">
-              {QUIZ_DIFFICULTIES.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => selectDifficulty(d.id)}
-                  className={`w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br ${d.color}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <DifficultyIcon difficulty={d.id} size={32} />
-                    <div>
-                      <p className="text-lg font-semibold text-white">
-                        {locale === 'ru' ? d.titleRu : d.titleEn}
-                      </p>
-                      <p className="text-sm text-white/80">
-                        {d.id === 'easy'
-                          ? locale === 'ru' ? '15 сек на вопрос' : '15 sec per question'
-                          : d.id === 'medium'
-                            ? locale === 'ru' ? '20 сек на вопрос' : '20 sec per question'
-                            : locale === 'ru' ? '25 сек на вопрос' : '25 sec per question'}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <BreathingPlaceholder
-              text={locale === 'ru' ? 'Ведущий выбирает сложность...' : 'Host is choosing difficulty...'}
-              variant="breathing-text"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ==================== SETUP: SPECIAL THEME (after mode=special) ==================== */}
-      {gameState.phase === 'setup-special-theme' && (
-        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {isGameHost && (
-            <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
-              ← {locale === 'ru' ? 'Назад' : 'Back'}
-            </button>
-          )}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <span className="text-2xl">🌟</span>
-            <span className="text-white/80 font-medium">
-              {locale === 'ru' ? 'Специальные квизы' : 'Special Quizzes'}
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Выберите тему' : 'Choose a theme'}
-          </h2>
-          <p className="text-white/80 mb-8">
-            {locale === 'ru' ? 'Тематическая подборка, без уровней сложности' : 'Themed set, no difficulty levels'}
-          </p>
-
-          {isGameHost ? (
-            <div className="space-y-3">
-              {SPECIAL_QUIZ_THEMES.map((theme) => (
-                <button
-                  key={theme.id}
-                  onClick={() => selectSpecialTheme(theme.id)}
-                  className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
-                >
-                  <div className="flex items-center gap-4">
-                    <QuizIcon iconUrl={theme.iconUrl} fallback={theme.icon} size={36} />
-                    <div>
-                      <p className="text-lg font-semibold text-white">
-                        {locale === 'ru' ? theme.titleRu : theme.titleEn}
-                      </p>
-                      <p className="text-sm text-white/70">
-                        {(() => {
-                          const n = getSpecialQuizzesByTheme(theme.id).length;
-                          return locale === 'ru'
-                            ? `${n} ${n === 1 ? 'квиз' : n < 5 ? 'квиза' : 'квизов'}`
-                            : `${n} ${n === 1 ? 'quiz' : 'quizzes'}`;
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <BreathingPlaceholder
-              text={locale === 'ru' ? 'Ведущий выбирает тему...' : 'Host is choosing a theme...'}
-              variant="breathing-text"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ==================== SETUP: SPECIAL QUIZ (after theme chosen) ==================== */}
-      {gameState.phase === 'setup-special-quiz' && specialThemeInfo && (
-        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {/* Back button */}
-          {isGameHost && (
-            <button
-              onClick={goBack}
-              className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors"
-            >
-              ← {locale === 'ru' ? 'Назад' : 'Back'}
-            </button>
-          )}
-
-          {/* Theme heading — large, no emoji */}
-          <h2 className="text-4xl font-bold text-white mb-1">
-            {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
-          </h2>
-          <p className="text-white/70 mb-8">
-            {locale === 'ru' ? 'Выберите квиз' : 'Choose a quiz'}
-          </p>
-
-          {isGameHost ? (
-            <div className="space-y-3">
-              {getSpecialQuizzesByTheme(specialThemeInfo.id).map((q) => (
-                <button
-                  key={q.id}
-                  onClick={() => selectSpecialQuiz(q.id)}
-                  className="w-full rounded-md border p-5 text-center transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-amber-600/20 to-amber-500/5 border-amber-500/30"
-                >
-                  <div className="flex items-center justify-center gap-3">
-                    <QuizIcon iconUrl={q.iconUrl} fallback={q.icon} size={32} />
-                    <span className="text-3xl font-black text-white">#{q.number}</span>
-                    <p className="text-lg font-semibold text-white">
-                      {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <BreathingPlaceholder
-              text={locale === 'ru' ? 'Ведущий выбирает квиз...' : 'Host is choosing a quiz...'}
-              variant="breathing-text"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ==================== SETUP: TOPIC ==================== */}
-      {gameState.phase === 'setup-topic' && (
-        <div className="text-center py-8 animate-fade-in max-w-lg mx-auto">
-          {isGameHost && (
-            <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-6 mx-auto transition-colors">
-              ← {locale === 'ru' ? 'Назад' : 'Back'}
-            </button>
-          )}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <DifficultyIcon difficulty={diffInfo?.id} size={24} />
-            <span className="text-white/60 font-medium">
-              {locale === 'ru' ? diffInfo?.titleRu : diffInfo?.titleEn}
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Выберите тему' : 'Choose a topic'}
-          </h2>
-          <p className="text-white/80 mb-8">
-            {locale === 'ru' ? '10 вопросов по выбранной теме' : '10 questions on the chosen topic'}
-          </p>
-
-          {isGameHost ? (
-            <div className="space-y-3">
-              {QUIZ_TOPICS.map((topic) => (
-                <button
-                  key={topic.id}
-                  onClick={() => selectTopic(topic.id)}
-                  className="w-full rounded-md border p-5 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer bg-gradient-to-br from-indigo-600/20 to-indigo-500/5 border-indigo-500/30"
-                >
-                  <div className="flex items-center gap-4">
-                    <QuizIcon iconUrl={topic.iconUrl} fallback={topic.icon} size={36} />
-                    <div>
-                      <p className="text-lg font-semibold text-white">
-                        {locale === 'ru' ? topic.titleRu : topic.titleEn}
-                      </p>
-                      {topic.id === 'random' && (
-                        <p className="text-xs text-white/40 mt-0.5">
-                          ({locale === 'ru' ? 'вопрос из любой темы' : 'questions from any topic'})
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <BreathingPlaceholder
-              text={locale === 'ru' ? 'Ведущий выбирает тему...' : 'Host is choosing topic...'}
-              variant="breathing-text"
-            />
-          )}
-        </div>
-      )}
-
       {/* ==================== WAITING (ready to start) ==================== */}
       {gameState.phase === 'waiting' && (
         <div className="text-center pt-2 pb-8 animate-fade-in">
-          {isGameHost && (
-            <button onClick={goBack} className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm mb-8 mx-auto transition-colors">
-              ← {locale === 'ru' ? 'Назад' : 'Back'}
-            </button>
-          )}
           <h2 className="text-5xl font-bold text-white mb-6">
             {locale === 'ru' ? 'Квиз' : 'Quiz'}
           </h2>

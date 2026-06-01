@@ -26,6 +26,12 @@ interface Room {
   createdAt: number;
   kickedPlayerIds: Set<string>;
   gameHostPlayerId: string | null;
+  pendingQuizConfig?: {
+    mode: 'general' | 'special';
+    difficulty: string;
+    topic: string;
+    specialQuizId: string | null;
+  } | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -85,6 +91,7 @@ function broadcastRoomState(io: SocketIOServer, room: Room) {
     gameState: room.gameState,
     tvConnected,
     gameHostPlayerId: room.gameHostPlayerId,
+    pendingQuizConfig: room.pendingQuizConfig ?? null,
   };
   io.to(`room:${room.code}`).emit('room:state', state);
 }
@@ -122,6 +129,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         createdAt: Date.now(),
         kickedPlayerIds: new Set<string>(),
         gameHostPlayerId: null,
+        pendingQuizConfig: null,
       };
 
       const player: Player = {
@@ -244,15 +252,25 @@ export function setupSocketHandlers(io: SocketIOServer) {
         gameState: room.gameState,
         tvConnected,
         gameHostPlayerId: room.gameHostPlayerId,
+        pendingQuizConfig: room.pendingQuizConfig ?? null,
       };
       socket.emit('room:state', state);
     });
 
     // Select game
-    socket.on('game:select', (data: { code: string; gameType: string }) => {
+    socket.on('game:select', (data: {
+      code: string;
+      gameType: string;
+      quizConfig?: { mode: string; difficulty: string; topic: string; specialQuizId: string | null } | null;
+    }) => {
       const room = getRoomByCode(data.code);
       if (!room) return;
       room.currentGame = data.gameType;
+      if (data.quizConfig) {
+        room.pendingQuizConfig = data.quizConfig as Room['pendingQuizConfig'];
+      } else {
+        room.pendingQuizConfig = null;
+      }
       broadcastRoomState(io, room);
     });
 
@@ -266,6 +284,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       io.to(`room:${room.code}`).emit('game:started', {
         gameType: room.currentGame,
         roomCode: room.code,
+        quizConfig: room.pendingQuizConfig ?? null,
       });
     });
 
@@ -297,6 +316,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       room.status = 'lobby';
       room.currentGame = null;
       room.gameState = null;
+      room.pendingQuizConfig = null;
       broadcastRoomState(io, room);
       io.to(`room:${room.code}`).emit('game:ended');
     });

@@ -87,6 +87,13 @@ interface RoomState {
   gameHostPlayerId?: string | null;
 }
 
+type PendingQuizConfig = {
+  mode: 'general' | 'special';
+  difficulty: string;
+  topic: string;
+  specialQuizId: string | null;
+};
+
 const games: GameInfo[] = [
   {
     id: "mafia",
@@ -360,9 +367,10 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [quizSelectionOpen, setQuizSelectionOpen] = useState(false);
   const [quizGeneralConfigOpen, setQuizGeneralConfigOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
-  const [quizMode, setQuizMode] = useState<"general" | "special">("general");
+  const [, setQuizMode] = useState<"general" | "special">("general");
   const [quizDifficulty, setQuizDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [quizTopic, setQuizTopic] = useState<"random" | "science" | "history" | "pop-culture">("random");
+  const [pendingQuizConfig, setPendingQuizConfig] = useState<PendingQuizConfig | null>(null);
   const [, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const roomMenuRef = useRef<HTMLDivElement>(null);
@@ -617,7 +625,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   );
   const canAddPlayer = isCurrentUserHost || isGameHostPhone;
 
-  const handleStartGame = useCallback(async () => {
+  const handleStartGame = useCallback(async (quizConfig?: PendingQuizConfig | null) => {
     if (!isCurrentUserHost) return;
 
     const existingCode = roomCode;
@@ -625,33 +633,35 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
     if (!code) return;
 
-    emit('game:select', { code, gameType: activeGame });
+    const selectedQuizConfig = activeGame === "quiz" ? quizConfig ?? pendingQuizConfig ?? null : null;
+    emit('game:select', { code, gameType: activeGame, quizConfig: selectedQuizConfig });
     setRoomMenuOpen(false);
     setIsWaitingForPlayers(true);
-  }, [activeGame, createRoom, emit, isCurrentUserHost, roomCode]);
+  }, [activeGame, createRoom, emit, isCurrentUserHost, pendingQuizConfig, roomCode]);
 
   const handleQuizGeneralConfigConfirm = useCallback(() => {
     const config = {
-      mode: quizMode,
+      mode: "general" as const,
       difficulty: quizDifficulty,
       topic: quizTopic,
       specialQuizId: null,
     };
-    localStorage.setItem("party-hub-quiz-config", JSON.stringify(config));
+    setPendingQuizConfig(config);
     setQuizGeneralConfigOpen(false);
     setQuizSelectionOpen(false);
-    void handleStartGame();
-  }, [handleStartGame, quizDifficulty, quizMode, quizTopic]);
+    void handleStartGame(config);
+  }, [handleStartGame, quizDifficulty, quizTopic]);
 
   const handleSelectSpecialQuiz = useCallback((specialQuizId: string) => {
-    localStorage.setItem("party-hub-quiz-config", JSON.stringify({
+    const config = {
       mode: "special",
       difficulty: "medium",
       topic: "random",
       specialQuizId,
-    }));
+    } as const;
+    setPendingQuizConfig(config);
     setQuizSelectionOpen(false);
-    void handleStartGame();
+    void handleStartGame(config);
   }, [handleStartGame]);
 
   const handleCancelWaiting = useCallback(() => {
