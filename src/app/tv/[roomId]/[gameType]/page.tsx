@@ -605,8 +605,8 @@ export default function TVGamePage() {
               </p>
               {specialQuizInfo ? (
                 <div className="mt-6 flex items-center justify-center gap-4">
-                  <span className="glass-badge px-4 py-2 text-lg inline-flex items-center gap-2">
-                    <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={24} />
+                  <span className="glass-badge px-12 py-8 text-5xl inline-flex items-center gap-5">
+                    <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={72} />
                     {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
                   </span>
                 </div>

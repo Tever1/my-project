@@ -298,7 +298,13 @@ export default function QuizPage() {
       players: room.players,
       gameHostPlayerId: nextGameHostPlayerId,
     }));
-    if (room.pendingQuizConfig && isGameHostRef.current) {
+    const currentPlayerId = user?.id ?? getGuestPlayerId();
+    const isHostNow = Boolean(
+      currentPlayerId &&
+      nextGameHostPlayerId &&
+      currentPlayerId === nextGameHostPlayerId
+    );
+    if (room.pendingQuizConfig && isHostNow) {
       applyPreconfiguredQuiz(room.pendingQuizConfig);
     }
   });

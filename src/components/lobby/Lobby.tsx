@@ -26,6 +26,7 @@ import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
 import { useIsMobile } from "@/lib/use-is-mobile";
 import { usePlayMode } from "@/lib/use-play-mode";
 import { useSocket } from "@/lib/use-socket";
+import { SPECIAL_QUIZZES } from "@/lib/quiz";
 import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
 
@@ -845,10 +846,15 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       : (typeof window !== "undefined" ? window.location.origin : "");
     const joinUrl = `${siteUrl}/join/${roomCode}`;
     const gamePlayers = (roomState?.players ?? []).filter((player) => player.role !== "tv" && player.nickname);
+    const specialQuizBgUrl = pendingQuizConfig?.specialQuizId
+      ? SPECIAL_QUIZZES.find(q => q.id === pendingQuizConfig.specialQuizId)?.backgroundUrl
+      : undefined;
 
     return (
       <main
         style={{
+          position: 'relative',
+          isolation: 'isolate',
           minHeight: "100vh",
           background:
             `radial-gradient(900px 620px at 65% 20%, ${accent}33, transparent 62%), radial-gradient(760px 560px at 25% 85%, ${deep}38, transparent 64%), #08080d`,
@@ -862,6 +868,16 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
           textAlign: "center",
         }}
       >
+        {specialQuizBgUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={specialQuizBgUrl}
+            alt=""
+            fetchPriority="high"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: -1 }}
+            aria-hidden="true"
+          />
+        )}
         <p
           style={{
             color: "rgba(255,255,255,0.52)",
