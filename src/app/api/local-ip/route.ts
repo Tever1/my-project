@@ -1,20 +1,17 @@
-import os from 'os';
 import { NextResponse } from 'next/server';
+import os from 'os';
 
 export async function GET() {
-  const nets = os.networkInterfaces();
-  let ip: string | null = null;
-
-  for (const ifaces of Object.values(nets)) {
-    if (!ifaces) continue;
-    for (const iface of ifaces) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        ip = iface.address;
+  const interfaces = os.networkInterfaces();
+  let localIp = '';
+  for (const iface of Object.values(interfaces)) {
+    for (const alias of iface ?? []) {
+      if (alias.family === 'IPv4' && !alias.internal) {
+        localIp = alias.address;
         break;
       }
     }
-    if (ip) break;
+    if (localIp) break;
   }
-
-  return NextResponse.json({ ip: ip ?? 'localhost' });
+  return NextResponse.json({ ip: localIp });
 }

@@ -352,6 +352,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [joinCode, setJoinCode] = useState("");
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [guestPlayerId, setGuestPlayerId] = useState('');
+  const [localIp, setLocalIp] = useState<string>('');
   const [roomMenuOpen, setRoomMenuOpen] = useState(false);
   const [authMenuOpen, setAuthMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -377,6 +378,15 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   useEffect(() => {
     document.documentElement.classList.add("dark");
     return () => document.documentElement.classList.remove("dark");
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/local-ip')
+      .then((response) => response.json())
+      .then((data: { ip: string }) => {
+        if (data.ip) setLocalIp(data.ip);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -819,9 +829,10 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
   // QR waiting screen — shown on desktop after "Start game" is pressed.
   if (myRole === "tv" && isWaitingForPlayers && roomCode) {
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ??
-      (typeof window !== "undefined" ? window.location.origin : "");
+    const port = typeof window !== 'undefined' ? window.location.port : '3000';
+    const siteUrl = localIp
+      ? `http://${localIp}${port ? `:${port}` : ''}`
+      : (typeof window !== "undefined" ? window.location.origin : "");
     const joinUrl = `${siteUrl}/join/${roomCode}`;
     const gamePlayers = (roomState?.players ?? []).filter((player) => player.role !== "tv" && player.nickname);
 
