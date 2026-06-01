@@ -685,7 +685,8 @@ export default function QuizPage() {
             ) : (
               <>
                 {diffInfo && (
-                  <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-2.5 text-lg font-semibold inline-flex items-center">
+                  <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-2.5 text-lg font-semibold inline-flex items-center gap-2">
+                    <DifficultyIcon difficulty={diffInfo.id} size={16} />
                     {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
                   </span>
                 )}
