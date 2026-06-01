@@ -2933,17 +2933,19 @@ function QuizSelectionTile({
       style={{
         width: 280,
         height: 180,
-        borderRadius: 16,
+        borderRadius: 8,
         overflow: "hidden",
         cursor: "pointer",
         position: "relative",
-        border: "1px solid rgba(255,255,255,0.12)",
+        border: "1px solid rgba(255,255,255,0.10)",
         boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
         transition: "transform 150ms ease, box-shadow 150ms ease",
-        padding: 0,
+        padding: 20,
         textAlign: "left",
         fontFamily: "inherit",
-        background: gradient ?? "#11131f",
+        background: gradient ?? "rgba(255,255,255,0.05)",
       }}
     >
       {backgroundUrl && (

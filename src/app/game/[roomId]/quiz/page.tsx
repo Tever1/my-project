@@ -293,11 +293,26 @@ export default function QuizPage() {
       pendingQuizConfig?: PreconfiguredQuizConfig | null;
     };
     const nextGameHostPlayerId = room.gameHostPlayerId ?? gameStateRef.current.gameHostPlayerId;
-    setGameState((prev) => ({
-      ...prev,
-      players: room.players,
-      gameHostPlayerId: nextGameHostPlayerId,
-    }));
+    setGameState((prev) => {
+      const pendingCfg = room.pendingQuizConfig;
+      const configPatch = (pendingCfg && prev.config.specialQuizId === null && pendingCfg.specialQuizId)
+        ? {
+            config: {
+              ...prev.config,
+              mode: pendingCfg.mode,
+              specialQuizId: pendingCfg.specialQuizId,
+              specialTheme: SPECIAL_QUIZZES.find((q) => q.id === pendingCfg.specialQuizId)?.theme ?? null,
+            },
+          }
+        : {};
+
+      return {
+        ...prev,
+        players: room.players,
+        gameHostPlayerId: nextGameHostPlayerId,
+        ...configPatch,
+      };
+    });
     const currentPlayerId = user?.id ?? getGuestPlayerId();
     const isHostNow = Boolean(
       currentPlayerId &&
