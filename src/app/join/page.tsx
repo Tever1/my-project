@@ -1,11 +1,26 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+type Locale = "ru" | "en";
+
+const t = {
+  roomCode: { ru: "Код комнаты", en: "Room code" },
+  enterCode: { ru: "Введите 6-значный код", en: "Enter the 6-digit code" },
+  join: { ru: "Войти", en: "Join" },
+} satisfies Record<string, Record<Locale, string>>;
 
 export default function JoinIndexPage() {
   const router = useRouter();
+  const [locale, setLocale] = useState<Locale>("ru");
   const [code, setCode] = useState("");
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.language.startsWith("en")) {
+      queueMicrotask(() => setLocale("en"));
+    }
+  }, []);
 
   const handleSubmit = useCallback(() => {
     const normalized = code.trim().toUpperCase();
@@ -57,10 +72,10 @@ export default function JoinIndexPage() {
               fontWeight: 700,
             }}
           >
-            Код комнаты
+            {t.roomCode[locale]}
           </p>
           <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 15, margin: 0 }}>
-            Введите 6-значный код
+            {t.enterCode[locale]}
           </p>
         </div>
 
@@ -112,7 +127,7 @@ export default function JoinIndexPage() {
             fontFamily: "inherit",
           }}
         >
-          Войти
+          {t.join[locale]}
         </button>
       </div>
     </main>

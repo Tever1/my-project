@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { gameColors, type GameId } from "@/lib/design/tokens";
 import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
 import { useSocket } from "@/lib/use-socket";
 
@@ -19,6 +20,28 @@ type JoinRoomState = {
   gameHostPlayerId: string | null;
   status: string;
 };
+
+type Locale = "ru" | "en";
+
+const t = {
+  roomCode: { ru: "Код комнаты", en: "Room code" },
+  yourName: { ru: "Твоё имя", en: "Your name" },
+  connecting: { ru: "Подключение...", en: "Connecting..." },
+  joinGame: { ru: "Войти в игру", en: "Join the game" },
+  connectingToServer: { ru: "Подключение к серверу...", en: "Connecting to server..." },
+  couldNotConnect: { ru: "Не удалось подключиться", en: "Could not connect" },
+  host: { ru: "ведущий", en: "host" },
+  makeHost: { ru: "Передать хост", en: "Make host" },
+  removePlayer: { ru: "Удалить игрока", en: "Remove player" },
+  noPlayers: { ru: "В комнате нет игроков", en: "No players in the room" },
+  startGame: { ru: "НАЧАТЬ ИГРУ", en: "START GAME" },
+  pickGame: { ru: "Выберите игру на большом экране…", en: "Pick a game on the big screen…" },
+  waitingHost: { ru: "Ожидание ведущего...", en: "Waiting for the host..." },
+  addPlayer: { ru: "+ Добавить игрока", en: "+ Add player" },
+  leave: { ru: "Выйти", en: "Leave" },
+  leaveRoom: { ru: "Выйти из комнаты?", en: "Leave the room?" },
+  cancel: { ru: "Отмена", en: "Cancel" },
+} satisfies Record<string, Record<Locale, string>>;
 
 const GUEST_ID_KEY = "party-hub-join-guest-id";
 
@@ -40,6 +63,7 @@ export default function JoinPage() {
   const { user } = useAuth();
   const router = useRouter();
 
+  const [locale, setLocale] = useState<Locale>("ru");
   const [guestPlayerId, setGuestPlayerId] = useState("");
   const [nickname, setNickname] = useState("");
   const [joined, setJoined] = useState(false);
@@ -51,6 +75,12 @@ export default function JoinPage() {
   const [roomState, setRoomState] = useState<JoinRoomState | null>(null);
 
   const playerId = user?.id ?? guestPlayerId;
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.language.startsWith("en")) {
+      queueMicrotask(() => setLocale("en"));
+    }
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => setGuestPlayerId(getGuestPlayerId()));
@@ -77,9 +107,9 @@ export default function JoinPage() {
   useEffect(() => {
     return on("game:error", (data: unknown) => {
       const payload = data as { messageRu?: string };
-      setGameError(payload.messageRu ?? "В комнате нет игроков");
+      setGameError(payload.messageRu ?? t.noPlayers[locale]);
     });
-  }, [on]);
+  }, [locale, on]);
 
   useEffect(() => {
     if (!selectedPlayerId) return;
@@ -148,11 +178,11 @@ export default function JoinPage() {
         if (result.success) {
           setJoined(true);
         } else {
-          setError(result.error ?? "Не удалось подключиться");
+          setError(result.error ?? t.couldNotConnect[locale]);
         }
       }
     );
-  }, [code, emit, isConnected, nickname, playerId]);
+  }, [code, emit, isConnected, locale, nickname, playerId]);
 
   const handleStartGame = useCallback(() => {
     if (!code) return;
@@ -179,13 +209,20 @@ export default function JoinPage() {
     (roomState?.gameHostPlayerId === playerId ||
       (roomState?.gameHostPlayerId !== null &&
         gameHostPlayer?.nickname === nickname.trim()));
+  const currentGame = roomState?.currentGame;
+  const gamePalette =
+    currentGame && currentGame in gameColors
+      ? gameColors[currentGame as GameId]
+      : null;
+  const mainBackground = gamePalette
+    ? `radial-gradient(1200px 800px at 70% 30%, ${gamePalette.accent}55, transparent 60%), radial-gradient(1000px 700px at 20% 70%, ${gamePalette.deep}66, transparent 60%), #06060c`
+    : "radial-gradient(700px 520px at 60% 15%, rgba(10,132,255,0.24), transparent 62%), radial-gradient(620px 500px at 20% 85%, rgba(255,59,107,0.22), transparent 64%), #08080d";
 
   return (
     <main
       style={{
         minHeight: "100vh",
-        background:
-          "radial-gradient(700px 520px at 60% 15%, rgba(10,132,255,0.24), transparent 62%), radial-gradient(620px 500px at 20% 85%, rgba(255,59,107,0.22), transparent 64%), #08080d",
+        background: mainBackground,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -224,7 +261,7 @@ export default function JoinPage() {
                   fontWeight: 700,
                 }}
               >
-                Код комнаты
+                {t.roomCode[locale]}
               </p>
               <p style={{ fontSize: 28, fontWeight: 850, letterSpacing: "0.15em", margin: 0 }}>
                 {code}
@@ -241,7 +278,7 @@ export default function JoinPage() {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && nickname.trim()) handleJoin();
               }}
-              placeholder="Твоё имя"
+              placeholder={t.yourName[locale]}
               maxLength={20}
               style={{
                 width: "100%",
@@ -282,12 +319,12 @@ export default function JoinPage() {
                 fontFamily: "inherit",
               }}
             >
-              {isJoining ? "Подключение..." : "Войти в игру"}
+              {isJoining ? t.connecting[locale] : t.joinGame[locale]}
             </button>
 
             {!isConnected && (
               <p style={{ color: "rgba(255,255,255,0.34)", fontSize: 13, margin: 0 }}>
-                Подключение к серверу...
+                {t.connectingToServer[locale]}
               </p>
             )}
           </>
@@ -351,7 +388,7 @@ export default function JoinPage() {
                       </span>
                       {roomState?.gameHostPlayerId === player.id && (
                         <span style={{ marginLeft: "auto", fontSize: 12, color: "rgba(255,255,255,0.42)" }}>
-                          ведущий
+                          {t.host[locale]}
                         </span>
                       )}
                     </button>
@@ -395,7 +432,7 @@ export default function JoinPage() {
                             fontFamily: "inherit",
                           }}
                         >
-                          Передать хост
+                          {t.makeHost[locale]}
                         </button>
                         <button
                           type="button"
@@ -417,7 +454,7 @@ export default function JoinPage() {
                             fontFamily: "inherit",
                           }}
                         >
-                          Удалить игрока
+                          {t.removePlayer[locale]}
                         </button>
                       </div>
                     )}
@@ -466,17 +503,17 @@ export default function JoinPage() {
                     fontFamily: "inherit",
                   }}
                 >
-                  НАЧАТЬ ИГРУ
+                  {t.startGame[locale]}
                 </button>
               )}
               {canStartGame && !roomState?.currentGame && (
                 <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 15, textAlign: "center", margin: 0 }}>
-                  Выберите игру на большом экране…
+                  {t.pickGame[locale]}
                 </p>
               )}
               {!canStartGame && (
                 <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 16, textAlign: "center", margin: 0 }}>
-                  Ожидание ведущего...
+                  {t.waitingHost[locale]}
                 </p>
               )}
 
@@ -496,7 +533,7 @@ export default function JoinPage() {
                   fontFamily: "inherit",
                 }}
               >
-                + Добавить игрока
+                {t.addPlayer[locale]}
               </button>
 
               <button
@@ -515,7 +552,7 @@ export default function JoinPage() {
                   fontFamily: "inherit",
                 }}
               >
-                Выйти
+                {t.leave[locale]}
               </button>
             </div>
           </>
@@ -554,7 +591,7 @@ export default function JoinPage() {
             }}
           >
             <p style={{ margin: 0, fontSize: 20, fontWeight: 850, textAlign: "center" }}>
-              Выйти из комнаты?
+              {t.leaveRoom[locale]}
             </p>
             <div style={{ display: "flex", gap: 10 }}>
               <button
@@ -573,7 +610,7 @@ export default function JoinPage() {
                   fontFamily: "inherit",
                 }}
               >
-                Выйти
+                {t.leave[locale]}
               </button>
               <button
                 type="button"
@@ -591,7 +628,7 @@ export default function JoinPage() {
                   fontFamily: "inherit",
                 }}
               >
-                Отмена
+                {t.cancel[locale]}
               </button>
             </div>
           </div>

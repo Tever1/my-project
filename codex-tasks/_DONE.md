@@ -246,3 +246,6 @@ bash codex-tasks/_regen-done.sh
 | 211 | `211-tv-hud-away-state.md` | Подсветка away-игрока в верхнем баре TV (свернул/заблокировал телефон) |
 | 212 | `212-special-quiz-bg-consistent.md` | Единый фон спец-квиза (плашка = ожидание = игра) |
 | 213 | `213-room-menu-add-player-empty-room.md` | Кнопка «Добавить игрока» в меню комнаты, когда игроков нет |
+| 214 | `214-leave-redirect-to-join.md` | «ВЫЙТИ» на экране комнаты ведёт на /join, а не на / |
+| 215 | `215-join-pages-bilingual.md` | Двуязычность страниц /join (ru/en) |
+| 216 | `216-join-room-bg-per-game-color.md` | Фон комнаты на телефоне в цвете выбранной игры (как в лобби) |

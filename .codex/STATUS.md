@@ -1,6 +1,12 @@
 # Codex Status
 
-## Active Tasks (баги QR-экрана и сброса игры 2026-06-04)
+## Active Tasks (2026-06-04, вечер): /join двуязычность + фон комнаты
+TASK-215: /join — двуязычность ru/en
+File: codex-tasks/215-join-pages-bilingual.md
+TASK-216: фон комнаты на телефоне в цвете игры
+File: codex-tasks/216-join-room-bg-per-game-color.md
+
+## Прошлые (баги QR-экрана и сброса игры 2026-06-04)
 TASK-208: Подсветить хоста (корона) на QR-экране сбора комнаты
 File: codex-tasks/208-tv-qr-highlight-host.md
 TASK-209: Сброс currentGame при «← Назад к лобби»
