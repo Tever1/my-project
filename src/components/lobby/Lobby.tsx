@@ -33,6 +33,8 @@ import { toast } from "sonner";
 export { useIsMobile } from "@/lib/use-is-mobile";
 
 const GUEST_ID_KEY = 'party-hub-join-guest-id';
+const ROOM_CLOSED_NOTICE_KEY = 'party-hub-room-closed-notice';
+const ROOM_CLOSED_MESSAGE = { ru: 'Комната закрыта', en: 'Room closed' };
 
 function getGuestPlayerId(): string {
   if (typeof window === 'undefined') return '';
@@ -41,6 +43,11 @@ function getGuestPlayerId(): string {
   const next = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   window.localStorage.setItem(GUEST_ID_KEY, next);
   return next;
+}
+
+function getBrowserLocale(): 'ru' | 'en' {
+  if (typeof window === 'undefined') return 'ru';
+  return window.location.pathname.startsWith('/en') || window.navigator.language.startsWith('en') ? 'en' : 'ru';
 }
 
 interface GameInfo {
@@ -403,6 +410,13 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   }, []);
 
   useEffect(() => {
+    const notice = window.sessionStorage.getItem(ROOM_CLOSED_NOTICE_KEY);
+    if (!notice) return;
+    window.sessionStorage.removeItem(ROOM_CLOSED_NOTICE_KEY);
+    toast.error(ROOM_CLOSED_MESSAGE[getBrowserLocale()]);
+  }, []);
+
+  useEffect(() => {
     if (searchParams.get("m") !== "1") return;
     queueMicrotask(() => setRoomMenuOpen(true));
     router.replace(pathname);
@@ -495,6 +509,21 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   }, [isRoomRoute, on, router]);
 
   useEffect(() => {
+    const unsubscribe = on('room:closed', () => {
+      setRoomCode(null);
+      setRoomState(null);
+      setRoomMenuOpen(false);
+      setIsWaitingForPlayers(false);
+      setQuizSelectionOpen(false);
+      setQuizGeneralConfigOpen(false);
+      toast.error(ROOM_CLOSED_MESSAGE[getBrowserLocale()]);
+      router.push('/');
+    });
+
+    return unsubscribe;
+  }, [on, router]);
+
+  useEffect(() => {
     const unsubscribe = on('room:not-found', () => {
       setRoomCode(null);
       setRoomState(null);
@@ -516,12 +545,9 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
   useEffect(() => {
     return on('room:show-qr', () => {
-      // TV clients do NOT show the QR waiting screen.
-      // QR is only for the host device (player/creator role).
-      if (myRole === "tv") return;
       setIsWaitingForPlayers(true);
     });
-  }, [myRole, on]);
+  }, [on]);
 
   const getPlayerPayload = useCallback(() => {
     if (!user?.id || !user.nickname) {
@@ -619,15 +645,20 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     !roomCode ||
     roomState?.hostId === user?.id ||
     (!isRoomRoute && roomState == null);
-  const effectivePlayerId = user?.id ?? guestPlayerId;
+  // TV/creator screen always controls game selection; the phone host only
+  // launches (game:start). Without this, isCurrentUserHost is false on the TV
+  // once a phone becomes host, disabling the "select game" button after a game ends.
+  const canSelectGame = myRole === "tv" || isCurrentUserHost;
+  const gameHostPlayerId = roomState?.gameHostPlayerId ?? null;
+  const localPlayerIds = [user?.id, guestPlayerId].filter((id): id is string => Boolean(id));
   const isGameHostPhone = Boolean(
-    effectivePlayerId && roomState?.gameHostPlayerId &&
-    effectivePlayerId === roomState.gameHostPlayerId
+    gameHostPlayerId &&
+    localPlayerIds.includes(gameHostPlayerId)
   );
-  const canAddPlayer = isCurrentUserHost || isGameHostPhone;
+  const canAddPlayer = myRole === "tv" || isCurrentUserHost || isGameHostPhone;
 
   const handleStartGame = useCallback(async (quizConfig?: PendingQuizConfig | null) => {
-    if (!isCurrentUserHost) return;
+    if (!canSelectGame) return;
 
     const existingCode = roomCode;
     const code = existingCode ?? (await createRoom()).code;
@@ -638,7 +669,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     emit('game:select', { code, gameType: activeGame, quizConfig: selectedQuizConfig });
     setRoomMenuOpen(false);
     setIsWaitingForPlayers(true);
-  }, [activeGame, createRoom, emit, isCurrentUserHost, pendingQuizConfig, roomCode]);
+  }, [activeGame, canSelectGame, createRoom, emit, pendingQuizConfig, roomCode]);
 
   const handleQuizGeneralConfigConfirm = useCallback(() => {
     const config = {
@@ -666,8 +697,11 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   }, [handleStartGame]);
 
   const handleCancelWaiting = useCallback(() => {
+    if (roomCode) {
+      emit('game:deselect', { code: roomCode });
+    }
     setIsWaitingForPlayers(false);
-  }, []);
+  }, [emit, roomCode]);
 
   const handleAddPlayer = useCallback(() => {
     if (!roomCode) return;
@@ -690,17 +724,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const handleTransferHost = useCallback((playerId: string) => {
     if (!roomCode) return;
     emit('room:transfer-host', { code: roomCode, newHostId: playerId });
-  }, [emit, roomCode]);
-
-  const handleLeaveRoom = useCallback(() => {
-    if (!roomCode) return;
-    emit('room:leave', {});
-    setRoomMenuOpen(false);
-    setRoomCode(null);
-    setRoomState(null);
-    if (typeof window !== "undefined" && window.location.pathname !== "/") {
-      window.history.pushState({}, "", "/");
-    }
   }, [emit, roomCode]);
 
   const handleLogout = useCallback(() => {
@@ -835,8 +858,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     myRole === "player" &&
     !isWaitingForPlayers &&
     Boolean(roomState?.currentGame) &&
-    Boolean(effectivePlayerId) &&
-    effectivePlayerId === roomState?.gameHostPlayerId;
+    (gameHostPlayerId ? localPlayerIds.includes(gameHostPlayerId) : false);
 
   // QR waiting screen — shown on desktop after "Start game" is pressed.
   if (myRole === "tv" && isWaitingForPlayers && roomCode) {
@@ -949,30 +971,41 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
                 Подключились ({gamePlayers.length}):
               </p>
               <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                {gamePlayers.map((player) => (
-                  <span
-                    key={player.id}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "7px 14px 7px 8px",
-                      borderRadius: radius.full,
-                      background: player.isConnected ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      color: player.isConnected ? "white" : "rgba(255,255,255,0.35)",
-                      fontSize: 15,
-                      fontWeight: 650,
-                    }}
-                  >
-                    <PlayerAvatar
-                      nickname={player.nickname}
-                      size="xs"
-                      away={!player.isConnected || player.isAway}
-                    />
-                    {player.nickname}
-                  </span>
-                ))}
+                {gamePlayers.map((player) => {
+                  const isHost = player.id === gameHostPlayerId;
+
+                  return (
+                    <span
+                      key={player.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "7px 14px 7px 8px",
+                        borderRadius: radius.full,
+                        background: isHost
+                          ? `${accent}24`
+                          : player.isConnected ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)",
+                        border: isHost ? `1px solid ${accent}` : "1px solid rgba(255,255,255,0.12)",
+                        color: player.isConnected ? "white" : "rgba(255,255,255,0.35)",
+                        fontSize: 15,
+                        fontWeight: 650,
+                      }}
+                    >
+                      <PlayerAvatar
+                        nickname={player.nickname}
+                        size="xs"
+                        away={!player.isConnected || player.isAway}
+                      />
+                      {player.nickname}
+                      {isHost && (
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill={accent} aria-hidden="true">
+                          <path d="M3 7l4 4 5-7 5 7 4-4v10H3V7z" />
+                        </svg>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             </>
           )}
@@ -1074,7 +1107,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
             onOpenQuizConfig={() => setQuizSelectionOpen(true)}
             startGameButtonRef={startGameButtonRef}
             isMobile={isMobile}
-            isCurrentUserHost={isCurrentUserHost}
+            isCurrentUserHost={canSelectGame}
             onRules={() => setRulesOpen(true)}
           />
         )}
@@ -1093,7 +1126,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
                 canAddPlayer={canAddPlayer}
                 onKick={handleKick}
                 onTransferHost={handleTransferHost}
-                onLeaveRoom={handleLeaveRoom}
                 onAddPlayer={handleAddPlayer}
                 onClose={() => setRoomMenuOpen(false)}
               />
@@ -1148,7 +1180,6 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
               isMobile={true}
               onKick={handleKick}
               onTransferHost={handleTransferHost}
-              onLeaveRoom={handleLeaveRoom}
               onAddPlayer={handleAddPlayer}
               onClose={() => setRoomMenuOpen(false)}
             />
@@ -2449,7 +2480,6 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   isMobile?: boolean;
   onKick: (playerId: string) => void;
   onTransferHost: (playerId: string) => void;
-  onLeaveRoom: () => void;
   onAddPlayer: () => void;
   onClose: () => void;
 }>(function RoomMenu({
@@ -2462,19 +2492,16 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   isMobile = false,
   onKick,
   onTransferHost,
-  onLeaveRoom,
   onAddPlayer,
   onClose,
 }, ref) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [confirmLeave, setConfirmLeave] = useState(false);
   const connectedPlayers = (roomState?.players ?? []).filter(
     (p) => p.nickname
   );
   const isCurrentUserHost = currentUserId !== "" && currentUserId === roomState?.hostId;
   const handleClose = () => {
-    setConfirmLeave(false);
     onClose();
   };
 
@@ -2565,85 +2592,12 @@ const RoomMenu = forwardRef<HTMLDivElement, {
           <div
             style={{
               flexShrink: 0,
-              minWidth: 172,
               display: "flex",
               justifyContent: "flex-end",
               alignItems: "center",
               gap: 8,
             }}
           >
-            {!confirmLeave ? (
-              <button
-                type="button"
-                onClick={() => setConfirmLeave(true)}
-                aria-label="Выйти из комнаты"
-                style={{
-                  flexShrink: 0,
-                  padding: "8px 14px",
-                  borderRadius: radius.full,
-                  background: "rgba(239, 68, 68, 0.12)",
-                  border: "1px solid rgba(239, 68, 68, 0.35)",
-                  color: "#fca5a5",
-                  fontSize: 12,
-                  fontWeight: 650,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(239, 68, 68, 0.22)";
-                  e.currentTarget.style.color = "#fee2e2";
-                  e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.6)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
-                  e.currentTarget.style.color = "#fca5a5";
-                  e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.35)";
-                }}
-              >
-                Выйти
-              </button>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={onLeaveRoom}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "999px",
-                    background: "rgba(239, 68, 68, 0.75)",
-                    border: "1px solid rgba(239, 68, 68, 0.9)",
-                    color: "#fff",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Да
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmLeave(false)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "999px",
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    color: "rgba(255,255,255,0.7)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Отмена
-                </button>
-              </div>
-            )}
             <button
               type="button"
               onClick={handleClose}
@@ -2895,13 +2849,13 @@ function QuizSelectionScreen({
         />
         <QuizSelectionTile
           title="Гарри Поттер #1"
-          backgroundUrl="/backgrounds/harry-potter.png"
-          onClick={() => onSelectSpecial("harry-potter-1", "/backgrounds/harry-potter.png")}
+          backgroundUrl="/backgrounds/harry-potter.webp"
+          onClick={() => onSelectSpecial("harry-potter-1", "/backgrounds/harry-potter.webp")}
         />
         <QuizSelectionTile
           title="Marvel #1"
-          backgroundUrl="/backgrounds/marvel.png"
-          onClick={() => onSelectSpecial("marvel-1", "/backgrounds/marvel.png")}
+          backgroundUrl="/backgrounds/marvel.webp"
+          onClick={() => onSelectSpecial("marvel-1", "/backgrounds/marvel.webp")}
         />
       </div>
     </div>
