@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket } from '@/lib/use-socket';
 import { useGameAction } from '@/lib/use-game-action';
@@ -11,9 +11,12 @@ import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useRoomState } from '@/lib/use-room-state';
 import { GameIcon } from '@/components/GameIcon';
 import { GameSurface } from '@/components/games/GameSurface';
+import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import type { QuizDifficulty, QuizTopic } from '@/types/game';
+
+const ROOM_CLOSED_NOTICE_KEY = 'party-hub-room-closed-notice';
 
 /** Maps gameType to the action that requests a full state broadcast from the host. */
 const TV_STATE_REQUEST: Partial<Record<string, string>> = {
@@ -62,6 +65,7 @@ interface PlayerInfo {
   nickname: string;
   isHost: boolean;
   isConnected: boolean;
+  isAway?: boolean;
 }
 
 interface QuizQuestionData {
@@ -141,6 +145,7 @@ const QUESTIONS_PER_GAME = 10;
 
 export default function TVGamePage() {
   const { roomId, gameType } = useParams<{ roomId: string; gameType: string }>();
+  const router = useRouter();
   const { emit, on, isConnected } = useSocket();
   const sendAction = useGameAction(roomId);
   const { locale } = useTranslation();
@@ -199,11 +204,18 @@ export default function TVGamePage() {
     winner: string | null;
     round: number;
   }>({ phase: 'lobby', alive: [], eliminated: [], lastEvent: '', winner: null, round: 1 });
+  const [localIp, setLocalIp] = useState('');
+  const [showQrOverlay, setShowQrOverlay] = useState(false);
 
   const gameInfo = GAMES.find((g) => g.id === gameType);
   const gameTitle = gameInfo
     ? locale === 'ru' ? gameInfo.titleRu : gameInfo.titleEn
     : gameType;
+  const port = typeof window !== 'undefined' ? window.location.port : '3000';
+  const siteUrl = localIp
+    ? `http://${localIp}${port ? `:${port}` : ''}`
+    : (typeof window !== 'undefined' ? window.location.origin : '');
+  const joinUrl = `${siteUrl}/join/${roomId}`;
 
   const initSpyCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
     if (!canvas) return;
@@ -227,11 +239,43 @@ export default function TVGamePage() {
     });
   }, [isConnected, roomId, emit, gameType, sendAction]);
 
+  useEffect(() => {
+    fetch('/api/local-ip')
+      .then((response) => response.json())
+      .then((data: { ip?: string }) => {
+        if (data.ip) setLocalIp(data.ip);
+      })
+      .catch(() => {});
+  }, []);
+
   // Socket listeners
   useRoomState(roomId, (data) => {
     const room = data as { players: PlayerInfo[]; status: string };
     setPlayers(room.players);
   });
+
+  useEffect(() => {
+    const unsubscribe = on('room:closed', () => {
+      window.sessionStorage.setItem(ROOM_CLOSED_NOTICE_KEY, '1');
+      router.push('/');
+    });
+
+    return unsubscribe;
+  }, [on, router]);
+
+  useEffect(() => {
+    const unsubscribe = on('room:show-qr', () => {
+      setShowQrOverlay((visible) => !visible);
+    });
+
+    return unsubscribe;
+  }, [on]);
+
+  useEffect(() => {
+    if (!showQrOverlay) return;
+    const timeout = window.setTimeout(() => setShowQrOverlay(false), 30000);
+    return () => window.clearTimeout(timeout);
+  }, [showQrOverlay]);
 
   useEffect(() => {
     const unsub2 = on('game:action', (data: unknown) => {
@@ -489,8 +533,34 @@ export default function TVGamePage() {
   );
 
   const scoreboard = players
-    .map((p) => ({ id: p.id, name: p.nickname, score: quizState.scores[p.id] || 0 }))
+    .map((p) => ({
+      id: p.id,
+      name: p.nickname,
+      score: quizState.scores[p.id] || 0,
+      away: !p.isConnected || Boolean(p.isAway),
+    }))
     .sort((a, b) => b.score - a.score);
+  const qrOverlay = showQrOverlay ? (
+    <button
+      type="button"
+      onClick={() => setShowQrOverlay(false)}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-6 text-white backdrop-blur-md"
+      aria-label={locale === 'ru' ? 'Скрыть QR-код' : 'Hide QR code'}
+    >
+      <div className="flex max-w-xl flex-col items-center gap-5 rounded-2xl border border-white/15 bg-neutral-950/92 px-8 py-7 text-center shadow-2xl">
+        <div className="rounded-2xl bg-white p-4 shadow-xl">
+          <QRCodeCanvas value={joinUrl} size={240} />
+        </div>
+        <div className="space-y-2">
+          <p className="text-3xl font-black">
+            {locale === 'ru' ? 'Отсканируй, чтобы присоединиться' : 'Scan to join'}
+          </p>
+          <p className="font-mono text-lg font-bold tracking-[0.18em] text-white/80">{roomId}</p>
+          <p className="font-mono text-sm text-white/45">{siteUrl}/join</p>
+        </div>
+      </div>
+    </button>
+  ) : null;
 
   // ===================== QUIZ TV RENDER =====================
   if (gameType === 'quiz') {
@@ -528,7 +598,7 @@ export default function TVGamePage() {
                     ? 'bg-red-500/15 border-red-400/50'
                     : 'bg-white/10 border-white/15';
                 return (
-                  <div key={entry.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition-colors duration-300 ${chipClass}`}>
+                  <div key={entry.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition-colors duration-300 ${chipClass} ${entry.away ? 'opacity-40 grayscale' : ''}`}>
                     <span className="text-xs text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
                     <span className="text-sm font-semibold text-white">{entry.name}</span>
                     <span className="text-sm font-black text-purple-400">{entry.score}</span>
@@ -772,6 +842,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
+        {qrOverlay}
       </GameSurface>
     );
   }
@@ -1000,6 +1071,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
+        {qrOverlay}
       </GameSurface>
     );
   }
@@ -1106,6 +1178,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
+        {qrOverlay}
       </GameSurface>
     );
   }
@@ -1224,6 +1297,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
+        {qrOverlay}
       </GameSurface>
     );
   }
@@ -1455,6 +1529,7 @@ export default function TVGamePage() {
             </div>
           )}
         </div>
+        {qrOverlay}
       </GameSurface>
     );
   }
@@ -1533,6 +1608,7 @@ export default function TVGamePage() {
             </p>
           )}
         </div>
+        {qrOverlay}
       </GameSurface>
     );
   }
@@ -1575,6 +1651,7 @@ export default function TVGamePage() {
           </div>
         </div>
       </div>
+      {qrOverlay}
     </GameSurface>
   );
 }
