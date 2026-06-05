@@ -168,7 +168,7 @@ export default function JoinPage() {
   const handleLeaveRoom = useCallback(() => {
     emit("room:leave", {});
     setConfirmLeave(false);
-    router.push("/");
+    router.push("/join");
   }, [emit, router]);
 
   const visiblePlayers = (roomState?.players ?? []).filter((player) => player.role !== "tv");
