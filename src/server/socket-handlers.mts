@@ -26,6 +26,7 @@ interface Room {
   createdAt: number;
   kickedPlayerIds: Set<string>;
   gameHostPlayerId: string | null;
+  inactivityTimer?: ReturnType<typeof setTimeout>;
   pendingQuizConfig?: {
     mode: 'general' | 'special';
     difficulty: string;
@@ -103,6 +104,100 @@ function emitPresenceCount(io: SocketIOServer) {
   }
 }
 
+function closeInactiveRoom(io: SocketIOServer, room: Room) {
+  io.to(`room:${room.code}`).emit('room:closed');
+  if (room.inactivityTimer) {
+    clearTimeout(room.inactivityTimer);
+    room.inactivityTimer = undefined;
+  }
+  for (const player of room.players.values()) {
+    if (player.reconnectTimer) {
+      clearTimeout(player.reconnectTimer);
+      player.reconnectTimer = undefined;
+    }
+    playerRooms.delete(player.socketId);
+  }
+  if (room.tvSocketId) {
+    playerRooms.delete(room.tvSocketId);
+  }
+  rooms.delete(room.code);
+}
+
+function scheduleRoomInactivityCheck(io: SocketIOServer, room: Room) {
+  const players = Array.from(room.players.values());
+  const allPlayersInactive = players.length > 0 && players.every((p) => !p.isConnected || p.isAway);
+
+  if (!allPlayersInactive) {
+    if (room.inactivityTimer) {
+      clearTimeout(room.inactivityTimer);
+      room.inactivityTimer = undefined;
+    }
+    return;
+  }
+
+  if (room.inactivityTimer) clearTimeout(room.inactivityTimer);
+  room.inactivityTimer = setTimeout(() => {
+    const currentRoom = rooms.get(room.code);
+    if (!currentRoom) return;
+
+    const currentPlayers = Array.from(currentRoom.players.values());
+    const stillAllInactive =
+      currentPlayers.length > 0 && currentPlayers.every((p) => !p.isConnected || p.isAway);
+
+    if (stillAllInactive) {
+      closeInactiveRoom(io, currentRoom);
+    } else if (currentRoom.inactivityTimer) {
+      clearTimeout(currentRoom.inactivityTimer);
+      currentRoom.inactivityTimer = undefined;
+    }
+  }, 300000);
+}
+
+// A player is eligible to be host only if they joined as a 'player' (phone),
+// never the TV/creator screen. Single source of truth for the role-model rule.
+function isHostEligible(player: Player): boolean {
+  return player.role === 'player';
+}
+
+// Reassign host to a random remaining connected player (role:'player') when the
+// host leaves. If none eligible, clear host so the next joining phone becomes host.
+// Mirrors the role-model rules of the manual room:transfer-host handler.
+function reassignHostOnLeave(room: Room, departingPlayerId: string): void {
+  const eligible = Array.from(room.players.values()).filter(
+    (p) => p.id !== departingPlayerId && isHostEligible(p) && p.isConnected,
+  );
+
+  for (const p of room.players.values()) {
+    p.isHost = false;
+  }
+
+  if (eligible.length > 0) {
+    const newHost = eligible[Math.floor(Math.random() * eligible.length)];
+    newHost.isHost = true;
+    room.hostId = newHost.id;
+    room.gameHostPlayerId = newHost.id;
+  } else {
+    room.hostId = '';
+    room.gameHostPlayerId = null;
+  }
+}
+
+// If an in-progress game loses its last real player (role:'player'), abort the
+// game and return everyone (incl. the TV display) to the lobby. The TV/lobby
+// 'tv' entries don't count; only phones playing the game keep it alive.
+function abortGameIfNoPlayers(io: SocketIOServer, room: Room): boolean {
+  if (room.status !== 'in-game') return false;
+  const hasPlayers = Array.from(room.players.values()).some((p) => p.role === 'player');
+  if (hasPlayers) return false;
+  room.status = 'lobby';
+  room.gameState = null;
+  room.currentGame = null;
+  room.pendingQuizConfig = null;
+  broadcastRoomState(io, room);
+  io.to(`room:${room.code}`).emit('game:ended');
+  return true;
+}
+
 export function setupSocketHandlers(io: SocketIOServer) {
   io.on('connection', (socket: Socket) => {
     console.log(`[Socket] Connected: ${socket.id}`);
@@ -119,7 +214,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       const room: Room = {
         id: uuidv4(),
         code,
-        hostId: data.playerId,
+        hostId: '',
         players: new Map(),
         maxPlayers: 20,
         status: 'lobby',
@@ -136,7 +231,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         id: data.playerId,
         socketId: socket.id,
         nickname: data.nickname,
-        isHost: true,
+        isHost: false,
         isConnected: true,
         isAway: false,
         role: data.role ?? 'player',
@@ -201,14 +296,17 @@ export function setupSocketHandlers(io: SocketIOServer) {
         };
         room.players.set(data.playerId, player);
         // First phone player becomes the game host for starting the selected game.
-        if (player.role === 'player' && room.gameHostPlayerId === null) {
+        if (isHostEligible(player) && room.gameHostPlayerId === null) {
           room.gameHostPlayerId = player.id;
+          room.hostId = player.id;
+          player.isHost = true;
         }
       }
 
       playerRooms.set(socket.id, room.code);
       socket.join(`room:${room.code}`);
       callback({ success: true, code: room.code, roomId: room.id });
+      scheduleRoomInactivityCheck(io, room);
       broadcastRoomState(io, room);
     });
 
@@ -274,10 +372,29 @@ export function setupSocketHandlers(io: SocketIOServer) {
       broadcastRoomState(io, room);
     });
 
+    // Deselect game (TV returns to lobby before starting)
+    socket.on('game:deselect', (data: { code: string }) => {
+      const room = getRoomByCode(data.code);
+      if (!room) return;
+      // Only meaningful in lobby; never wipe an in-progress game.
+      if (room.status !== 'lobby') return;
+      room.currentGame = null;
+      room.pendingQuizConfig = null;
+      broadcastRoomState(io, room);
+    });
+
     // Start game
     socket.on('game:start', (data: { code: string }) => {
       const room = getRoomByCode(data.code);
       if (!room || !room.currentGame) return;
+      const playerCount = Array.from(room.players.values()).filter((p) => p.role === 'player').length;
+      if (playerCount === 0) {
+        socket.emit('game:error', {
+          messageRu: 'В комнате нет игроков',
+          messageEn: 'No players in the room',
+        });
+        return;
+      }
       room.status = 'in-game';
       room.gameState = { type: room.currentGame, status: 'playing', round: 1 };
       broadcastRoomState(io, room);
@@ -338,6 +455,8 @@ export function setupSocketHandlers(io: SocketIOServer) {
     socket.on('room:kick', (data: { code: string; playerId: string }) => {
       const room = getRoomByCode(data.code);
       if (!room) return;
+      const sender = Array.from(room.players.values()).find((p) => p.socketId === socket.id);
+      if (!sender || !sender.isHost) return;
       const player = room.players.get(data.playerId);
       if (player) {
         io.to(player.socketId).emit('room:kicked');
@@ -350,8 +469,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
     socket.on('room:transfer-host', (data: { code: string; newHostId: string }) => {
       const room = getRoomByCode(data.code);
       if (!room) return;
+      const sender = Array.from(room.players.values()).find((p) => p.socketId === socket.id);
+      if (!sender || !sender.isHost) return;
       const newHost = room.players.get(data.newHostId);
-      if (!newHost) return;
+      if (!newHost || !isHostEligible(newHost)) return;
+      for (const player of room.players.values()) {
+        player.isHost = false;
+      }
+      newHost.isHost = true;
+      room.hostId = data.newHostId;
       room.gameHostPlayerId = data.newHostId;
       broadcastRoomState(io, room);
     });
@@ -377,6 +503,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         if (player.socketId === socket.id) {
           if (!player.isAway) {
             player.isAway = true;
+            scheduleRoomInactivityCheck(io, room);
             broadcastRoomState(io, room);
           }
           return;
@@ -393,6 +520,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         if (player.socketId === socket.id) {
           if (player.isAway) {
             player.isAway = false;
+            scheduleRoomInactivityCheck(io, room);
             broadcastRoomState(io, room);
           }
           return;
@@ -431,17 +559,24 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
       player.isConnected = false;
 
       if (explicit) {
+        const wasHost = player.isHost;
         room.players.delete(playerId);
         playerRooms.delete(socket.id);
         if (room.players.size === 0) {
+          if (room.inactivityTimer) clearTimeout(room.inactivityTimer);
           rooms.delete(roomCode);
           return;
         }
-        broadcastRoomState(io, room);
+        if (wasHost) reassignHostOnLeave(room, playerId);
+        scheduleRoomInactivityCheck(io, room);
+        if (!abortGameIfNoPlayers(io, room)) {
+          broadcastRoomState(io, room);
+        }
         return;
       }
 
       // Broadcast immediately so other clients see the grayscale avatar.
+      scheduleRoomInactivityCheck(io, room);
       broadcastRoomState(io, room);
 
       // Cancel any existing grace-period timer before starting a new one.
@@ -451,27 +586,20 @@ function handleDisconnect(io: SocketIOServer, socket: Socket, explicit = false) 
       // Unexpected disconnect with other players present keeps the reconnect grace period.
       player.reconnectTimer = setTimeout(() => {
         if (!player.isConnected) {
-          // Transfer host role only after grace period expires (player never came back).
-          if (player.isHost && room.players.size > 1) {
-            player.isHost = false;
-            for (const [, p] of room.players.entries()) {
-              if (p.id !== playerId && p.isConnected) {
-                p.isHost = true;
-                room.hostId = p.id;
-                break;
-              }
-            }
-            broadcastRoomState(io, room);
-          }
-
+          const wasHost = player.isHost;
           // Mark as kicked so auto-reconnect (isReconnect=true) is refused.
           // Manual re-join via code input/QR clears this flag.
           room.kickedPlayerIds.add(playerId);
           room.players.delete(playerId);
           if (room.players.size === 0) {
+            if (room.inactivityTimer) clearTimeout(room.inactivityTimer);
             rooms.delete(roomCode);
           } else {
-            broadcastRoomState(io, room);
+            if (wasHost) reassignHostOnLeave(room, playerId);
+            scheduleRoomInactivityCheck(io, room);
+            if (!abortGameIfNoPlayers(io, room)) {
+              broadcastRoomState(io, room);
+            }
           }
         }
       }, 300000); // 5 min grace — mobile browsers kill WS when backgrounded
