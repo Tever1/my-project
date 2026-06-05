@@ -10,6 +10,7 @@
     "gen-image": "node scripts/generate-image.mjs",
     "gen-icon": "node scripts/generate-icon.mjs",
     "gen-questions": "node scripts/generate-questions.mjs",
+    "optimize-bg": "node scripts/optimize-bg.mjs",
     "strip-bg": "node scripts/strip-bg.mjs"
   },
   "dependencies": {
