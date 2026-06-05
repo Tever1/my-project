@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
@@ -38,12 +38,16 @@ export default function JoinPage() {
   const code = params.code?.toUpperCase() ?? "";
   const { emit, on, isConnected } = useSocket();
   const { user } = useAuth();
+  const router = useRouter();
 
   const [guestPlayerId, setGuestPlayerId] = useState("");
   const [nickname, setNickname] = useState("");
   const [joined, setJoined] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gameError, setGameError] = useState<string | null>(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [roomState, setRoomState] = useState<JoinRoomState | null>(null);
 
   const playerId = user?.id ?? guestPlayerId;
@@ -69,6 +73,26 @@ export default function JoinPage() {
       });
     });
   }, [on]);
+
+  useEffect(() => {
+    return on("game:error", (data: unknown) => {
+      const payload = data as { messageRu?: string };
+      setGameError(payload.messageRu ?? "В комнате нет игроков");
+    });
+  }, [on]);
+
+  useEffect(() => {
+    if (!selectedPlayerId) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("[data-player-chip]")) return;
+      if (target.closest("[data-player-action-menu]")) return;
+      setSelectedPlayerId(null);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [selectedPlayerId]);
 
   // Request a room-state snapshot on connect so a player returning from a
   // finished game is recognized as an existing member (auto-rejoin below).
@@ -132,11 +156,24 @@ export default function JoinPage() {
 
   const handleStartGame = useCallback(() => {
     if (!code) return;
+    setGameError(null);
     emit("game:start", { code });
   }, [code, emit]);
 
+  const handleAddPlayer = useCallback(() => {
+    if (!code) return;
+    emit("room:show-qr", { code });
+  }, [code, emit]);
+
+  const handleLeaveRoom = useCallback(() => {
+    emit("room:leave", {});
+    setConfirmLeave(false);
+    router.push("/");
+  }, [emit, router]);
+
   const visiblePlayers = (roomState?.players ?? []).filter((player) => player.role !== "tv");
   const gameHostPlayer = visiblePlayers.find((player) => player.id === roomState?.gameHostPlayerId);
+  const isPhoneHost = roomState?.gameHostPlayerId === playerId;
   const canStartGame =
     joined &&
     (roomState?.gameHostPlayerId === playerId ||
@@ -272,69 +309,294 @@ export default function JoinPage() {
             )}
 
             <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
-              {visiblePlayers.map((player) => (
-                <div
-                  key={player.id}
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: 12,
-                    background: player.isConnected ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
-                    color: player.isConnected ? "white" : "rgba(255,255,255,0.34)",
-                    fontWeight: 650,
-                    fontSize: 16,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: player.isConnected ? "#22c55e" : "rgba(255,255,255,0.22)",
-                      flexShrink: 0,
-                    }}
-                  />
-                  {player.nickname}
-                  {roomState?.gameHostPlayerId === player.id && (
-                    <span style={{ marginLeft: "auto", fontSize: 12, color: "rgba(255,255,255,0.42)" }}>
-                      ведущий
-                    </span>
-                  )}
-                </div>
-              ))}
+              {visiblePlayers.map((player) => {
+                const canManagePlayer = isPhoneHost && player.id !== playerId;
+                return (
+                  <div key={player.id} style={{ position: "relative" }}>
+                    <button
+                      type="button"
+                      data-player-chip=""
+                      onClick={() => {
+                        if (!canManagePlayer) return;
+                        setSelectedPlayerId((id) => (id === player.id ? null : player.id));
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: "10px 16px",
+                        borderRadius: 12,
+                        background: player.isConnected ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                        color: player.isConnected ? "white" : "rgba(255,255,255,0.34)",
+                        fontWeight: 650,
+                        fontSize: 16,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        border: "none",
+                        cursor: canManagePlayer ? "pointer" : "default",
+                        fontFamily: "inherit",
+                        textAlign: "left",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: player.isConnected ? "#22c55e" : "rgba(255,255,255,0.22)",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {player.nickname}
+                      </span>
+                      {roomState?.gameHostPlayerId === player.id && (
+                        <span style={{ marginLeft: "auto", fontSize: 12, color: "rgba(255,255,255,0.42)" }}>
+                          ведущий
+                        </span>
+                      )}
+                    </button>
+
+                    {selectedPlayerId === player.id && (
+                      <div
+                        data-player-action-menu=""
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          right: 0,
+                          zIndex: 20,
+                          minWidth: 210,
+                          padding: 6,
+                          borderRadius: 12,
+                          background: "rgba(10,10,16,0.98)",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 4,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            emit("room:transfer-host", { code, newHostId: player.id });
+                            setSelectedPlayerId(null);
+                          }}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: 9,
+                            border: "none",
+                            background: "transparent",
+                            color: "white",
+                            fontSize: 15,
+                            fontWeight: 750,
+                            textAlign: "left",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Передать хост
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            emit("room:kick", { code, playerId: player.id });
+                            setSelectedPlayerId(null);
+                          }}
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            borderRadius: 9,
+                            border: "none",
+                            background: "transparent",
+                            color: "#f87171",
+                            fontSize: 15,
+                            fontWeight: 750,
+                            textAlign: "left",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Удалить игрока
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
-            {canStartGame ? (
-              <button
-                type="button"
-                onClick={handleStartGame}
+            {gameError && (
+              <p
                 style={{
                   width: "100%",
-                  padding: "18px 24px",
-                  borderRadius: 16,
-                  background: "white",
-                  color: "#08080d",
-                  fontWeight: 900,
-                  fontSize: 20,
-                  border: "none",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "rgba(239,68,68,0.12)",
+                  border: "1px solid rgba(248,113,113,0.24)",
+                  color: "#fecaca",
+                  fontSize: 14,
+                  fontWeight: 650,
+                  textAlign: "center",
+                  margin: 0,
+                  boxSizing: "border-box",
+                }}
+              >
+                {gameError}
+              </p>
+            )}
+
+            <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
+              {canStartGame && roomState?.currentGame && (
+                <button
+                  type="button"
+                  onClick={handleStartGame}
+                  style={{
+                    width: "100%",
+                    padding: "18px 24px",
+                    borderRadius: 16,
+                    background: "white",
+                    color: "#08080d",
+                    fontWeight: 900,
+                    fontSize: 20,
+                    border: "none",
+                    cursor: "pointer",
+                    letterSpacing: "0.02em",
+                    boxShadow: "0 0 40px rgba(255,255,255,0.15)",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  НАЧАТЬ ИГРУ
+                </button>
+              )}
+              {canStartGame && !roomState?.currentGame && (
+                <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 15, textAlign: "center", margin: 0 }}>
+                  Выберите игру на большом экране…
+                </p>
+              )}
+              {!canStartGame && (
+                <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 16, textAlign: "center", margin: 0 }}>
+                  Ожидание ведущего...
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleAddPlayer}
+                style={{
+                  width: "100%",
+                  padding: "14px 20px",
+                  borderRadius: 14,
+                  background: "transparent",
+                  color: "rgba(255,255,255,0.86)",
+                  fontWeight: 800,
+                  fontSize: 16,
+                  border: "1.5px solid rgba(255,255,255,0.22)",
                   cursor: "pointer",
-                  letterSpacing: "0.02em",
-                  boxShadow: "0 0 40px rgba(255,255,255,0.15)",
                   fontFamily: "inherit",
                 }}
               >
-                НАЧАТЬ ИГРУ
+                + Добавить игрока
               </button>
-            ) : (
-              <p style={{ color: "rgba(255,255,255,0.42)", fontSize: 16, textAlign: "center", margin: 0 }}>
-                Ожидание ведущего...
-              </p>
-            )}
+
+              <button
+                type="button"
+                onClick={() => setConfirmLeave(true)}
+                style={{
+                  width: "100%",
+                  padding: "13px 20px",
+                  borderRadius: 14,
+                  background: "transparent",
+                  color: "#f87171",
+                  fontWeight: 800,
+                  fontSize: 16,
+                  border: "1.5px solid rgba(248,113,113,0.22)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Выйти
+              </button>
+            </div>
           </>
         )}
       </div>
+
+      {confirmLeave && (
+        <div
+          onClick={() => setConfirmLeave(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            background: "rgba(0,0,0,0.58)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 360,
+              padding: 20,
+              borderRadius: 16,
+              background: "rgba(10,10,16,0.98)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
+              color: "white",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+            }}
+          >
+            <p style={{ margin: 0, fontSize: 20, fontWeight: 850, textAlign: "center" }}>
+              Выйти из комнаты?
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={handleLeaveRoom}
+                style={{
+                  flex: 1,
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  background: "rgba(248,113,113,0.14)",
+                  color: "#f87171",
+                  fontWeight: 850,
+                  fontSize: 16,
+                  border: "1px solid rgba(248,113,113,0.28)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Выйти
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmLeave(false)}
+                style={{
+                  flex: 1,
+                  padding: "12px 16px",
+                  borderRadius: 12,
+                  background: "white",
+                  color: "#08080d",
+                  fontWeight: 850,
+                  fontSize: 16,
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
