@@ -16,6 +16,8 @@ import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
 import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
 
+const ROOM_CLOSED_NOTICE_KEY = 'party-hub-room-closed-notice';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -160,6 +162,20 @@ export default function QuizPage() {
   useEffect(() => {
     queueMicrotask(() => setGuestPlayerId(getGuestPlayerId()));
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = on('room:closed', () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      stopTimerSound();
+      window.sessionStorage.setItem(ROOM_CLOSED_NOTICE_KEY, '1');
+      router.push('/');
+    });
+
+    return unsubscribe;
+  }, [on, router, stopTimerSound]);
 
   useEffect(() => {
     if (user || !guestPlayerId || guestNickname) return;

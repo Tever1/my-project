@@ -26,15 +26,15 @@ export const QUIZ_TOPICS = [
 
 // Special quiz theme groups. Each theme contains one or more numbered quizzes (#1, #2, ...).
 export const SPECIAL_QUIZ_THEMES = [
-  { id: 'harry-potter', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter', icon: '⚡', iconUrl: '/icons/quiz/harry-potter.png', backgroundUrl: '/backgrounds/harry-potter.png' },
-  { id: 'marvel',       titleRu: 'Marvel',        titleEn: 'Marvel',       icon: '🦸', iconUrl: '/icons/quiz/marvel.png',       backgroundUrl: '/backgrounds/marvel.png' },
+  { id: 'harry-potter', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter', icon: '⚡', iconUrl: '/icons/quiz/harry-potter.png', backgroundUrl: '/backgrounds/harry-potter.webp' },
+  { id: 'marvel',       titleRu: 'Marvel',        titleEn: 'Marvel',       icon: '🦸', iconUrl: '/icons/quiz/marvel.png',       backgroundUrl: '/backgrounds/marvel.webp' },
 ] satisfies SpecialQuizThemeInfoWithIcon[];
 
 // Special quizzes — themed, no difficulty levels.
 // Each theme can have multiple quizzes differentiated by #number.
 export const SPECIAL_QUIZZES = [
-  { id: 'harry-potter-1', theme: 'harry-potter', number: 1, titleRu: 'Гарри Поттер #1', titleEn: 'Harry Potter #1', icon: '⚡', iconUrl: '/icons/quiz/harry-potter.png', backgroundUrl: '/backgrounds/harry-potter.png' },
-  { id: 'marvel-1',       theme: 'marvel',       number: 1, titleRu: 'Marvel #1',        titleEn: 'Marvel #1',       icon: '🦸', iconUrl: '/icons/quiz/marvel.png',       backgroundUrl: '/backgrounds/marvel.png' },
+  { id: 'harry-potter-1', theme: 'harry-potter', number: 1, titleRu: 'Гарри Поттер #1', titleEn: 'Harry Potter #1', icon: '⚡', iconUrl: '/icons/quiz/harry-potter.png', backgroundUrl: '/backgrounds/harry-potter.webp' },
+  { id: 'marvel-1',       theme: 'marvel',       number: 1, titleRu: 'Marvel #1',        titleEn: 'Marvel #1',       icon: '🦸', iconUrl: '/icons/quiz/marvel.png',       backgroundUrl: '/backgrounds/marvel.webp' },
 ] satisfies SpecialQuizInfoWithIcon[];
 
 /** Return all special quizzes belonging to a theme, sorted by number. */
