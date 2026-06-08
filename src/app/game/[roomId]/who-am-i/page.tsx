@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
 import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
+import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
-import { useAuth } from '@/lib/auth-context';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -88,7 +88,8 @@ export default function WhoAmIPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { emit, on } = useSocket();
   const { locale } = useTranslation();
-  const { user } = useAuth();
+  const { user, effectivePlayerId, isGameHost } = useGameIdentity(roomId);
+  const router = useRouter();
   useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -100,8 +101,6 @@ export default function WhoAmIPage() {
     correct: boolean;
     guess: string;
   } | null>(null);
-
-  const isHost = players.find((p) => p.isHost)?.id === user?.id;
 
   const playerName = useCallback(
     (id: string) => players.find((p) => p.id === id)?.nickname ?? id,
@@ -121,7 +120,7 @@ export default function WhoAmIPage() {
     activeTurnOrder.length > 0
       ? activeTurnOrder[gs.currentTurnIndex % activeTurnOrder.length]
       : null;
-  const isMyTurn = currentPlayerId === user?.id;
+  const isMyTurn = currentPlayerId === effectivePlayerId;
 
   // -----------------------------------------------------------------------
   // Broadcast helper
@@ -261,8 +260,8 @@ export default function WhoAmIPage() {
   // Current player: submit guess
   // -----------------------------------------------------------------------
   const handleGuess = () => {
-    if (!user || !guessInput.trim()) return;
-    const myChar = gs.characters[user.id];
+    if (!effectivePlayerId || !guessInput.trim()) return;
+    const myChar = gs.characters[effectivePlayerId];
     if (!myChar) return;
 
     const normalise = (s: string) => s.trim().toLowerCase();
@@ -272,7 +271,7 @@ export default function WhoAmIPage() {
 
     broadcast({
       type: 'guess',
-      playerId: user.id,
+      playerId: effectivePlayerId,
       guess: guessInput.trim(),
       correct,
     });
@@ -282,6 +281,7 @@ export default function WhoAmIPage() {
     broadcast({ type: 'end-game' });
     // Tell the server the game is over so TV and all clients leave the game screen
     emit('game:end', { code: roomId });
+    router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
   };
 
   // -----------------------------------------------------------------------
@@ -315,7 +315,7 @@ export default function WhoAmIPage() {
             </span>
           ))}
         </div>
-        {isHost ? (
+        {isGameHost ? (
           <GlassButton
             variant="primary"
             size="lg"
@@ -346,7 +346,7 @@ export default function WhoAmIPage() {
       <div className="space-y-2">
         {gs.turnOrder.map((id) => {
           const char = gs.characters[id];
-          const isMe = id === user?.id;
+          const isMe = id === effectivePlayerId;
           const isGuessed = gs.guessedPlayers.includes(id);
           const isCurrent = id === currentPlayerId;
 
@@ -396,8 +396,12 @@ export default function WhoAmIPage() {
   // RENDER: Playing phase
   // -----------------------------------------------------------------------
   const renderPlaying = () => {
-    const myQuestions = user ? gs.questionsAsked[user.id] || 0 : 0;
-    const haveIGuessed = user ? gs.guessedPlayers.includes(user.id) : false;
+    const myQuestions = effectivePlayerId
+      ? gs.questionsAsked[effectivePlayerId] || 0
+      : 0;
+    const haveIGuessed = effectivePlayerId
+      ? gs.guessedPlayers.includes(effectivePlayerId)
+      : false;
 
     return (
       <div className="flex-1 flex flex-col items-center gap-4">
@@ -408,7 +412,7 @@ export default function WhoAmIPage() {
           </p>
           <p className="text-2xl font-bold text-white">
             {currentPlayerId
-              ? currentPlayerId === user?.id
+              ? currentPlayerId === effectivePlayerId
                 ? l('Ваш ход!', 'Your turn!')
                 : playerName(currentPlayerId)
               : l('Игра завершена', 'Game over')}
@@ -546,14 +550,14 @@ export default function WhoAmIPage() {
             <p className="text-white/60 text-sm mt-1">
               {l('Ваш персонаж:', 'Your character:')}{' '}
               <span className="font-bold text-white">
-                {gs.characters[user!.id]?.[locale]}
+                {gs.characters[effectivePlayerId]?.[locale]}
               </span>
             </p>
           </GlassCard>
         )}
 
         {/* Host controls */}
-        {isHost && (
+        {isGameHost && (
           <GlassButton variant="danger" size="sm" onClick={handleEndGame}>
             {l('Завершить игру', 'End Game')}
           </GlassButton>
@@ -630,7 +634,7 @@ export default function WhoAmIPage() {
             </div>
           </div>
 
-          {isHost && (
+          {isGameHost && (
             <GlassButton
               variant="primary"
               size="lg"
@@ -659,7 +663,7 @@ export default function WhoAmIPage() {
       title={l('Кто я?', 'Who Am I?')}
       icon="🤔"
       scores={gs.phase !== 'lobby' ? layoutScores : undefined}
-      onEnd={isHost ? handleEndGame : undefined}
+      onEnd={isGameHost ? handleEndGame : undefined}
       showScoreboard={gs.phase === 'finished'}
       phaseKey={gs.phase}
     >

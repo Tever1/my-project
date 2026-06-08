@@ -1,6 +1,21 @@
 # Codex Status
 
-## Active Tasks (2026-06-04, вечер): /join двуязычность + фон комнаты
+## Active (2026-06-07): аудит игр vs Квиз — серия P0 «гость = game-host» ✅ ГОТОВО (ждёт коммита)
+Создан хук src/lib/use-game-identity.ts (effectivePlayerId/isGameHost/guest-reconnect).
+TASK-217: Крокодил — гость как game-host (+ хук). ✅ lint+tsc
+TASK-218: Кто я? — гостевая идентичность + game-host. ✅
+TASK-219: Мафия — гостевая идентичность (роли/голоса) + game-host. ✅
+TASK-220: Шпион — гостевая идентичность + game-host (только identity). ✅
+TASK-221: 100 к 1 — гостевая идентичность (ролевой host сохранён). ✅
+Все 5 валидированы Claude: lint+tsc чисто, whitelist соблюдён, сервер не тронут.
+
+## Очередь аудита (по убыванию значимости, ещё не начато):
+P0/P1: i18n для spy + hundred-to-one (сейчас ноль двуязычности).
+P1: confirm() → glass-модалка в spy + h2o.
+P2: raw <button> → GlassButton (spy, h2o); per-game фон в игре.
+P3: унификация скруглений (rounded-md), BreathingPlaceholder в waiting-экранах.
+
+## Прошлое (2026-06-04, вечер): /join двуязычность + фон комнаты
 TASK-215: /join — двуязычность ru/en
 File: codex-tasks/215-join-pages-bilingual.md
 TASK-216: фон комнаты на телефоне в цвете игры

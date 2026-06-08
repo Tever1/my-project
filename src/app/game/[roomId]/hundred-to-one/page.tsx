@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
 import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
+import { useGameIdentity } from '@/lib/use-game-identity';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -96,7 +96,8 @@ const mkInitial = (): GState => ({
 
 export default function HundredToOnePage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { user } = useAuth();
+  const { user, effectivePlayerId } = useGameIdentity(roomId);
+  const router = useRouter();
   useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
   const { emit, on } = useSocket();
 
@@ -110,8 +111,8 @@ export default function HundredToOnePage() {
   const r4Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const isHost = s.players.find(p => p.id === user?.id)?.isHost ?? false;
-  const myRole: PlayerRole | null = user?.id ? s.roles[user.id] || null : null;
+  const isHost = s.players.find(p => p.id === effectivePlayerId)?.isHost ?? false;
+  const myRole: PlayerRole | null = effectivePlayerId ? s.roles[effectivePlayerId] || null : null;
   const isGameHost = myRole === 'host'; // game host (ведущий), not room host
   const topic = TOPICS.find(t => t.id === s.topicId) || TOPICS[0];
   const ROUNDS = topic.rounds;
@@ -121,8 +122,8 @@ export default function HundredToOnePage() {
 
   // ── Role selection ──
   const selectRole = (role: PlayerRole) => {
-    if (!user?.id) return;
-    const newRoles = { ...s.roles, [user.id]: role };
+    if (!effectivePlayerId) return;
+    const newRoles = { ...s.roles, [effectivePlayerId]: role };
     update({ roles: newRoles });
   };
 
@@ -154,14 +155,14 @@ export default function HundredToOnePage() {
       else if (action === 'h2o:request-state') {
         // Only game host responds with full state (for late-joining TV clients)
         const cur = sRef.current;
-        const myId = user?.id;
+        const myId = effectivePlayerId;
         if (myId && cur.roles[myId] === 'host') {
           broadcast(cur);
         }
       }
     });
     return unsub;
-  }, [on, user?.id, broadcast]);
+  }, [on, effectivePlayerId, broadcast]);
 
   const update = useCallback((patch: Partial<GState>) => {
     setS(prev => ({ ...prev, ...patch }));
@@ -406,6 +407,7 @@ export default function HundredToOnePage() {
   const endGame = () => {
     if (confirm('Завершить игру? Все вернутся в лобби.')) {
       emit('game:end', { code: roomId });
+      router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
     }
   };
 
@@ -638,8 +640,8 @@ export default function HundredToOnePage() {
                     ? <p className="text-xs text-white/25 mt-2">никого нет</p>
                     : <div className="mt-2 space-y-0.5">
                         {members.map(p => (
-                          <p key={p.id} className={`text-xs ${myRole === role && p.id === user?.id ? 'text-white font-bold' : 'text-white/50'}`}>
-                            {p.id === user?.id ? '→ ' : ''}{p.nickname || '?'}
+                          <p key={p.id} className={`text-xs ${myRole === role && p.id === effectivePlayerId ? 'text-white font-bold' : 'text-white/50'}`}>
+                            {p.id === effectivePlayerId ? '→ ' : ''}{p.nickname || '?'}
                           </p>
                         ))}
                       </div>
@@ -656,7 +658,7 @@ export default function HundredToOnePage() {
 
       {/* ── TEAM NAMES ── */}
       {s.phase === 'teamNames' && (() => {
-        const amCaptain = myTeam && user?.id === s.captains[myTeam];
+        const amCaptain = myTeam && effectivePlayerId === s.captains[myTeam];
         const myConfirmed = myTeam ? s.teamNameConfirmed[myTeam] : false;
         return (
           <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
@@ -690,7 +692,7 @@ export default function HundredToOnePage() {
             )}
 
             {/* Non-captain team member — see status */}
-            {myTeam && user?.id !== s.captains[myTeam] && (
+            {myTeam && effectivePlayerId !== s.captains[myTeam] && (
               <div className="py-4">
                 <p className="text-white/50 mb-3">Капитан вводит название команды</p>
                 <div className="space-y-2">
@@ -760,7 +762,7 @@ export default function HundredToOnePage() {
                             {selectedCaptain === p.id ? '⭐' : p.nickname[0]?.toUpperCase() || '?'}
                           </div>
                           <span className={`font-bold ${selectedCaptain === p.id ? 'text-white' : 'text-white/70'}`}>{p.nickname}</span>
-                          {p.id === user?.id && <span className="text-xs text-white/30 ml-auto">вы</span>}
+                          {p.id === effectivePlayerId && <span className="text-xs text-white/30 ml-auto">вы</span>}
                         </div>
                       ))}
                     </div>
@@ -823,7 +825,7 @@ export default function HundredToOnePage() {
           <p className="text-white/60 mb-8">Кто первый из капитанов нажмёт на кнопку,<br/>та команда начинает раунд</p>
 
           {/* Buzzer button — visible to captains */}
-          {myTeam && user?.id === s.captains[myTeam] && s.buzzerWinner === 0 && (
+          {myTeam && effectivePlayerId === s.captains[myTeam] && s.buzzerWinner === 0 && (
             <div className="flex flex-col items-center gap-4">
               <button
                 onClick={() => buzzerPressed(myTeam === 'team1' ? 1 : 2)}
@@ -846,7 +848,7 @@ export default function HundredToOnePage() {
           )}
 
           {/* Winner result — captain view */}
-          {myTeam && user?.id === s.captains[myTeam] && s.buzzerWinner !== 0 && (
+          {myTeam && effectivePlayerId === s.captains[myTeam] && s.buzzerWinner !== 0 && (
             <div className={`w-44 h-44 mx-auto rounded-full flex items-center justify-center text-4xl border-4 transition-all
               ${s.buzzerWinner === (myTeam === 'team1' ? 1 : 2)
                 ? 'bg-green-600/30 border-green-400 text-green-400'
@@ -856,7 +858,7 @@ export default function HundredToOnePage() {
           )}
 
           {/* Non-captain team member */}
-          {myTeam && user?.id !== s.captains[myTeam] && (
+          {myTeam && effectivePlayerId !== s.captains[myTeam] && (
             <div className="py-8">
               {s.buzzerCountdown > 0
                 ? <p className="text-4xl font-bold text-red-400 animate-pulse">{s.buzzerCountdown}</p>
@@ -1255,7 +1257,7 @@ export default function HundredToOnePage() {
             const winTeamName = s.winTeam === 1 ? s.t1n : s.t2n;
             const winTeamPlayers = s.players.filter(p => s.roles[p.id] === winTeamRole);
             const captainId = s.winTeam === 1 ? s.captains.team1 : s.captains.team2;
-            const isCaptain = user?.id === captainId;
+            const isCaptain = effectivePlayerId === captainId;
             const bothPicked = !!s.bgP1Id && !!s.bgP2Id;
             const p1Name = s.players.find(p => p.id === s.bgP1Id)?.nickname;
             const p2Name = s.players.find(p => p.id === s.bgP2Id)?.nickname;
@@ -1321,7 +1323,7 @@ export default function HundredToOnePage() {
 
           {/* Active player input: show only current question + timer */}
           {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 &&
-            (s.bgPhase === 1 ? user?.id === s.bgP1Id : user?.id === s.bgP2Id) && (
+            (s.bgPhase === 1 ? effectivePlayerId === s.bgP1Id : effectivePlayerId === s.bgP2Id) && (
             <div className="mb-3">
               <GlassCard className="p-5 mb-3 text-center bg-amber-900/25 border-amber-500/50">
                 <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1.5">ВОПРОС {s.bgCurQ + 1} ИЗ 5</p>
@@ -1348,7 +1350,7 @@ export default function HundredToOnePage() {
           {/* Everyone else (non-active player): questions list + status */}
           {!(
             (s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 &&
-            (s.bgPhase === 1 ? user?.id === s.bgP1Id : user?.id === s.bgP2Id)
+            (s.bgPhase === 1 ? effectivePlayerId === s.bgP1Id : effectivePlayerId === s.bgP2Id)
           ) && s.bgPhase >= 1 && (
             <>
               <div className="space-y-1.5 mb-3">

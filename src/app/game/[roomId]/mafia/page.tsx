@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
 import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useTranslation } from '@/lib/i18n';
-import { useAuth } from '@/lib/auth-context';
+import { useGameIdentity } from '@/lib/use-game-identity';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -132,9 +132,10 @@ function getInitialState(): MafiaGameState {
 
 export default function MafiaPage() {
   const { roomId } = useParams<{ roomId: string }>();
+  const router = useRouter();
   const { emit, on, isConnected } = useSocket();
   const { locale } = useTranslation();
-  const { user } = useAuth();
+  const { user, effectivePlayerId, isGameHost } = useGameIdentity(roomId);
   useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -145,9 +146,8 @@ export default function MafiaPage() {
   // Cache of id→nickname that only grows — survives player disconnection
   const [nicknameCache, setNicknameCache] = useState<Record<string, string>>({});
 
-  const isHost = players.find((p) => p.isHost)?.id === user?.id;
-  const myRole = user ? gs.roles[user.id] : undefined;
-  const amAlive = user ? gs.alive.includes(user.id) : false;
+  const myRole = effectivePlayerId ? gs.roles[effectivePlayerId] : undefined;
+  const amAlive = effectivePlayerId ? gs.alive.includes(effectivePlayerId) : false;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playerName = useCallback(
@@ -219,7 +219,7 @@ export default function MafiaPage() {
 
         case 'mafia-vote':
           // Accumulate on host so handleResolveNight has all votes
-          if (isHost) {
+          if (isGameHost) {
             setGs((prev) => ({
               ...prev,
               mafiaVotes: { ...prev.mafiaVotes, [payload.voterId]: payload.targetId },
@@ -235,7 +235,7 @@ export default function MafiaPage() {
 
         case 'doctor-save':
           // Accumulate on host so handleResolveNight can check the save
-          if (isHost) {
+          if (isGameHost) {
             setGs((prev) => ({ ...prev, doctorSave: payload.targetId }));
           }
           break;
@@ -250,7 +250,7 @@ export default function MafiaPage() {
 
         case 'detective-result':
           // Only the detective processes this result
-          if (user?.id === payload.detectiveId) {
+          if (effectivePlayerId === payload.detectiveId) {
             setGs((prev) => ({
               ...prev,
               detectiveResult: payload.role,
@@ -308,7 +308,7 @@ export default function MafiaPage() {
       }
     });
     return cleanup;
-  }, [on, isHost, user]);
+  }, [on, isGameHost, effectivePlayerId]);
 
   // -----------------------------------------------------------------------
   // Day timer
@@ -351,26 +351,26 @@ export default function MafiaPage() {
   // Night actions
   // -----------------------------------------------------------------------
   const handleMafiaVote = (targetId: string) => {
-    if (!user || !isConnected) return;
-    broadcast({ type: 'mafia-vote', voterId: user.id, targetId });
+    if (!effectivePlayerId || !isConnected) return;
+    broadcast({ type: 'mafia-vote', voterId: effectivePlayerId, targetId });
     // Update local state immediately for instant UI feedback
     setGs((prev) => ({
       ...prev,
-      mafiaVotes: { ...prev.mafiaVotes, [user.id]: targetId },
+      mafiaVotes: { ...prev.mafiaVotes, [effectivePlayerId]: targetId },
     }));
     setNightActionDone(true);
   };
 
   const handleDetectiveCheck = (targetId: string) => {
-    if (!user || !isConnected) return;
-    broadcast({ type: 'detective-check', detectiveId: user.id, targetId });
+    if (!effectivePlayerId || !isConnected) return;
+    broadcast({ type: 'detective-check', detectiveId: effectivePlayerId, targetId });
     setGs((prev) => ({ ...prev, detectiveCheck: targetId }));
     setNightActionDone(true);
   };
 
   const handleDoctorSave = (targetId: string) => {
-    if (!user || !isConnected) return;
-    broadcast({ type: 'doctor-save', doctorId: user.id, targetId });
+    if (!effectivePlayerId || !isConnected) return;
+    broadcast({ type: 'doctor-save', doctorId: effectivePlayerId, targetId });
     setGs((prev) => ({ ...prev, doctorSave: targetId }));
     setNightActionDone(true);
   };
@@ -425,12 +425,12 @@ export default function MafiaPage() {
   // Player: cast day vote
   // -----------------------------------------------------------------------
   const handleDayVote = (targetId: string) => {
-    if (!user || !isConnected) return;
-    broadcast({ type: 'cast-vote', voterId: user.id, targetId });
+    if (!effectivePlayerId || !isConnected) return;
+    broadcast({ type: 'cast-vote', voterId: effectivePlayerId, targetId });
     // Update local state immediately for instant UI feedback
     setGs((prev) => ({
       ...prev,
-      votes: { ...prev.votes, [user.id]: targetId },
+      votes: { ...prev.votes, [effectivePlayerId]: targetId },
     }));
   };
 
@@ -468,16 +468,17 @@ export default function MafiaPage() {
     broadcast({ type: 'end-game' });
     // Tell the server the game is over so TV and all clients leave the game screen
     emit('game:end', { code: roomId });
+    router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
   };
 
   // -----------------------------------------------------------------------
   // Render helpers
   // -----------------------------------------------------------------------
 
-  const otherAlivePlayers = gs.alive.filter((id) => id !== user?.id);
+  const otherAlivePlayers = gs.alive.filter((id) => id !== effectivePlayerId);
   const mafiaTeammates =
     myRole === 'mafia'
-      ? gs.alive.filter((id) => id !== user?.id && gs.roles[id] === 'mafia')
+      ? gs.alive.filter((id) => id !== effectivePlayerId && gs.roles[id] === 'mafia')
       : [];
 
   const l = useCallback(
@@ -508,7 +509,7 @@ export default function MafiaPage() {
             </span>
           ))}
         </div>
-        {isHost ? (
+        {isGameHost ? (
           <GlassButton
             variant="primary"
             size="lg"
@@ -523,7 +524,7 @@ export default function MafiaPage() {
             {l('Ожидание ведущего...', 'Waiting for host...')}
           </p>
         )}
-        {isHost && players.length < 4 && (
+        {isGameHost && players.length < 4 && (
           <p className="text-red-400/80 text-sm mt-2">
             {l('Нужно минимум 4 игрока', 'Need at least 4 players')}
           </p>
@@ -600,7 +601,7 @@ export default function MafiaPage() {
         )}
       </GlassCard>
 
-      {isHost && roleRevealed && (
+      {isGameHost && roleRevealed && (
         <GlassButton variant="primary" size="lg" onClick={handleStartNight}>
           {l('Начать ночь', 'Start Night')}
         </GlassButton>
@@ -681,7 +682,7 @@ export default function MafiaPage() {
                   className="w-full justify-start"
                   onClick={() => handleDoctorSave(id)}
                 >
-                  {playerName(id)} {id === user?.id ? l('(Себя)', '(Self)') : ''}
+                  {playerName(id)} {id === effectivePlayerId ? l('(Себя)', '(Self)') : ''}
                 </GlassButton>
               ))}
             </div>
@@ -718,7 +719,7 @@ export default function MafiaPage() {
           </GlassCard>
         )}
 
-        {isHost && (
+        {isGameHost && (
           <GlassButton variant="primary" size="lg" onClick={handleResolveNight}>
             {l('Завершить ночь', 'Resolve Night')}
           </GlassButton>
@@ -784,13 +785,13 @@ export default function MafiaPage() {
           {gs.alive.map((id) => (
             <span key={id} className="glass-badge">
               {playerName(id)}
-              {id === user?.id ? ' (👈)' : ''}
+              {id === effectivePlayerId ? ' (👈)' : ''}
             </span>
           ))}
         </div>
       </GlassCard>
 
-      {isHost && (
+      {isGameHost && (
         <GlassButton variant="primary" size="lg" onClick={handleStartVoting}>
           {l('Начать голосование', 'Start Voting')}
         </GlassButton>
@@ -802,7 +803,7 @@ export default function MafiaPage() {
   // RENDER: Voting phase
   // -----------------------------------------------------------------------
   const renderVoting = () => {
-    const myVote = user ? gs.votes[user.id] : undefined;
+    const myVote = effectivePlayerId ? gs.votes[effectivePlayerId] : undefined;
     const voteCounts: Record<string, number> = {};
     Object.values(gs.votes).forEach((tid) => {
       voteCounts[tid] = (voteCounts[tid] || 0) + 1;
@@ -884,12 +885,12 @@ export default function MafiaPage() {
           ))}
         </GlassCard>
 
-        {isHost && totalVotes >= totalVoters && (
+        {isGameHost && totalVotes >= totalVoters && (
           <GlassButton variant="danger" size="lg" onClick={handleResolveVotes}>
             {l('Подвести итоги', 'Resolve Votes')}
           </GlassButton>
         )}
-        {isHost && totalVotes > 0 && totalVotes < totalVoters && (
+        {isGameHost && totalVotes > 0 && totalVotes < totalVoters && (
           <GlassButton variant="default" size="sm" onClick={handleResolveVotes}>
             {l('Завершить досрочно', 'End early')}
           </GlassButton>
@@ -938,7 +939,7 @@ export default function MafiaPage() {
                 </div>
               ))}
             </div>
-            {isHost && (
+            {isGameHost && (
               <GlassButton
                 variant="primary"
                 size="lg"
@@ -966,7 +967,7 @@ export default function MafiaPage() {
                 </div>
               </>
             )}
-            {isHost && (
+            {isGameHost && (
               <GlassButton
                 variant="primary"
                 size="lg"
@@ -999,7 +1000,7 @@ export default function MafiaPage() {
       title={l('Мафия', 'Mafia')}
       icon="🕵️"
       round={gs.round || undefined}
-      onEnd={isHost ? handleEndGame : undefined}
+      onEnd={isGameHost ? handleEndGame : undefined}
       phaseKey={gs.phase}
     >
       {(phaseRenderers[gs.phase] ?? renderLobby)()}

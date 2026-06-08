@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -9,7 +9,7 @@ import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
 import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
-import { useAuth } from '@/lib/auth-context';
+import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
 import { CROCODILE_WORDS } from '@/lib/game-data';
 import { Player } from '@/types/room';
@@ -64,25 +64,23 @@ function shuffleArray<T>(arr: T[]): T[] {
 export default function CrocodilePage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { emit, on } = useSocket();
-  const { user } = useAuth();
+  const { user, effectivePlayerId, isGameHost } = useGameIdentity(roomId);
+  const router = useRouter();
   useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
   const { locale } = useTranslation();
 
   // Room players (from room:state)
   const [players, setPlayers] = useState<Player[]>([]);
-  const [hostId, setHostId] = useState<string>('');
 
   // Game state (host is source of truth, broadcasts to all)
   const [gameState, setGameState] = useState<CrocodileGameState | null>(null);
   const gameStateRef = useRef<CrocodileGameState | null>(null);
-  const isHostRef = useRef(false);
+  const isGameHostRef = useRef(false);
 
   // Timer ref for host-side countdown
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const isHost = user?.id === hostId;
-  isHostRef.current = isHost;
-  const myId = user?.id ?? '';
+  isGameHostRef.current = isGameHost;
 
   // ------------------------------------------------------------------
   // Derived helpers
@@ -91,7 +89,7 @@ export default function CrocodilePage() {
   const currentExplainer = players.find(
     (p) => p.id === gameState?.explainerId,
   );
-  const isExplainer = myId === gameState?.explainerId;
+  const isExplainer = effectivePlayerId === gameState?.explainerId;
   const currentWord =
     gameState && gameState.currentWordIndex >= 0
       ? CROCODILE_WORDS[gameState.currentWordIndex]
@@ -102,9 +100,8 @@ export default function CrocodilePage() {
   // ------------------------------------------------------------------
 
   useRoomState(roomId, (data) => {
-    const d = data as { players: Player[]; hostId: string };
+    const d = data as { players: Player[] };
     if (d.players) setPlayers(d.players);
-    if (d.hostId) setHostId(d.hostId);
   });
 
   // ------------------------------------------------------------------
@@ -143,7 +140,7 @@ export default function CrocodilePage() {
             break;
           case 'croc:request-state':
             // TV joined mid-game — host re-broadcasts current state
-            if (isHostRef.current && gameStateRef.current) {
+            if (isGameHostRef.current && gameStateRef.current) {
               broadcast('croc:state', gameStateRef.current);
             }
             break;
@@ -158,7 +155,7 @@ export default function CrocodilePage() {
   // ------------------------------------------------------------------
 
   useEffect(() => {
-    if (!isHost || !gameState || gameState.phase !== 'explaining') return;
+    if (!isGameHost || !gameState || gameState.phase !== 'explaining') return;
 
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -182,14 +179,14 @@ export default function CrocodilePage() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, gameState?.phase, gameState?.explainerId]);
+  }, [isGameHost, gameState?.phase, gameState?.explainerId]);
 
   // ------------------------------------------------------------------
   // Host: start game
   // ------------------------------------------------------------------
 
   const startGame = useCallback(() => {
-    if (!isHost || players.length < 2) return;
+    if (!isGameHost || players.length < 2) return;
 
     const order = shuffleArray(players.map((p) => p.id));
     const firstWordIdx = pickRandomWordIndex([]);
@@ -210,7 +207,7 @@ export default function CrocodilePage() {
 
     setGameState(initial);
     broadcast('croc:state', initial);
-  }, [isHost, players, broadcast]);
+  }, [isGameHost, players, broadcast]);
 
   // ------------------------------------------------------------------
   // Host: advance to next explainer
@@ -260,7 +257,7 @@ export default function CrocodilePage() {
   // ------------------------------------------------------------------
 
   const handleGuessed = useCallback(() => {
-    if (!isHost || !gameState || gameState.phase !== 'explaining') return;
+    if (!isGameHost || !gameState || gameState.phase !== 'explaining') return;
 
     const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
     const updated: CrocodileGameState = {
@@ -276,14 +273,14 @@ export default function CrocodilePage() {
 
     setGameState(updated);
     broadcast('croc:state', updated);
-  }, [isHost, gameState, broadcast]);
+  }, [isGameHost, gameState, broadcast]);
 
   // ------------------------------------------------------------------
   // Host: explainer pressed "Пропустить" — skip word, no points
   // ------------------------------------------------------------------
 
   const handleSkip = useCallback(() => {
-    if (!isHost || !gameState || gameState.phase !== 'explaining') return;
+    if (!isGameHost || !gameState || gameState.phase !== 'explaining') return;
 
     const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
     const updated: CrocodileGameState = {
@@ -295,7 +292,7 @@ export default function CrocodilePage() {
 
     setGameState(updated);
     broadcast('croc:state', updated);
-  }, [isHost, gameState, broadcast]);
+  }, [isGameHost, gameState, broadcast]);
 
   // ------------------------------------------------------------------
   // Explainer presses Guessed / Skip (emit to host if not host)
@@ -310,7 +307,7 @@ export default function CrocodilePage() {
 
   // Non-host explainer actions -> host listens
   useEffect(() => {
-    if (!isHost) return;
+    if (!isGameHost) return;
     const cleanup = on('game:action', (data: unknown) => {
       const { action } = data as {
         action: string;
@@ -325,7 +322,7 @@ export default function CrocodilePage() {
       }
     });
     return cleanup;
-  }, [isHost, on, handleGuessed, handleSkip, advanceToNextExplainer, gameState]);
+  }, [isGameHost, on, handleGuessed, handleSkip, advanceToNextExplainer, gameState]);
 
   // ------------------------------------------------------------------
   // Host: end game manually
@@ -334,7 +331,8 @@ export default function CrocodilePage() {
   const endGame = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     emit('game:end', { code: roomId });
-  }, [emit, roomId]);
+    router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
+  }, [emit, roomId, router, user]);
 
   // ------------------------------------------------------------------
   // Scores for GameLayout
@@ -365,7 +363,7 @@ export default function CrocodilePage() {
       round={currentRound}
       totalRounds={totalRounds}
       scores={layoutScores}
-      onEnd={isHost ? endGame : undefined}
+      onEnd={isGameHost ? endGame : undefined}
       showScoreboard={gameState?.phase === 'finished'}
       phaseKey={gameState?.phase ?? 'waiting'}
     >
@@ -404,7 +402,7 @@ export default function CrocodilePage() {
               </div>
             </div>
 
-            {isHost ? (
+            {isGameHost ? (
               <GlassButton
                 variant="primary"
                 size="lg"
@@ -518,7 +516,7 @@ export default function CrocodilePage() {
                 size="lg"
                 className="flex-1"
                 onClick={() =>
-                  isHost ? handleGuessed() : emitAction('croc:guessed')
+                  isGameHost ? handleGuessed() : emitAction('croc:guessed')
                 }
               >
                 {locale === 'ru' ? 'Угадали! ✓' : 'Guessed! ✓'}
@@ -527,7 +525,7 @@ export default function CrocodilePage() {
                 size="lg"
                 className="flex-1"
                 onClick={() =>
-                  isHost ? handleSkip() : emitAction('croc:skip')
+                  isGameHost ? handleSkip() : emitAction('croc:skip')
                 }
               >
                 {locale === 'ru' ? 'Пропустить →' : 'Skip →'}
@@ -536,7 +534,7 @@ export default function CrocodilePage() {
           )}
 
           {/* Host can force advance to next player */}
-          {isHost && !isExplainer && (
+          {isGameHost && !isExplainer && (
             <div className="w-full max-w-md">
               <GlassButton
                 size="md"
@@ -594,7 +592,7 @@ export default function CrocodilePage() {
       {/* ---- FINISHED ---- */}
       {gameState?.phase === 'finished' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          {!isHost && (
+          {!isGameHost && (
             <GlassCard className="w-full max-w-md p-6 text-center">
               <p className="text-4xl mb-3">🏆</p>
               <p
@@ -611,7 +609,7 @@ export default function CrocodilePage() {
               </p>
             </GlassCard>
           )}
-          {isHost && (
+          {isGameHost && (
             <GlassButton
               variant="primary"
               size="lg"

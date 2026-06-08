@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
 import { useGameAction, useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
+import { useGameIdentity } from '@/lib/use-game-identity';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -163,7 +163,8 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
 
 export default function SpyGamePage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, effectivePlayerId, isGameHost } = useGameIdentity(roomId);
   useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
   const { emit, on } = useSocket();
 
@@ -175,14 +176,13 @@ export default function SpyGamePage() {
 
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const isHost = s.players.find(p => p.id === user?.id)?.isHost ?? false;
-  const isSpy = user?.id === s.spyId;
+  const isSpy = effectivePlayerId === s.spyId;
 
   // Active player = current questioner (guess) or drawer (draw)
   const activePlayerId = s.playerOrder.length > 0
     ? s.playerOrder[s.playerOrderIdx % s.playerOrder.length]
     : '';
-  const isActivePlayer = user?.id === activePlayerId;
+  const isActivePlayer = effectivePlayerId === activePlayerId;
   const activePlayerName = s.players.find(p => p.id === activePlayerId)?.nickname || '???';
   const isDrawer = s.mode === 'draw' && isActivePlayer;
   const sendAction = useGameAction(roomId);
@@ -215,7 +215,7 @@ export default function SpyGamePage() {
 
   // ── Timer (host only) ──
   useEffect(() => {
-    if (!isHost) return;
+    if (!isGameHost) return;
 
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -240,7 +240,7 @@ export default function SpyGamePage() {
       if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.timerRunning, isHost]);
+  }, [s.timerRunning, isGameHost]);
 
   // ── Helpers ──
   // Broadcast patch AND update local state
@@ -283,7 +283,7 @@ export default function SpyGamePage() {
 
   // ── Actions ──
   const startGame = (mode: SpyMode) => {
-    if (!isHost) return;
+    if (!isGameHost) return;
     const { word, idx } = pickRandomWord([]);
     const spyId = pickRandomSpy(s.players);
     const playerOrder = shufflePlayers(s.players);
@@ -303,7 +303,7 @@ export default function SpyGamePage() {
   };
 
   const nextWord = () => {
-    if (!isHost) return;
+    if (!isGameHost) return;
     const { word, idx } = pickRandomWord(s.usedWords);
     const spyId = pickRandomSpy(s.players);
     const playerOrder = shufflePlayers(s.players);
@@ -323,7 +323,7 @@ export default function SpyGamePage() {
   };
 
   const passTurn = () => {
-    if (!isActivePlayer && !isHost) return;
+    if (!isActivePlayer && !isGameHost) return;
     const nextIdx = (s.playerOrderIdx + 1) % Math.max(s.playerOrder.length, 1);
     const nextPlayerId = s.playerOrder[nextIdx] ?? '';
     if (s.mode === 'draw') sendClear();
@@ -334,7 +334,7 @@ export default function SpyGamePage() {
   };
 
   const toggleTimer = () => {
-    if (!isHost) return;
+    if (!isGameHost) return;
     if (s.timerLeft <= 0) {
       update({ timerLeft: TIMER_TOTAL, timerRunning: true });
     } else {
@@ -343,17 +343,20 @@ export default function SpyGamePage() {
   };
 
   const resetTimer = () => {
-    if (!isHost) return;
+    if (!isGameHost) return;
     update({ timerLeft: TIMER_TOTAL, timerRunning: false });
   };
 
   const endGame = () => {
-    if (confirm('Завершить игру?')) emit('game:end', { code: roomId });
+    if (confirm('Завершить игру?')) {
+      emit('game:end', { code: roomId });
+      router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
+    }
   };
 
   // ── Render ──
   return (
-    <GameLayout title="Шпион" icon="🕵️‍♂️" onEnd={isHost ? endGame : undefined} phaseKey={s.phase}>
+    <GameLayout title="Шпион" icon="🕵️‍♂️" onEnd={isGameHost ? endGame : undefined} phaseKey={s.phase}>
 
       {/* ── MODE SELECT + RULES ── */}
       {s.phase === 'modeSelect' && (
@@ -390,7 +393,7 @@ export default function SpyGamePage() {
             </div>
           </GlassCard>
 
-          {isHost ? (
+          {isGameHost ? (
             <div className="space-y-3">
               <p className="text-xs text-white/40 text-center">Выберите режим:</p>
               <GlassButton variant="primary" size="lg" className="w-full" onClick={() => startGame('guess')}>
@@ -438,7 +441,7 @@ export default function SpyGamePage() {
                 <span className="text-red-400 text-sm font-bold">Время вышло!</span>
               )}
             </div>
-            {isHost && (
+            {isGameHost && (
               <div className="flex gap-2">
                 <button
                   onClick={toggleTimer}
@@ -505,14 +508,14 @@ export default function SpyGamePage() {
           )}
 
           {/* Pass turn button — active player or host */}
-          {(isActivePlayer || isHost) && s.playerOrder.length > 0 && (
+          {(isActivePlayer || isGameHost) && s.playerOrder.length > 0 && (
             <GlassButton className="w-full" onClick={passTurn}>
               {s.mode === 'guess' ? '➡ Передать слово следующему' : '➡ Передать ход'}
             </GlassButton>
           )}
 
           {/* Host controls */}
-          {isHost && (
+          {isGameHost && (
             <GlassButton variant="primary" size="lg" className="w-full" onClick={nextWord}>
               🔄 Следующее слово
             </GlassButton>
@@ -544,7 +547,7 @@ export default function SpyGamePage() {
           )}
 
           {/* Info for non-host */}
-          {!isHost && !isActivePlayer && (
+          {!isGameHost && !isActivePlayer && (
             <p className="text-center text-xs text-white/25 mt-1">
               {s.mode === 'guess'
                 ? 'Слушайте вопросы и ответы — вычислите шпиона!'
