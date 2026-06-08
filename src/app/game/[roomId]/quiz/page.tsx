@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
-import { useAuth } from '@/lib/auth-context';
+import { useGameIdentity } from '@/lib/use-game-identity';
 import { useSocket } from '@/lib/use-socket';
 import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
@@ -62,12 +62,6 @@ type PreconfiguredQuizConfig = {
 };
 
 const QUESTIONS_PER_GAME = 10;
-const GUEST_ID_KEY = 'party-hub-join-guest-id';
-
-function getGuestPlayerId() {
-  if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem(GUEST_ID_KEY) ?? '';
-}
 
 const INITIAL_STATE: QuizGameState = {
   phase: 'waiting',
@@ -128,15 +122,13 @@ function DifficultyIcon({ difficulty, size = 24 }: { difficulty?: QuizDifficulty
 export default function QuizPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { locale } = useTranslation();
-  const { user } = useAuth();
-  const { emit, on, isConnected } = useSocket();
+  const { user, effectivePlayerId } = useGameIdentity(roomId);
+  const { emit, on } = useSocket();
   const sendAction = useGameAction(roomId);
   const router = useRouter();
   useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
-  const [guestPlayerId, setGuestPlayerId] = useState('');
-  const [guestNickname, setGuestNickname] = useState('');
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef(3);
@@ -151,17 +143,12 @@ export default function QuizPage() {
   const questionsRef = useRef<QuizQuestion[]>([]);
   const shownIdsRef = useRef<Set<string>>(new Set());
 
-  const effectivePlayerId = user?.id ?? guestPlayerId;
   const isHost = gameState.players.find((p) => p.id === user?.id)?.isHost ?? false;
   const isGameHost = Boolean(effectivePlayerId && gameState.gameHostPlayerId && effectivePlayerId === gameState.gameHostPlayerId);
   const myAnswer = effectivePlayerId ? gameState.answers[effectivePlayerId] : undefined;
   const totalPlayers = gameState.players.length;
   const answeredCount = Object.keys(gameState.answers).length;
   const allAnswered = totalPlayers > 0 && answeredCount >= totalPlayers;
-
-  useEffect(() => {
-    queueMicrotask(() => setGuestPlayerId(getGuestPlayerId()));
-  }, []);
 
   useEffect(() => {
     const unsubscribe = on('room:closed', () => {
@@ -176,42 +163,6 @@ export default function QuizPage() {
 
     return unsubscribe;
   }, [on, router, stopTimerSound]);
-
-  useEffect(() => {
-    if (user || !guestPlayerId || guestNickname) return;
-    const player = gameState.players.find((p) => p.id === guestPlayerId);
-    if (player) queueMicrotask(() => setGuestNickname(player.nickname));
-  }, [user, guestPlayerId, guestNickname, gameState.players]);
-
-  // Auto-reconnect: re-join room channel on socket reconnect (e.g. page refresh mid-game)
-  useEffect(() => {
-    if (!user || !isConnected || !roomId) return;
-    emit(
-      'room:join',
-      { code: roomId, playerId: user.id, nickname: user.nickname, isReconnect: true },
-      (res: unknown) => {
-        const response = res as { success: boolean; error?: string };
-        if (!response.success) {
-          // Kicked (grace expired) or room gone — send to home
-          router.push('/');
-        }
-      }
-    );
-  }, [isConnected, emit, user, roomId, router]);
-
-  useEffect(() => {
-    if (user || !isConnected || !roomId || !guestPlayerId || !guestNickname) return;
-    emit(
-      'room:join',
-      { code: roomId, playerId: guestPlayerId, nickname: guestNickname, isReconnect: true },
-      (res: unknown) => {
-        const response = res as { success: boolean; error?: string };
-        if (!response.success) {
-          router.push('/');
-        }
-      }
-    );
-  }, [isConnected, emit, user, roomId, guestPlayerId, guestNickname, router]);
 
   useEffect(() => {
     isHostRef.current = isHost;
@@ -329,7 +280,7 @@ export default function QuizPage() {
         ...configPatch,
       };
     });
-    const currentPlayerId = user?.id ?? getGuestPlayerId();
+    const currentPlayerId = effectivePlayerId;
     const isHostNow = Boolean(
       currentPlayerId &&
       nextGameHostPlayerId &&

@@ -257,3 +257,4 @@ bash codex-tasks/_regen-done.sh
 | 222 | `222-spy-i18n-and-confirm.md` | Шпион — двуязычность (i18n) + убрать двойной confirm |
 | 223 | `223-h2o-i18n-and-confirm.md` | 100 к 1 — двуязычность (i18n) + убрать двойной confirm |
 | 224 | `224-waiting-breathing-placeholder.md` | Унификация waiting-плейсхолдеров (BreathingPlaceholder) в 6 играх |
+| 225 | `225-quiz-use-game-identity.md` | Квиз — миграция на useGameIdentity (убрать инлайн-дубль) |
