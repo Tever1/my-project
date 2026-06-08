@@ -1,6 +1,6 @@
 # Codex Tasks — индекс закрытых задач
 
-_Последняя синхронизация: 2026-06-04_
+_Последняя синхронизация: 2026-06-07_
 
 Одна строка на каждый TASK. Источник правды — файлы `codex-tasks/NNN-*.md`
 (ТЗ) и `codex-reports/NNN-*.md` (отчёты). Этот индекс — быстрый обзор, чтобы
@@ -249,3 +249,11 @@ bash codex-tasks/_regen-done.sh
 | 214 | `214-leave-redirect-to-join.md` | «ВЫЙТИ» на экране комнаты ведёт на /join, а не на / |
 | 215 | `215-join-pages-bilingual.md` | Двуязычность страниц /join (ru/en) |
 | 216 | `216-join-room-bg-per-game-color.md` | Фон комнаты на телефоне в цвете выбранной игры (как в лобби) |
+| 217 | `217-crocodile-guest-game-host.md` | useGameIdentity хук + Крокодил — гость как game-host |
+| 218 | `218-who-am-i-guest-game-host.md` | Кто я? — гость как game-host + гостевая идентичность |
+| 219 | `219-mafia-guest-game-host.md` | Мафия — гость как game-host + гостевая идентичность |
+| 220 | `220-spy-guest-game-host.md` | Шпион — гость как game-host + гостевая идентичность (ТОЛЬКО identity) |
+| 221 | `221-hundred-to-one-guest-identity.md` | 100 к 1 — гостевая идентичность (роли/команды/капитаны) |
+| 222 | `222-spy-i18n-and-confirm.md` | Шпион — двуязычность (i18n) + убрать двойной confirm |
+| 223 | `223-h2o-i18n-and-confirm.md` | 100 к 1 — двуязычность (i18n) + убрать двойной confirm |
+| 224 | `224-waiting-breathing-placeholder.md` | Унификация waiting-плейсхолдеров (BreathingPlaceholder) в 6 играх |
