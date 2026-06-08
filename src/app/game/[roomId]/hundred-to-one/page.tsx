@@ -7,10 +7,11 @@ import { useRoomState } from '@/lib/use-room-state';
 import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
+import { useTranslation } from '@/lib/i18n';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
-import { TOPICS, ROUND_NAMES, getDisplayPts } from '@/lib/hundred-to-one/questions';
+import { TOPICS, getDisplayPts } from '@/lib/hundred-to-one/questions';
 import { sndReveal, sndClose, sndAssign, sndBuzz, sndTick, sndWin, sndDup, warmup } from '@/lib/hundred-to-one/sounds';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -100,6 +101,8 @@ export default function HundredToOnePage() {
   const router = useRouter();
   useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
   const { emit, on } = useSocket();
+  const { locale } = useTranslation();
+  const l = useCallback((ru: string, en: string) => (locale === 'ru' ? ru : en), [locale]);
 
   const [s, setS] = useState<GState>(mkInitial);
   const sRef = useRef<GState>(s);
@@ -119,6 +122,20 @@ export default function HundredToOnePage() {
   const BIG_Q = topic.bigQ;
   const broadcast = useGameBroadcast(roomId, 'h2o:sync') as (payload: Partial<GState>) => void;
   const q = ROUNDS[s.curQ];
+  const roundNames = [
+    l('ПРОСТАЯ ИГРА', 'SIMPLE GAME'),
+    l('ДВОЙНАЯ ИГРА', 'DOUBLE GAME'),
+    l('ТРОЙНАЯ ИГРА', 'TRIPLE GAME'),
+    l('ИГРА НАОБОРОТ', 'REVERSE GAME'),
+  ];
+  const topicName = useCallback((topicId: string, fallback: string) => {
+    const names: Record<string, string> = {
+      general: l('Общие темы', 'General'),
+      cinema: l('Кино', 'Cinema'),
+      space: l('Космос', 'Space'),
+    };
+    return names[topicId] ?? fallback;
+  }, [l]);
 
   // ── Role selection ──
   const selectRole = (role: PlayerRole) => {
@@ -405,10 +422,8 @@ export default function HundredToOnePage() {
   };
 
   const endGame = () => {
-    if (confirm('Завершить игру? Все вернутся в лобби.')) {
-      emit('game:end', { code: roomId });
-      router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
-    }
+    emit('game:end', { code: roomId });
+    router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
   };
 
   // ── Round 4 timer (1 min discussion) ──
@@ -589,7 +604,7 @@ export default function HundredToOnePage() {
 
   // ── RENDER ──
   return (
-    <GameLayout title="100 к 1" icon="💯"
+    <GameLayout title={l('100 к 1', '100 to 1')} icon="💯"
       round={s.phase === 'playing' ? s.curQ + 1 : undefined}
       totalRounds={s.phase === 'playing' ? 4 : undefined}
       scores={scores} onEnd={(isHost || isGameHost) ? endGame : undefined}
@@ -600,19 +615,19 @@ export default function HundredToOnePage() {
       {s.phase === 'topicSelect' && (
         <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
           <div className="text-5xl mb-3">💯</div>
-          <h2 className="text-2xl font-bold text-white mb-2">100 к 1</h2>
-          <p className="text-white/50 text-sm mb-6">Выберите тему игры</p>
+          <h2 className="text-2xl font-bold text-white mb-2">{l('100 к 1', '100 to 1')}</h2>
+          <p className="text-white/50 text-sm mb-6">{l('Выберите тему игры', 'Choose a game topic')}</p>
           {isHost ? (
             <div className="space-y-3">
               {TOPICS.map(t => (
                 <GlassButton key={t.id} variant="primary" size="lg" className="w-full"
                   onClick={() => update({ topicId: t.id, phase: 'roleSelect', qState: t.rounds.map(r => r.answers.map(() => ({ rev: false, pub: false, to: 0 }))) })}>
-                  <span className="text-2xl mr-2">{t.icon}</span> {t.name}
+                  <span className="text-2xl mr-2">{t.icon}</span> {topicName(t.id, t.name)}
                 </GlassButton>
               ))}
             </div>
           ) : (
-            <p className="text-white/40 text-sm animate-pulse">Хост выбирает тему...</p>
+            <p className="text-white/40 text-sm animate-pulse">{l('Хост выбирает тему...', 'Host is choosing a topic...')}</p>
           )}
         </div>
       )}
@@ -621,13 +636,13 @@ export default function HundredToOnePage() {
       {s.phase === 'roleSelect' && (
         <div className="max-w-2xl mx-auto text-center py-8 animate-fade-in">
           <div className="text-6xl mb-4">💯</div>
-          <h2 className="text-2xl font-bold text-amber-400 mb-6">Выберите свою роль</h2>
+          <h2 className="text-2xl font-bold text-amber-400 mb-6">{l('Выберите свою роль', 'Choose your role')}</h2>
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             {(['team1', 'team2', 'host'] as const).map(role => {
               const cfg = {
-                team1: { icon: '🟡', label: 'Команда 1', ring: 'ring-2 ring-yellow-400 bg-yellow-500/15', text: 'text-yellow-400' },
-                team2: { icon: '🔴', label: 'Команда 2', ring: 'ring-2 ring-red-400 bg-red-500/15', text: 'text-red-400' },
-                host:  { icon: '🎙️', label: 'Ведущий', ring: 'ring-2 ring-amber-400 bg-amber-500/15', text: 'text-amber-400' },
+                team1: { icon: '🟡', label: l('Команда 1', 'Team 1'), ring: 'ring-2 ring-yellow-400 bg-yellow-500/15', text: 'text-yellow-400' },
+                team2: { icon: '🔴', label: l('Команда 2', 'Team 2'), ring: 'ring-2 ring-red-400 bg-red-500/15', text: 'text-red-400' },
+                host:  { icon: '🎙️', label: l('Ведущий', 'Host'), ring: 'ring-2 ring-amber-400 bg-amber-500/15', text: 'text-amber-400' },
               }[role];
               const members = s.players.filter(p => s.roles[p.id] === role);
               return (
@@ -637,7 +652,7 @@ export default function HundredToOnePage() {
                   <div className="text-3xl mb-2">{cfg.icon}</div>
                   <p className={`font-bold text-lg ${cfg.text}`}>{cfg.label}</p>
                   {members.length === 0
-                    ? <p className="text-xs text-white/25 mt-2">никого нет</p>
+                    ? <p className="text-xs text-white/25 mt-2">{l('никого нет', 'no one yet')}</p>
                     : <div className="mt-2 space-y-0.5">
                         {members.map(p => (
                           <p key={p.id} className={`text-xs ${myRole === role && p.id === effectivePlayerId ? 'text-white font-bold' : 'text-white/50'}`}>
@@ -651,7 +666,7 @@ export default function HundredToOnePage() {
             })}
           </div>
           {isHost && Object.keys(s.roles).length > 0 && (
-            <GlassButton variant="primary" size="lg" onClick={goToCaptainSelect}>Далее →</GlassButton>
+            <GlassButton variant="primary" size="lg" onClick={goToCaptainSelect}>{l('Далее', 'Next')} →</GlassButton>
           )}
         </div>
       )}
@@ -662,21 +677,21 @@ export default function HundredToOnePage() {
         const myConfirmed = myTeam ? s.teamNameConfirmed[myTeam] : false;
         return (
           <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
-            <h2 className="text-2xl font-bold text-amber-400 mb-6">НАЗВАНИЯ КОМАНД</h2>
+            <h2 className="text-2xl font-bold text-amber-400 mb-6">{l('НАЗВАНИЯ КОМАНД', 'TEAM NAMES')}</h2>
 
             {/* Captain input: only their own team */}
             {amCaptain && !myConfirmed && myTeam && (
               <div>
-                <p className={`text-sm mb-3 ${myTeam === 'team1' ? 'text-yellow-400' : 'text-red-400'}`}>Введите название вашей команды</p>
+                <p className={`text-sm mb-3 ${myTeam === 'team1' ? 'text-yellow-400' : 'text-red-400'}`}>{l('Введите название вашей команды', 'Enter your team name')}</p>
                 <div className="flex items-center gap-3 mb-4">
                   <span className={`w-4 h-4 rounded-full flex-shrink-0 ${myTeam === 'team1' ? 'bg-yellow-400' : 'bg-red-500'}`} />
                   <input
                     value={myTeam === 'team1' ? teamNameInput1 : teamNameInput2}
                     onChange={e => myTeam === 'team1' ? setTeamNameInput1(e.target.value) : setTeamNameInput2(e.target.value)}
-                    placeholder={myTeam === 'team1' ? 'Команда 1' : 'Команда 2'} maxLength={10}
+                    placeholder={myTeam === 'team1' ? l('Команда 1', 'Team 1') : l('Команда 2', 'Team 2')} maxLength={10}
                     className={`flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white font-bold outline-none ${myTeam === 'team1' ? 'focus:border-yellow-400' : 'focus:border-red-400'}`} />
                 </div>
-                <GlassButton variant="primary" size="lg" onClick={confirmMyTeamName}>ПОДТВЕРДИТЬ</GlassButton>
+                <GlassButton variant="primary" size="lg" onClick={confirmMyTeamName}>{l('ПОДТВЕРДИТЬ', 'CONFIRM')}</GlassButton>
               </div>
             )}
 
@@ -684,9 +699,9 @@ export default function HundredToOnePage() {
             {amCaptain && myConfirmed && (
               <div className="py-6">
                 <div className="text-4xl mb-3">✅</div>
-                <p className="text-green-400 font-bold">Название подтверждено!</p>
+                <p className="text-green-400 font-bold">{l('Название подтверждено!', 'Name confirmed!')}</p>
                 <p className="text-white/40 text-sm mt-1">
-                  {myTeam && !s.teamNameConfirmed[myTeam === 'team1' ? 'team2' : 'team1'] && 'Ждём вторую команду...'}
+                  {myTeam && !s.teamNameConfirmed[myTeam === 'team1' ? 'team2' : 'team1'] && l('Ждём вторую команду...', 'Waiting for the other team...')}
                 </p>
               </div>
             )}
@@ -694,15 +709,15 @@ export default function HundredToOnePage() {
             {/* Non-captain team member — see status */}
             {myTeam && effectivePlayerId !== s.captains[myTeam] && (
               <div className="py-4">
-                <p className="text-white/50 mb-3">Капитан вводит название команды</p>
+                <p className="text-white/50 mb-3">{l('Капитан вводит название команды', 'Captain is entering the team name')}</p>
                 <div className="space-y-2">
                   <div className={`glass-card px-4 py-2 text-sm ${s.teamNameConfirmed.team1 ? 'text-green-400' : 'text-white/40'}`}>
                     <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block mr-2" />
-                    {s.teamNameConfirmed.team1 ? `✓ ${s.t1n}` : '⏳ Команда 1'}
+                    {s.teamNameConfirmed.team1 ? `✓ ${s.t1n}` : `⏳ ${l('Команда 1', 'Team 1')}`}
                   </div>
                   <div className={`glass-card px-4 py-2 text-sm ${s.teamNameConfirmed.team2 ? 'text-green-400' : 'text-white/40'}`}>
                     <span className="w-2 h-2 rounded-full bg-red-500 inline-block mr-2" />
-                    {s.teamNameConfirmed.team2 ? `✓ ${s.t2n}` : '⏳ Команда 2'}
+                    {s.teamNameConfirmed.team2 ? `✓ ${s.t2n}` : `⏳ ${l('Команда 2', 'Team 2')}`}
                   </div>
                 </div>
               </div>
@@ -711,15 +726,15 @@ export default function HundredToOnePage() {
             {/* Host — just waits for captains */}
             {isGameHost && (
               <div className="py-4">
-                <p className="text-white/50 mb-3">Капитаны вводят названия команд...</p>
+                <p className="text-white/50 mb-3">{l('Капитаны вводят названия команд...', 'Captains are entering team names...')}</p>
                 <div className="space-y-2">
                   <div className={`glass-card px-4 py-2 text-sm ${s.teamNameConfirmed.team1 ? 'text-green-400' : 'text-white/40'}`}>
                     <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block mr-2" />
-                    {s.teamNameConfirmed.team1 ? `✓ ${s.t1n}` : '⏳ Команда 1'}
+                    {s.teamNameConfirmed.team1 ? `✓ ${s.t1n}` : `⏳ ${l('Команда 1', 'Team 1')}`}
                   </div>
                   <div className={`glass-card px-4 py-2 text-sm ${s.teamNameConfirmed.team2 ? 'text-green-400' : 'text-white/40'}`}>
                     <span className="w-2 h-2 rounded-full bg-red-500 inline-block mr-2" />
-                    {s.teamNameConfirmed.team2 ? `✓ ${s.t2n}` : '⏳ Команда 2'}
+                    {s.teamNameConfirmed.team2 ? `✓ ${s.t2n}` : `⏳ ${l('Команда 2', 'Team 2')}`}
                   </div>
                 </div>
               </div>
@@ -731,7 +746,7 @@ export default function HundredToOnePage() {
       {/* ── CAPTAIN SELECT ── */}
       {s.phase === 'captainSelect' && (
         <div className="max-w-md mx-auto text-center py-6 animate-fade-in">
-          <h2 className="text-2xl font-bold text-amber-400 mb-2">ВЫБОР КАПИТАНА</h2>
+          <h2 className="text-2xl font-bold text-amber-400 mb-2">{l('ВЫБОР КАПИТАНА', 'CAPTAIN SELECTION')}</h2>
 
           {/* View for team players */}
           {myTeam && (() => {
@@ -745,14 +760,14 @@ export default function HundredToOnePage() {
                 {confirmed ? (
                   <div className="text-center py-6">
                     <div className="text-4xl mb-3">✅</div>
-                    <p className="text-green-400 font-bold">Капитан выбран!</p>
+                    <p className="text-green-400 font-bold">{l('Капитан выбран!', 'Captain selected!')}</p>
                     <p className="text-white/40 text-sm mt-1">
-                      {myTeam === 'team1' ? (s.captainConfirmed.team2 ? '' : 'Ждём выбора второй команды...') : (s.captainConfirmed.team1 ? '' : 'Ждём выбора второй команды...')}
+                      {myTeam === 'team1' ? (s.captainConfirmed.team2 ? '' : l('Ждём выбора второй команды...', 'Waiting for the other team to choose...')) : (s.captainConfirmed.team1 ? '' : l('Ждём выбора второй команды...', 'Waiting for the other team to choose...'))}
                     </p>
                   </div>
                 ) : (
                   <>
-                    <p className="text-white/50 text-sm mb-4">Нажмите на имя, чтобы выбрать капитана</p>
+                    <p className="text-white/50 text-sm mb-4">{l('Нажмите на имя, чтобы выбрать капитана', 'Tap a name to choose a captain')}</p>
                     <div className="space-y-2 mb-6">
                       {myTeamPlayers.map(p => (
                         <div key={p.id}
@@ -762,13 +777,13 @@ export default function HundredToOnePage() {
                             {selectedCaptain === p.id ? '⭐' : p.nickname[0]?.toUpperCase() || '?'}
                           </div>
                           <span className={`font-bold ${selectedCaptain === p.id ? 'text-white' : 'text-white/70'}`}>{p.nickname}</span>
-                          {p.id === effectivePlayerId && <span className="text-xs text-white/30 ml-auto">вы</span>}
+                          {p.id === effectivePlayerId && <span className="text-xs text-white/30 ml-auto">{l('вы', 'you')}</span>}
                         </div>
                       ))}
                     </div>
                     {selectedCaptain && (
                       <GlassButton variant="primary" size="lg" onClick={confirmCaptain}>
-                        ПОДТВЕРДИТЬ КАПИТАНА
+                        {l('ПОДТВЕРДИТЬ КАПИТАНА', 'CONFIRM CAPTAIN')}
                       </GlassButton>
                     )}
                   </>
@@ -780,25 +795,25 @@ export default function HundredToOnePage() {
           {/* View for host */}
           {isGameHost && (
             <div className="mt-4">
-              <p className="text-white/40 text-sm mb-3">Статус выбора капитанов:</p>
+              <p className="text-white/40 text-sm mb-3">{l('Статус выбора капитанов:', 'Captain selection status:')}</p>
               <div className="flex gap-4 justify-center">
                 <div className={`glass-card px-4 py-2 text-sm ${s.captainConfirmed.team1 ? 'text-green-400' : 'text-white/40'}`}>
-                  {s.t1n}: {s.captainConfirmed.team1 ? '✓ выбран' : '⏳ ждём'}
+                  {s.t1n}: {s.captainConfirmed.team1 ? `✓ ${l('выбран', 'selected')}` : `⏳ ${l('ждём', 'waiting')}`}
                 </div>
                 <div className={`glass-card px-4 py-2 text-sm ${s.captainConfirmed.team2 ? 'text-green-400' : 'text-white/40'}`}>
-                  {s.t2n}: {s.captainConfirmed.team2 ? '✓ выбран' : '⏳ ждём'}
+                  {s.t2n}: {s.captainConfirmed.team2 ? `✓ ${l('выбран', 'selected')}` : `⏳ ${l('ждём', 'waiting')}`}
                 </div>
               </div>
               {/* Host can skip if needed */}
               <button onClick={() => update({ phase: 'teamNames' })} className="mt-4 text-xs text-white/25 hover:text-white/50">
-                Пропустить →
+                {l('Пропустить', 'Skip')} →
               </button>
             </div>
           )}
 
           {/* View for TV/no-role */}
           {!myTeam && !isGameHost && (
-            <p className="text-white/40 italic mt-4">Команды выбирают капитанов...</p>
+            <p className="text-white/40 italic mt-4">{l('Команды выбирают капитанов...', 'Teams are choosing captains...')}</p>
           )}
         </div>
       )}
@@ -807,13 +822,13 @@ export default function HundredToOnePage() {
       {s.phase === 'title' && (
         <div className="text-center py-12 animate-fade-in">
           <div className="text-8xl mb-6">💯</div>
-          <h2 className="text-4xl font-bold text-white mb-2" style={{ fontFamily: 'Russo One, sans-serif' }}>100 к 1</h2>
-          <p className="text-white/50 mb-2 text-lg">Телеигра</p>
+          <h2 className="text-4xl font-bold text-white mb-2" style={{ fontFamily: 'Russo One, sans-serif' }}>{l('100 к 1', '100 to 1')}</h2>
+          <p className="text-white/50 mb-2 text-lg">{l('Телеигра', 'TV game')}</p>
           <p className="text-white/30 text-sm mb-8">{s.t1n} vs {s.t2n}</p>
           {(isHost || isGameHost) ? (
-            <GlassButton variant="primary" size="lg" onClick={startGame}>НАЧАТЬ ИГРУ</GlassButton>
+            <GlassButton variant="primary" size="lg" onClick={startGame}>{l('НАЧАТЬ ИГРУ', 'START GAME')}</GlassButton>
           ) : (
-            <p className="text-white/40 italic">Ожидание ведущего...</p>
+            <p className="text-white/40 italic">{l('Ожидание ведущего...', 'Waiting for the host...')}</p>
           )}
         </div>
       )}
@@ -821,8 +836,8 @@ export default function HundredToOnePage() {
       {/* ── BUZZER ── */}
       {s.phase === 'buzzer' && (
         <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
-          <h2 className="text-2xl font-bold text-amber-400 mb-2">{ROUND_NAMES[s.curQ]}</h2>
-          <p className="text-white/60 mb-8">Кто первый из капитанов нажмёт на кнопку,<br/>та команда начинает раунд</p>
+          <h2 className="text-2xl font-bold text-amber-400 mb-2">{roundNames[s.curQ]}</h2>
+          <p className="text-white/60 mb-8">{l('Кто первый из капитанов нажмёт на кнопку,', 'The first captain to press the button')}<br/>{l('та команда начинает раунд', 'starts the round for their team')}</p>
 
           {/* Buzzer button — visible to captains */}
           {myTeam && effectivePlayerId === s.captains[myTeam] && s.buzzerWinner === 0 && (
@@ -841,7 +856,7 @@ export default function HundredToOnePage() {
                 {s.buzzerCountdown > 0
                   ? <span className="text-6xl font-bold animate-pulse">{s.buzzerCountdown}</span>
                   : s.buzzerActive
-                    ? <span className="text-4xl font-bold">ЖМИТЕ!</span>
+                    ? <span className="text-4xl font-bold">{l('ЖМИТЕ!', 'PRESS!')}</span>
                     : <span className="text-2xl">⏳</span>}
               </button>
             </div>
@@ -863,9 +878,9 @@ export default function HundredToOnePage() {
               {s.buzzerCountdown > 0
                 ? <p className="text-4xl font-bold text-red-400 animate-pulse">{s.buzzerCountdown}</p>
                 : s.buzzerWinner === 0
-                  ? <p className="text-white/40 italic">{s.buzzerActive ? 'Капитаны жмут кнопку!' : 'Ожидание...'}</p>
+                  ? <p className="text-white/40 italic">{s.buzzerActive ? l('Капитаны жмут кнопку!', 'Captains are pressing!') : l('Ожидание...', 'Waiting...')}</p>
                   : <p className={`text-xl font-bold animate-fade-in ${s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? 'text-green-400' : 'text-white/60'}`}>
-                      {s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? `Начинает ${myTeam === 'team1' ? s.t1n : s.t2n}!` : `Начинает ${s.buzzerWinner === 1 ? s.t1n : s.t2n}...`}
+                      {s.buzzerWinner === (myTeam === 'team1' ? 1 : 2) ? `${l('Начинает', 'Starts')}: ${myTeam === 'team1' ? s.t1n : s.t2n}!` : `${l('Начинает', 'Starts')}: ${s.buzzerWinner === 1 ? s.t1n : s.t2n}...`}
                     </p>
               }
             </div>
@@ -875,11 +890,11 @@ export default function HundredToOnePage() {
           {s.buzzerWinner !== 0 && (
             <div className="mt-4 animate-fade-in">
               <p className="text-xl font-bold text-white">
-                Начинает <span className={s.buzzerWinner === 1 ? 'text-yellow-400' : 'text-red-400'}>
+                {l('Начинает', 'Starts')}: <span className={s.buzzerWinner === 1 ? 'text-yellow-400' : 'text-red-400'}>
                   {s.buzzerWinner === 1 ? s.t1n : s.t2n}
                 </span>!
               </p>
-              <p className="text-white/40 text-sm mt-2">Раунд начинается...</p>
+              <p className="text-white/40 text-sm mt-2">{l('Раунд начинается...', 'Round is starting...')}</p>
             </div>
           )}
 
@@ -887,13 +902,13 @@ export default function HundredToOnePage() {
           {isGameHost && (
             <div className="mt-8">
               {s.buzzerCountdown < 0 && s.buzzerWinner === 0 && (
-                <GlassButton variant="primary" size="lg" onClick={startBuzzer}>ЗАПУСТИТЬ ОТСЧЁТ</GlassButton>
+                <GlassButton variant="primary" size="lg" onClick={startBuzzer}>{l('ЗАПУСТИТЬ ОТСЧЁТ', 'START COUNTDOWN')}</GlassButton>
               )}
               {s.buzzerCountdown > 0 && (
                 <p className="text-4xl font-bold text-red-400 animate-pulse">{s.buzzerCountdown}</p>
               )}
               {s.buzzerWinner !== 0 && (
-                <p className="text-white/30 text-sm">Переход к раунду через 3 секунды...</p>
+                <p className="text-white/30 text-sm">{l('Переход к раунду через 3 секунды...', 'Starting the round in 3 seconds...')}</p>
               )}
             </div>
           )}
@@ -904,23 +919,23 @@ export default function HundredToOnePage() {
       {s.phase === 'r4rules' && (
         <div className="max-w-2xl mx-auto text-center py-8 animate-fade-in">
           <div className="text-5xl mb-4">🔄</div>
-          <h2 className="text-3xl font-bold text-amber-400 mb-4">ИГРА НАОБОРОТ</h2>
+          <h2 className="text-3xl font-bold text-amber-400 mb-4">{l('ИГРА НАОБОРОТ', 'REVERSE GAME')}</h2>
           <GlassCard className="p-6 mb-6 text-left space-y-3">
-            <p className="text-white/80">В этом раунде правила меняются:</p>
+            <p className="text-white/80">{l('В этом раунде правила меняются:', 'The rules change this round:')}</p>
             <ul className="space-y-2 text-white/70 text-sm">
-              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">1.</span> Обе команды отвечают на один и тот же вопрос</li>
-              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">2.</span> Команды обсуждают ответ <span className="text-yellow-300 font-bold">60 секунд</span></li>
-              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">3.</span> Нужно найти <span className="text-red-400 font-bold">самый редкий</span> ответ</li>
-              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">4.</span> Чем ниже ответ в списке — тем больше очков!</li>
-              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">5.</span> Очки: 15, 30, 60, 120, 180, 240</li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">1.</span> {l('Обе команды отвечают на один и тот же вопрос', 'Both teams answer the same question')}</li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">2.</span> {l('Команды обсуждают ответ', 'Teams discuss their answer')} <span className="text-yellow-300 font-bold">{l('60 секунд', '60 seconds')}</span></li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">3.</span> {l('Нужно найти', 'Find')} <span className="text-red-400 font-bold">{l('самый редкий', 'the rarest')}</span> {l('ответ', 'answer')}</li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">4.</span> {l('Чем ниже ответ в списке — тем больше очков!', 'The lower the answer is on the list, the more points it gives!')}</li>
+              <li className="flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5">5.</span> {l('Очки: 15, 30, 60, 120, 180, 240', 'Points: 15, 30, 60, 120, 180, 240')}</li>
             </ul>
           </GlassCard>
           {isGameHost && (
             <GlassButton variant="primary" size="lg" onClick={() => update({ phase: 'playing' })}>
-              НАЧАТЬ РАУНД 4
+              {l('НАЧАТЬ РАУНД 4', 'START ROUND 4')}
             </GlassButton>
           )}
-          {!isGameHost && <p className="text-white/40 text-sm animate-pulse">Ведущий начнёт раунд...</p>}
+          {!isGameHost && <p className="text-white/40 text-sm animate-pulse">{l('Ведущий начнёт раунд...', 'Host will start the round...')}</p>}
         </div>
       )}
 
@@ -936,7 +951,7 @@ export default function HundredToOnePage() {
             </div>
             <div className="text-center shrink-0">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
-              <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
+              <div className="text-[10px] text-white/40 mt-0.5">{l('РАУНД', 'ROUND')}</div>
             </div>
             <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 || s.curQ === 3 ? '' : 'opacity-50'}`}>
               <span className="font-bold text-white text-base shrink-0">{s.t2s}</span>
@@ -945,7 +960,7 @@ export default function HundredToOnePage() {
             </div>
           </div>
           <div className="text-center mb-2">
-            <span className="text-amber-400 font-bold text-sm tracking-widest">{ROUND_NAMES[s.curQ]}</span>
+            <span className="text-amber-400 font-bold text-sm tracking-widest">{roundNames[s.curQ]}</span>
           </div>
           {/* Strikes for BOTH teams (no team names on phones) */}
           {s.curQ <= 2 && (
@@ -966,7 +981,7 @@ export default function HundredToOnePage() {
           )}
           {/* Question */}
           <GlassCard className="p-5 mb-3 text-center bg-amber-900/25 border-amber-500/50">
-            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1.5">ВОПРОС</p>
+            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1.5">{l('ВОПРОС', 'QUESTION')}</p>
             <p className="text-xl md:text-2xl font-bold text-white">{q.q}</p>
           </GlassCard>
           {/* Answer board — only published answers visible */}
@@ -988,14 +1003,14 @@ export default function HundredToOnePage() {
           {/* Fund */}
           {s.curQ <= 2 && (
             <div className="flex items-center justify-center gap-3">
-              <span className="text-xs text-white/40 font-bold">БАНК:</span>
+              <span className="text-xs text-white/40 font-bold">{l('БАНК:', 'BANK:')}</span>
               <span className="font-bold text-yellow-300 text-xl">{s.roundFund[s.curQ]}</span>
             </div>
           )}
           {/* Round 4 timer on player screen */}
           {s.curQ === 3 && (
             <div className="text-center mt-2">
-              <span className="text-xs text-white/40 font-bold">ОБСУЖДЕНИЕ: </span>
+              <span className="text-xs text-white/40 font-bold">{l('ОБСУЖДЕНИЕ:', 'DISCUSSION:')} </span>
               <span className={`font-bold text-2xl ${s.r4Time <= 10 && s.r4Time > 0 ? 'text-red-400 animate-pulse' : 'text-yellow-300'}`}>
                 {Math.floor(s.r4Time / 60)}:{(s.r4Time % 60).toString().padStart(2, '0')}
               </span>
@@ -1016,7 +1031,7 @@ export default function HundredToOnePage() {
             </div>
             <div className="text-center">
               <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-2xl">{s.curQ + 1}</div>
-              <div className="text-xs text-white/40 mt-1">РАУНД</div>
+              <div className="text-xs text-white/40 mt-1">{l('РАУНД', 'ROUND')}</div>
             </div>
             <div className={`glass-card px-6 py-3 flex items-center gap-3 ${s.roundActiveTeam[s.curQ] === 2 && s.curQ <= 2 ? 'ring-2 ring-red-400 bg-red-500/10' : ''}`}>
               <span className="font-bold text-red-300 text-3xl mr-2">{s.t2s}</span>
@@ -1025,7 +1040,7 @@ export default function HundredToOnePage() {
             </div>
           </div>
           <div className="text-center mb-2">
-            <span className="text-amber-400 font-bold text-lg tracking-widest">{ROUND_NAMES[s.curQ]}</span>
+            <span className="text-amber-400 font-bold text-lg tracking-widest">{roundNames[s.curQ]}</span>
           </div>
           {/* Fund + Strikes */}
           {s.curQ <= 2 && (
@@ -1034,7 +1049,7 @@ export default function HundredToOnePage() {
                 {[0, 1, 2].map(i => <div key={i} className={`w-9 h-9 rounded-full flex items-center justify-center text-lg font-bold ${i < s.strikes[s.curQ][0] ? 'bg-red-500/30 text-red-400' : 'bg-white/5 text-white/15'}`}>✕</div>)}
               </div>
               <div className="text-center">
-                <span className="text-xs text-white/40">БАНК</span>
+                <span className="text-xs text-white/40">{l('БАНК', 'BANK')}</span>
                 <div className="font-bold text-yellow-300 text-2xl">{s.roundFund[s.curQ]}</div>
               </div>
               <div className="flex items-center gap-1">
@@ -1044,7 +1059,7 @@ export default function HundredToOnePage() {
           )}
           {/* Question */}
           <GlassCard className="p-6 mb-4 text-center bg-amber-900/25 border-amber-500/50">
-            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-2">ВОПРОС</p>
+            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-2">{l('ВОПРОС', 'QUESTION')}</p>
             <p className="text-2xl md:text-3xl font-bold text-white">{q.q}</p>
           </GlassCard>
           {/* Answer board */}
@@ -1063,9 +1078,9 @@ export default function HundredToOnePage() {
               );
             })}
           </div>
-          {s.roundPhase[s.curQ] === 'switched' && <p className="text-center text-amber-400 font-bold">Ход → {s.roundActiveTeam[s.curQ] === 1 ? s.t1n : s.t2n}</p>}
-          {s.roundPhase[s.curQ] === 'won' && !allRevealed && <p className="text-center text-white/50 italic">проверка оставшихся ответов</p>}
-          {s.roundPhase[s.curQ] === 'won' && allRevealed && <p className="text-center text-green-400 font-bold">✓ Все ответы открыты</p>}
+          {s.roundPhase[s.curQ] === 'switched' && <p className="text-center text-amber-400 font-bold">{l('Ход', 'Turn')} → {s.roundActiveTeam[s.curQ] === 1 ? s.t1n : s.t2n}</p>}
+          {s.roundPhase[s.curQ] === 'won' && !allRevealed && <p className="text-center text-white/50 italic">{l('проверка оставшихся ответов', 'checking remaining answers')}</p>}
+          {s.roundPhase[s.curQ] === 'won' && allRevealed && <p className="text-center text-green-400 font-bold">✓ {l('Все ответы открыты', 'All answers revealed')}</p>}
         </div>
       )}
 
@@ -1081,7 +1096,7 @@ export default function HundredToOnePage() {
             </div>
             <div className="text-center shrink-0">
               <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center font-bold text-black text-lg">{s.curQ + 1}</div>
-              <div className="text-[10px] text-white/40 mt-0.5">РАУНД</div>
+              <div className="text-[10px] text-white/40 mt-0.5">{l('РАУНД', 'ROUND')}</div>
             </div>
             <div className={`glass-card px-2 py-1.5 flex items-center gap-1.5 transition-all ${s.roundActiveTeam[s.curQ] === 2 ? 'outline outline-4 outline-red-500 outline-offset-[-2px]' : s.roundActiveTeam[s.curQ] === 0 || s.curQ === 3 ? '' : 'opacity-50'}`}>
               <span className="font-bold text-white text-base shrink-0">{s.t2s}</span>
@@ -1092,20 +1107,20 @@ export default function HundredToOnePage() {
 
           {/* Round type */}
           <div className="text-center mb-2">
-            <span className="text-amber-400 font-bold text-sm tracking-widest">{ROUND_NAMES[s.curQ]}</span>
+            <span className="text-amber-400 font-bold text-sm tracking-widest">{roundNames[s.curQ]}</span>
             {isGameHost && s.curQ <= 2 && s.roundPhase[s.curQ] === 'start' && s.roundActiveTeam[s.curQ] > 0 && (
-              <button onClick={() => setTeamChooser(true)} className="ml-2 text-xs text-white/40 hover:text-white/80">↺ сменить</button>
+              <button onClick={() => setTeamChooser(true)} className="ml-2 text-xs text-white/40 hover:text-white/80">↺ {l('сменить', 'change')}</button>
             )}
           </div>
 
           {/* Fund (rounds 0-2) */}
           {s.curQ <= 2 && (
             <div className="flex items-center justify-center gap-3 mb-2">
-              <span className="text-xs text-white/40 font-bold">БАНК:</span>
+              <span className="text-xs text-white/40 font-bold">{l('БАНК:', 'BANK:')}</span>
               <span className="font-bold text-yellow-300 text-xl px-3 py-0.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20">{s.roundFund[s.curQ]}</span>
-              {s.roundPhase[s.curQ] === 'switched' && <span className="text-xs text-amber-400 font-bold">Ход → {s.roundActiveTeam[s.curQ] === 1 ? s.t1n : s.t2n}</span>}
-              {s.roundPhase[s.curQ] === 'won' && !allRevealed && <span className="text-xs text-white/50 italic">проверка оставшихся ответов</span>}
-              {s.roundPhase[s.curQ] === 'won' && allRevealed && <span className="text-xs text-green-400 font-bold">✓ Все ответы открыты</span>}
+              {s.roundPhase[s.curQ] === 'switched' && <span className="text-xs text-amber-400 font-bold">{l('Ход', 'Turn')} → {s.roundActiveTeam[s.curQ] === 1 ? s.t1n : s.t2n}</span>}
+              {s.roundPhase[s.curQ] === 'won' && !allRevealed && <span className="text-xs text-white/50 italic">{l('проверка оставшихся ответов', 'checking remaining answers')}</span>}
+              {s.roundPhase[s.curQ] === 'won' && allRevealed && <span className="text-xs text-green-400 font-bold">✓ {l('Все ответы открыты', 'All answers revealed')}</span>}
             </div>
           )}
 
@@ -1135,7 +1150,7 @@ export default function HundredToOnePage() {
 
           {/* Question */}
           <GlassCard className="p-4 mb-3 text-center bg-amber-900/25 border-amber-500/50">
-            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1">ВОПРОС</p>
+            <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1">{l('ВОПРОС', 'QUESTION')}</p>
             <p className="text-lg md:text-xl font-bold text-white">{q.q}</p>
           </GlassCard>
 
@@ -1164,13 +1179,13 @@ export default function HundredToOnePage() {
           {/* Round 4 discussion timer */}
           {isGameHost && s.curQ === 3 && (
             <div className="flex items-center justify-center gap-3 mb-3">
-              <span className="text-xs text-white/40 font-bold">ОБСУЖДЕНИЕ:</span>
+              <span className="text-xs text-white/40 font-bold">{l('ОБСУЖДЕНИЕ:', 'DISCUSSION:')}</span>
               <span className={`font-bold text-2xl min-w-[60px] text-center ${s.r4Time <= 10 && s.r4Time > 0 ? 'text-red-400 animate-pulse' : 'text-yellow-300'}`}>
                 {Math.floor(s.r4Time / 60)}:{(s.r4Time % 60).toString().padStart(2, '0')}
               </span>
               {!s.r4Running
-                ? <GlassButton size="sm" onClick={r4Start}>{s.r4Time < 60 ? '▶ ПРОДОЛЖИТЬ' : '▶ СТАРТ'}</GlassButton>
-                : <GlassButton size="sm" onClick={r4Pause}>⏸ ПАУЗА</GlassButton>}
+                ? <GlassButton size="sm" onClick={r4Start}>{s.r4Time < 60 ? `▶ ${l('ПРОДОЛЖИТЬ', 'CONTINUE')}` : `▶ ${l('СТАРТ', 'START')}`}</GlassButton>
+                : <GlassButton size="sm" onClick={r4Pause}>⏸ {l('ПАУЗА', 'PAUSE')}</GlassButton>}
               <GlassButton size="sm" onClick={r4Reset}>↺</GlassButton>
             </div>
           )}
@@ -1178,10 +1193,10 @@ export default function HundredToOnePage() {
           {/* Host controls */}
           {isGameHost && (
             <div className="flex flex-wrap gap-2 justify-center items-center">
-              {s.curQ > 0 && <GlassButton size="sm" onClick={prevRound}>← Назад</GlassButton>}
-              <GlassButton size="sm" onClick={resetRound} className="!border-red-400/50 !text-red-300">↺ Сброс раунда</GlassButton>
+              {s.curQ > 0 && <GlassButton size="sm" onClick={prevRound}>← {l('Назад', 'Back')}</GlassButton>}
+              <GlassButton size="sm" onClick={resetRound} className="!border-red-400/50 !text-red-300">↺ {l('Сброс раунда', 'Reset round')}</GlassButton>
               {canNext && <GlassButton variant="primary" size="sm" onClick={nextRound}>
-                {s.curQ < 3 ? 'Далее →' : 'Итоги →'}
+                {s.curQ < 3 ? `${l('Далее', 'Next')} →` : `${l('Итоги', 'Results')} →`}
               </GlassButton>}
             </div>
           )}
@@ -1191,25 +1206,25 @@ export default function HundredToOnePage() {
       {/* ── RESULTS ── */}
       {s.phase === 'results' && (
         <div className="max-w-md mx-auto text-center py-8 animate-fade-in">
-          <h2 className="text-2xl font-bold text-amber-400 mb-6">ИТОГИ РАУНДОВ</h2>
+          <h2 className="text-2xl font-bold text-amber-400 mb-6">{l('ИТОГИ РАУНДОВ', 'ROUND RESULTS')}</h2>
           <div className="flex gap-4 justify-center mb-4">
             <GlassCard className={`p-6 flex-1 text-center ${s.t1s >= s.t2s ? 'ring-2 ring-yellow-400/50' : ''}`}>
               <p className="text-yellow-400 font-bold mb-1">{s.t1n}</p>
               <p className="text-3xl font-bold text-white">{s.t1s}</p>
-              {s.t1s > s.t2s && <p className="text-xs text-amber-400 mt-1">🏆 Победитель!</p>}
+              {s.t1s > s.t2s && <p className="text-xs text-amber-400 mt-1">🏆 {l('Победитель!', 'Winner!')}</p>}
             </GlassCard>
             <GlassCard className={`p-6 flex-1 text-center ${s.t2s > s.t1s ? 'ring-2 ring-red-400/50' : ''}`}>
               <p className="text-red-400 font-bold mb-1">{s.t2n}</p>
               <p className="text-3xl font-bold text-white">{s.t2s}</p>
-              {s.t2s > s.t1s && <p className="text-xs text-amber-400 mt-1">🏆 Победитель!</p>}
+              {s.t2s > s.t1s && <p className="text-xs text-amber-400 mt-1">🏆 {l('Победитель!', 'Winner!')}</p>}
             </GlassCard>
           </div>
-          <p className="text-white/50 mb-6">Команда «{s.t1s >= s.t2s ? s.t1n : s.t2n}» играет Большую игру!</p>
+          <p className="text-white/50 mb-6">{l('Команда', 'Team')} &quot;{s.t1s >= s.t2s ? s.t1n : s.t2n}&quot; {l('играет Большую игру!', 'plays the Big Game!')}</p>
           {isGameHost && (
             <div className="flex gap-3 justify-center">
-              <GlassButton onClick={endGame}>В лобби</GlassButton>
+              <GlassButton onClick={endGame}>{l('В лобби', 'To lobby')}</GlassButton>
               <GlassButton variant="primary" onClick={() => update({ phase: 'bigGame', bgPhase: 0, bgP1Ans: [], bgP2Ans: [], bgP1Matched: [], bgP2Matched: [], bgFund: 0, bgCurQ: 0, bgP1Id: '', bgP2Id: '', winTeam: s.t1s >= s.t2s ? 1 : 2 })}>
-                БОЛЬШАЯ ИГРА →
+                {l('БОЛЬШАЯ ИГРА', 'BIG GAME')} →
               </GlassButton>
             </div>
           )}
@@ -1220,8 +1235,8 @@ export default function HundredToOnePage() {
       {teamChooser && isGameHost && s.curQ <= 2 && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center" onClick={() => setTeamChooser(false)}>
           <GlassCard className="p-8 max-w-sm text-center" onClick={undefined}>
-            <h3 className="text-xl font-bold text-amber-400 mb-2">КТО НАЧИНАЕТ?</h3>
-            <p className="text-white/50 text-sm mb-6">{ROUND_NAMES[s.curQ]}</p>
+            <h3 className="text-xl font-bold text-amber-400 mb-2">{l('КТО НАЧИНАЕТ?', 'WHO STARTS?')}</h3>
+            <p className="text-white/50 text-sm mb-6">{roundNames[s.curQ]}</p>
             <div className="flex gap-4">
               <GlassButton className="flex-1 !border-yellow-400 !bg-yellow-500/10" onClick={() => chooseTeam(1)}>{s.t1n}</GlassButton>
               <GlassButton className="flex-1 !border-red-400 !bg-red-500/10" onClick={() => chooseTeam(2)}>{s.t2n}</GlassButton>
@@ -1234,14 +1249,14 @@ export default function HundredToOnePage() {
       {assignModal && isGameHost && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <GlassCard className="p-6 max-w-sm text-center">
-            <p className="text-amber-400 font-bold mb-1">ОТВЕТ ОТКРЫТ!</p>
+            <p className="text-amber-400 font-bold mb-1">{l('ОТВЕТ ОТКРЫТ!', 'ANSWER REVEALED!')}</p>
             <p className="text-3xl font-bold text-yellow-300 mb-4">+{assignModal.pts}</p>
-            <p className="text-white/50 text-sm mb-4">Какой команде записать очки?</p>
+            <p className="text-white/50 text-sm mb-4">{l('Какой команде записать очки?', 'Which team gets the points?')}</p>
             <div className="flex gap-3 mb-2">
               <GlassButton className="flex-1 !border-yellow-400 !bg-yellow-500/10" onClick={() => assignPts(1)}>{s.t1n}</GlassButton>
               <GlassButton className="flex-1 !border-red-400 !bg-red-500/10" onClick={() => assignPts(2)}>{s.t2n}</GlassButton>
             </div>
-            <button onClick={() => assignPts(0)} className="text-xs text-white/30 hover:text-white/60">Никому</button>
+            <button onClick={() => assignPts(0)} className="text-xs text-white/30 hover:text-white/60">{l('Никому', 'Nobody')}</button>
           </GlassCard>
         </div>
       )}
@@ -1249,7 +1264,7 @@ export default function HundredToOnePage() {
       {/* ── BIG GAME ── */}
       {s.phase === 'bigGame' && (
         <div className="max-w-3xl mx-auto w-full py-4 animate-fade-in">
-          <h2 className="text-2xl font-bold text-amber-400 text-center mb-2">БОЛЬШАЯ ИГРА</h2>
+          <h2 className="text-2xl font-bold text-amber-400 text-center mb-2">{l('БОЛЬШАЯ ИГРА', 'BIG GAME')}</h2>
 
           {/* Intro (bgPhase 0) — winning team picks 2 players */}
           {s.bgPhase === 0 && (() => {
@@ -1263,11 +1278,11 @@ export default function HundredToOnePage() {
             const p2Name = s.players.find(p => p.id === s.bgP2Id)?.nickname;
             return (
               <div className="text-center">
-                <p className="text-white/50 mb-4">Команда «{winTeamName}»: капитан выбирает 2 игроков.<br/>Игрок 1 — 30 сек, Игрок 2 — 40 сек.<br/><span className="text-amber-400/60">Второй не должен слышать ответы первого!</span></p>
+                <p className="text-white/50 mb-4">{l('Команда', 'Team')} &quot;{winTeamName}&quot;: {l('капитан выбирает 2 игроков.', 'the captain chooses 2 players.')}<br/>{l('Игрок 1 — 30 сек, Игрок 2 — 40 сек.', 'Player 1 has 30 sec, Player 2 has 40 sec.')}<br/><span className="text-amber-400/60">{l('Второй не должен слышать ответы первого!', 'The second player must not hear the first player answers!')}</span></p>
                 {isCaptain ? (
                   <div className="max-w-xl mx-auto space-y-4 mb-4">
                     <div>
-                      <p className="text-xs text-yellow-400 font-bold mb-2">ИГРОК 1 (30 СЕК)</p>
+                      <p className="text-xs text-yellow-400 font-bold mb-2">{l('ИГРОК 1 (30 СЕК)', 'PLAYER 1 (30 SEC)')}</p>
                       <div className="flex flex-wrap gap-2 justify-center">
                         {winTeamPlayers.map(p => (
                           <button key={p.id} onClick={() => bgSelectPlayer(1, p.id)}
@@ -1279,7 +1294,7 @@ export default function HundredToOnePage() {
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs text-amber-400 font-bold mb-2">ИГРОК 2 (40 СЕК)</p>
+                      <p className="text-xs text-amber-400 font-bold mb-2">{l('ИГРОК 2 (40 СЕК)', 'PLAYER 2 (40 SEC)')}</p>
                       <div className="flex flex-wrap gap-2 justify-center">
                         {winTeamPlayers.map(p => (
                           <button key={p.id} onClick={() => bgSelectPlayer(2, p.id)}
@@ -1293,14 +1308,14 @@ export default function HundredToOnePage() {
                   </div>
                 ) : (
                   <div className="mb-4 text-sm text-white/50">
-                    <p>Игрок 1: <span className="text-yellow-300 font-bold">{p1Name || '—'}</span></p>
-                    <p>Игрок 2: <span className="text-amber-300 font-bold">{p2Name || '—'}</span></p>
-                    {!bothPicked && <p className="text-xs text-white/30 mt-2">Капитан выбирает игроков...</p>}
+                    <p>{l('Игрок 1:', 'Player 1:')} <span className="text-yellow-300 font-bold">{p1Name || '—'}</span></p>
+                    <p>{l('Игрок 2:', 'Player 2:')} <span className="text-amber-300 font-bold">{p2Name || '—'}</span></p>
+                    {!bothPicked && <p className="text-xs text-white/30 mt-2">{l('Капитан выбирает игроков...', 'Captain is choosing players...')}</p>}
                   </div>
                 )}
                 {isGameHost && (
                   <GlassButton variant="primary" disabled={!bothPicked} onClick={() => bgStartPlayer(1)}>
-                    {bothPicked ? 'НАЧАТЬ (ИГРОК 1 — 30 сек)' : 'Ждём выбора игроков...'}
+                    {bothPicked ? l('НАЧАТЬ (ИГРОК 1 — 30 сек)', 'START (PLAYER 1 — 30 sec)') : l('Ждём выбора игроков...', 'Waiting for player selection...')}
                   </GlassButton>
                 )}
               </div>
@@ -1310,14 +1325,14 @@ export default function HundredToOnePage() {
           {/* Player label */}
           {s.bgPhase >= 1 && s.bgPhase <= 4 && (
             <p className="text-center font-bold text-yellow-300 mb-2">
-              {s.bgPhase === 1 ? 'ИГРОК 1 — 30 секунд' : s.bgPhase === 2 ? 'ПРОВЕРКА ОТВЕТОВ ИГРОКА 1' : s.bgPhase === 3 ? 'ИГРОК 2 — 40 секунд' : 'ПРОВЕРКА ОТВЕТОВ ИГРОКА 2'}
+              {s.bgPhase === 1 ? l('ИГРОК 1 — 30 секунд', 'PLAYER 1 — 30 seconds') : s.bgPhase === 2 ? l('ПРОВЕРКА ОТВЕТОВ ИГРОКА 1', 'CHECKING PLAYER 1 ANSWERS') : s.bgPhase === 3 ? l('ИГРОК 2 — 40 секунд', 'PLAYER 2 — 40 seconds') : l('ПРОВЕРКА ОТВЕТОВ ИГРОКА 2', 'CHECKING PLAYER 2 ANSWERS')}
             </p>
           )}
 
           {/* Fund */}
           {s.bgPhase >= 1 && (
             <p className={`text-center font-bold text-3xl mb-3 ${s.bgFund >= 200 ? 'text-green-400 animate-pulse' : 'text-yellow-300'}`}>
-              ФОНД: {s.bgFund}
+              {l('ФОНД:', 'FUND:')} {s.bgFund}
             </p>
           )}
 
@@ -1326,17 +1341,17 @@ export default function HundredToOnePage() {
             (s.bgPhase === 1 ? effectivePlayerId === s.bgP1Id : effectivePlayerId === s.bgP2Id) && (
             <div className="mb-3">
               <GlassCard className="p-5 mb-3 text-center bg-amber-900/25 border-amber-500/50">
-                <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1.5">ВОПРОС {s.bgCurQ + 1} ИЗ 5</p>
+                <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-1.5">{l('ВОПРОС', 'QUESTION')} {s.bgCurQ + 1} {l('ИЗ', 'OF')} 5</p>
                 <p className="text-xl md:text-2xl font-bold text-white">{BIG_Q[s.bgCurQ].q}</p>
               </GlassCard>
               <div className="text-center">
                 <input value={bgInput} onChange={e => { setBgInput(e.target.value); bgPauseTimer(); }}
                   onKeyDown={e => { if (e.key === 'Enter') { bgResumeTimer(); bgSubmitAnswer(); } }}
-                  placeholder="Ответ → Enter" autoFocus
+                  placeholder={l('Ответ → Enter', 'Answer → Enter')} autoFocus
                   className="w-full max-w-md px-4 py-3 rounded-xl bg-white/5 border border-amber-400/40 text-white text-center font-bold text-lg outline-none focus:border-amber-400" />
                 {bgDupMsg
-                  ? <p className="text-sm text-red-400 font-bold mt-1 animate-pulse">Этот ответ уже был!</p>
-                  : <p className="text-xs text-white/30 mt-1">⏸ Таймер на паузе · Enter — отправить</p>}
+                  ? <p className="text-sm text-red-400 font-bold mt-1 animate-pulse">{l('Этот ответ уже был!', 'This answer was already used!')}</p>
+                  : <p className="text-xs text-white/30 mt-1">⏸ {l('Таймер на паузе · Enter — отправить', 'Timer paused · Enter to send')}</p>}
                 {/* Timer pinned near input so it's visible with keyboard open */}
                 <div className="mt-2">
                   <span className={`font-bold text-2xl ${s.bgTimeLeft <= 5 ? 'text-red-400 animate-pulse' : s.bgTimerPaused ? 'text-yellow-300' : 'text-white'}`}>
@@ -1412,11 +1427,11 @@ export default function HundredToOnePage() {
               {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 && (
                 <div className="text-center mb-3">
                   <p className="text-sm text-white/40">
-                    Отвечает: <span className="text-yellow-300 font-bold">
+                    {l('Отвечает:', 'Answering:')} <span className="text-yellow-300 font-bold">
                       {s.players.find(p => p.id === (s.bgPhase === 1 ? s.bgP1Id : s.bgP2Id))?.nickname || '—'}
                     </span>
                   </p>
-                  <p className="text-xs text-white/30 mt-1">Вопрос {s.bgCurQ + 1}/5</p>
+                  <p className="text-xs text-white/30 mt-1">{l('Вопрос', 'Question')} {s.bgCurQ + 1}/5</p>
                 </div>
               )}
             </>
@@ -1425,21 +1440,21 @@ export default function HundredToOnePage() {
           {/* Manual transition to check phase */}
           {isGameHost && (s.bgPhase === 1 || s.bgPhase === 3) && (s.bgCurQ >= 5 || s.bgTimeLeft === 0) && (
             <div className="text-center mb-3">
-              <GlassButton variant="primary" onClick={bgGoToCheck}>ПЕРЕЙТИ К ПРОВЕРКЕ →</GlassButton>
+              <GlassButton variant="primary" onClick={bgGoToCheck}>{l('ПЕРЕЙТИ К ПРОВЕРКЕ', 'GO TO CHECK')} →</GlassButton>
             </div>
           )}
 
           {/* Action buttons */}
           {isGameHost && s.bgPhase === 2 && (
             <div className="text-center flex items-center justify-center gap-3">
-              <GlassButton onClick={() => bgDoCheck(true)}>АВТО-ПРОВЕРКА</GlassButton>
-              <GlassButton variant="primary" onClick={() => bgStartPlayer(2)}>ИГРОК 2 (40 сек) →</GlassButton>
+              <GlassButton onClick={() => bgDoCheck(true)}>{l('АВТО-ПРОВЕРКА', 'AUTO-CHECK')}</GlassButton>
+              <GlassButton variant="primary" onClick={() => bgStartPlayer(2)}>{l('ИГРОК 2 (40 сек)', 'PLAYER 2 (40 sec)')} →</GlassButton>
             </div>
           )}
           {isGameHost && s.bgPhase === 4 && (
             <div className="text-center flex items-center justify-center gap-3">
-              <GlassButton onClick={() => bgDoCheck(false)}>АВТО-ПРОВЕРКА</GlassButton>
-              <GlassButton variant="primary" onClick={bgShowResult}>РЕЗУЛЬТАТ →</GlassButton>
+              <GlassButton onClick={() => bgDoCheck(false)}>{l('АВТО-ПРОВЕРКА', 'AUTO-CHECK')}</GlassButton>
+              <GlassButton variant="primary" onClick={bgShowResult}>{l('РЕЗУЛЬТАТ', 'RESULT')} →</GlassButton>
             </div>
           )}
         </div>
@@ -1451,19 +1466,19 @@ export default function HundredToOnePage() {
           <div className="text-6xl mb-4">🏆</div>
           {s.bgFund >= 200 ? (
             <>
-              <h2 className="text-3xl font-bold text-green-400 mb-2">ПОБЕДА! 🎉</h2>
-              <p className="text-white/50 mb-6">Фонд: {s.bgFund} очков (≥200). Команда «{s.winTeam === 1 ? s.t1n : s.t2n}» выиграла!</p>
+              <h2 className="text-3xl font-bold text-green-400 mb-2">{l('ПОБЕДА! 🎉', 'VICTORY! 🎉')}</h2>
+              <p className="text-white/50 mb-6">{l('Фонд:', 'Fund:')} {s.bgFund} {l('очков (≥200). Команда', 'points (≥200). Team')} &quot;{s.winTeam === 1 ? s.t1n : s.t2n}&quot; {l('выиграла!', 'won!')}</p>
             </>
           ) : (
             <>
-              <h2 className="text-3xl font-bold text-amber-400 mb-2">ИГРА ОКОНЧЕНА</h2>
-              <p className="text-white/50 mb-6">Фонд: {s.bgFund} очков. Не хватило до 200. Отличная игра!</p>
+              <h2 className="text-3xl font-bold text-amber-400 mb-2">{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</h2>
+              <p className="text-white/50 mb-6">{l('Фонд:', 'Fund:')} {s.bgFund} {l('очков. Не хватило до 200. Отличная игра!', 'points. Not enough to reach 200. Great game!')}</p>
             </>
           )}
           {isGameHost && (
             <div className="flex gap-3 justify-center">
-              <GlassButton onClick={endGame}>В лобби</GlassButton>
-              <GlassButton variant="primary" onClick={startGame}>ИГРАТЬ СНОВА</GlassButton>
+              <GlassButton onClick={endGame}>{l('В лобби', 'To lobby')}</GlassButton>
+              <GlassButton variant="primary" onClick={startGame}>{l('ИГРАТЬ СНОВА', 'PLAY AGAIN')}</GlassButton>
             </div>
           )}
         </div>
