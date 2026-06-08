@@ -7,6 +7,7 @@ import { useRoomState } from '@/lib/use-room-state';
 import { useGameAction, useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
+import { useTranslation } from '@/lib/i18n';
 import { GameLayout } from '@/components/games/GameLayout';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -65,6 +66,7 @@ interface DrawCanvasProps {
 }
 
 function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
+  const { locale } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
@@ -152,7 +154,7 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
           onClick={() => { clearAll(); onClear(); }}
           className="absolute top-2 right-2 px-3 py-1 rounded-md bg-white/10 text-white/50 text-xs hover:bg-white/20"
         >
-          Очистить
+          {locale === "ru" ? "Очистить" : "Clear"}
         </button>
       )}
     </div>
@@ -164,6 +166,7 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
 export default function SpyGamePage() {
   const { roomId } = useParams<{ roomId: string }>();
   const router = useRouter();
+  const { locale } = useTranslation();
   const { user, effectivePlayerId, isGameHost } = useGameIdentity(roomId);
   useNavigateOnGameEnd(roomId, user ? 'lobby' : 'phone');
   const { emit, on } = useSocket();
@@ -187,6 +190,10 @@ export default function SpyGamePage() {
   const isDrawer = s.mode === 'draw' && isActivePlayer;
   const sendAction = useGameAction(roomId);
   const broadcast = useGameBroadcast(roomId, 'spy:sync') as (payload: Partial<SpyGameState>) => void;
+  const l = useCallback(
+    (ru: string, en: string) => (locale === 'ru' ? ru : en),
+    [locale],
+  );
 
   useRoomState(roomId, (data) => {
     const room = data as { players: GamePlayer[] };
@@ -348,63 +355,61 @@ export default function SpyGamePage() {
   };
 
   const endGame = () => {
-    if (confirm('Завершить игру?')) {
-      emit('game:end', { code: roomId });
-      router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
-    }
+    emit('game:end', { code: roomId });
+    router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
   };
 
   // ── Render ──
   return (
-    <GameLayout title="Шпион" icon="🕵️‍♂️" onEnd={isGameHost ? endGame : undefined} phaseKey={s.phase}>
+    <GameLayout title={l('Шпион', 'Spy')} icon="🕵️‍♂️" onEnd={isGameHost ? endGame : undefined} phaseKey={s.phase}>
 
       {/* ── MODE SELECT + RULES ── */}
       {s.phase === 'modeSelect' && (
         <div className="max-w-lg mx-auto py-6 animate-fade-in space-y-4">
           <div className="text-center">
             <div className="text-6xl mb-2">🕵️‍♂️</div>
-            <h2 className="text-2xl font-bold text-white mb-1">ШПИОН</h2>
-            <p className="text-white/50 text-sm">Один из вас — шпион. Остальные знают слово.</p>
+            <h2 className="text-2xl font-bold text-white mb-1">{l('ШПИОН', 'SPY')}</h2>
+            <p className="text-white/50 text-sm">{l('Один из вас — шпион. Остальные знают слово.', 'One of you is the spy. Everyone else knows the word.')}</p>
           </div>
 
           {/* Rules */}
           <GlassCard className="p-4 space-y-3 text-sm">
-            <p className="font-bold text-amber-400 text-base">📖 Как играть</p>
+            <p className="font-bold text-amber-400 text-base">{l('📖 Как играть', '📖 How to play')}</p>
             <div className="space-y-2 text-white/80">
               <p>
-                <span className="text-white font-semibold">🎭 Роли</span>
-                {' '}— все видят секретное слово, кроме одного игрока: шпиона. Он должен это скрыть.
+                <span className="text-white font-semibold">{l('🎭 Роли', '🎭 Roles')}</span>
+                {' '}{l('— все видят секретное слово, кроме одного игрока: шпиона. Он должен это скрыть.', '— everyone sees the secret word except one player: the spy. They must hide it.')}
               </p>
               <p>
-                <span className="text-white font-semibold">💬 Вопросы</span>
-                {' '}— игроки задают друг другу вопросы, связанные со словом. Отвечай убедительно, не раскрывая слово — шпион слушает и пытается понять, что загадано.
+                <span className="text-white font-semibold">{l('💬 Вопросы', '💬 Questions')}</span>
+                {' '}{l('— игроки задают друг другу вопросы, связанные со словом. Отвечай убедительно, не раскрывая слово — шпион слушает и пытается понять, что загадано.', '— players ask each other questions about the word. Answer convincingly without revealing it — the spy listens and tries to figure out the word.')}
               </p>
               <p>
-                <span className="text-white font-semibold">🕵️ Задача шпиона</span>
-                {' '}— отвечать уклончиво, не выдавая незнания. Если угадает слово до разоблачения — победа!
+                <span className="text-white font-semibold">{l('🕵️ Задача шпиона', "🕵️ The spy's goal")}</span>
+                {' '}{l('— отвечать уклончиво, не выдавая незнания. Если угадает слово до разоблачения — победа!', '— answer evasively without showing ignorance. Guess the word before being exposed to win!')}
               </p>
               <p>
-                <span className="text-white font-semibold">🗳️ Голосование</span>
-                {' '}— в конце все голосуют: кто шпион? Ошиблись — шпион победил!
+                <span className="text-white font-semibold">{l('🗳️ Голосование', '🗳️ Voting')}</span>
+                {' '}{l('— в конце все голосуют: кто шпион? Ошиблись — шпион победил!', '— at the end everyone votes: who is the spy? Vote wrong and the spy wins!')}
               </p>
             </div>
             <div className="border-t border-white/10 pt-2 text-white/50 text-xs">
-              🎨 В режиме <b>«Нарисуй»</b> каждый по очереди рисует слово. Шпион не знает что рисовать и старается скопировать других.
+              {l('🎨 В режиме ', '🎨 In ')}<b>{l('«Нарисуй»', '“Draw”')}</b>{l(' каждый по очереди рисует слово. Шпион не знает что рисовать и старается скопировать других.', " mode each player draws the word in turn. The spy doesn't know what to draw and tries to copy others.")}
             </div>
           </GlassCard>
 
           {isGameHost ? (
             <div className="space-y-3">
-              <p className="text-xs text-white/40 text-center">Выберите режим:</p>
+              <p className="text-xs text-white/40 text-center">{l('Выберите режим:', 'Choose a mode:')}</p>
               <GlassButton variant="primary" size="lg" className="w-full" onClick={() => startGame('guess')}>
-                <span className="text-2xl mr-2">💬</span> Угадай слово
+                <span className="text-2xl mr-2">💬</span> {l('Угадай слово', 'Guess the Word')}
               </GlassButton>
               <GlassButton variant="primary" size="lg" className="w-full" onClick={() => startGame('draw')}>
-                <span className="text-2xl mr-2">🎨</span> Нарисуй
+                <span className="text-2xl mr-2">🎨</span> {l('Нарисуй', 'Draw')}
               </GlassButton>
             </div>
           ) : (
-            <p className="text-white/40 text-sm text-center animate-pulse">Хост выбирает режим...</p>
+            <p className="text-white/40 text-sm text-center animate-pulse">{l('Хост выбирает режим...', 'Host is choosing a mode...')}</p>
           )}
         </div>
       )}
@@ -416,7 +421,7 @@ export default function SpyGamePage() {
           {/* Mode badge */}
           <div className="text-center">
             <span className="glass-badge px-4 py-1.5 text-sm font-bold">
-              {s.mode === 'guess' ? '💬 Угадай слово' : '🎨 Нарисуй'}
+              {s.mode === 'guess' ? l('💬 Угадай слово', '💬 Guess the Word') : l('🎨 Нарисуй', '🎨 Draw')}
             </span>
           </div>
 
@@ -432,13 +437,13 @@ export default function SpyGamePage() {
                 {formatTime(s.timerLeft)}
               </span>
               {s.timerRunning && (
-                <span className="text-green-400 text-xs font-bold animate-pulse">● ИДЁТ</span>
+                <span className="text-green-400 text-xs font-bold animate-pulse">{l('● ИДЁТ', '● LIVE')}</span>
               )}
               {!s.timerRunning && s.timerLeft < TIMER_TOTAL && s.timerLeft > 0 && (
-                <span className="text-white/40 text-xs">на паузе</span>
+                <span className="text-white/40 text-xs">{l('на паузе', 'paused')}</span>
               )}
               {s.timerLeft === 0 && (
-                <span className="text-red-400 text-sm font-bold">Время вышло!</span>
+                <span className="text-red-400 text-sm font-bold">{l('Время вышло!', "Time's up!")}</span>
               )}
             </div>
             {isGameHost && (
@@ -451,7 +456,7 @@ export default function SpyGamePage() {
                       : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
                   }`}
                 >
-                  {s.timerRunning ? '⏸ Стоп' : '▶ Старт'}
+                  {s.timerRunning ? l('⏸ Стоп', '⏸ Stop') : l('▶ Старт', '▶ Start')}
                 </button>
                 <button
                   onClick={resetTimer}
@@ -468,14 +473,14 @@ export default function SpyGamePage() {
             {isSpy ? (
               <>
                 <div className="text-5xl mb-3">🕵️‍♂️</div>
-                <h2 className="text-3xl font-black text-red-400 mb-2">ТЫ ШПИОН</h2>
-                <p className="text-white/50 text-sm">Ты не знаешь слово. Притворяйся убедительно!</p>
+                <h2 className="text-3xl font-black text-red-400 mb-2">{l('ТЫ ШПИОН', 'YOU ARE THE SPY')}</h2>
+                <p className="text-white/50 text-sm">{l('Ты не знаешь слово. Притворяйся убедительно!', "You don't know the word. Bluff convincingly!")}</p>
               </>
             ) : (
               <>
-                <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-2">СЕКРЕТНОЕ СЛОВО</p>
+                <p className="text-xs text-amber-400/70 font-bold tracking-widest mb-2">{l('СЕКРЕТНОЕ СЛОВО', 'SECRET WORD')}</p>
                 <h2 className="text-4xl font-black text-white mb-2">{s.word}</h2>
-                <p className="text-white/40 text-sm">Один из игроков — шпион и не знает это слово</p>
+                <p className="text-white/40 text-sm">{l('Один из игроков — шпион и не знает это слово', "One of the players is the spy and doesn't know this word")}</p>
               </>
             )}
           </GlassCard>
@@ -489,11 +494,11 @@ export default function SpyGamePage() {
             }`}>
               {isActivePlayer ? (
                 <span className="font-bold">
-                  {s.mode === 'guess' ? '🎤 Твой ход — задавай вопрос!' : '🎨 Твой ход — рисуй!'}
+                  {s.mode === 'guess' ? l('🎤 Твой ход — задавай вопрос!', '🎤 Your turn — ask a question!') : l('🎨 Твой ход — рисуй!', '🎨 Your turn — draw!')}
                 </span>
               ) : (
                 <span>
-                  {s.mode === 'guess' ? `🎤 Вопрос задаёт: ` : `🎨 Рисует: `}
+                  {s.mode === 'guess' ? l('🎤 Вопрос задаёт: ', '🎤 Asking: ') : l('🎨 Рисует: ', '🎨 Drawing: ')}
                   <span className="font-bold text-white">{activePlayerName}</span>
                 </span>
               )}
@@ -510,21 +515,21 @@ export default function SpyGamePage() {
           {/* Pass turn button — active player or host */}
           {(isActivePlayer || isGameHost) && s.playerOrder.length > 0 && (
             <GlassButton className="w-full" onClick={passTurn}>
-              {s.mode === 'guess' ? '➡ Передать слово следующему' : '➡ Передать ход'}
+              {s.mode === 'guess' ? l('➡ Передать слово следующему', '➡ Pass the word on') : l('➡ Передать ход', '➡ Pass turn')}
             </GlassButton>
           )}
 
           {/* Host controls */}
           {isGameHost && (
             <GlassButton variant="primary" size="lg" className="w-full" onClick={nextWord}>
-              🔄 Следующее слово
+              {l('🔄 Следующее слово', '🔄 Next word')}
             </GlassButton>
           )}
 
           {/* Player turn order (guess mode) */}
           {s.mode === 'guess' && s.playerOrder.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs text-white/30 text-center">Порядок ходов</p>
+              <p className="text-xs text-white/30 text-center">{l('Порядок ходов', 'Turn order')}</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 {s.playerOrder.map((id, i) => {
                   const name = s.players.find(p => p.id === id)?.nickname ?? id;
@@ -550,8 +555,8 @@ export default function SpyGamePage() {
           {!isGameHost && !isActivePlayer && (
             <p className="text-center text-xs text-white/25 mt-1">
               {s.mode === 'guess'
-                ? 'Слушайте вопросы и ответы — вычислите шпиона!'
-                : 'Хост нажмёт «Следующее слово» когда будете готовы'}
+                ? l('Слушайте вопросы и ответы — вычислите шпиона!', 'Listen to the questions and answers — find the spy!')
+                : l('Хост нажмёт «Следующее слово» когда будете готовы', "The host will tap “Next word” when you're ready")}
             </p>
           )}
         </div>
