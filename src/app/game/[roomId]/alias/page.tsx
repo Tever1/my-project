@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { GameLayout } from '@/components/games/GameLayout';
+import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { useSocket } from '@/lib/use-socket';
@@ -667,11 +668,14 @@ export default function AliasPage() {
               {locale === 'ru' ? 'Начать игру' : 'Start Game'}
             </GlassButton>
           ) : (
-            <p className="text-sm italic" style={{ color: 'var(--text-secondary)' }}>
-              {selectedMode
-                ? locale === 'ru' ? 'Ожидание хоста...' : 'Waiting for host...'
-                : locale === 'ru' ? 'Хост выбирает режим...' : 'Host is choosing mode...'}
-            </p>
+            <BreathingPlaceholder
+              text={
+                selectedMode
+                  ? locale === 'ru' ? 'Ожидание хоста...' : 'Waiting for host...'
+                  : locale === 'ru' ? 'Хост выбирает режим...' : 'Host is choosing mode...'
+              }
+              variant="breathing-text"
+            />
           )}
         </div>
       )}

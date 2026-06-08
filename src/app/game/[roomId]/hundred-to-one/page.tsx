@@ -9,6 +9,7 @@ import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
 import { GameLayout } from '@/components/games/GameLayout';
+import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { TOPICS, getDisplayPts } from '@/lib/hundred-to-one/questions';
@@ -627,7 +628,7 @@ export default function HundredToOnePage() {
               ))}
             </div>
           ) : (
-            <p className="text-white/40 text-sm animate-pulse">{l('Хост выбирает тему...', 'Host is choosing a topic...')}</p>
+            <BreathingPlaceholder text={l('Хост выбирает тему...', 'Host is choosing a topic...')} variant="breathing-text" />
           )}
         </div>
       )}

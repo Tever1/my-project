@@ -9,6 +9,7 @@ import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
 import { GameLayout } from '@/components/games/GameLayout';
+import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
@@ -326,9 +327,10 @@ export default function WhoAmIPage() {
             {l('Начать игру', 'Start Game')}
           </GlassButton>
         ) : (
-          <p className="text-white/40 text-sm">
-            {l('Ожидание ведущего...', 'Waiting for host...')}
-          </p>
+          <BreathingPlaceholder
+            text={l('Ожидание ведущего...', 'Waiting for host...')}
+            variant="breathing-text"
+          />
         )}
       </GlassCard>
     </div>

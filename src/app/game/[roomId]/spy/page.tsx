@@ -9,6 +9,7 @@ import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
 import { GameLayout } from '@/components/games/GameLayout';
+import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { SPY_WORDS } from '@/lib/game-data';
@@ -409,7 +410,7 @@ export default function SpyGamePage() {
               </GlassButton>
             </div>
           ) : (
-            <p className="text-white/40 text-sm text-center animate-pulse">{l('Хост выбирает режим...', 'Host is choosing a mode...')}</p>
+            <BreathingPlaceholder text={l('Хост выбирает режим...', 'Host is choosing a mode...')} variant="breathing-text" />
           )}
         </div>
       )}

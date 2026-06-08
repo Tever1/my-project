@@ -9,6 +9,7 @@ import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useTranslation } from '@/lib/i18n';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { GameLayout } from '@/components/games/GameLayout';
+import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { MafiaRole, MafiaPhase } from '@/types/game';
@@ -520,9 +521,10 @@ export default function MafiaPage() {
             {l('Начать игру', 'Start Game')}
           </GlassButton>
         ) : (
-          <p className="text-white/40 text-sm">
-            {l('Ожидание ведущего...', 'Waiting for host...')}
-          </p>
+          <BreathingPlaceholder
+            text={l('Ожидание ведущего...', 'Waiting for host...')}
+            variant="breathing-text"
+          />
         )}
         {isGameHost && players.length < 4 && (
           <p className="text-red-400/80 text-sm mt-2">

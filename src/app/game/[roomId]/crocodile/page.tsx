@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { GameLayout } from '@/components/games/GameLayout';
+import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { useSocket } from '@/lib/use-socket';
@@ -413,14 +414,10 @@ export default function CrocodilePage() {
                 {locale === 'ru' ? 'Начать игру' : 'Start Game'}
               </GlassButton>
             ) : (
-              <p
-                className="text-sm italic"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {locale === 'ru'
-                  ? 'Ожидание хоста...'
-                  : 'Waiting for host...'}
-              </p>
+              <BreathingPlaceholder
+                text={locale === 'ru' ? 'Ожидание хоста...' : 'Waiting for host...'}
+                variant="breathing-text"
+              />
             )}
           </GlassCard>
         </div>
@@ -601,12 +598,10 @@ export default function CrocodilePage() {
               >
                 {locale === 'ru' ? 'Игра окончена!' : 'Game over!'}
               </p>
-              <p
-                className="text-sm"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {locale === 'ru' ? 'Ожидание хоста...' : 'Waiting for host...'}
-              </p>
+              <BreathingPlaceholder
+                text={locale === 'ru' ? 'Ожидание хоста...' : 'Waiting for host...'}
+                variant="breathing-text"
+              />
             </GlassCard>
           )}
           {isGameHost && (
