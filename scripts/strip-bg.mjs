@@ -7,7 +7,10 @@ const FLOOD_LIGHT_THRESHOLD = 180;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const iconsDir = path.resolve(__dirname, '../public/icons/games');
+const argDir = process.argv[2];
+const iconsDir = argDir
+  ? path.resolve(process.cwd(), argDir)
+  : path.resolve(__dirname, '../public/icons/games');
 
 function isTargetPng(filename) {
   return filename.toLowerCase().endsWith('.png') && !filename.toLowerCase().endsWith('.bak.png');

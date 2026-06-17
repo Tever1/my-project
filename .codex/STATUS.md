@@ -1,6 +1,35 @@
 # Codex Status
 
-## Active (2026-06-07): аудит игр vs Квиз — серия P0 «гость = game-host» ✅ ГОТОВО (ждёт коммита)
+## Active (2026-06-12): TASK-231
+
+TASK-231: Шпион — фон в цвет игры, таймеры, peek-бар, кнопка «Завершить» (complex, 4 файла)
+File: codex-tasks/231-spy-polish-bg-timers-peek-end.md
+Whitelist: src/app/globals.css, src/components/games/GameLayout.tsx,
+  src/app/game/[roomId]/spy/page.tsx, src/app/tv/[roomId]/[gameType]/page.tsx
+Пункты: #1 bg-gradient-spy (mobile+TV), #2 убрать текст-таймер, #3 круг всем,
+  #4 peek «ТЫ ШПИОН»+тема, #5 «был(а)» на TV, #6 убрать нижнюю end-кнопку.
+
+## Прошлый active (2026-06-11): TASK-230
+
+TASK-230: Скрипт «виртуальные телефоны» для локального QA (simple)
+File: codex-tasks/230-dev-phones-script.md
+Whitelist: scripts/dev-phones.sh (новый), package.json
+QA: dev-phones проверен живьём (2 окна = 2 игрока) ✅
+
+## Выполнены, не закоммичены (2026-06-09): TASK-228 + TASK-229
+
+TASK-228: ЗАВЕРШИТЬ кнопка в контентной области GameLayout (1 файл, simple)
+File: codex-tasks/228-gamelayout-end-button-in-content.md
+Whitelist: src/components/games/GameLayout.tsx
+
+TASK-229: Spy draw mode — dealing/voting/roundResult фазы (complex)
+File: codex-tasks/229-spy-draw-mode-new-phases.md
+Whitelist: src/app/game/[roomId]/spy/page.tsx
+
+## Ожидает коммита: TASK-226 + TASK-227
+Spy full redesign (TASK-226) + restore draw mode (TASK-227) — выполнены, не закоммичены.
+
+## Completed (2026-06-07): аудит игр vs Квиз — серия P0 «гость = game-host» ✅ ГОТОВО (ждёт коммита)
 Создан хук src/lib/use-game-identity.ts (effectivePlayerId/isGameHost/guest-reconnect).
 TASK-217: Крокодил — гость как game-host (+ хук). ✅ lint+tsc
 TASK-218: Кто я? — гостевая идентичность + game-host. ✅

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>ШПИОН · TV — Раздача</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 48px 64px 44px; position: relative; z-index: 1; }
+  .hd { display: flex; justify-content: space-between; align-items: center; }
+  .new-pill { display:inline-flex; align-items:center; gap:12px; padding:14px 24px; border-radius: var(--r-full);
+    font-family: var(--font-display); font-weight: 700; font-size: 20px; }
+  .new-pill .n { font-family: var(--font-mono); color: var(--spy-1); }
+
+  .hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; }
+  .hero .k { font-family: var(--font-mono); font-size: 17px; letter-spacing: 6px; text-transform: uppercase; color: var(--spy-1); margin-bottom: 24px; }
+
+  .cat-reveal {
+    display: flex; flex-direction: column; align-items: center; gap: 18px;
+    padding: 50px 90px; border-radius: var(--r-2xl); position: relative;
+    background: linear-gradient(165deg, rgba(100,210,255,.16), rgba(10,132,255,.10));
+    border: 1px solid rgba(100,210,255,.4);
+    box-shadow: 0 40px 100px -30px rgba(10,132,255,.55), inset 0 1px 0 rgba(255,255,255,.14);
+  }
+  .cat-reveal .lbl { font-family: var(--font-mono); font-size: 15px; letter-spacing: 5px; text-transform: uppercase; color: var(--text-tertiary); }
+  .cat-reveal .val { display:flex; align-items:center; gap: 26px; }
+  .cat-reveal .val .em { font-size: 100px; line-height: 1; filter: drop-shadow(0 8px 24px rgba(0,0,0,.4)); }
+  .cat-reveal .val .w { font-family: var(--font-display); font-weight: 800; font-size: 150px; line-height: .9; letter-spacing: -5px; }
+
+  .deal-note { margin-top: 38px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+  .deal-note .line1 { font-family: var(--font-display); font-weight: 700; font-size: 38px; letter-spacing: -.6px; }
+  .deal-note .line2 { display:inline-flex; align-items:center; gap: 12px; padding: 14px 26px; border-radius: var(--r-full);
+    background: rgba(255,59,107,.13); border: .5px solid rgba(255,59,107,.4); color: #ff8aa3;
+    font-family: var(--font-display); font-weight: 700; font-size: 24px; }
+
+  /* ready check */
+  .ready { display: flex; flex-direction: column; gap: 18px; margin-top: 8px; }
+  .ready .rh { display: flex; align-items: center; justify-content: center; gap: 14px; }
+  .ready .rh .t { font-family: var(--font-mono); font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-tertiary); }
+  .ready .rh b { font-family: var(--font-mono); font-size: 20px; color: #54e57e; }
+  .chips { display: flex; gap: 16px; justify-content: center; }
+  .chip { display: flex; align-items: center; gap: 14px; padding: 14px 22px 14px 14px; border-radius: var(--r-full); }
+  .chip .av { width: 54px; height: 54px; font-size: 22px; position: relative; }
+  .chip .nm { font-family: var(--font-display); font-weight: 700; font-size: 21px; }
+  .chip .st { display:inline-flex; align-items:center; gap:7px; font-family: var(--font-mono); font-size: 13px; letter-spacing: 1px; text-transform: uppercase; }
+  .chip.ok .st { color: #54e57e; }
+  .chip.wait .st { color: #ffb340; }
+  .chip.ok .av::after { content:''; position:absolute; bottom:-3px; right:-3px; width:22px; height:22px; border-radius:50%; background:#30d158; border:3px solid var(--bg-0);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cpath d='M6 11.5l3.2 3.2L16 7.5' stroke='%2305210f' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:center; }
+
+  .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 36px; }
+  .countdown { display:inline-flex; align-items:center; gap: 18px; padding: 16px 16px 16px 30px; border-radius: var(--r-full);
+    background: linear-gradient(180deg, #ff5c85, #ff3b6b); box-shadow: 0 16px 40px -10px rgba(255,59,107,.6); }
+  .countdown .t { font-family: var(--font-display); font-weight: 700; font-size: 24px; color:#fff; }
+  .countdown .num { width: 56px; height: 56px; border-radius: 50%; background: rgba(0,0,0,.25); display:flex; align-items:center; justify-content:center;
+    font-family: var(--font-mono); font-weight: 800; font-size: 30px; color: #fff; }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen" data-screen-label="Раздача">
+    <div class="spy-bg"></div>
+    <div class="screen">
+
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark">🎭</div>
+          <div class="name">Шпион<small>Party Hub</small></div>
+        </div>
+        <div class="new-pill glass">Новый раунд · <span class="n">3 / 7</span></div>
+      </div>
+
+      <div class="hero">
+        <div class="k">Раздача · слово отправлено на телефоны</div>
+        <div class="cat-reveal">
+          <div class="lbl">Категория раунда</div>
+          <div class="val"><span class="em">📍</span><span class="w">Места</span></div>
+        </div>
+
+        <div class="deal-note">
+          <div class="line1">Откройте телефон и запомните своё слово 🤫</div>
+          <div class="line2">🎭 Один из вас — шпион. Он слова не получит.</div>
+        </div>
+      </div>
+
+      <div class="ready">
+        <div class="rh"><span class="t">Посмотрели слово</span><b>4 / 6</b></div>
+        <div class="chips">
+          <div class="chip glass ok"><div class="av" data-seed="0">А</div><div class="col"><div class="nm">Аня</div><div class="st">✓ Готова</div></div></div>
+          <div class="chip glass ok"><div class="av" data-seed="1">М</div><div class="col"><div class="nm">Макс</div><div class="st">✓ Готов</div></div></div>
+          <div class="chip glass wait"><div class="av" data-seed="3">К</div><div class="col"><div class="nm">Катя</div><div class="st">👀 Смотрит…</div></div></div>
+          <div class="chip glass ok"><div class="av" data-seed="4">Д</div><div class="col"><div class="nm">Дима</div><div class="st">✓ Готов</div></div></div>
+          <div class="chip glass wait"><div class="av" data-seed="5">С</div><div class="col"><div class="nm">Света</div><div class="st">👀 Смотрит…</div></div></div>
+          <div class="chip glass ok"><div class="av" data-seed="2">Л</div><div class="col"><div class="nm">Лёша</div><div class="st">✓ Готов</div></div></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="remote-hint glass"><span class="ico">📱</span> Не нравится слово? <b style="margin-left:4px;">Ведущий может заменить →</b></div>
+        <div class="countdown"><span class="t">Обсуждение начнётся через</span><span class="num">5</span></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

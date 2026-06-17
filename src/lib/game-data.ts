@@ -367,6 +367,53 @@ export const SPY_WORDS: string[] = [
   'Корона', 'Меч', 'Щит', 'Флаг', 'Палатка',
 ];
 
+export interface SpyLocation {
+  category: string;
+  categoryIcon: string;
+  word: string;
+}
+
+export const SPY_LOCATIONS: SpyLocation[] = [
+  // Места
+  { category: 'Места', categoryIcon: '📍', word: 'Аэропорт' },
+  { category: 'Места', categoryIcon: '📍', word: 'Вокзал' },
+  { category: 'Места', categoryIcon: '📍', word: 'Школа' },
+  { category: 'Места', categoryIcon: '📍', word: 'Больница' },
+  { category: 'Места', categoryIcon: '📍', word: 'Пляж' },
+  { category: 'Места', categoryIcon: '📍', word: 'Театр' },
+  { category: 'Места', categoryIcon: '📍', word: 'Ресторан' },
+  { category: 'Места', categoryIcon: '📍', word: 'Тюрьма' },
+  { category: 'Места', categoryIcon: '📍', word: 'Казино' },
+  { category: 'Места', categoryIcon: '📍', word: 'Библиотека' },
+  // Природа
+  { category: 'Природа', categoryIcon: '🌿', word: 'Лес' },
+  { category: 'Природа', categoryIcon: '🌿', word: 'Горы' },
+  { category: 'Природа', categoryIcon: '🌿', word: 'Пустыня' },
+  { category: 'Природа', categoryIcon: '🌿', word: 'Джунгли' },
+  { category: 'Природа', categoryIcon: '🌿', word: 'Пещера' },
+  { category: 'Природа', categoryIcon: '🌿', word: 'Остров' },
+  // Работа
+  { category: 'Работа', categoryIcon: '🏢', word: 'Офис' },
+  { category: 'Работа', categoryIcon: '🏢', word: 'Фабрика' },
+  { category: 'Работа', categoryIcon: '🏢', word: 'Стройка' },
+  { category: 'Работа', categoryIcon: '🏢', word: 'Лаборатория' },
+  { category: 'Работа', categoryIcon: '🏢', word: 'Ферма' },
+  { category: 'Работа', categoryIcon: '🏢', word: 'Шахта' },
+  // Развлечения
+  { category: 'Развлечения', categoryIcon: '🎭', word: 'Цирк' },
+  { category: 'Развлечения', categoryIcon: '🎭', word: 'Стадион' },
+  { category: 'Развлечения', categoryIcon: '🎭', word: 'Кинотеатр' },
+  { category: 'Развлечения', categoryIcon: '🎭', word: 'Музей' },
+  { category: 'Развлечения', categoryIcon: '🎭', word: 'Аквапарк' },
+  { category: 'Развлечения', categoryIcon: '🎭', word: 'Зоопарк' },
+  // Транспорт
+  { category: 'Транспорт', categoryIcon: '🚗', word: 'Самолёт' },
+  { category: 'Транспорт', categoryIcon: '🚗', word: 'Подводная лодка' },
+  { category: 'Транспорт', categoryIcon: '🚗', word: 'Поезд' },
+  { category: 'Транспорт', categoryIcon: '🚗', word: 'Корабль' },
+  { category: 'Транспорт', categoryIcon: '🚗', word: 'Ракета' },
+];
+
 export const ALIAS_WORDS: { ru: string; en: string }[] = [
   { ru: 'Авторитет', en: 'Authority' },
   { ru: 'Вдохновение', en: 'Inspiration' },

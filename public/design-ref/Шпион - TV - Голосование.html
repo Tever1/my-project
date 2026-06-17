@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>ШПИОН · TV — Голосование</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 48px 64px 44px; position: relative; z-index: 1; }
+  .vote-bg::before { content:''; position:absolute; inset:0; background: radial-gradient(900px 600px at 50% 18%, rgba(255,59,107,.16), transparent 60%); z-index:0; }
+
+  .hd { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .hd .right { display: flex; justify-content: flex-end; }
+  .center-head { text-align: center; }
+  .center-head .k { font-family: var(--font-mono); font-size: 16px; letter-spacing: 6px; text-transform: uppercase; color: #ff7a98; }
+  .center-head h1 { font-family: var(--font-display); font-weight: 800; font-size: 88px; line-height: 1; letter-spacing: -2.5px; margin: 10px 0 0; }
+
+  .vtimer { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 30px; border-radius: var(--r-xl); }
+  .vtimer .t { font-family: var(--font-mono); font-weight: 700; font-size: 52px; line-height: 1; color: #ff5f7a; }
+  .vtimer .l { font-family: var(--font-mono); font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-tertiary); }
+  .prog { display: inline-flex; align-items: center; gap: 12px; padding: 14px 24px; border-radius: var(--r-full); font-family: var(--font-display); font-weight: 700; font-size: 22px; }
+  .prog b { color: var(--spy-1); font-family: var(--font-mono); }
+
+  /* candidates */
+  .cands { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 22px; align-items: stretch; margin-top: 8px; }
+  .cand {
+    position: relative; padding: 30px 22px 26px; border-radius: var(--r-xl);
+    display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center;
+    transition: all var(--t-med) var(--ease-out);
+  }
+  .cand .av { width: 118px; height: 118px; font-size: 50px; }
+  .cand .nm { font-family: var(--font-display); font-weight: 700; font-size: 26px; }
+  .cand .count { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: auto; }
+  .cand .count .n { font-family: var(--font-display); font-weight: 800; font-size: 56px; line-height: 1; }
+  .cand .count .u { font-family: var(--font-mono); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary); }
+  .cand .bar { width: 100%; height: 10px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .cand .bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #ff9f0a, #ff3b6b); }
+  .cand .voters { display: flex; gap: -8px; min-height: 36px; align-items: center; justify-content: center; }
+  .cand .voters .mini { width: 34px; height: 34px; font-size: 14px; margin-left: -8px; border: 2px solid var(--bg-0); }
+  .cand .voters .none { font-size: 14px; color: var(--text-quaternary); font-family: var(--font-mono); }
+
+  .cand.lead { border: 1px solid rgba(255,59,107,.55); box-shadow: 0 0 0 4px rgba(255,59,107,.14), 0 30px 70px -22px rgba(255,59,107,.6); }
+  .cand.lead .count .n { color: #ff5f7a; }
+  .lead-tag { position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: var(--r-full);
+    background: linear-gradient(180deg, #ff5c85, #ff3b6b); color: #fff;
+    font-family: var(--font-mono); font-weight: 700; font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+    box-shadow: 0 8px 20px -6px rgba(255,59,107,.7); }
+  .cand .count .n.zero { color: var(--text-quaternary); }
+  .cand .bar.empty i { width: 0; }
+
+  .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen vote-bg" data-screen-label="Голосование">
+    <div class="spy-bg"></div>
+    <div class="screen">
+
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark">🎭</div>
+          <div class="name">Шпион<small>Раунд 2 · Места</small></div>
+        </div>
+        <div class="center-head">
+          <div class="k">Время вышло</div>
+          <h1>Кто шпион?</h1>
+        </div>
+        <div class="right">
+          <div class="vtimer glass"><div class="t">0:12</div><div class="l">на голос</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:center; margin-top:18px;">
+        <div class="prog glass">Проголосовали <b>5&nbsp;/&nbsp;6</b> · ждём Аню</div>
+      </div>
+
+      <div class="cands">
+        <div class="cand glass lead">
+          <div class="lead-tag">лидер</div>
+          <div class="av" data-seed="3">К</div>
+          <div class="nm">Катя</div>
+          <div class="bar"><i style="width:100%"></i></div>
+          <div class="voters">
+            <div class="av mini" data-seed="1">М</div>
+            <div class="av mini" data-seed="4">Д</div>
+            <div class="av mini" data-seed="5">С</div>
+          </div>
+          <div class="count"><div class="n">3</div><div class="u">голоса</div></div>
+        </div>
+
+        <div class="cand glass">
+          <div class="av" data-seed="4">Д</div>
+          <div class="nm">Дима</div>
+          <div class="bar"><i style="width:34%"></i></div>
+          <div class="voters"><div class="av mini" data-seed="0">А</div></div>
+          <div class="count"><div class="n">1</div><div class="u">голос</div></div>
+        </div>
+
+        <div class="cand glass">
+          <div class="av" data-seed="2">Л</div>
+          <div class="nm">Лёша</div>
+          <div class="bar"><i style="width:34%"></i></div>
+          <div class="voters"><div class="av mini" data-seed="3">К</div></div>
+          <div class="count"><div class="n">1</div><div class="u">голос</div></div>
+        </div>
+
+        <div class="cand glass">
+          <div class="av" data-seed="0">А</div>
+          <div class="nm">Аня</div>
+          <div class="bar empty"><i></i></div>
+          <div class="voters"><span class="none">— нет —</span></div>
+          <div class="count"><div class="n zero">0</div><div class="u">голосов</div></div>
+        </div>
+
+        <div class="cand glass">
+          <div class="av" data-seed="1">М</div>
+          <div class="nm">Макс</div>
+          <div class="bar empty"><i></i></div>
+          <div class="voters"><span class="none">— нет —</span></div>
+          <div class="count"><div class="n zero">0</div><div class="u">голосов</div></div>
+        </div>
+
+        <div class="cand glass">
+          <div class="av" data-seed="5">С</div>
+          <div class="nm">Света</div>
+          <div class="bar empty"><i></i></div>
+          <div class="voters"><span class="none">— нет —</span></div>
+          <div class="count"><div class="n zero">0</div><div class="u">голосов</div></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="remote-hint glass"><span class="ico">📱</span> На телефоне: <b style="margin-left:4px;">выбери, кто шпион</b></div>
+        <div class="remote-hint glass" style="font-size:18px;"><span class="ico">🤐</span> Шпион тоже голосует — чтобы не выдать себя</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "phones": "bash scripts/dev-phones.sh",
     "gen-image": "node scripts/generate-image.mjs",
     "gen-icon": "node scripts/generate-icon.mjs",
     "gen-questions": "node scripts/generate-questions.mjs",

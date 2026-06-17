@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>ШПИОН · Phone — 6 экранов пульта</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<style>
+  body { background:
+    radial-gradient(1100px 600px at 82% -10%, rgba(100,210,255,.16), transparent 60%),
+    radial-gradient(1000px 560px at 10% 20%, rgba(10,132,255,.16), transparent 60%),
+    #07070c;
+    min-height: 100vh; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 64px 40px 120px; }
+  .head { display: flex; align-items: center; gap: 20px; margin-bottom: 14px; }
+  .mark { width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg, #64d2ff, #0a84ff);
+    display:flex; align-items:center; justify-content:center; font-size: 38px;
+    box-shadow: 0 16px 40px -12px rgba(10,132,255,.6), inset 0 1px 0 rgba(255,255,255,.4); }
+  h1 { font-family: var(--font-display); font-weight: 800; font-size: 52px; letter-spacing: -1.5px; margin: 0; }
+  .sub { font-size: 19px; color: var(--text-secondary); max-width: 760px; line-height: 1.5; margin: 0 0 48px; }
+  .sub b { color: var(--text-primary); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .card { display: block; }
+  .thumb { position: relative; width: 100%; aspect-ratio: 402 / 874; overflow: hidden; border-radius: 30px;
+    border: 1px solid rgba(255,255,255,.08); background: #04060e;
+    transition: transform var(--t-med) var(--ease-out), box-shadow var(--t-med), border-color var(--t-med); }
+  .card:hover .thumb { transform: translateY(-6px); box-shadow: 0 36px 80px -28px rgba(10,132,255,.55); border-color: rgba(100,210,255,.4); }
+  .thumb iframe { position: absolute; top: 0; left: 0; width: 402px; height: 874px; border: 0; transform-origin: top left; pointer-events: none; }
+  .meta { padding: 18px 6px 0; display: flex; align-items: baseline; gap: 12px; }
+  .num { font-family: var(--font-mono); font-weight: 800; font-size: 20px; color: transparent; -webkit-text-stroke: 1.3px rgba(100,210,255,.6); flex-shrink: 0; }
+  .meta .t h3 { font-family: var(--font-display); font-weight: 700; font-size: 21px; margin: 0; letter-spacing: -.3px; }
+  .meta .t p { margin: 4px 0 0; font-size: 14px; color: var(--text-tertiary); line-height: 1.35; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="mark">📱</div>
+    <h1>ШПИОН · телефон-пульт</h1>
+  </div>
+  <p class="sub">Шесть экранов игрока на телефоне — пара к экранам телевизора. Здесь живёт всё <b>приватное</b>: твоё секретное слово, роль, ответ на ход. И все действия пульта — <b>передать ход</b>, <b>заменить слово</b>, проголосовать, отметить готовность. Открой любой, чтобы посмотреть.</p>
+
+  <div class="grid">
+    <a class="card" href="Шпион — Phone — Лобби.html">
+      <div class="thumb"><iframe src="Шпион — Phone — Лобби.html" scrolling="no"></iframe></div>
+      <div class="meta"><span class="num">01</span><div class="t"><h3>Лобби</h3><p>Код комнаты, имя, готовность</p></div></div>
+    </a>
+    <a class="card" href="Шпион — Phone — Твоё слово.html">
+      <div class="thumb"><iframe src="Шпион — Phone — Твоё слово.html" scrolling="no"></iframe></div>
+      <div class="meta"><span class="num">02</span><div class="t"><h3>Твоё слово</h3><p>Секретное слово мирного жителя</p></div></div>
+    </a>
+    <a class="card" href="Шпион — Phone — Ты шпион.html">
+      <div class="thumb"><iframe src="Шпион — Phone — Ты шпион.html" scrolling="no"></iframe></div>
+      <div class="meta"><span class="num">03</span><div class="t"><h3>Ты шпион</h3><p>Без слова — только миссия</p></div></div>
+    </a>
+    <a class="card" href="Шпион — Phone — Твой ход.html">
+      <div class="thumb"><iframe src="Шпион — Phone — Твой ход.html" scrolling="no"></iframe></div>
+      <div class="meta"><span class="num">04</span><div class="t"><h3>Твой ход</h3><p>Ответ · передать ход · заменить слово</p></div></div>
+    </a>
+    <a class="card" href="Шпион — Phone — Голосование.html">
+      <div class="thumb"><iframe src="Шпион — Phone — Голосование.html" scrolling="no"></iframe></div>
+      <div class="meta"><span class="num">05</span><div class="t"><h3>Голосование</h3><p>Выбери, кто шпион</p></div></div>
+    </a>
+    <a class="card" href="Шпион — Phone — Итог раунда.html">
+      <div class="thumb"><iframe src="Шпион — Phone — Итог раунда.html" scrolling="no"></iframe></div>
+      <div class="meta"><span class="num">06</span><div class="t"><h3>Итог раунда</h3><p>Результат, очки, готовность</p></div></div>
+    </a>
+  </div>
+</div>
+<script>
+  function fitThumbs(){
+    document.querySelectorAll('.thumb').forEach(function(t){
+      var f = t.querySelector('iframe');
+      f.style.transform = 'scale(' + (t.clientWidth / 402) + ')';
+    });
+  }
+  addEventListener('resize', fitThumbs);
+  addEventListener('load', fitThumbs);
+  fitThumbs();
+</script>
+</body>
+</html>

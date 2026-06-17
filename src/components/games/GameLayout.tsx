@@ -24,6 +24,7 @@ interface GameLayoutProps {
   showScoreboard?: boolean;
   backgroundUrl?: string;
   phaseKey?: string;
+  gradientClass?: string;
 }
 
 export function GameLayout({
@@ -37,17 +38,23 @@ export function GameLayout({
   showScoreboard = false,
   backgroundUrl,
   phaseKey,
+  gradientClass = 'bg-gradient-main',
 }: GameLayoutProps) {
   const { t, locale } = useTranslation();
   const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
   return (
-    <GameSurface backgroundUrl={backgroundUrl} className="bg-gradient-main min-h-[100dvh] text-white flex flex-col">
+    <GameSurface backgroundUrl={backgroundUrl} className={`${gradientClass} min-h-[100dvh] text-white flex flex-col`}>
       {/* Header */}
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-black/20 border-b border-white/10">
         <div className="w-[92%] max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            {icon && <span className="text-2xl flex-shrink-0">{icon}</span>}
+            {icon && (icon.startsWith('/') ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={icon} alt="" aria-hidden className="h-7 w-7 flex-shrink-0 object-contain" />
+            ) : (
+              <span className="text-2xl flex-shrink-0">{icon}</span>
+            ))}
             <div className="min-w-0">
               <h1 className="text-lg font-bold truncate">{title}</h1>
               {round != null && totalRounds != null && (

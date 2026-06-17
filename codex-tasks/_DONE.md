@@ -1,6 +1,6 @@
 # Codex Tasks — индекс закрытых задач
 
-_Последняя синхронизация: 2026-06-07_
+_Последняя синхронизация: 2026-06-16_
 
 Одна строка на каждый TASK. Источник правды — файлы `codex-tasks/NNN-*.md`
 (ТЗ) и `codex-reports/NNN-*.md` (отчёты). Этот индекс — быстрый обзор, чтобы
@@ -258,3 +258,29 @@ bash codex-tasks/_regen-done.sh
 | 223 | `223-h2o-i18n-and-confirm.md` | 100 к 1 — двуязычность (i18n) + убрать двойной confirm |
 | 224 | `224-waiting-breathing-placeholder.md` | Унификация waiting-плейсхолдеров (BreathingPlaceholder) в 6 играх |
 | 225 | `225-quiz-use-game-identity.md` | Квиз — миграция на useGameIdentity (убрать инлайн-дубль) |
+| 226 | `226-spy-full-redesign.md` | Spy: полный редизайн (локации + voting + round flow) |
+| 227 | `227-spy-restore-draw-mode.md` | Spy: вернуть draw mode поверх TASK-226 |
+| 228 | `228-gamelayout-end-button-in-content.md` | ЗАВЕРШИТЬ кнопка в контентной области GameLayout |
+| 229 | `229-spy-draw-mode-new-phases.md` | Spy draw mode: добавить dealing / voting / roundResult фазы |
+| 230 | `230-dev-phones-script.md` | Скрипт «виртуальные телефоны» для локального QA |
+| 231 | `231-spy-polish-bg-timers-peek-end.md` | Шпион — фон в цвет игры, таймеры, peek-бар, кнопка «Завершить» |
+| 232 | `232-strip-bg-dir-arg.md` | strip-bg.mjs — принимать папку аргументом |
+| 233 | `233-spy-tv-name-dedup.md` | Spy TV — убрать дублирование имени игрока |
+| 234 | `234-spy-fit-word.md` | Spy — авто-ужимающийся шрифт слова (fit-to-width) |
+| 235 | `235-spy-remove-category-emoji.md` | Spy — убрать эмодзи категории рядом с темой |
+| 236 | `236-spy-guess-word-mechanic.md` | Spy — авто-голосование по таймеру + механика «Шпион угадывает слово» |
+| 237 | `237-spy-qa-fixes.md` | Spy: 8 правок по live-QA |
+| 238 | `238-spy-qa-fixes-2.md` | Spy: вторая волна правок по live-QA |
+| 239 | `239-spy-qa-fixes-3.md` | Spy live-QA fixes (волна 3) |
+| 240 | `240-spy-qa-fixes-4.md` | Spy live-QA fixes (волна 4) |
+| 241 | `241-spy-qa-fixes-5.md` | Spy live-QA fixes (волна 5) |
+| 242 | `242-spy-qa-fixes-6.md` | Spy live-QA fixes (волна 6) |
+| 243 | `243-spy-qa-fixes-7.md` | Spy live-QA fixes (волна 7) |
+| 244 | `244-spy-qa-fixes-8.md` | Spy live-QA fixes (волна 8) |
+| 245 | `245-spy-draw-canvas-tv-fit.md` | Spy draw canvas: fit на TV (игровое поле), откат мобильного |
+| 246 | `246-spy-peek-narrower.md` | Spy peek-bar уже на 20% |
+| 247 | `247-spy-peek-shorter.md` | Spy peek-bar: ширина обратно w-full, высота меньше ~30%, без скачка при нажатии |
+| 248 | `248-spy-peek-shorter-2.md` | Spy peek-bar: ещё ниже (~30%), на нажатии «твоё слово» пропадает, размер неизменен |
+| 249 | `249-spy-peek-hold-pill-fixed-h.md` | Spy peek-bar: пилюля «ЗАЖМИ», убрать «Зажми» слева, жёстко зафиксировать высоту |
+| 250 | `250-spy-tv-draw-timer.md` | Spy TV (игровое поле): таймер в режиме рисования |
+| 251 | `251-spy-tv-draw-timer-round.md` | Spy TV: таймер рисования сделать круглым (как в угадывании) |

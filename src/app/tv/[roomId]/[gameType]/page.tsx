@@ -24,6 +24,7 @@ const TV_STATE_REQUEST: Partial<Record<string, string>> = {
   crocodile: 'croc:request-state',
   alias: 'alias:request-state',
   quiz: 'quiz:request-state',
+  spy: 'spy:request-state',
 };
 
 function QuizIcon({ iconUrl, fallback, size = 20 }: { iconUrl?: string; fallback: string; size?: number }) {
@@ -54,6 +55,11 @@ function DifficultyIcon({ difficulty, size = 16 }: { difficulty?: QuizDifficulty
       style={{ width: size, height: size, backgroundColor: color, boxShadow: `0 0 ${Math.round(size / 2)}px ${color}66` }}
     />
   );
+}
+
+function SpyImg({ name, className }: { name: string; className?: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={`/icons/spy/${name}.png`} alt="" aria-hidden className={className} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -168,13 +174,63 @@ export default function TVGamePage() {
   const [, setGenericState] = useState<GenericGameState>({});
   const [h2oState, setH2OState] = useState<H2OState>(mkH2OInitial);
   const [spyState, setSpyState] = useState<{
-    phase: string; mode: string; word: string; spyId: string; drawerId: string;
-    playerOrder: string[]; playerOrderIdx: number; timerLeft: number; timerRunning: boolean;
-    players: { id: string; nickname: string }[];
+    phase: string;
+    mode: string;
+    word: string;
+    category: string;
+    categoryIcon: string;
+    spyId: string;
+    players: { id: string; nickname: string; isHost: boolean }[];
+    playerOrder: string[];
+    playerOrderIdx: number;
+    timerLeft: number;
+    timerRunning: boolean;
+    readyPlayers: string[];
+    votes: Record<string, string>;
+    voteTimerLeft: number;
+    roundResult: {
+      spyCaught: boolean;
+      exposedId: string;
+      voteCount: number;
+      viaGuess?: boolean;
+      guessedRight?: boolean;
+    } | null;
+    spyGuessText: string;
+    spyGuessNeedsConfirm: boolean;
+    spyGuessAwaitingJudge: boolean;
+    spyGuessJudgeId: string;
+    scores: Record<string, number>;
+    lastRoundDelta: Record<string, number>;
+    currentRound: number;
+    totalRounds: number;
+    gameOver: boolean;
+    drawerId: string;
   }>({
-    phase: 'modeSelect', mode: 'guess', word: '', spyId: '', drawerId: '',
-    playerOrder: [], playerOrderIdx: 0, timerLeft: 300, timerRunning: false,
+    phase: 'modeSelect',
+    mode: 'guess',
+    word: '',
+    category: '',
+    categoryIcon: '',
+    spyId: '',
     players: [],
+    playerOrder: [],
+    playerOrderIdx: 0,
+    timerLeft: 300,
+    timerRunning: false,
+    readyPlayers: [],
+    votes: {},
+    voteTimerLeft: 60,
+    roundResult: null,
+    spyGuessText: '',
+    spyGuessNeedsConfirm: false,
+    spyGuessAwaitingJudge: false,
+    spyGuessJudgeId: '',
+    scores: {},
+    lastRoundDelta: {},
+    currentRound: 1,
+    totalRounds: 3,
+    gameOver: false,
+    drawerId: '',
   });
   const spyCanvasRef = useRef<HTMLCanvasElement>(null);
   const spyCanvasSizeRef = useRef({ w: 0, h: 0 });
@@ -207,6 +263,22 @@ export default function TVGamePage() {
   const [localIp, setLocalIp] = useState('');
   const [showQrOverlay, setShowQrOverlay] = useState(false);
 
+  const l = useCallback(
+    (ru: string, en: string) => (locale === 'ru' ? ru : en),
+    [locale],
+  );
+
+  const initSpyCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+    if (!canvas || spyCanvasRef.current === canvas) return;
+    spyCanvasRef.current = canvas;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * 2;
+    canvas.height = rect.height * 2;
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.scale(2, 2);
+    spyCanvasSizeRef.current = { w: rect.width, h: rect.height };
+  }, []);
+
   const gameInfo = GAMES.find((g) => g.id === gameType);
   const gameTitle = gameInfo
     ? locale === 'ru' ? gameInfo.titleRu : gameInfo.titleEn
@@ -216,17 +288,6 @@ export default function TVGamePage() {
     ? `http://${localIp}${port ? `:${port}` : ''}`
     : (typeof window !== 'undefined' ? window.location.origin : '');
   const joinUrl = `${siteUrl}/join/${roomId}`;
-
-  const initSpyCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
-    if (!canvas) return;
-    spyCanvasRef.current = canvas;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * 2;
-    canvas.height = rect.height * 2;
-    const ctx = canvas.getContext('2d');
-    if (ctx) ctx.scale(2, 2);
-    spyCanvasSizeRef.current = { w: rect.width, h: rect.height };
-  }, []);
 
   // Join TV room
   useEffect(() => {
@@ -293,10 +354,10 @@ export default function TVGamePage() {
           const canvas = spyCanvasRef.current;
           if (canvas) {
             const ctx = canvas.getContext('2d');
-            const { w, h } = spyCanvasSizeRef.current;
-            if (ctx && w > 0) {
+            if (ctx) {
+              const { w, h } = spyCanvasSizeRef.current;
               ctx.strokeStyle = '#fbbf24';
-              ctx.lineWidth = 4;
+              ctx.lineWidth = 3;
               ctx.lineCap = 'round';
               ctx.lineJoin = 'round';
               ctx.beginPath();
@@ -1079,105 +1140,291 @@ export default function TVGamePage() {
   // ===================== SPY TV RENDER =====================
   if (gameType === 'spy') {
     const sp = spyState;
-    // Use sp.players (from spy:sync payload) for lookups — more reliable than outer
-    // `players` which depends on room:state arriving before the first spy:sync.
     const spyPlayerList = sp.players.length > 0 ? sp.players : players;
     const spyGetName = (id: string) => spyPlayerList.find(p => p.id === id)?.nickname ?? id;
-    const spyActivePlayerId = sp.playerOrder.length > 0
-      ? sp.playerOrder[sp.playerOrderIdx % sp.playerOrder.length]
-      : sp.drawerId;
-    const spyActivePlayerName = spyGetName(spyActivePlayerId) || '???';
-
-    const spyTimerColor = sp.timerLeft <= 30 && sp.timerRunning ? 'text-red-400'
-      : sp.timerLeft <= 60 ? 'text-amber-400'
-      : 'text-white';
-    const spyFormatTime = (sec: number) =>
+    const activePlayerId = sp.playerOrder[sp.playerOrderIdx % Math.max(sp.playerOrder.length, 1)] ?? '';
+    const activePlayerName = spyGetName(activePlayerId);
+    const formatSec = (sec: number) =>
       `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
+    const spyName = spyGetName(sp.spyId);
+    const CIRC = 741.4;
+    const timerRatio = Math.max(0, Math.min(1, sp.timerLeft / 300));
+    const timerOffset = CIRC * (1 - timerRatio);
+    const timerColor = sp.timerLeft <= 30 ? '#ff453a' : sp.timerLeft <= 90 ? '#ffd60a' : '#64d2ff';
 
     return (
-      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <span className="text-4xl">🕵️‍♂️</span>
-            <h1 className="text-3xl font-bold">Шпион</h1>
-            {sp.phase === 'playing' && (
-              <span className="glass-badge px-3 py-1 text-sm font-bold">
-                {sp.mode === 'guess' ? '💬 Угадай слово' : '🎨 Нарисуй'}
-              </span>
-            )}
+      <GameSurface className="h-screen bg-gradient-spy text-white flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-8 py-4 border-b border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <SpyImg name="mask" className="h-8 w-8" />
+            <div>
+              <h1 className="text-2xl font-bold leading-none">Шпион</h1>
+              <p className="text-xs text-white/40 font-mono uppercase tracking-widest">Party Hub</p>
+            </div>
           </div>
-          {/* Timer in top bar */}
           {sp.phase === 'playing' && (
-            <div className="flex items-center gap-3">
-              {sp.timerRunning && (
-                <span className="text-green-400 text-sm font-bold animate-pulse">● ИДЁТ</span>
-              )}
-              {sp.timerLeft === 0 && (
-                <span className="text-red-400 text-xl font-bold animate-pulse">⏰ ВРЕМЯ!</span>
-              )}
-              <span className={`text-5xl font-black tabular-nums ${spyTimerColor} ${sp.timerLeft <= 30 && sp.timerRunning ? 'animate-pulse' : ''}`}>
-                {spyFormatTime(sp.timerLeft)}
-              </span>
+            <div className="glass-card px-4 py-2 text-sm">
+              Раунд <span className="font-bold text-teal-300">{sp.currentRound}</span>
+              {' · '}
+              {sp.category && <span>{sp.category}</span>}
+            </div>
+          )}
+          {sp.phase === 'voting' && (
+            <div className="glass-card px-4 py-2 flex items-center gap-2">
+              <span>⏱</span>
+              <span className="font-mono font-bold text-xl">{formatSec(sp.voteTimerLeft)}</span>
+            </div>
+          )}
+          {(sp.phase === 'dealing' || sp.phase === 'playing') && (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+              <span className="text-sm text-white/60">{spyPlayerList.length} в игре</span>
             </div>
           )}
         </div>
 
-        {/* Main content */}
-        <div className="flex-1 flex flex-col items-center justify-center px-8 py-6 min-h-0 overflow-hidden">
-          {sp.phase === 'modeSelect' && (
-            <div className="text-center animate-fade-in">
-              <div className="text-9xl mb-6">🕵️‍♂️</div>
-              <h2 className="text-6xl font-black mb-4">ШПИОН</h2>
-              <p className="text-2xl text-white/50 animate-pulse">Выбор режима...</p>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {sp.gameOver && (
+            <div className="h-full flex flex-col items-center justify-center gap-8 px-12">
+              <h2 className="text-6xl font-black">Игра окончена!</h2>
             </div>
           )}
 
-          {sp.phase === 'playing' && sp.mode === 'guess' && (
-            <div className="text-center animate-fade-in flex flex-col items-center gap-6">
-              <div className="text-7xl">💬</div>
-              <h2 className="text-5xl font-bold text-amber-400">Угадай слово</h2>
-              {spyActivePlayerId && (
-                <div className="glass-card px-8 py-4 border-purple-400/40 bg-purple-500/10">
-                  <p className="text-xl text-white/50 mb-1">Задаёт вопрос</p>
-                  <p className="text-4xl font-bold text-purple-300">🎤 {spyActivePlayerName}</p>
+          {!sp.gameOver && sp.phase === 'modeSelect' && (
+            <div className="h-full flex flex-col items-center justify-center gap-6">
+              <SpyImg name="mask" className="h-32 w-32" />
+              <h2 className="text-7xl font-black tracking-tight">ШПИОН</h2>
+              <p className="text-2xl text-white/40 animate-pulse">Ожидание ведущего…</p>
+            </div>
+          )}
+
+          {!sp.gameOver && sp.phase === 'dealing' && (
+            <div className="h-full flex flex-col items-center justify-center gap-8 px-16">
+              <div className="text-center">
+                <p className="text-xl text-white/40 uppercase tracking-[4px] font-mono mb-3">Категория раунда</p>
+                <div className="flex items-center justify-center gap-4">
+                  <span className="text-7xl font-black">{sp.category}</span>
                 </div>
-              )}
-              {/* Player order */}
-              {sp.playerOrder.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {sp.playerOrder.map((id, i) => {
-                    const name = spyGetName(id);
-                    const isActive = i === sp.playerOrderIdx % sp.playerOrder.length;
+              </div>
+              <p className="text-xl text-white/60">
+                Слово отправлено на телефоны · <span className="text-teal-300"><SpyImg name="mask" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />Один из вас — шпион. Он слова не получил.</span>
+              </p>
+              <div className="w-full">
+                <p className="text-center text-white/40 text-sm mb-3">
+                  Посмотрели слово: <b>{sp.readyPlayers.length}</b> / {spyPlayerList.length}
+                </p>
+                <div className="flex flex-wrap gap-3 justify-center">
+                  {spyPlayerList.map(p => {
+                    const ready = sp.readyPlayers.includes(p.id);
                     return (
-                      <span key={id} className={`px-4 py-1.5 rounded-full text-lg border transition-all ${
-                        isActive ? 'border-purple-400/60 bg-purple-500/20 text-purple-300 font-bold' : 'border-white/10 text-white/30'
-                      }`}>
-                        {isActive ? '🎤 ' : ''}{name}
-                      </span>
+                      <div key={p.id} className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${ready ? 'border-teal-400/40' : 'opacity-50'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${ready ? 'bg-teal-500/30' : 'bg-white/10'}`}>
+                          {p.nickname[0]}
+                        </div>
+                        <span>{p.nickname}</span>
+                        {ready && <SpyImg name="check" className="h-5 w-5" />}
+                      </div>
                     );
                   })}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
-          {sp.phase === 'playing' && sp.mode === 'draw' && (
-            <div className="flex flex-col items-center w-full h-full min-h-0">
-              <p className="text-2xl mb-3 shrink-0">
-                <span className="text-white/50">Рисует: </span>
-                <span className="font-bold text-amber-400">{spyActivePlayerName}</span>
+          {!sp.gameOver && sp.phase === 'playing' && sp.mode === 'draw' && (
+            <div className="relative h-full flex flex-col items-center justify-center gap-4 px-12 py-6">
+              <div className="absolute top-6 left-6 z-10 h-[120px] w-[120px]">
+                <svg viewBox="0 0 260 260" width="120" height="120">
+                  <circle cx="130" cy="130" r="118" stroke="rgba(255,255,255,.08)" strokeWidth="14" fill="none" />
+                  <circle
+                    cx="130"
+                    cy="130"
+                    r="118"
+                    stroke={timerColor}
+                    strokeWidth="14"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={CIRC}
+                    strokeDashoffset={timerOffset}
+                    style={{ filter: `drop-shadow(0 0 14px ${timerColor}80)`, transition: 'stroke-dashoffset 1s linear' }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="font-mono text-3xl font-black tabular-nums">{sp.timerLeft}</span>
+                </div>
+              </div>
+              <p className="text-2xl text-white/50">
+                <SpyImg name="palette" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />
+                {l('Рисует: ', 'Drawing: ')}
+                <span className="font-bold text-amber-400">{activePlayerName}</span>
               </p>
               <div className="flex-1 min-h-0 w-full flex items-center justify-center">
                 <canvas
                   ref={initSpyCanvas}
                   className="rounded-2xl bg-black/30 border-2 border-white/10"
-                  style={{ width: 'min(100%, calc(100vh - 10rem))', aspectRatio: '1' }}
+                  style={{ height: '100%', maxWidth: '100%', maxHeight: '100%', aspectRatio: '1' }}
                 />
               </div>
             </div>
           )}
+
+          {!sp.gameOver && sp.phase === 'playing' && sp.mode !== 'draw' && (
+            <div className="h-full flex gap-8 px-12 py-6">
+              <div className="flex flex-col items-center justify-center gap-4 flex-shrink-0">
+                <div className="relative h-[260px] w-[260px]">
+                  <svg width="260" height="260">
+                    <circle cx="130" cy="130" r="118" stroke="rgba(255,255,255,.08)" strokeWidth="14" fill="none" />
+                    <circle
+                      cx="130"
+                      cy="130"
+                      r="118"
+                      stroke={timerColor}
+                      strokeWidth="14"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeDasharray={CIRC}
+                      strokeDashoffset={timerOffset}
+                      style={{ filter: `drop-shadow(0 0 14px ${timerColor}80)`, transition: 'stroke-dashoffset 1s linear' }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-mono text-6xl font-black tabular-nums">{sp.timerLeft}</span>
+                    <span className="text-lg text-white/40 uppercase tracking-widest">ход</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 flex flex-col justify-center gap-6">
+                <div>
+                  <p className="text-lg text-teal-300 uppercase tracking-widest mb-2">Сейчас отвечает</p>
+                  <span className="text-5xl font-black">{activePlayerName}</span>
+                  <p className="text-white/40 mt-2">Опиши слово одним предложением — но не называй его</p>
+                </div>
+                <div className="glass-card px-6 py-4">
+                  <span className="text-white/40 text-sm">Категория</span>
+                  <p className="text-2xl font-bold mt-1">{sp.category}</p>
+                  <p className="text-white/30 mt-1 text-sm font-mono uppercase tracking-widest">СЛОВО СКРЫТО</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!sp.gameOver && sp.phase === 'spyGuess' && (
+            <div className="h-full flex flex-col items-center justify-center gap-6 px-12">
+              <SpyImg name="mask" className="h-24 w-24" />
+              <h2 className="text-6xl font-black text-center">
+                {l('Шпион', 'Spy')} <span className="text-red-300">{spyName}</span>
+              </h2>
+              <p className="text-3xl text-white/60">{l('угадывает слово…', 'is guessing the word...')}</p>
+              {sp.spyGuessAwaitingJudge && (
+                <p className="text-xl text-teal-300">{l(`${spyGetName(sp.spyGuessJudgeId)} проверяет ответ`, `${spyGetName(sp.spyGuessJudgeId)} is checking the answer`)}</p>
+              )}
+            </div>
+          )}
+
+          {!sp.gameOver && sp.phase === 'voting' && (
+            <div className="h-full flex flex-col px-12 py-6 gap-6">
+              <div className="flex items-center justify-center gap-4">
+                <h2 className="text-5xl font-black">Кто шпион?</h2>
+                <div className="glass-card px-4 py-2 text-sm">
+                  Проголосовали <b>{Object.keys(sp.votes).length}</b> / {spyPlayerList.length}
+                </div>
+              </div>
+              <div className="flex-1 flex items-center justify-center">
+                <div className="flex gap-4 flex-wrap justify-center">
+                  {spyPlayerList.map(p => {
+                    const votesFor = Object.values(sp.votes).filter(v => v === p.id).length;
+                    const maxVotes = Math.max(1, ...spyPlayerList.map(pp =>
+                      Object.values(sp.votes).filter(v => v === pp.id).length
+                    ));
+                    const barPct = Math.round((votesFor / maxVotes) * 100);
+                    const voters = Object.entries(sp.votes)
+                      .filter(([, suspectId]) => suspectId === p.id)
+                      .map(([voterId]) => voterId);
+                    return (
+                      <div key={p.id} className={`glass-card px-6 py-5 flex flex-col items-center gap-3 min-w-[160px] ${votesFor === maxVotes && votesFor > 0 ? 'border-amber-400/40' : ''}`}>
+                        {votesFor === maxVotes && votesFor > 0 && (
+                          <span className="text-xs font-mono uppercase text-amber-400 tracking-widest">лидер</span>
+                        )}
+                        <span className="font-semibold">{p.nickname}</span>
+                        <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                          <div className="h-full rounded-full bg-teal-400 transition-all" style={{ width: `${barPct}%` }} />
+                        </div>
+                        <div className="flex gap-1 min-h-6">
+                          {voters.map(voterId => (
+                            <div key={voterId} className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">
+                              {spyGetName(voterId)[0]}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="font-bold text-xl">{votesFor}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!sp.gameOver && sp.phase === 'roundResult' && sp.roundResult && (
+            <div className="h-full flex flex-col px-12 py-6 gap-6">
+              <div className={`rounded-2xl px-6 py-4 flex items-center gap-4 ${sp.roundResult.spyCaught ? 'bg-green-500/20 border border-green-400/30' : 'bg-red-500/20 border border-red-400/30'}`}>
+                {sp.roundResult.spyCaught ? <SpyImg name="check" className="h-8 w-8" /> : <SpyImg name="cross" className="h-8 w-8" />}
+                <div>
+                  <p className="text-2xl font-bold">{sp.roundResult.spyCaught ? 'Мирные вычислили шпиона!' : 'Шпион победил!'}</p>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 flex items-center justify-center">
+                <div className="flex w-full gap-6">
+                  <div className="glass-card flex-1 flex flex-col items-center justify-center gap-4 p-8">
+                    <p className="text-white/40 text-sm uppercase tracking-widest">Шпионом был(а)</p>
+                    <div className="relative">
+                      <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center text-3xl font-bold">
+                        {spyName[0]}
+                      </div>
+                      <SpyImg name="mask" className="absolute -bottom-1 -right-1 h-5 w-5" />
+                    </div>
+                    <p className="text-white/40 text-sm">
+                      {sp.roundResult.viaGuess
+                        ? l('Шпион пытался угадать слово', 'Spy attempted to guess the word')
+                        : l(`${sp.roundResult.voteCount} из ${spyPlayerList.length} голосов`, `${sp.roundResult.voteCount} of ${spyPlayerList.length} votes`)}
+                    </p>
+                  </div>
+                  <div className="glass-card flex-1 flex flex-col items-center justify-center gap-4 p-8">
+                    <p className="text-white/40 text-sm uppercase tracking-widest">Загаданное слово</p>
+                    <p className="text-white/60 text-lg">Категория · {sp.category}</p>
+                    <p className="text-6xl font-black">{sp.word}</p>
+                    {sp.roundResult.viaGuess && (
+                      <p className="text-sm text-white/40">{l('Шпион пытался угадать слово', 'Spy attempted to guess the word')}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        {sp.phase === 'playing' && sp.playerOrder.length > 0 && !sp.gameOver && (
+          <div className="flex-shrink-0 border-t border-white/10 px-8 py-3">
+            <div className="flex items-center gap-3 overflow-x-auto">
+              <p className="text-xs text-white/30 uppercase tracking-widest flex-shrink-0">Порядок хода</p>
+              {sp.playerOrder.map((id, i) => {
+                const isActive = i === sp.playerOrderIdx % sp.playerOrder.length;
+                const isDone = i < sp.playerOrderIdx % sp.playerOrder.length;
+                return (
+                  <div key={id} className={`flex items-center gap-1 flex-shrink-0 ${isActive ? '' : isDone ? 'opacity-30' : 'opacity-60'}`}>
+                    {i > 0 && <span className="text-white/20 text-sm mx-1">›</span>}
+                    <div className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-all ${isActive ? 'bg-teal-500/20 border border-teal-400/30' : ''}`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${isActive ? 'bg-teal-400/20' : 'bg-white/10'}`}>
+                        {spyGetName(id)[0]}
+                      </div>
+                      {isActive && <span className="text-[10px] text-teal-300">{sp.mode === 'draw' ? 'рисует' : 'говорит'}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {qrOverlay}
       </GameSurface>
     );
