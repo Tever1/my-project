@@ -708,6 +708,11 @@ html.dark {
   color: #f0eef6;
 }
 
+.bg-gradient-crocodile {
+  background: linear-gradient(135deg, #200707 0%, #3b0a0a 30%, #2a0c0c 60%, #200707 100%);
+  color: #f0eef6;
+}
+
 /* ========================================
    Glass Button Danger
    ======================================== */

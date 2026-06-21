@@ -84,6 +84,58 @@ const BACKGROUND_VARIANTS = [
     noise: true,
   },
 ];
+const CROC_BG_DARK =
+  "linear-gradient(135deg, #200707 0%, #3b0a0a 30%, #2a0c0c 60%, #200707 100%)";
+const CROC_BG_CARD =
+  "radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.30), transparent 55%), linear-gradient(165deg, #ef4444 0%, #991b1b 100%)";
+const ICON_COLORS = [
+  { name: "Белый", hex: "#ffffff" },
+  { name: "Кремовый", hex: "#f5efe6" },
+  { name: "Золото", hex: "#ffd60a" },
+  { name: "Янтарь", hex: "#ff9f0a" },
+  { name: "Мятный (lime)", hex: "#a7f66a" },
+  { name: "Светло-голубой", hex: "#7fdfff" },
+  { name: "Графит", hex: "#1f2937" },
+];
+
+type IconRenderer = (size?: number) => React.ReactElement;
+
+const IcMic: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 20 20" fill="none">
+    <rect x="7" y="2" width="6" height="10" rx="3" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M4 9a6 6 0 0012 0M10 15v3M7 18h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+const IcTrophy: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 20 20" fill="none">
+    <path d="M5 3h10v4a5 5 0 01-10 0V3z" stroke="currentColor" strokeWidth="1.8" />
+    <path d="M5 4H3v2a2 2 0 002 2M15 4h2v2a2 2 0 01-2 2M10 12v3M7 17h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+const IcCrown: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 20 20" fill="none">
+    <path d="M3 7l3 3 4-6 4 6 3-3-1.5 9h-11L3 7z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+  </svg>
+);
+const IcTalk: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 20 20" fill="none">
+    <path d="M3 5h10v7H7l-4 3V5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M15 8c1.5.5 2 2 0 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+const IcCheck: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 20 20" fill="none">
+    <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const CROC_SAMPLE_ICONS: { label: string; render: IconRenderer }[] = [
+  { label: "Микрофон", render: IcMic },
+  { label: "Трофей", render: IcTrophy },
+  { label: "Корона", render: IcCrown },
+  { label: "Речь", render: IcTalk },
+  { label: "Галочка", render: IcCheck },
+];
 
 export default function DesignTokensPage() {
   // Force-dark for this page
@@ -866,6 +918,8 @@ export default function DesignTokensPage() {
           </div>
         </Section>
 
+        <CrocIconColorMatrix />
+
         <p
           style={{
             textAlign: "center",
@@ -928,6 +982,137 @@ export default function DesignTokensPage() {
       {/* Toaster mounted once */}
       <GlassToaster accentColor={gameColors[activeGame].accent} />
     </main>
+  );
+}
+
+function CrocIconColorMatrix() {
+  return (
+    <Section
+      title="Крокодил · цвет иконок на красном"
+      subtitle="Иконки заменят эмодзи. Выбери цвет, который читается на красном фоне и карточке. Красный фон делает красные иконки невидимыми."
+    >
+      <div style={{ display: "grid", gap: 18 }}>
+        {ICON_COLORS.map((color) => (
+          <div
+            key={color.hex}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+              gap: 16,
+              padding: 18,
+              borderRadius: radius.xl,
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.035)",
+              backdropFilter: "blur(14px)",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.92)" }}>
+                {color.name}
+              </div>
+              <div
+                className="font-mono"
+                style={{
+                  marginTop: 6,
+                  fontSize: 13,
+                  color: color.hex,
+                  textTransform: "uppercase",
+                }}
+              >
+                {color.hex}
+              </div>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
+                gap: 14,
+              }}
+            >
+              <CrocIconPreview
+                label="Фон экрана"
+                background={CROC_BG_DARK}
+                color={color.hex}
+                borderRadius={22}
+              />
+              <CrocIconPreview
+                label="Красная карточка"
+                background={CROC_BG_CARD}
+                color={color.hex}
+                borderRadius={28}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function CrocIconPreview({
+  label,
+  background,
+  color,
+  borderRadius,
+}: {
+  label: string;
+  background: string;
+  color: string;
+  borderRadius: number;
+}) {
+  return (
+    <div
+      style={{
+        minHeight: 120,
+        padding: 20,
+        borderRadius,
+        background,
+        color,
+        border: "1px solid rgba(255,255,255,0.14)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.24)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        {CROC_SAMPLE_ICONS.map((icon) => (
+          <span
+            key={icon.label}
+            aria-label={icon.label}
+            title={icon.label}
+            style={{ display: "inline-flex", lineHeight: 0 }}
+          >
+            {icon.render(28)}
+          </span>
+        ))}
+      </div>
+      <div
+        className="font-mono"
+        style={{
+          marginTop: 18,
+          fontSize: 15,
+          fontWeight: 800,
+          letterSpacing: "0.08em",
+        }}
+      >
+        СЛОВО · УГАДЫВАЮТ
+      </div>
+      <div
+        style={{
+          marginTop: 10,
+          fontSize: 12,
+          fontWeight: 600,
+          color: "rgba(255,255,255,0.58)",
+        }}
+      >
+        {label}
+      </div>
+    </div>
   );
 }
 

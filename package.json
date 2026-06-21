@@ -12,7 +12,9 @@
     "gen-icon": "node scripts/generate-icon.mjs",
     "gen-questions": "node scripts/generate-questions.mjs",
     "optimize-bg": "node scripts/optimize-bg.mjs",
-    "strip-bg": "node scripts/strip-bg.mjs"
+    "strip-bg": "node scripts/strip-bg.mjs",
+    "strip-bg-cream": "node scripts/strip-bg-cream.mjs",
+    "chroma-key": "node scripts/chroma-key.mjs"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",

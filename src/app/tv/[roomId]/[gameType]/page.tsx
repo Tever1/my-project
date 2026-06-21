@@ -10,8 +10,10 @@ import { GAMES } from '@/lib/games-config';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useRoomState } from '@/lib/use-room-state';
 import { GameIcon } from '@/components/GameIcon';
+import { CrocIcon } from '@/components/games/CrocIcon';
 import { GameSurface } from '@/components/games/GameSurface';
 import { QRCodeCanvas } from '@/components/ui/QRCode';
+import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import type { QuizDifficulty, QuizTopic } from '@/types/game';
@@ -237,8 +239,8 @@ export default function TVGamePage() {
   const [crocState, setCrocState] = useState<{
     phase: string; explainerId: string; currentWordIndex: number;
     timeLeft: number; scores: Record<string, number>; wordsGuessed: number; wordsSkipped: number;
-    playersOrder: string[]; completedExplainers: string[];
-  }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, wordsSkipped: 0, playersOrder: [], completedExplainers: [] });
+    playersOrder: string[]; turnNumber: number;
+  }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, wordsSkipped: 0, playersOrder: [], turnNumber: 1 });
   const [aliasState, setAliasState] = useState<{
     phase: string; mode: string; teams: { id: string; name: string; playerIds: string[]; score: number }[];
     activeTeamIndex: number; explainerIndex: number; explainerIndices: number[]; currentWordIndex: number;
@@ -1433,24 +1435,78 @@ export default function TVGamePage() {
   // ===================== CROCODILE TV RENDER =====================
   if (gameType === 'crocodile') {
     const explainerName = getPlayerName(crocState.explainerId);
-    const totalRounds = crocState.playersOrder.length || players.length;
+    const totalRounds = 3;
+    const playerCountForRound = crocState.playersOrder.length || players.length || 1;
     const currentRound = crocState.phase === 'finished'
       ? totalRounds
-      : crocState.completedExplainers.length + 1;
+      : Math.min(
+          totalRounds,
+          Math.max(1, Math.floor((crocState.turnNumber - 1) / playerCountForRound) + 1),
+        );
     const sortedScores = Object.entries(crocState.scores)
       .map(([id, score]) => ({ id, name: getPlayerName(id), score }))
       .sort((a, b) => b.score - a.score);
+    const crocTimerRadius = 118;
+    const crocTimerCirc = 2 * Math.PI * crocTimerRadius;
+    const crocTimerRatio = Math.max(0, Math.min(1, crocState.timeLeft / 60));
+    const crocTimerOffset = crocTimerCirc * (1 - crocTimerRatio);
+    const medalColors = ['#ffd60a', '#c7cdd6', '#cd8e54'];
+    const crocCounterStats = [
+      {
+        label: locale === 'ru' ? 'Угадано' : 'Guessed',
+        value: crocState.wordsGuessed,
+        icon: '✓',
+        color: '#ef4444',
+      },
+      {
+        label: locale === 'ru' ? 'Пропущено' : 'Skipped',
+        value: crocState.wordsSkipped,
+        icon: '›',
+        color: '#ff9f0a',
+      },
+    ];
     return (
-      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      <GameSurface className="h-screen bg-gradient-crocodile text-white flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+        <div className="flex items-center justify-between gap-8 px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
-            <span className="text-4xl">🐊</span>
+            <CrocIcon name="croc" className="h-10 w-10" />
             <h1 className="text-3xl font-bold">{locale === 'ru' ? 'Крокодил' : 'Crocodile'}</h1>
+            {(crocState.phase === 'ready' || crocState.phase === 'explaining') && (
+              <span className="rounded-full border border-red-300/30 bg-red-500/20 px-4 py-1.5 font-mono text-sm font-bold uppercase tracking-[0.18em] text-red-100">
+                {locale === 'ru' ? 'Раунд' : 'Round'} {currentRound} / {totalRounds}
+              </span>
+            )}
           </div>
-          {crocState.phase === 'explaining' && (
+          {(crocState.phase === 'ready' || crocState.phase === 'explaining') && (
             <div className="flex items-center gap-3">
-              <span className="text-white/50 text-lg">Ход {currentRound} / {totalRounds}</span>
+              {crocCounterStats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="flex min-w-[150px] items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_14px_38px_rgba(0,0,0,.22)]"
+                >
+                  <span
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl text-2xl font-black"
+                    style={{
+                      backgroundColor: `${stat.color}22`,
+                      color: stat.color,
+                    }}
+                  >
+                    {stat.icon}
+                  </span>
+                  <span className="flex flex-col leading-none">
+                    <span
+                      className="font-mono text-[42px] font-black tabular-nums leading-none"
+                      style={{ color: stat.color }}
+                    >
+                      {stat.value}
+                    </span>
+                    <span className="mt-1 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                      {stat.label}
+                    </span>
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1459,67 +1515,110 @@ export default function TVGamePage() {
           {/* WAITING */}
           {crocState.phase === 'waiting' && (
             <div className="text-center">
-              <div className="text-8xl mb-6">🐊</div>
+              <div className="mb-6 flex justify-center">
+                <CrocIcon name="croc" className="h-24 w-24" />
+              </div>
               <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}</h2>
               <div className="mt-6 flex items-center justify-center gap-4 flex-wrap">
                 {players.map(p => (
-                  <div key={p.id} className="glass-card px-6 py-3">
+                  <div key={p.id} className="glass-card flex items-center justify-center gap-2 px-6 py-3">
+                    <span aria-hidden className="h-5 w-5 flex-shrink-0" />
                     <span className="text-xl">{p.nickname}</span>
-                    {p.isHost && <span className="ml-2">👑</span>}
+                    <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                      {p.isHost && <CrocIcon name="crown" className="h-5 w-5" />}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* EXPLAINING */}
-          {crocState.phase === 'explaining' && (
+          {/* READY / EXPLAINING */}
+          {(crocState.phase === 'ready' || crocState.phase === 'explaining') && (
             <>
-              {/* Timer */}
-              <div className="text-center flex-shrink-0">
-                <span className={`font-bold text-[clamp(3rem,10vh,6rem)] tabular-nums ${crocState.timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
-                  {crocState.timeLeft}
-                </span>
+              <div className="flex flex-1 min-h-0 w-full items-center justify-center gap-[clamp(2rem,6vw,4rem)]">
+                <div className="relative h-[280px] w-[280px] flex-shrink-0">
+                  <svg viewBox="0 0 260 260" width="280" height="280">
+                    <circle cx="130" cy="130" r={crocTimerRadius} stroke="rgba(255,255,255,.08)" strokeWidth="14" fill="none" />
+                    <circle
+                      cx="130"
+                      cy="130"
+                      r={crocTimerRadius}
+                      stroke="#ef4444"
+                      strokeWidth="14"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeDasharray={crocTimerCirc}
+                      strokeDashoffset={crocTimerOffset}
+                      transform="rotate(-90 130 130)"
+                      style={{ filter: 'drop-shadow(0 0 12px #ef444488)', transition: 'stroke-dashoffset 1s linear' }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className={`font-mono text-7xl font-black tabular-nums leading-none ${crocState.timeLeft <= 10 ? 'text-red-200 animate-pulse' : 'text-white'}`}>
+                      {crocState.timeLeft}
+                    </span>
+                    <span className="mt-2 font-mono text-sm font-bold uppercase tracking-[0.28em] text-white/40">
+                      {locale === 'ru' ? 'сек' : 'sec'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="min-w-0 max-w-[48vw] flex-1">
+                  <p className="mb-4 font-mono text-lg font-bold uppercase tracking-[0.22em] text-white/45">
+                    {crocState.phase === 'ready'
+                      ? locale === 'ru' ? 'Готовится начать' : 'Getting ready'
+                      : locale === 'ru' ? 'Показывает слово' : 'Showing the word'}
+                  </p>
+                  <div className="flex min-w-0 items-center gap-6">
+                    <PlayerAvatar nickname={explainerName} sizePx={88} ring="#ef4444" />
+                    <p
+                      className="min-w-0 truncate text-[clamp(3rem,6vw,4.5rem)] font-black leading-none"
+                      style={{ letterSpacing: '-1.5px' }}
+                    >
+                      {explainerName}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* Timer bar */}
-              <div className="w-full max-w-2xl h-3 rounded-full bg-white/10 overflow-hidden flex-shrink-0">
+              <div className="w-full flex-shrink-0 rounded-[24px] border border-white/10 bg-white/[0.05] p-4 shadow-[0_18px_54px_rgba(0,0,0,.25)]">
+                <div className="mb-3 flex items-center gap-2">
+                  <CrocIcon name="trophy" className="h-7 w-7" />
+                  <h2 className="text-xl font-black">{locale === 'ru' ? 'Таблица очков' : 'Scoreboard'}</h2>
+                </div>
                 <div
-                  className="h-full rounded-full transition-all duration-1000 linear"
-                  style={{
-                    width: `${(crocState.timeLeft / 60) * 100}%`,
-                    background: crocState.timeLeft <= 10 ? 'linear-gradient(90deg, #f87171, #ef4444)' : 'linear-gradient(90deg, #a855f7, #6366f1)',
-                  }}
-                />
-              </div>
-
-              {/* Explainer */}
-              <div className="glass-card px-8 py-5 text-center flex-shrink-0">
-                <p className="text-white/50 text-lg mb-1">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
-                <p className="text-3xl font-bold text-amber-400">🎤 {explainerName}</p>
-              </div>
-
-              {/* Words guessed / skipped this turn */}
-              <div className="flex gap-6 flex-shrink-0 text-xl">
-                <span className="text-white/60">
-                  {locale === 'ru' ? 'Угадано:' : 'Guessed:'}{' '}
-                  <span className="font-bold text-green-400">{crocState.wordsGuessed}</span>
-                </span>
-                <span className="text-white/60">
-                  {locale === 'ru' ? 'Пропущено:' : 'Skipped:'}{' '}
-                  <span className="font-bold text-red-400">{crocState.wordsSkipped}</span>
-                </span>
-              </div>
-
-              {/* Scoreboard */}
-              <div className="w-full max-w-xl overflow-hidden">
-                <div className="grid grid-cols-2 gap-2">
-                  {sortedScores.map(({ id, name, score }) => (
-                    <div key={id} className={`glass-card px-4 py-2.5 flex items-center justify-between ${id === crocState.explainerId ? 'outline outline-2 outline-amber-400' : ''}`}>
-                      <span className="text-base font-bold truncate">{name} {id === crocState.explainerId && '🎤'}</span>
-                      <span className="text-xl font-bold text-amber-400 flex-shrink-0 ml-2">{score}</span>
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(sortedScores.length, 8))}, minmax(0, 1fr))` }}
+                >
+                  {sortedScores.slice(0, 8).map(({ id, name, score }, idx) => {
+                    const active = id === crocState.explainerId;
+                    const rankColor = medalColors[idx] ?? 'rgba(255,255,255,.42)';
+                    return (
+                      <div
+                        key={id}
+                        className="min-w-0 rounded-[20px] px-3 py-3 text-center"
+                        style={{
+                          background: active ? 'linear-gradient(180deg, #ef44442e, rgba(255,255,255,.04))' : 'rgba(255,255,255,.04)',
+                          border: active ? '1px solid #ef444466' : '1px solid rgba(255,255,255,.08)',
+                        }}
+                      >
+                        <p className="mb-2 font-mono text-xs font-black" style={{ color: rankColor }}>
+                          #{idx + 1}
+                        </p>
+                        <div className="mb-2 flex justify-center">
+                          <PlayerAvatar nickname={name} sizePx={48} ring={active ? '#ef4444' : undefined} />
+                        </div>
+                        <p className="truncate text-[15px] font-bold text-white">{name}</p>
+                        <p className="mt-1 font-mono text-[26px] font-black leading-none text-white tabular-nums">{score}</p>
+                      </div>
+                    );
+                  })}
+                  {sortedScores.length === 0 && (
+                    <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-6 text-center text-white/50">
+                      {locale === 'ru' ? 'Пока нет игроков' : 'No players yet'}
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </>
@@ -1528,13 +1627,23 @@ export default function TVGamePage() {
           {/* FINISHED */}
           {crocState.phase === 'finished' && (
             <div className="text-center">
-              <div className="text-8xl mb-4">🏆</div>
+              <div className="mb-4 flex justify-center">
+                <CrocIcon name="trophy" className="h-24 w-24" />
+              </div>
               <h2 className="text-4xl font-bold text-amber-400 mb-6">{locale === 'ru' ? 'Игра окончена!' : 'Game Over!'}</h2>
               <div className="w-full max-w-xl mx-auto space-y-3">
                 {sortedScores.map(({ id, name, score }, idx) => (
                   <div key={id} className={`glass-card px-8 py-4 flex items-center justify-between ${idx === 0 ? 'outline outline-2 outline-amber-400 bg-amber-500/10' : ''}`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`}</span>
+                      {idx < 3 ? (
+                        <CrocIcon
+                          name="medal"
+                          className="h-9 w-9"
+                          style={{ color: medalColors[idx] ?? '#f5efe6' }}
+                        />
+                      ) : (
+                        <span className="text-3xl">{idx + 1}.</span>
+                      )}
                       <span className="text-2xl font-bold">{name}</span>
                     </div>
                     <span className="text-3xl font-bold text-amber-400">{score}</span>

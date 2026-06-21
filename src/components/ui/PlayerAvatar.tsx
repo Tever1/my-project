@@ -3,6 +3,8 @@
 interface PlayerAvatarProps {
   nickname: string;
   size?: 'xs' | 'sm' | 'md' | 'lg';
+  sizePx?: number;
+  ring?: string;
   away?: boolean;
   className?: string;
 }
@@ -26,13 +28,15 @@ const SIZES = {
 export function PlayerAvatar({
   nickname,
   size = 'md',
+  sizePx,
+  ring,
   away = false,
   className = '',
 }: PlayerAvatarProps) {
   const trimmedNickname = nickname.trim();
   const initial = trimmedNickname.charAt(0).toUpperCase() || '?';
   const charCode = trimmedNickname.charCodeAt(0) || 0;
-  const px = SIZES[size];
+  const px = sizePx ?? SIZES[size];
 
   return (
     <div
@@ -51,9 +55,12 @@ export function PlayerAvatar({
         fontWeight: 700,
         lineHeight: 1,
         flexShrink: 0,
+        boxShadow: ring
+          ? `0 0 0 3px ${ring}, 0 0 0 6px rgba(255,255,255,.14), 0 6px 18px rgba(0,0,0,.35)`
+          : undefined,
         filter: away ? 'grayscale(1)' : undefined,
         opacity: away ? 0.5 : 1,
-        transition: 'filter 200ms ease, opacity 200ms ease',
+        transition: 'filter 200ms ease, opacity 200ms ease, box-shadow 200ms ease',
       }}
     >
       {initial}

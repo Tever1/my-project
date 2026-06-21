@@ -11,7 +11,7 @@ import { GameSurface } from './GameSurface';
 interface GameLayoutProps {
   children: ReactNode;
   title: string;
-  icon?: string;
+  icon?: string | ReactNode;
   round?: number;
   totalRounds?: number;
   scores?: {
@@ -49,11 +49,15 @@ export function GameLayout({
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-black/20 border-b border-white/10">
         <div className="w-[92%] max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            {icon && (icon.startsWith('/') ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={icon} alt="" aria-hidden className="h-7 w-7 flex-shrink-0 object-contain" />
+            {icon && (typeof icon === 'string' ? (
+              icon.startsWith('/') ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={icon} alt="" aria-hidden className="h-7 w-7 flex-shrink-0 object-contain" />
+              ) : (
+                <span className="text-2xl flex-shrink-0">{icon}</span>
+              )
             ) : (
-              <span className="text-2xl flex-shrink-0">{icon}</span>
+              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center">{icon}</span>
             ))}
             <div className="min-w-0">
               <h1 className="text-lg font-bold truncate">{title}</h1>

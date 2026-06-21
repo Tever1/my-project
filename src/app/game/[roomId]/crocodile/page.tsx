@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { CrocIcon } from '@/components/games/CrocIcon';
+import { FitText } from '@/components/games/FitText';
 import { GameLayout } from '@/components/games/GameLayout';
 import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
+import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
 import { useGameAction } from '@/lib/use-game-action';
@@ -20,7 +23,8 @@ import { Player } from '@/types/room';
 // ---------------------------------------------------------------------------
 
 interface CrocodileGameState {
-  phase: 'waiting' | 'explaining' | 'finished';
+  phase: 'waiting' | 'ready' | 'explaining' | 'finished';
+  turnNumber: number;
   explainerIndex: number;
   explainerId: string;
   currentWordIndex: number;
@@ -29,11 +33,11 @@ interface CrocodileGameState {
   wordsGuessed: number;
   wordsSkipped: number;
   playersOrder: string[];          // player ids in turn order
-  completedExplainers: string[];   // ids of players who already explained
   usedWordIndices: number[];       // track used words to avoid repeats
 }
 
 const TURN_DURATION = 60; // seconds
+const ROUNDS_PER_PLAYER = 3;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -193,7 +197,8 @@ export default function CrocodilePage() {
     const firstWordIdx = pickRandomWordIndex([]);
 
     const initial: CrocodileGameState = {
-      phase: 'explaining',
+      phase: 'ready',
+      turnNumber: 1,
       explainerIndex: 0,
       explainerId: order[0],
       currentWordIndex: firstWordIdx,
@@ -202,11 +207,11 @@ export default function CrocodilePage() {
       wordsGuessed: 0,
       wordsSkipped: 0,
       playersOrder: order,
-      completedExplainers: [],
       usedWordIndices: [firstWordIdx],
     };
 
     setGameState(initial);
+    gameStateRef.current = initial;
     broadcast('croc:state', initial);
   }, [isGameHost, players, broadcast]);
 
@@ -216,42 +221,64 @@ export default function CrocodilePage() {
 
   const advanceToNextExplainer = useCallback(
     (prev: CrocodileGameState) => {
-      const newCompleted = [...prev.completedExplainers, prev.explainerId];
+      const totalTurns = prev.playersOrder.length * ROUNDS_PER_PLAYER;
 
-      if (newCompleted.length >= prev.playersOrder.length) {
+      if (prev.turnNumber >= totalTurns || prev.playersOrder.length === 0) {
         const finished: CrocodileGameState = {
           ...prev,
           phase: 'finished',
-          completedExplainers: newCompleted,
           timeLeft: 0,
         };
         setGameState(finished);
+        gameStateRef.current = finished;
         broadcast('croc:state', finished);
         return;
       }
 
-      const nextIndex = prev.explainerIndex + 1;
+      const nextIndex = (prev.explainerIndex + 1) % prev.playersOrder.length;
       const nextId = prev.playersOrder[nextIndex];
       const nextWordIdx = pickRandomWordIndex(prev.usedWordIndices);
 
       const next: CrocodileGameState = {
         ...prev,
-        phase: 'explaining',
+        phase: 'ready',
+        turnNumber: prev.turnNumber + 1,
         explainerIndex: nextIndex,
         explainerId: nextId,
         currentWordIndex: nextWordIdx,
         timeLeft: TURN_DURATION,
         wordsGuessed: 0,
         wordsSkipped: 0,
-        completedExplainers: newCompleted,
         usedWordIndices: [...prev.usedWordIndices, nextWordIdx],
       };
 
       setGameState(next);
+      gameStateRef.current = next;
       broadcast('croc:state', next);
     },
     [broadcast],
   );
+
+  // ------------------------------------------------------------------
+  // Host: explainer starts a ready turn
+  // ------------------------------------------------------------------
+
+  const startTurn = useCallback(() => {
+    if (!isGameHost) return;
+
+    const current = gameStateRef.current;
+    if (!current || current.phase !== 'ready') return;
+
+    const next: CrocodileGameState = {
+      ...current,
+      phase: 'explaining',
+      timeLeft: TURN_DURATION,
+    };
+
+    setGameState(next);
+    gameStateRef.current = next;
+    broadcast('croc:state', next);
+  }, [isGameHost, broadcast]);
 
   // ------------------------------------------------------------------
   // Host: explainer pressed "Угадали!" — award +1 to explainer, next word
@@ -273,6 +300,7 @@ export default function CrocodilePage() {
     };
 
     setGameState(updated);
+    gameStateRef.current = updated;
     broadcast('croc:state', updated);
   }, [isGameHost, gameState, broadcast]);
 
@@ -292,6 +320,7 @@ export default function CrocodilePage() {
     };
 
     setGameState(updated);
+    gameStateRef.current = updated;
     broadcast('croc:state', updated);
   }, [isGameHost, gameState, broadcast]);
 
@@ -317,13 +346,14 @@ export default function CrocodilePage() {
       };
       if (action === 'croc:guessed') handleGuessed();
       if (action === 'croc:skip') handleSkip();
+      if (action === 'croc:start-turn') startTurn();
       if (action === 'croc:next-player' && gameState) {
         if (timerRef.current) clearInterval(timerRef.current);
         advanceToNextExplainer(gameState);
       }
     });
     return cleanup;
-  }, [isGameHost, on, handleGuessed, handleSkip, advanceToNextExplainer, gameState]);
+  }, [isGameHost, on, handleGuessed, handleSkip, startTurn, advanceToNextExplainer, gameState]);
 
   // ------------------------------------------------------------------
   // Host: end game manually
@@ -346,12 +376,25 @@ export default function CrocodilePage() {
       }))
     : [];
 
+  const totalRounds = ROUNDS_PER_PLAYER;
+  const playerCountForRound = gameState?.playersOrder.length || players.length || 1;
   const currentRound = gameState
     ? gameState.phase === 'finished'
-      ? gameState.playersOrder.length
-      : gameState.completedExplainers.length + 1
+      ? ROUNDS_PER_PLAYER
+      : Math.min(
+          ROUNDS_PER_PLAYER,
+          Math.max(1, Math.floor((gameState.turnNumber - 1) / playerCountForRound) + 1),
+        )
     : 0;
-  const totalRounds = gameState ? gameState.playersOrder.length : players.length;
+  const guessingPlayers = gameState
+    ? players.filter((p) => p.id !== gameState.explainerId).slice(0, 5)
+    : [];
+  const formatTurnTime = (seconds: number) => {
+    const safeSeconds = Math.max(0, seconds);
+    const minutes = Math.floor(safeSeconds / 60);
+    const rest = safeSeconds % 60;
+    return `${minutes}:${rest.toString().padStart(2, '0')}`;
+  };
 
   // ------------------------------------------------------------------
   // Render
@@ -360,13 +403,14 @@ export default function CrocodilePage() {
   return (
     <GameLayout
       title={locale === 'ru' ? 'Крокодил' : 'Crocodile'}
-      icon="🐊"
+      icon={<CrocIcon name="croc" className="h-7 w-7" />}
       round={currentRound}
       totalRounds={totalRounds}
       scores={layoutScores}
       onEnd={isGameHost ? endGame : undefined}
-      showScoreboard={gameState?.phase === 'finished'}
-      phaseKey={gameState?.phase ?? 'waiting'}
+      showScoreboard={false}
+      phaseKey={`${gameState?.phase ?? 'waiting'}-${gameState?.turnNumber ?? 0}`}
+      gradientClass="bg-gradient-crocodile"
     >
       {/* ---- WAITING / NOT STARTED ---- */}
       {(!gameState || gameState.phase === 'waiting') && (
@@ -380,7 +424,7 @@ export default function CrocodilePage() {
             </p>
             <p
               className="text-sm mb-6"
-              style={{ color: 'var(--text-secondary)' }}
+              style={{ color: 'var(--text-primary)' }}
             >
               {locale === 'ru'
                 ? 'Объясняйте слова, не называя их! У каждого будет 60 секунд. Очки получает тот, кто объясняет.'
@@ -423,166 +467,187 @@ export default function CrocodilePage() {
         </div>
       )}
 
-      {/* ---- EXPLAINING PHASE ---- */}
-      {gameState?.phase === 'explaining' && (
-        <div className="flex-1 flex flex-col items-center gap-4">
-          {/* Timer */}
+      {/* ---- READY / EXPLAINING PHASE ---- */}
+      {(gameState?.phase === 'ready' || gameState?.phase === 'explaining') && (
+        <div className="flex-1 flex flex-col items-center gap-4 w-full">
+          {/* Status bar */}
           <div className="w-full max-w-md">
-            <div className="text-center mb-2">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-white/65">
+                {locale === 'ru' ? 'Раунд' : 'Round'} {currentRound} / {totalRounds}
+              </span>
               <span
-                className={`text-5xl font-bold tabular-nums ${
-                  gameState.timeLeft <= 10
-                    ? 'text-red-400 animate-pulse'
-                    : 'text-white'
+                className={`font-mono text-2xl font-black tabular-nums ${
+                  gameState.timeLeft <= 10 ? 'text-red-200 animate-pulse' : 'text-white'
                 }`}
               >
-                {gameState.timeLeft}
+                {formatTurnTime(gameState.timeLeft)}
               </span>
             </div>
-            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="w-full h-1.5 rounded-full bg-white/[0.12] overflow-hidden">
               <div
-                className="h-full rounded-full transition-all duration-1000 linear"
+                className={`h-full rounded-full transition-all duration-1000 linear ${
+                  gameState.timeLeft <= 10 ? 'animate-pulse' : ''
+                }`}
                 style={{
                   width: `${(gameState.timeLeft / TURN_DURATION) * 100}%`,
-                  background: gameState.timeLeft <= 10 ? 'linear-gradient(90deg, #f87171, #ef4444)' : 'var(--accent-gradient)',
+                  background: 'linear-gradient(90deg, #ef4444, #f87171)',
+                  boxShadow: '0 0 12px #ef4444',
                 }}
               />
             </div>
           </div>
 
-          {/* Explainer name + stats */}
-          <GlassCard className="w-full max-w-md p-4 text-center">
-            <p
-              className="text-lg font-bold"
-              style={{ color: 'var(--text-primary)' }}
+          {/* Ready card */}
+          {gameState.phase === 'ready' && isExplainer && (
+            <div
+              className="relative flex min-h-[320px] w-full max-w-md flex-1 flex-col items-center justify-center overflow-hidden rounded-[36px] px-6 py-7 text-center text-white"
+              style={{
+                background: 'radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.35), transparent 55%), linear-gradient(165deg, #ef4444 0%, #991b1b 100%)',
+                boxShadow: '0 24px 60px -18px #ef4444cc',
+              }}
             >
-              🎤 {currentExplainer?.nickname ?? '...'}
-            </p>
-            <p
-              className="text-sm"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {locale === 'ru'
-                ? `✅ Угадано: ${gameState.wordsGuessed}  ❌ Пропущено: ${gameState.wordsSkipped}`
-                : `✅ Guessed: ${gameState.wordsGuessed}  ❌ Skipped: ${gameState.wordsSkipped}`}
-            </p>
-          </GlassCard>
+              <button
+                type="button"
+                className="min-h-[96px] rounded-[30px] border border-white/20 bg-white px-10 text-3xl font-black text-red-700 shadow-[0_18px_44px_rgba(0,0,0,.25)] transition active:scale-[0.98]"
+                onClick={() => (isGameHost ? startTurn() : emitAction('croc:start-turn'))}
+              >
+                {locale === 'ru' ? 'НАЧАТЬ' : 'START'}
+              </button>
+              <p className="mt-5 text-base font-semibold text-white/80">
+                {locale === 'ru' ? 'Нажми, когда готов показывать' : "Tap when you're ready"}
+              </p>
+            </div>
+          )}
 
-          {/* Word card — only visible to explainer */}
-          {isExplainer && currentWord ? (
-            <GlassCard className="w-full max-w-md p-8 text-center">
+          {gameState.phase === 'ready' && !isExplainer && (
+            <div
+              className="flex min-h-[320px] w-full max-w-md flex-1 flex-col items-center justify-center rounded-[36px] px-8 py-10 text-center text-white"
+              style={{
+                background: 'radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.25), transparent 55%), linear-gradient(165deg, #ef4444 0%, #991b1b 100%)',
+                boxShadow: '0 20px 50px -22px #ef4444cc',
+              }}
+            >
+              <div className="mb-3 flex justify-center">
+                <CrocIcon name="mic" className="h-14 w-14" />
+              </div>
               <p
-                className="text-sm uppercase tracking-wider mb-2"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {locale === 'ru' ? 'Ваше слово' : 'Your word'}
-              </p>
-              <p
-                className="text-3xl font-extrabold"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                {locale === 'ru' ? currentWord.ru : currentWord.en}
-              </p>
-            </GlassCard>
-          ) : (
-            /* Non-explainer: just listen and guess out loud */
-            <GlassCard className="w-full max-w-md p-8 text-center">
-              <p className="text-4xl mb-3">🗣️</p>
-              <p
-                className="text-lg font-semibold"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                {locale === 'ru' ? 'Угадывайте вслух!' : 'Guess out loud!'}
-              </p>
-              <p
-                className="text-sm mt-2"
-                style={{ color: 'var(--text-secondary)' }}
+                className="text-2xl font-black"
+                style={{ textShadow: '0 3px 14px rgba(0,0,0,.35)' }}
               >
                 {locale === 'ru'
-                  ? `${currentExplainer?.nickname ?? '...'} объясняет слово`
-                  : `${currentExplainer?.nickname ?? '...'} is explaining`}
+                  ? `${currentExplainer?.nickname ?? '...'} готовится начать…`
+                  : `${currentExplainer?.nickname ?? '...'} is getting ready…`}
               </p>
-            </GlassCard>
-          )}
-
-          {/* Action buttons — only for explainer */}
-          {isExplainer && (
-            <div className="w-full max-w-md flex gap-3">
-              <GlassButton
-                variant="primary"
-                size="lg"
-                className="flex-1"
-                onClick={() =>
-                  isGameHost ? handleGuessed() : emitAction('croc:guessed')
-                }
-              >
-                {locale === 'ru' ? 'Угадали! ✓' : 'Guessed! ✓'}
-              </GlassButton>
-              <GlassButton
-                size="lg"
-                className="flex-1"
-                onClick={() =>
-                  isGameHost ? handleSkip() : emitAction('croc:skip')
-                }
-              >
-                {locale === 'ru' ? 'Пропустить →' : 'Skip →'}
-              </GlassButton>
             </div>
           )}
 
-          {/* Host can force advance to next player */}
-          {isGameHost && !isExplainer && (
-            <div className="w-full max-w-md">
-              <GlassButton
-                size="md"
-                className="w-full"
-                onClick={() => {
-                  if (timerRef.current) clearInterval(timerRef.current);
-                  advanceToNextExplainer(gameState);
+          {/* Word card — only visible to explainer */}
+          {gameState.phase === 'explaining' && isExplainer && currentWord ? (
+            <div
+              className="relative flex min-h-[320px] w-full max-w-md flex-1 flex-col overflow-hidden rounded-[36px] px-6 py-7 text-white"
+              style={{
+                background: 'radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.35), transparent 55%), linear-gradient(165deg, #ef4444 0%, #991b1b 100%)',
+                boxShadow: '0 24px 60px -18px #ef4444cc',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs font-bold uppercase tracking-[0.22em] text-white/65">
+                  {locale === 'ru' ? 'Слово' : 'Word'}
+                </span>
+                <CrocIcon name="croc" className="h-9 w-9" />
+              </div>
+
+              <div className="flex-1 min-h-0 py-8">
+                <FitText
+                  text={locale === 'ru' ? currentWord.ru : currentWord.en}
+                  max={68}
+                  min={22}
+                  className="text-center font-black leading-[0.95]"
+                  style={{
+                    letterSpacing: '-1.5px',
+                    textShadow: '0 3px 16px rgba(0,0,0,.35)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 font-mono text-xs font-bold uppercase tracking-[0.2em] text-white/60">
+                  {locale === 'ru' ? 'Угадывают' : 'Guessing'}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {guessingPlayers.map((p) => (
+                    <span
+                      key={p.id}
+                      className="inline-flex items-center gap-2 rounded-full bg-black/20 px-2.5 py-1.5 text-sm font-semibold text-white"
+                    >
+                      <PlayerAvatar nickname={p.nickname} sizePx={26} />
+                      <span className="max-w-[120px] truncate">{p.nickname}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : gameState.phase === 'explaining' ? (
+            /* Non-explainer: just listen and guess out loud */
+            <>
+              <div
+                className="flex min-h-[320px] w-full max-w-md flex-1 flex-col items-center justify-center rounded-[36px] px-8 py-10 text-center text-white"
+                style={{
+                  background: 'radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.25), transparent 55%), linear-gradient(165deg, #ef4444 0%, #991b1b 100%)',
+                  boxShadow: '0 20px 50px -22px #ef4444cc',
                 }}
               >
-                {locale === 'ru' ? 'Следующий игрок →' : 'Next Player →'}
-              </GlassButton>
+                <div className="mb-3 flex justify-center">
+                  <CrocIcon name="talk" className="h-14 w-14" />
+                </div>
+                <p
+                  className="text-2xl font-black"
+                  style={{ textShadow: '0 3px 14px rgba(0,0,0,.35)' }}
+                >
+                  {locale === 'ru' ? 'Угадывайте вслух!' : 'Guess out loud!'}
+                </p>
+                <p className="mt-3 text-sm font-medium text-white/75">
+                  {locale === 'ru'
+                    ? `${currentExplainer?.nickname ?? '...'} объясняет слово`
+                    : `${currentExplainer?.nickname ?? '...'} is explaining`}
+                </p>
+              </div>
+              <div aria-hidden className="w-full max-w-md h-[76px] opacity-0 pointer-events-none select-none" />
+            </>
+          ) : null}
+
+          {/* Action buttons — only for explainer */}
+          {gameState.phase === 'explaining' && isExplainer && (
+            <div className="w-full max-w-md space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  className="h-[76px] rounded-[24px] border border-white/[0.12] bg-white/[0.12] px-3 text-base font-black text-white shadow-[0_12px_30px_rgba(0,0,0,.2)] backdrop-blur-md transition active:scale-[0.98]"
+                  onClick={() =>
+                    isGameHost ? handleSkip() : emitAction('croc:skip')
+                  }
+                >
+                  <span className="mb-1 block text-2xl leading-none">×</span>
+                  {locale === 'ru' ? 'Пропустить' : 'Skip'}
+                </button>
+                <button
+                  type="button"
+                  className="h-[76px] rounded-[24px] px-3 text-base font-black shadow-[0_16px_34px_rgba(48,209,88,.28)] transition active:scale-[0.98]"
+                  style={{
+                    background: 'linear-gradient(180deg, #4bed7a, #30d158)',
+                    color: '#05210f',
+                  }}
+                  onClick={() =>
+                    isGameHost ? handleGuessed() : emitAction('croc:guessed')
+                  }
+                >
+                  <span className="mb-1 block text-2xl leading-none">✓</span>
+                  {locale === 'ru' ? 'Угадали' : 'Guessed'}
+                </button>
+              </div>
             </div>
           )}
-
-          {/* Scoreboard summary */}
-          <GlassCard className="w-full max-w-md p-4">
-            <p
-              className="text-sm font-semibold mb-2"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {locale === 'ru' ? 'Счёт' : 'Scores'}
-            </p>
-            <div className="space-y-1">
-              {gameState.playersOrder.map((id) => {
-                const player = players.find((p) => p.id === id);
-                const done = gameState.completedExplainers.includes(id);
-                return (
-                  <div
-                    key={id}
-                    className={`flex items-center justify-between px-3 py-1.5 rounded-lg ${
-                      id === gameState.explainerId
-                        ? 'bg-white/10 ring-1 ring-purple-400/40'
-                        : ''
-                    }`}
-                  >
-                    <span
-                      className="text-sm"
-                      style={{ color: 'var(--text-primary)' }}
-                    >
-                      {player?.nickname ?? id}
-                      {id === gameState.explainerId && ' 🎤'}
-                      {done && ' ✓'}
-                    </span>
-                    <span className="glass-badge text-xs">
-                      {gameState.scores[id] ?? 0}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </GlassCard>
         </div>
       )}
 
@@ -591,7 +656,9 @@ export default function CrocodilePage() {
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           {!isGameHost && (
             <GlassCard className="w-full max-w-md p-6 text-center">
-              <p className="text-4xl mb-3">🏆</p>
+              <div className="mb-3 flex justify-center">
+                <CrocIcon name="trophy" className="h-12 w-12" />
+              </div>
               <p
                 className="text-lg font-semibold mb-1"
                 style={{ color: 'var(--text-primary)' }}
