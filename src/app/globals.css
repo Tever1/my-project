@@ -259,6 +259,30 @@ html.dark {
   transform: translateY(0);
 }
 
+.glass-card.spy-card,
+.glass-card.spy-card-red,
+.glass-card.spy-card-green,
+.glass-card.spy-card-purple {
+  color: #f5efe6;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.glass-card.spy-card {
+  background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #14b8a6 0%, #0f766e 100%);
+}
+
+.glass-card.spy-card-red {
+  background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #ef4444 0%, #991b1b 100%);
+}
+
+.glass-card.spy-card-green {
+  background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #22c55e 0%, #15803d 100%);
+}
+
+.glass-card.spy-card-purple {
+  background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #a855f7 0%, #6b21a8 100%);
+}
+
 /* ========================================
    Glass Button
    ======================================== */

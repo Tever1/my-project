@@ -12,6 +12,7 @@ import { useRoomState } from '@/lib/use-room-state';
 import { GameIcon } from '@/components/GameIcon';
 import { CrocIcon } from '@/components/games/CrocIcon';
 import { GameSurface } from '@/components/games/GameSurface';
+import { SpyIcon, type SpyIconName } from '@/components/games/SpyIcon';
 import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
@@ -60,8 +61,7 @@ function DifficultyIcon({ difficulty, size = 16 }: { difficulty?: QuizDifficulty
 }
 
 function SpyImg({ name, className }: { name: string; className?: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={`/icons/spy/${name}.png`} alt="" aria-hidden className={className} />;
+  return <SpyIcon name={name as SpyIconName} className={className} style={{ color: '#5eead4' }} />;
 }
 
 // ---------------------------------------------------------------------------

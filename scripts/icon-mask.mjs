@@ -1,9 +1,10 @@
 import sharp from 'sharp';
 
-const SRC = 'public/icons/crocodile/croc-source.jpg';
-const OUT = 'public/icons/crocodile/croc-face.png';
-const SIZE = 256;
-const PAD = 14;
+const [, , argSrc, argOut, argSize, argPad] = process.argv;
+const SRC = argSrc || 'public/icons/crocodile/croc-source.jpg';
+const OUT = argOut || 'public/icons/crocodile/croc-face.png';
+const SIZE = argSize ? Number(argSize) : 256;
+const PAD = argPad ? Number(argPad) : 14;
 const NOISE = 28;
 const GAIN = 1.35;
 

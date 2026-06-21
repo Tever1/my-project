@@ -9,6 +9,7 @@ import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
 import { GameLayout } from '@/components/games/GameLayout';
+import { SpyIcon } from '@/components/games/SpyIcon';
 import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -224,11 +225,6 @@ const formatTime = (sec: number) =>
 
 const normalizeWord = (w: string) =>
   w.trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
-
-function SpyIcon({ name, className = 'inline-block h-[1em] w-[1em] align-[-0.15em]' }: { name: string; className?: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={`/icons/spy/${name}.png`} alt="" aria-hidden className={className} />;
-}
 
 const shufflePlayers = (players: GamePlayer[]): string[] => {
   const ids = players.map(p => p.id);
@@ -796,7 +792,7 @@ export default function SpyGamePage() {
 
   const renderPeekBar = () => (
     <div
-      className="glass-card w-full px-4 py-1 select-none border-teal-400/20"
+      className="glass-card spy-card w-full px-4 py-1 select-none"
       style={{ transform: 'none' }}
       onPointerDown={() => setPeeking(true)}
       onPointerUp={() => setPeeking(false)}
@@ -929,14 +925,14 @@ export default function SpyGamePage() {
   return (
     <GameLayout
       title={l('Шпион', 'Spy')}
-      icon="/icons/spy/mask.png"
+      icon={<SpyIcon name="mask" className="h-7 w-7 text-teal-300" />}
       onEnd={isGameHost ? endGame : undefined}
       phaseKey={s.gameOver ? 'gameOver' : s.phase}
       gradientClass="bg-gradient-spy"
     >
       {s.gameOver && (
         <div className="mx-auto w-full max-w-md py-6 animate-fade-in space-y-4">
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-2 text-teal-300">
             <SpyIcon name="trophy" className="mx-auto h-16 w-16" />
             <h2 className="text-3xl font-black text-white">{l('Игра окончена!', 'Game over!')}</h2>
           </div>
@@ -950,11 +946,11 @@ export default function SpyGamePage() {
 
       {!s.gameOver && s.phase === 'modeSelect' && (
         <div className="mx-auto max-w-lg py-6 animate-fade-in space-y-4">
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-2 text-teal-300">
             <SpyIcon name="mask" className="mx-auto h-16 w-16" />
             <h2 className="text-3xl font-black text-white">{l('Шпион', 'Spy')}</h2>
           </div>
-          <GlassCard className="p-4 space-y-3">
+          <GlassCard className="spy-card p-4 space-y-3">
             {[
               l('Все получают одно секретное слово — кроме шпиона', 'Everyone gets one secret word, except the spy'),
               l('По очереди описывайте слово, не называя его', 'Take turns describing the word without naming it'),
@@ -1014,7 +1010,7 @@ export default function SpyGamePage() {
 
           {s.mode === 'draw' ? (
             isSpy ? (
-              <GlassCard className="p-6 text-center space-y-4 border-red-400/30 bg-red-500/10">
+              <GlassCard className="spy-card-red p-6 text-center space-y-4">
                 <SpyIcon name="mask" className="mx-auto h-16 w-16" />
                 <div>
                   <h3 className="text-2xl font-black text-white">{l('Ты — ШПИОН', 'You are the SPY')}</h3>
@@ -1029,7 +1025,7 @@ export default function SpyGamePage() {
                 </div>
               </GlassCard>
             ) : (
-              <GlassCard className="p-6 text-center space-y-4 border-purple-400/30 bg-purple-500/10">
+              <GlassCard className="spy-card-purple p-6 text-center space-y-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-widest text-purple-200/70">{l('слово для рисования', 'word to draw')}</p>
                   <FitWord text={s.word} max={36} className="mt-3 font-black text-white" />
@@ -1041,7 +1037,7 @@ export default function SpyGamePage() {
               </GlassCard>
             )
           ) : isSpy ? (
-            <GlassCard className="p-6 text-center space-y-4 border-red-400/30 bg-red-500/10">
+            <GlassCard className="spy-card-red p-6 text-center space-y-4">
               <SpyIcon name="mask" className="mx-auto h-16 w-16" />
               <div>
                 <h3 className="text-2xl font-black text-white">{l('Слова у тебя нет', 'You have no word')}</h3>
@@ -1054,7 +1050,7 @@ export default function SpyGamePage() {
               </div>
             </GlassCard>
           ) : (
-            <GlassCard className="p-6 text-center space-y-4 border-teal-400/30 bg-teal-500/10">
+            <GlassCard className="spy-card p-6 text-center space-y-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-teal-200/70">{l('твоё секретное слово', 'your secret word')}</p>
                 <p className="mt-2 text-white/55">{s.category}</p>
@@ -1101,7 +1097,7 @@ export default function SpyGamePage() {
         <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
           {renderBackButton()}
 
-          <GlassCard className="p-4 flex items-center justify-between gap-3">
+          <GlassCard className="spy-card p-4 flex items-center justify-between gap-3">
             <div>
               <p className="text-xs text-white/40">{l('Раунд', 'Round')} {s.currentRound}</p>
               {s.category && <p className="text-sm text-white/70">{s.category}</p>}
@@ -1126,12 +1122,12 @@ export default function SpyGamePage() {
           {s.mode === 'guess' && (
             <div className="space-y-4">
               {isActivePlayer ? (
-                <GlassCard className="p-4 text-center border-teal-400/25 bg-teal-500/10">
+                <GlassCard className="spy-card p-4 text-center">
                   <h2 className="text-2xl font-black text-teal-200">{l('Твой ход', 'Your turn')}</h2>
                   <p className="mt-1 text-sm text-white/60">{l('Опиши слово одним предложением — но не называй его.', 'Describe the word in one sentence, but do not name it.')}</p>
                 </GlassCard>
               ) : (
-                <GlassCard className="p-4 text-center">
+                <GlassCard className="spy-card p-4 text-center">
                   <p className="text-white/40">{l('Сейчас отвечает', 'Now speaking')}</p>
                   <p className="mt-1 text-2xl font-black text-white">{activePlayerName}</p>
                 </GlassCard>
@@ -1200,7 +1196,7 @@ export default function SpyGamePage() {
       {!s.gameOver && s.phase === 'spyGuess' && (
         <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
           {isSpy ? (
-            <GlassCard className="p-5 space-y-4 border-red-400/30 bg-red-500/10">
+            <GlassCard className="spy-card-red p-5 space-y-4">
               <h2 className="text-2xl font-black text-red-300 text-center">{l('Угадай слово', 'Guess the word')}</h2>
               <p className="text-sm text-white/60 text-center">{l('Впиши слово, которое загадали остальные.', 'Type the word the others were given.')}</p>
               <input
@@ -1240,7 +1236,7 @@ export default function SpyGamePage() {
               )}
             </GlassCard>
           ) : isJudge && s.spyGuessAwaitingJudge ? (
-            <GlassCard className="p-5 space-y-4 border-teal-400/30 bg-teal-500/10">
+            <GlassCard className="spy-card p-5 space-y-4">
               <p className="text-sm text-white/60 text-center">{l('Шпион вписал слово. Это правильное слово?', 'The spy typed a word. Is it correct?')}</p>
               <div className="space-y-3">
                 <div className="rounded-xl bg-white/5 p-3">
@@ -1296,7 +1292,7 @@ export default function SpyGamePage() {
           </div>
 
           {hasVoted || myVoteInVoting ? (
-            <GlassCard className="p-4 text-center text-sm text-white/60">
+            <GlassCard className="spy-card p-4 text-center text-sm text-white/60">
               {l('Ваш голос принят, ожидание результатов…', 'Your vote is in, waiting for results...')}
             </GlassCard>
           ) : (
@@ -1320,7 +1316,7 @@ export default function SpyGamePage() {
         <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
           {renderBackButton()}
 
-          <GlassCard className={`p-4 ${s.roundResult.spyCaught ? 'border-green-400/35 bg-green-500/15' : 'border-red-400/35 bg-red-500/15'}`}>
+          <GlassCard className={`p-4 ${s.roundResult.spyCaught ? 'spy-card-green' : 'spy-card-red'}`}>
             <div className="flex items-center gap-3">
               {s.roundResult.spyCaught ? <SpyIcon name="check" className="h-8 w-8" /> : <SpyIcon name="cross" className="h-8 w-8" />}
               <div>
@@ -1343,12 +1339,12 @@ export default function SpyGamePage() {
           </GlassCard>
 
           <div className="grid grid-cols-2 gap-3">
-            <GlassCard className="p-4 text-center">
+            <GlassCard className="spy-card p-4 text-center">
               <p className="text-xs uppercase tracking-widest text-white/35">{l('Шпион', 'Spy')}</p>
               <SpyIcon name="mask" className="mx-auto mt-2 h-8 w-8" />
               <p className="mt-1 font-black text-white">{s.players.find(p => p.id === s.spyId)?.nickname ?? '???'}</p>
             </GlassCard>
-            <GlassCard className="p-4 text-center">
+            <GlassCard className="spy-card p-4 text-center">
               <p className="text-xs uppercase tracking-widest text-white/35">{l('Слово', 'Word')}</p>
               <p className="mt-2 text-sm text-white/55">{s.category}</p>
               <FitWord text={s.word} max={20} className="mt-1 font-black text-white" />

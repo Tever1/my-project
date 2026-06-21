@@ -298,3 +298,10 @@ bash codex-tasks/_regen-done.sh
 | 263 | `263-croc-fit-word-and-front-face-icon.md` | Крокодил: (1) слово влезает в карточку (fit-to-card), (2) новая иконка крокодила (морда анфас) |
 | 264 | `264-croc-face-mask-icon.md` | Крокодил: иконка из референса (line-art JPG → бежевая маска) |
 | 265 | `265-tv-croc-waiting-equal-tiles.md` | TV Крокодил: одинаковые плитки игроков на waiting-экране |
+| 266 | `266-npm-script-icon-mask.md` | package.json: добавить `npm run icon-mask` |
+| 267 | `267-spy-line-icons-preview.md` | Шпион: превью плоских line-иконок на /design-tokens |
+| 268 | `268-fix-spy-medal-star.md` | Шпион превью: перерисовать звезду в медали |
+| 269 | `269-spy-mask-adapt.md` | Шпион: адаптировать маску из референса + показать в превью |
+| 270 | `270-spy-svg-icon-integrate.md` | Шпион: общий SVG-SpyIcon + замена PNG-иконок в игре |
+| 271 | `271-spy-card-gradients.md` | Шпион: градиентный фон карточек вместо матового стекла (смысл сохранён) |
+| 272 | `272-spy-tv-svg-icons.md` | Шпион TV (игровое поле): плоские SVG-иконки вместо PNG |
