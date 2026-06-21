@@ -1,6 +1,6 @@
 # Codex Tasks — индекс закрытых задач
 
-_Последняя синхронизация: 2026-06-16_
+_Последняя синхронизация: 2026-06-20_
 
 Одна строка на каждый TASK. Источник правды — файлы `codex-tasks/NNN-*.md`
 (ТЗ) и `codex-reports/NNN-*.md` (отчёты). Этот индекс — быстрый обзор, чтобы
@@ -284,3 +284,17 @@ bash codex-tasks/_regen-done.sh
 | 249 | `249-spy-peek-hold-pill-fixed-h.md` | Spy peek-bar: пилюля «ЗАЖМИ», убрать «Зажми» слева, жёстко зафиксировать высоту |
 | 250 | `250-spy-tv-draw-timer.md` | Spy TV (игровое поле): таймер в режиме рисования |
 | 251 | `251-spy-tv-draw-timer-round.md` | Spy TV: таймер рисования сделать круглым (как в угадывании) |
+| 252 | `252-crocodile-game-color-bg.md` | Крокодил: фон в цвет игры (красный), как у Шпиона |
+| 253 | `253-crocodile-design-integration.md` | Крокодил: интеграция дизайна Claude Design (Вариант 2), КРАСНАЯ тема |
+| 254 | `254-crocodile-qa-fixes-ready-gate-3rounds.md` | Крокодил: 6 правок по QA (фаза «Готов», 3 круга, чистка мобильного) |
+| 255 | `255-crocodile-remove-next-equal-cards.md` | Крокодил: убрать host «Следующий игрок» + выровнять красные карточки |
+| 256 | `256-crocodile-guesser-card-height.md` | Крокодил: высота карточки угадывающего = высоте карточки объясняющего |
+| 257 | `257-crocodile-mobile-hide-scoreboard-bar.md` | Крокодил (мобильный): убрать верхнюю полосу игроков/очков на итогах |
+| 258 | `258-design-tokens-croc-icon-color-matrix.md` | /design-tokens: секция подбора цвета иконок на красном фоне Крокодила |
+| 259 | `259-crocodile-wire-icons.md` | Крокодил: заменить эмодзи на иконки (мобильный + TV) |
+| 260 | `260-strip-bg-cream-script.md` | Скрипт удаления светлого фона у кремовых иконок (region-grow) |
+| 261 | `261-chroma-key-script.md` | Скрипт chroma-key (убрать зелёный #00FF00 фон у иконок) |
+| 262 | `262-crocodile-line-svg-icons.md` | Крокодил: минималистичные line-SVG иконки вместо кремовых PNG |
+| 263 | `263-croc-fit-word-and-front-face-icon.md` | Крокодил: (1) слово влезает в карточку (fit-to-card), (2) новая иконка крокодила (морда анфас) |
+| 264 | `264-croc-face-mask-icon.md` | Крокодил: иконка из референса (line-art JPG → бежевая маска) |
+| 265 | `265-tv-croc-waiting-equal-tiles.md` | TV Крокодил: одинаковые плитки игроков на waiting-экране |

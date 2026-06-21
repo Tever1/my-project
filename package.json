@@ -14,7 +14,8 @@
     "optimize-bg": "node scripts/optimize-bg.mjs",
     "strip-bg": "node scripts/strip-bg.mjs",
     "strip-bg-cream": "node scripts/strip-bg-cream.mjs",
-    "chroma-key": "node scripts/chroma-key.mjs"
+    "chroma-key": "node scripts/chroma-key.mjs",
+    "icon-mask": "node scripts/icon-mask.mjs"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",
