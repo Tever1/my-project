@@ -558,17 +558,19 @@ export default function CrocodilePage() {
                 <CrocIcon name="croc" className="h-9 w-9" />
               </div>
 
-              <div className="flex-1 min-h-0 py-8">
-                <FitText
-                  text={locale === 'ru' ? currentWord.ru : currentWord.en}
-                  max={68}
-                  min={22}
-                  className="text-center font-black leading-[0.95]"
-                  style={{
-                    letterSpacing: '-1.5px',
-                    textShadow: '0 3px 16px rgba(0,0,0,.35)',
-                  }}
-                />
+              <div className="relative flex-1 min-h-0 py-8">
+                <div className="absolute inset-0 flex items-center justify-center px-2">
+                  <FitText
+                    text={(locale === 'ru' ? currentWord.ru : currentWord.en).replace(/\s+/g, '\n')}
+                    max={128}
+                    min={22}
+                    className="text-center font-black leading-[0.95]"
+                    style={{
+                      letterSpacing: '-1.5px',
+                      textShadow: '0 3px 16px rgba(0,0,0,.35)',
+                    }}
+                  />
+                </div>
               </div>
 
               <div>

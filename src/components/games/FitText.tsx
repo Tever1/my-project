@@ -47,7 +47,7 @@ export function FitText({
       <p
         ref={textRef}
         className={className}
-        style={{ fontSize, overflowWrap: 'anywhere', ...style }}
+        style={{ fontSize, overflowWrap: 'normal', wordBreak: 'normal', whiteSpace: 'pre-line', ...style }}
       >
         {text}
       </p>
