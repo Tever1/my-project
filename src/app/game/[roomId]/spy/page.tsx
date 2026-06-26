@@ -1025,9 +1025,9 @@ export default function SpyGamePage() {
                 </div>
               </GlassCard>
             ) : (
-              <GlassCard className="spy-card-purple p-6 text-center space-y-4">
+              <GlassCard className="spy-card p-6 text-center space-y-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-purple-200/70">{l('слово для рисования', 'word to draw')}</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-teal-200/70">{l('слово для рисования', 'word to draw')}</p>
                   <FitWord text={s.word} max={36} className="mt-3 font-black text-white" />
                 </div>
                 <div className="h-px bg-white/10" />
