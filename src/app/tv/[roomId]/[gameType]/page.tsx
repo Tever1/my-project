@@ -1377,7 +1377,7 @@ export default function TVGamePage() {
               </div>
               <div className="flex-1 min-h-0 flex items-center justify-center">
                 <div className="flex w-full gap-6">
-                  <div className="glass-card flex-1 flex flex-col items-center justify-center gap-4 p-8">
+                  <div className="glass-card spy-card flex-1 flex flex-col items-center justify-center gap-4 p-8">
                     <p className="text-white/40 text-sm uppercase tracking-widest">Шпионом был(а)</p>
                     <div className="relative">
                       <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center text-3xl font-bold">
@@ -1391,7 +1391,7 @@ export default function TVGamePage() {
                         : l(`${sp.roundResult.voteCount} из ${spyPlayerList.length} голосов`, `${sp.roundResult.voteCount} of ${spyPlayerList.length} votes`)}
                     </p>
                   </div>
-                  <div className="glass-card flex-1 flex flex-col items-center justify-center gap-4 p-8">
+                  <div className="glass-card spy-card flex-1 flex flex-col items-center justify-center gap-4 p-8">
                     <p className="text-white/40 text-sm uppercase tracking-widest">Загаданное слово</p>
                     <p className="text-white/60 text-lg">Категория · {sp.category}</p>
                     <p className="text-6xl font-black">{sp.word}</p>
