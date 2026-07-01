@@ -285,6 +285,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
         existingPlayer.isConnected = true;
         existingPlayer.isAway = false;
       } else {
+        const normalizedNickname = data.nickname.trim().toLowerCase();
+        const isNameTaken = Array.from(room.players.values()).some(
+          (player) => player.role !== 'tv' && player.nickname.trim().toLowerCase() === normalizedNickname
+        );
+        if (isNameTaken) {
+          callback({ success: false, error: 'name-taken' });
+          return;
+        }
+
         const player: Player = {
           id: data.playerId,
           socketId: socket.id,

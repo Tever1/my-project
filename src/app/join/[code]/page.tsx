@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { CrocIcon } from "@/components/games/CrocIcon";
 import { useAuth } from "@/lib/auth-context";
 import { gameColors, type GameId } from "@/lib/design/tokens";
 import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
@@ -30,7 +31,9 @@ const t = {
   joinGame: { ru: "Войти в игру", en: "Join the game" },
   connectingToServer: { ru: "Подключение к серверу...", en: "Connecting to server..." },
   couldNotConnect: { ru: "Не удалось подключиться", en: "Could not connect" },
+  nameTaken: { ru: "Это имя уже занято", en: "This name is already taken" },
   host: { ru: "ведущий", en: "host" },
+  you: { ru: "Вы", en: "You" },
   makeHost: { ru: "Передать хост", en: "Make host" },
   removePlayer: { ru: "Удалить игрока", en: "Remove player" },
   noPlayers: { ru: "В комнате нет игроков", en: "No players in the room" },
@@ -160,8 +163,19 @@ export default function JoinPage() {
     const trimmedNickname = nickname.trim();
     if (!trimmedNickname || !code || !isConnected || !playerId) return;
 
-    setIsJoining(true);
     setError(null);
+    const taken = (roomState?.players ?? []).some(
+      (player) =>
+        player.role !== "tv" &&
+        player.id !== playerId &&
+        player.nickname.trim().toLowerCase() === trimmedNickname.toLowerCase()
+    );
+    if (taken) {
+      setError(t.nameTaken[locale]);
+      return;
+    }
+
+    setIsJoining(true);
 
     emit(
       "room:join",
@@ -178,11 +192,11 @@ export default function JoinPage() {
         if (result.success) {
           setJoined(true);
         } else {
-          setError(result.error ?? t.couldNotConnect[locale]);
+          setError(result.error === "name-taken" ? t.nameTaken[locale] : result.error ?? t.couldNotConnect[locale]);
         }
       }
     );
-  }, [code, emit, isConnected, locale, nickname, playerId]);
+  }, [code, emit, isConnected, locale, nickname, playerId, roomState?.players]);
 
   const handleStartGame = useCallback(() => {
     if (!code) return;
@@ -348,6 +362,8 @@ export default function JoinPage() {
             <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
               {visiblePlayers.map((player) => {
                 const canManagePlayer = isPhoneHost && player.id !== playerId;
+                const isRowHost = roomState?.gameHostPlayerId === player.id;
+                const isMe = player.id === playerId;
                 return (
                   <div key={player.id} style={{ position: "relative" }}>
                     <button
@@ -386,9 +402,34 @@ export default function JoinPage() {
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {player.nickname}
                       </span>
-                      {roomState?.gameHostPlayerId === player.id && (
-                        <span style={{ marginLeft: "auto", fontSize: 12, color: "rgba(255,255,255,0.42)" }}>
-                          {t.host[locale]}
+                      {(isRowHost || isMe) && (
+                        <span
+                          style={{
+                            marginLeft: "auto",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {isRowHost && (
+                            <CrocIcon
+                              name="crown"
+                              style={{ width: 15, height: 15, color: "#facc15" }}
+                            />
+                          )}
+                          {isMe && (
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                letterSpacing: 0.4,
+                                color: "rgba(255,255,255,0.55)",
+                              }}
+                            >
+                              {t.you[locale]}
+                            </span>
+                          )}
                         </span>
                       )}
                     </button>
