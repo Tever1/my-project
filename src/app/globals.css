@@ -283,6 +283,25 @@ html.dark {
   background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #a855f7 0%, #6b21a8 100%);
 }
 
+.glass-card.alias-card,
+.glass-card.alias-card-green,
+.glass-card.alias-card-red {
+  color: #fdf2f8;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.glass-card.alias-card {
+  background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #ec4899 0%, #9d174d 100%);
+}
+
+.glass-card.alias-card-green {
+  background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #22c55e 0%, #15803d 100%);
+}
+
+.glass-card.alias-card-red {
+  background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #ef4444 0%, #991b1b 100%);
+}
+
 /* ========================================
    Glass Button
    ======================================== */
@@ -734,6 +753,11 @@ html.dark {
 
 .bg-gradient-crocodile {
   background: linear-gradient(135deg, #200707 0%, #3b0a0a 30%, #2a0c0c 60%, #200707 100%);
+  color: #f0eef6;
+}
+
+.bg-gradient-alias {
+  background: linear-gradient(135deg, #2a0a1f 0%, #3b0a2f 30%, #2a0a24 60%, #2a0a1f 100%);
   color: #f0eef6;
 }
 
