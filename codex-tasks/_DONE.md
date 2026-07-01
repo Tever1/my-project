@@ -1,6 +1,6 @@
 # Codex Tasks — индекс закрытых задач
 
-_Последняя синхронизация: 2026-06-25_
+_Последняя синхронизация: 2026-06-30_
 
 Одна строка на каждый TASK. Источник правды — файлы `codex-tasks/NNN-*.md`
 (ТЗ) и `codex-reports/NNN-*.md` (отчёты). Этот индекс — быстрый обзор, чтобы
@@ -310,3 +310,22 @@ bash codex-tasks/_regen-done.sh
 | 292 | `292-croc-word-center-fit-width.md` | Крокодил (мобильный): слово по центру красной карточки + подгон по ширине |
 | 293 | `293-croc-word-fill-width-fix.md` | Крокодил: слово реально заполняет ширину (фикс измерения FitText) |
 | 294 | `294-croc-word-no-midbreak-perword-lines.md` | Крокодил: слово в одну строку (без разрыва внутри), фраза — по словам |
+| 295 | `295-alias-game-identity-host-fix.md` | Угадай слово (Alias): фикс зависания на выборе режима у гостя-хоста |
+| 296 | `296-alias-line-icons-preview.md` | Угадай слово (Alias): плоские line-иконки + превью на /design-tokens |
+| 297 | `297-alias-shuffle-icon-redraw.md` | Alias: перерисовать иконку «Случайно» (shuffle) ровными стрелками |
+| 298 | `298-alias-redesign-bg-icons.md` | Alias редизайн, шаг 1: фон игры + плоские иконки + классы карточек |
+| 299 | `299-alias-redesign-pink-cards.md` | Alias редизайн, шаг 2: розовые карточки (alias-card) |
+| 300 | `300-alias-redesign-croc-buttons.md` | Alias редизайн, шаг 3: кнопки в стиле Крокодила |
+| 301 | `301-alias-tv-redesign.md` | Alias редизайн: TV-экран (игровое поле) |
+| 302 | `302-alias-word-card-stretch.md` | Alias: розовая карточка слова растягивается на всю высоту (место под кнопки) |
+| 303 | `303-alias-mobile-like-croc.md` | Alias мобильный: explaining как у Крокодила (убрать таблицу игроков) |
+| 304 | `304-alias-tv-like-croc.md` | Alias TV (игровое поле) как у Крокодила |
+| 305 | `305-join-dup-name-you-badge-crown.md` | Join-лобби (телефон): дубликат имени, бейдж «ВЫ», корона ведущего |
+| 306 | `306-join-crown-yellow.md` | Join-лобби: корона ведущего жёлтая (как на игровом поле) |
+| 307 | `307-alias-classic-modeselect-crash.md` | Alias: фикс крэша classic mode при выборе режима (teams undefined) |
+| 308 | `308-tv-crown-line-icon-yellow.md` | TV (игровое поле): корона ведущего = жёлтая line-иконка (как на мобильном) |
+| 309 | `309-alias-jointeam-socketid-bug.md` | Alias classic: вступление в команду кладёт socket-id вместо playerId |
+| 310 | `310-alias-tv-nowords-mobile-height.md` | Alias: (1) TV classic turnResult без списка слов; (2) высота карточки explaining без кнопок = с кнопками |
+| 311 | `311-alias-team-name-step.md` | Alias classic: шаг выбора имени команды после распределения |
+| 312 | `312-alias-teamname-empty-input.md` | Alias: поле ввода названия команды стартует пустым |
+| 313 | `313-alias-teamname-maxlen-10.md` | Alias: лимит названия команды 10 символов |

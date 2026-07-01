@@ -12,6 +12,7 @@ import { useRoomState } from '@/lib/use-room-state';
 import { GameIcon } from '@/components/GameIcon';
 import { CrocIcon } from '@/components/games/CrocIcon';
 import { GameSurface } from '@/components/games/GameSurface';
+import { AliasIcon } from '@/components/games/AliasIcon';
 import { SpyIcon, type SpyIconName } from '@/components/games/SpyIcon';
 import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
@@ -243,6 +244,7 @@ export default function TVGamePage() {
   }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, wordsSkipped: 0, playersOrder: [], turnNumber: 1 });
   const [aliasState, setAliasState] = useState<{
     phase: string; mode: string; teams: { id: string; name: string; playerIds: string[]; score: number }[];
+    teamNameConfirmed?: boolean[];
     activeTeamIndex: number; explainerIndex: number; explainerIndices: number[]; currentWordIndex: number;
     timeLeft: number; wordsGuessed: number; wordsSkipped: number;
     round: number; totalRounds: number;
@@ -1525,7 +1527,7 @@ export default function TVGamePage() {
                     <span aria-hidden className="h-5 w-5 flex-shrink-0" />
                     <span className="text-xl">{p.nickname}</span>
                     <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center">
-                      {p.isHost && <CrocIcon name="crown" className="h-5 w-5" />}
+                      {p.isHost && <CrocIcon name="crown" className="h-5 w-5" style={{ color: '#facc15' }} />}
                     </span>
                   </div>
                 ))}
@@ -1668,26 +1670,60 @@ export default function TVGamePage() {
         ]
       : '';
     const explainerName = getPlayerName(explainerId);
+    const aliasDuration = aliasState.mode === 'letter' ? 90 : 60;
+    const aliasTimerRadius = 118;
+    const aliasTimerCirc = 2 * Math.PI * aliasTimerRadius;
+    const aliasTimerRatio = Math.max(0, Math.min(1, aliasState.timeLeft / aliasDuration));
+    const aliasTimerOffset = aliasTimerCirc * (1 - aliasTimerRatio);
+    const aliasCounters: { label: string; value: number; name: 'check' | 'cross'; color: string }[] = [
+      { label: locale === 'ru' ? 'Угадано' : 'Guessed', value: aliasState.wordsGuessed, name: 'check', color: '#22c55e' },
+      { label: locale === 'ru' ? 'Пропущено' : 'Skipped', value: aliasState.wordsSkipped, name: 'cross', color: '#f59e0b' },
+    ];
 
     return (
-      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
+      <GameSurface className="h-screen bg-gradient-alias text-white flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
+        <div className="flex items-center justify-between gap-8 px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-4">
-            <span className="text-4xl">💬</span>
+            <AliasIcon name="speech" className="h-10 w-10" />
             <h1 className="text-3xl font-bold">
               {locale === 'ru' ? 'Угадай слово' : 'Guess the Word'}
               {aliasState.mode === 'letter' && (
-                <span className="text-lg text-purple-300 ml-3">
+                <span className="text-lg text-pink-300 ml-3">
                   {locale === 'ru' ? '(на букву)' : '(letter mode)'}
                 </span>
               )}
             </h1>
+            {aliasState.phase === 'explaining' && (
+              <span className="rounded-full border border-pink-300/30 bg-pink-500/20 px-4 py-1.5 font-mono text-sm font-bold uppercase tracking-[0.18em] text-pink-100">
+                {locale === 'ru' ? 'Раунд' : 'Round'} {aliasState.round} / {aliasState.totalRounds}
+              </span>
+            )}
           </div>
           {aliasState.phase === 'explaining' && (
-            <span className="text-white/50 text-lg">
-              {locale === 'ru' ? 'Раунд' : 'Round'} {aliasState.round} / {aliasState.totalRounds}
-            </span>
+            <div className="flex items-center gap-3">
+              {aliasCounters.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="flex min-w-[150px] items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_14px_38px_rgba(0,0,0,.22)]"
+                >
+                  <span
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl"
+                    style={{ backgroundColor: `${stat.color}22`, color: stat.color }}
+                  >
+                    <AliasIcon name={stat.name} className="h-6 w-6" />
+                  </span>
+                  <span className="flex flex-col leading-none">
+                    <span className="font-mono text-[42px] font-black tabular-nums leading-none" style={{ color: stat.color }}>
+                      {stat.value}
+                    </span>
+                    <span className="mt-1 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                      {stat.label}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -1695,13 +1731,13 @@ export default function TVGamePage() {
           {/* WAITING / MODE SELECT — no game yet */}
           {(aliasState.phase === 'modeSelect' || (aliasState.phase === 'waiting' && aliasState.teams.length === 0)) && (
             <div className="text-center">
-              <div className="text-8xl mb-6">💬</div>
+              <div className="mb-6 flex justify-center"><AliasIcon name="speech" className="h-24 w-24" /></div>
               <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}</h2>
               <div className="mt-6 flex items-center justify-center gap-4 flex-wrap">
                 {players.map(p => (
                   <div key={p.id} className="glass-card px-6 py-3">
                     <span className="text-xl">{p.nickname}</span>
-                    {p.isHost && <span className="ml-2">👑</span>}
+                    {p.isHost && <span className="ml-2 inline-flex items-center"><CrocIcon name="crown" style={{ width: '1em', height: '1em', color: '#facc15' }} /></span>}
                   </div>
                 ))}
               </div>
@@ -1727,6 +1763,32 @@ export default function TVGamePage() {
             </div>
           )}
 
+          {/* TEAM NAME */}
+          {aliasState.phase === 'teamName' && (
+            <>
+              <h2 className="text-4xl font-bold mb-2">
+                {locale === 'ru' ? 'Команды выбирают названия' : 'Teams are choosing names'}
+              </h2>
+              <div className="flex gap-8 w-full max-w-4xl">
+                {aliasState.teams.map((team, ti) => {
+                  const namerId =
+                    team.playerIds.find((id) => players.find((p) => p.id === id)?.isConnected) ?? team.playerIds[0];
+                  const done = (aliasState.teamNameConfirmed ?? [])[ti];
+                  return (
+                    <div key={team.id} className="flex-1 glass-card px-8 py-6 text-center">
+                      <p className="text-3xl font-bold text-amber-400 mb-3">{team.name}</p>
+                      <p className="text-lg text-white/60">
+                        {done
+                          ? (locale === 'ru' ? 'Имя выбрано ✓' : 'Name set ✓')
+                          : (locale === 'ru' ? `${getPlayerName(namerId)} выбирает имя…` : `${getPlayerName(namerId)} is naming…`)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
           {/* WAITING for explainer to start turn */}
           {aliasState.phase === 'waiting' && aliasState.teams.length > 0 && (
             <>
@@ -1736,7 +1798,7 @@ export default function TVGamePage() {
                   <div
                     key={team.id}
                     className={`flex-1 glass-card px-8 py-6 text-center ${
-                      ti === aliasState.activeTeamIndex ? 'outline outline-2 outline-purple-400' : 'opacity-50'
+                      ti === aliasState.activeTeamIndex ? 'outline outline-2 outline-pink-400' : 'opacity-50'
                     }`}
                   >
                     <p className="text-2xl font-bold mb-2">{team.name}</p>
@@ -1746,7 +1808,7 @@ export default function TVGamePage() {
                         const isExp = ti === aliasState.activeTeamIndex && id === explainerId;
                         return (
                           <span key={id} className={`glass-badge text-lg px-3 py-1 ${isExp ? 'outline outline-1 outline-amber-400' : ''}`}>
-                            {getPlayerName(id)} {isExp && '🎤'}
+                            {getPlayerName(id)} {isExp && <AliasIcon name="mic" className="inline-block h-[1em] w-[1em] align-[-0.15em]" />}
                           </span>
                         );
                       })}
@@ -1763,55 +1825,81 @@ export default function TVGamePage() {
           {/* EXPLAINING */}
           {aliasState.phase === 'explaining' && (
             <>
-              {/* Timer */}
-              <div className="text-center flex-shrink-0">
-                <span className={`font-bold text-[clamp(2.5rem,8vh,5rem)] tabular-nums ${aliasState.timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
-                  {aliasState.timeLeft}
-                </span>
+              <div className="flex flex-1 min-h-0 w-full items-center justify-center gap-[clamp(2rem,6vw,4rem)]">
+                {/* Circular timer */}
+                <div className="relative h-[280px] w-[280px] flex-shrink-0">
+                  <svg viewBox="0 0 260 260" width="280" height="280">
+                    <circle cx="130" cy="130" r={aliasTimerRadius} stroke="rgba(255,255,255,.08)" strokeWidth="14" fill="none" />
+                    <circle
+                      cx="130"
+                      cy="130"
+                      r={aliasTimerRadius}
+                      stroke={aliasState.timeLeft <= 10 ? '#ef4444' : '#ec4899'}
+                      strokeWidth="14"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeDasharray={aliasTimerCirc}
+                      strokeDashoffset={aliasTimerOffset}
+                      transform="rotate(-90 130 130)"
+                      style={{ filter: 'drop-shadow(0 0 12px #ec489988)', transition: 'stroke-dashoffset 1s linear' }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className={`font-mono text-7xl font-black tabular-nums leading-none ${aliasState.timeLeft <= 10 ? 'text-red-200 animate-pulse' : 'text-white'}`}>
+                      {aliasState.timeLeft}
+                    </span>
+                    <span className="mt-2 font-mono text-sm font-bold uppercase tracking-[0.28em] text-white/40">
+                      {locale === 'ru' ? 'сек' : 'sec'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Explainer + letter */}
+                <div className="min-w-0 max-w-[48vw] flex-1">
+                  <p className="mb-4 font-mono text-lg font-bold uppercase tracking-[0.22em] text-white/45">
+                    {locale === 'ru' ? 'Объясняет' : 'Explaining'}
+                  </p>
+                  <div className="flex min-w-0 items-center gap-6">
+                    <PlayerAvatar nickname={explainerName} sizePx={88} ring="#ec4899" />
+                    <p className="min-w-0 truncate text-[clamp(3rem,6vw,4.5rem)] font-black leading-none" style={{ letterSpacing: '-1.5px' }}>
+                      {explainerName}
+                    </p>
+                  </div>
+                  {aliasState.mode === 'letter' && aliasState.currentLetter && (
+                    <p className="mt-5 font-mono text-lg uppercase tracking-[0.22em] text-white/45">
+                      {locale === 'ru' ? 'Буква' : 'Letter'}: <span className="font-black text-pink-300">{aliasState.currentLetter}</span>
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="w-full max-w-2xl h-3 rounded-full bg-white/10 overflow-hidden flex-shrink-0">
+
+              {/* Scoreboard (teams) */}
+              <div className="w-full flex-shrink-0 rounded-[24px] border border-white/10 bg-white/[0.05] p-4 shadow-[0_18px_54px_rgba(0,0,0,.25)]">
+                <div className="mb-3 flex items-center gap-2">
+                  <AliasIcon name="trophy" className="h-7 w-7" />
+                  <h2 className="text-xl font-black">{locale === 'ru' ? 'Таблица очков' : 'Scoreboard'}</h2>
+                </div>
                 <div
-                  className="h-full rounded-full transition-all duration-1000 linear"
-                  style={{
-                    width: `${(aliasState.timeLeft / (aliasState.mode === 'letter' ? 90 : 60)) * 100}%`,
-                    background: aliasState.timeLeft <= 10
-                      ? 'linear-gradient(90deg, #f87171, #ef4444)'
-                      : 'linear-gradient(90deg, #a855f7, #6366f1)',
-                  }}
-                />
-              </div>
-
-              {/* Explainer + letter */}
-              <div className="glass-card px-6 py-4 text-center flex-shrink-0">
-                <p className="text-white/50 text-lg mb-1">{locale === 'ru' ? 'Объясняет' : 'Explaining'}</p>
-                <p className="text-2xl font-bold text-amber-400">🎤 {explainerName}</p>
-                {aliasState.mode === 'letter' && aliasState.currentLetter && (
-                  <div className="mt-3">
-                    <p className="text-white/40 text-base mb-0.5">{locale === 'ru' ? 'Буква' : 'Letter'}</p>
-                    <p className="text-[clamp(2rem,6vh,4rem)] font-black text-purple-400 leading-none">{aliasState.currentLetter}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Stats */}
-              <div className="flex gap-8 text-xl flex-shrink-0">
-                <span className="text-green-400">✅ {aliasState.wordsGuessed}</span>
-                <span className="text-red-400">❌ {aliasState.wordsSkipped}</span>
-              </div>
-
-              {/* Team scores */}
-              <div className="flex gap-6 w-full max-w-2xl flex-shrink-0">
-                {aliasState.teams.map((team, ti) => (
-                  <div
-                    key={team.id}
-                    className={`flex-1 glass-card px-4 py-2.5 flex items-center justify-between ${
-                      ti === aliasState.activeTeamIndex ? 'outline outline-2 outline-purple-400' : 'opacity-50'
-                    }`}
-                  >
-                    <span className="text-lg font-bold truncate">{team.name}</span>
-                    <span className="text-lg font-bold text-amber-400 flex-shrink-0 ml-2">{team.score}</span>
-                  </div>
-                ))}
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(aliasState.teams.length, 8))}, minmax(0, 1fr))` }}
+                >
+                  {aliasState.teams.map((team, ti) => {
+                    const active = ti === aliasState.activeTeamIndex;
+                    return (
+                      <div
+                        key={team.id}
+                        className="min-w-0 rounded-[20px] px-3 py-3 text-center"
+                        style={{
+                          background: active ? 'linear-gradient(180deg, #ec48992e, rgba(255,255,255,.04))' : 'rgba(255,255,255,.04)',
+                          border: active ? '1px solid #ec489966' : '1px solid rgba(255,255,255,.08)',
+                        }}
+                      >
+                        <p className="truncate text-[15px] font-bold text-white">{team.name}</p>
+                        <p className="mt-1 font-mono text-[26px] font-black leading-none text-white tabular-nums">{team.score}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </>
           )}
@@ -1827,13 +1915,19 @@ export default function TVGamePage() {
                   {activeTeam?.name}: {(aliasState.wordsGuessed - aliasState.wordsSkipped) > 0 ? '+' : ''}{aliasState.wordsGuessed - aliasState.wordsSkipped}
                 </p>
                 <div className="flex gap-8 justify-center text-2xl mt-4">
-                  <span className="text-green-400">✅ {locale === 'ru' ? 'Угадано' : 'Guessed'}: {aliasState.wordsGuessed}</span>
-                  <span className="text-red-400">❌ {locale === 'ru' ? 'Пропущено' : 'Skipped'}: {aliasState.wordsSkipped}</span>
+                  <span className="text-green-400">
+                    <AliasIcon name="check" className="mr-1 inline-block h-[1em] w-[1em] align-[-0.15em]" />
+                    {locale === 'ru' ? 'Угадано' : 'Guessed'}: {aliasState.wordsGuessed}
+                  </span>
+                  <span className="text-red-400">
+                    <AliasIcon name="cross" className="mr-1 inline-block h-[1em] w-[1em] align-[-0.15em]" />
+                    {locale === 'ru' ? 'Пропущено' : 'Skipped'}: {aliasState.wordsSkipped}
+                  </span>
                 </div>
               </div>
 
               {/* Word history */}
-              {aliasState.turnHistory.length > 0 && (
+              {aliasState.mode !== 'classic' && aliasState.turnHistory.length > 0 && (
                 <div className="w-full max-w-2xl grid grid-cols-2 gap-2 max-h-[28vh] overflow-y-auto">
                   {aliasState.turnHistory.map((item, i) => (
                     <div
@@ -1843,7 +1937,9 @@ export default function TVGamePage() {
                       }`}
                     >
                       <span className="text-base truncate">{locale === 'ru' ? item.word.ru : item.word.en}</span>
-                      <span className="text-lg flex-shrink-0">{item.guessed ? '✅' : '❌'}</span>
+                      <span className="text-lg flex-shrink-0">
+                        {item.guessed ? <AliasIcon name="check" className="h-5 w-5" /> : <AliasIcon name="cross" className="h-5 w-5" />}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1864,7 +1960,7 @@ export default function TVGamePage() {
           {/* FINISHED */}
           {aliasState.phase === 'finished' && (
             <div className="text-center">
-              <div className="text-8xl mb-4">🏆</div>
+              <div className="mb-4 flex justify-center"><AliasIcon name="trophy" className="h-20 w-20" /></div>
               <h2 className="text-4xl font-bold text-amber-400 mb-6">{locale === 'ru' ? 'Игра окончена!' : 'Game Over!'}</h2>
               <div className="w-full max-w-xl mx-auto space-y-3">
                 {[...aliasState.teams].sort((a, b) => b.score - a.score).map((team, idx) => (
@@ -1875,7 +1971,7 @@ export default function TVGamePage() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">{idx === 0 ? '🥇' : '🥈'}</span>
+                      <AliasIcon name="medal" className="h-8 w-8" />
                       <span className="text-2xl font-bold">{team.name}</span>
                     </div>
                     <span className="text-3xl font-bold text-amber-400">{team.score}</span>
@@ -1982,7 +2078,7 @@ export default function TVGamePage() {
             <div key={p.id} className="flex items-center gap-2 glass-badge px-3 py-1.5">
               <div className={`w-2 h-2 rounded-full ${p.isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
               <span className="text-sm">{p.nickname}</span>
-              {p.isHost && <span>👑</span>}
+              {p.isHost && <span className="inline-flex items-center"><CrocIcon name="crown" style={{ width: '1em', height: '1em', color: '#facc15' }} /></span>}
             </div>
           ))}
         </div>
@@ -2001,7 +2097,7 @@ export default function TVGamePage() {
             {players.map((p) => (
               <div key={p.id} className="glass-card px-6 py-3">
                 <span className="text-xl">{p.nickname}</span>
-                {p.isHost && <span className="ml-2">👑</span>}
+                {p.isHost && <span className="ml-2 inline-flex items-center"><CrocIcon name="crown" style={{ width: '1em', height: '1em', color: '#facc15' }} /></span>}
               </div>
             ))}
           </div>
