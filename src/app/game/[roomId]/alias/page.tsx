@@ -96,7 +96,10 @@ function TeamNameInput({
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        maxLength={10}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && value.trim()) onSubmit(value);
+        }}
+        maxLength={9}
         placeholder={locale === 'ru' ? 'Название команды' : 'Team name'}
         className="w-full rounded-[20px] border border-white/20 bg-white/[0.1] px-5 py-4 text-center text-xl font-bold text-white placeholder-white/40 outline-none focus:border-pink-300"
       />
@@ -521,6 +524,13 @@ export default function AliasPage() {
     broadcast('alias:state', next);
   }, [gameState, broadcast]);
 
+  const backToModeSelect = useCallback(() => {
+    if (!isHost || !gameState) return;
+    const next: AliasGameState = { ...gameState, phase: 'modeSelect' };
+    setGameState(next);
+    broadcast('alias:state', next);
+  }, [isHost, gameState, broadcast]);
+
   // ------------------------------------------------------------------
   // Host: word guessed (+1)
   // ------------------------------------------------------------------
@@ -921,45 +931,6 @@ export default function AliasPage() {
       {/* ---- WAITING FOR EXPLAINER TO START ---- */}
       {gameState?.phase === 'waiting' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          {/* Team cards */}
-          <div className="w-full max-w-md flex gap-3">
-            {gameState.teams.map((team, ti) => {
-              const teamExplainerIdx = (gameState.explainerIndices ?? gameState.teams.map(() => 0))[ti] ?? 0;
-              return (
-                <GlassCard
-                  key={team.id}
-                  className={`flex-1 p-4 text-center ${
-                    ti === gameState.activeTeamIndex ? 'outline outline-2 outline-purple-400' : 'opacity-60'
-                  }`}
-                >
-                  <p className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {team.name}
-                  </p>
-                  <p className="text-2xl font-bold text-amber-400">{team.score}</p>
-                  <div className="mt-2 flex flex-wrap gap-1 justify-center">
-                    {team.playerIds.map((id) => {
-                      const p = players.find((pl) => pl.id === id);
-                      const isExp =
-                        ti === gameState.activeTeamIndex &&
-                        id === team.playerIds[teamExplainerIdx % team.playerIds.length];
-                      return (
-                        <span
-                          key={id}
-                          className={`glass-badge text-xs ${isExp ? 'outline outline-1 outline-amber-400' : ''}`}
-                        >
-                          {p?.nickname ?? id}{' '}
-                          {isExp && (
-                            <AliasIcon name="mic" className="inline-block h-[1em] w-[1em] align-[-0.15em]" />
-                          )}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </GlassCard>
-              );
-            })}
-          </div>
-
           {/* Start button for explainer */}
           {isExplainer ? (
             <button
@@ -1170,10 +1141,12 @@ export default function AliasPage() {
                   <div
                     key={i}
                     className={`flex items-center justify-between px-3 py-1 rounded-lg text-sm ${
-                      item.guessed ? 'bg-green-500/10' : 'bg-red-500/10'
+                      item.guessed
+                        ? 'bg-green-500/30 text-white ring-1 ring-green-300/35'
+                        : 'bg-white/10 text-white/55 ring-1 ring-white/10'
                     }`}
                   >
-                    <span className="text-white">
+                    <span className={item.guessed ? 'font-semibold text-white' : 'text-white/65'}>
                       {locale === 'ru' ? item.word.ru : item.word.en}
                     </span>
                     <AliasIcon
@@ -1227,22 +1200,28 @@ export default function AliasPage() {
               .map((team, i) => (
                 <div
                   key={team.id}
-                  className={`flex items-center justify-between px-4 py-3 rounded-xl mb-2 ${
+                  className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl mb-2 ${
                     i === 0 ? 'bg-amber-500/10 outline outline-1 outline-amber-400' : 'bg-white/5'
                   }`}
                 >
-                  <span className="text-lg font-bold text-white">
-                    <AliasIcon name="medal" className="mr-1 inline-block h-[1em] w-[1em] align-[-0.15em]" />{' '}
-                    {team.name}
-                  </span>
+                  <span className="min-w-0 truncate text-base font-bold text-white">{team.name}</span>
                   <span className="text-2xl font-bold text-amber-400">{team.score}</span>
                 </div>
               ))}
           </GlassCard>
           {isHost && (
-            <GlassButton variant="primary" size="lg" onClick={() => startGame(gameState.mode)}>
-              {locale === 'ru' ? 'Играть снова' : 'Play Again'}
-            </GlassButton>
+            <div className="flex flex-col items-center gap-2">
+              <GlassButton variant="primary" size="lg" onClick={() => startGame(gameState.mode)}>
+                {locale === 'ru' ? 'Играть снова' : 'Play Again'}
+              </GlassButton>
+              <button
+                type="button"
+                onClick={backToModeSelect}
+                className="text-sm text-white/50 hover:text-white/80"
+              >
+                {locale === 'ru' ? '← К выбору режима' : '← Back to mode select'}
+              </button>
+            </div>
           )}
         </div>
       )}

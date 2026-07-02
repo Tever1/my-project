@@ -1801,7 +1801,9 @@ export default function TVGamePage() {
                       ti === aliasState.activeTeamIndex ? 'outline outline-2 outline-pink-400' : 'opacity-50'
                     }`}
                   >
-                    <p className="text-2xl font-bold mb-2">{team.name}</p>
+                    {aliasState.mode !== 'letter' && (
+                      <p className="text-2xl font-bold mb-2">{team.name}</p>
+                    )}
                     <p className="text-5xl font-bold text-amber-400 mb-3">{team.score}</p>
                     <div className="flex flex-wrap gap-2 justify-center">
                       {team.playerIds.map(id => {
@@ -1859,8 +1861,7 @@ export default function TVGamePage() {
                   <p className="mb-4 font-mono text-lg font-bold uppercase tracking-[0.22em] text-white/45">
                     {locale === 'ru' ? 'Объясняет' : 'Explaining'}
                   </p>
-                  <div className="flex min-w-0 items-center gap-6">
-                    <PlayerAvatar nickname={explainerName} sizePx={88} ring="#ec4899" />
+                  <div className="min-w-0">
                     <p className="min-w-0 truncate text-[clamp(3rem,6vw,4.5rem)] font-black leading-none" style={{ letterSpacing: '-1.5px' }}>
                       {explainerName}
                     </p>
@@ -1966,15 +1967,12 @@ export default function TVGamePage() {
                 {[...aliasState.teams].sort((a, b) => b.score - a.score).map((team, idx) => (
                   <div
                     key={team.id}
-                    className={`glass-card px-8 py-4 flex items-center justify-between ${
+                    className={`glass-card px-8 py-4 flex items-center justify-between gap-3 ${
                       idx === 0 ? 'outline outline-2 outline-amber-400 bg-amber-500/10' : ''
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <AliasIcon name="medal" className="h-8 w-8" />
-                      <span className="text-2xl font-bold">{team.name}</span>
-                    </div>
-                    <span className="text-3xl font-bold text-amber-400">{team.score}</span>
+                    <span className="min-w-0 truncate text-xl font-bold">{team.name}</span>
+                    <span className="shrink-0 text-2xl font-bold text-amber-400">{team.score}</span>
                   </div>
                 ))}
               </div>
