@@ -337,3 +337,4 @@ bash codex-tasks/_regen-done.sh
 | 319 | `319-alias-tv-finished-medal-font-teamname-limit.md` | Alias TV finished — убрать медаль, -20% шрифт, лимит имени 9 симв. |
 | 320 | `320-alias-mobile-waiting-remove-team-cards.md` | Alias mobile waiting-экран — убрать карточки команд/игроков |
 | 321 | `321-alias-tv-waiting-remove-duplicate-name.md` | Alias TV waiting-экран — убрать дубль имени игрока |
+| 322 | `322-whoami-icon-preview-design-tokens.md` | «Кто я?» — превью плоских иконок вместо эмодзи на /design-tokens |
