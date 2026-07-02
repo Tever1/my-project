@@ -1,6 +1,6 @@
 # Codex Tasks — индекс закрытых задач
 
-_Последняя синхронизация: 2026-06-30_
+_Последняя синхронизация: 2026-07-01_
 
 Одна строка на каждый TASK. Источник правды — файлы `codex-tasks/NNN-*.md`
 (ТЗ) и `codex-reports/NNN-*.md` (отчёты). Этот индекс — быстрый обзор, чтобы
@@ -329,3 +329,11 @@ bash codex-tasks/_regen-done.sh
 | 311 | `311-alias-team-name-step.md` | Alias classic: шаг выбора имени команды после распределения |
 | 312 | `312-alias-teamname-empty-input.md` | Alias: поле ввода названия команды стартует пустым |
 | 313 | `313-alias-teamname-maxlen-10.md` | Alias: лимит названия команды 10 символов |
+| 314 | `314-alias-turnresult-word-list-colors.md` | Alias — чётко выделить угаданные/пропущенные слова на экране итогов хода (mobile) |
+| 315 | `315-alias-tv-explaining-no-avatar-circle.md` | Alias TV "Объясняет" — убрать аватар-кружок, оставить только имя |
+| 316 | `316-alias-finished-team-name-overflow-medal.md` | Alias mobile "Игра окончена" — имя команды налезает на счёт, убрать медаль |
+| 317 | `317-alias-finished-back-to-modeselect.md` | Alias mobile "Игра окончена" — добавить ссылку "← К выбору режима" как в Шпионе |
+| 318 | `318-alias-teamname-enter-submit.md` | Alias "Название команды" — сабмит по Enter |
+| 319 | `319-alias-tv-finished-medal-font-teamname-limit.md` | Alias TV finished — убрать медаль, -20% шрифт, лимит имени 9 симв. |
+| 320 | `320-alias-mobile-waiting-remove-team-cards.md` | Alias mobile waiting-экран — убрать карточки команд/игроков |
+| 321 | `321-alias-tv-waiting-remove-duplicate-name.md` | Alias TV waiting-экран — убрать дубль имени игрока |
