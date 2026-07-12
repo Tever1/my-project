@@ -23,14 +23,19 @@ interface DrawCanvasProps {
   canDraw: boolean;
   onStroke: (stroke: DrawStroke) => void;
   onClear: () => void;
+  onUndo: (remainingStrokes: DrawStroke[]) => void;
 }
 
-function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
+function DrawCanvas({ canDraw, onStroke, onClear, onUndo }: DrawCanvasProps) {
   const { locale } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
+  const groupsRef = useRef<DrawStroke[][]>([]);
+  const currentGroupRef = useRef<DrawStroke[]>([]);
+  const suppressNextClearRef = useRef(false);
+  const [hasHistory, setHasHistory] = useState(false);
 
   const getNormPos = (e: React.TouchEvent | React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -56,17 +61,33 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
     ctx.stroke();
   }, []);
 
-  const clearAll = useCallback(() => {
+  const clearCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!ctx || !canvas) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }, []);
 
+  const clearAll = useCallback(() => {
+    clearCanvas();
+    groupsRef.current = [];
+    currentGroupRef.current = [];
+    setHasHistory(false);
+  }, [clearCanvas]);
+
+  const receiveClear = useCallback(() => {
+    if (suppressNextClearRef.current) {
+      suppressNextClearRef.current = false;
+      return;
+    }
+    clearAll();
+  }, [clearAll]);
+
   const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
     if (!canDraw) return;
     e.preventDefault();
     drawing.current = true;
+    currentGroupRef.current = [];
     lastPos.current = getNormPos(e);
   };
 
@@ -75,12 +96,33 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
     e.preventDefault();
     if (!drawing.current || !lastPos.current) return;
     const pos = getNormPos(e);
-    onStroke({ x1: lastPos.current.x, y1: lastPos.current.y, x2: pos.x, y2: pos.y });
-    drawLine(lastPos.current.x, lastPos.current.y, pos.x, pos.y);
+    const stroke = { x1: lastPos.current.x, y1: lastPos.current.y, x2: pos.x, y2: pos.y };
+    currentGroupRef.current.push(stroke);
+    onStroke(stroke);
+    drawLine(stroke.x1, stroke.y1, stroke.x2, stroke.y2);
     lastPos.current = pos;
   };
 
-  const endDraw = () => { drawing.current = false; lastPos.current = null; };
+  const endDraw = () => {
+    drawing.current = false;
+    lastPos.current = null;
+    if (currentGroupRef.current.length > 0) {
+      groupsRef.current = [...groupsRef.current, currentGroupRef.current];
+      currentGroupRef.current = [];
+      setHasHistory(true);
+    }
+  };
+
+  const undoLast = () => {
+    groupsRef.current = groupsRef.current.slice(0, -1);
+    clearCanvas();
+    groupsRef.current.forEach(group => {
+      group.forEach(seg => drawLine(seg.x1, seg.y1, seg.x2, seg.y2));
+    });
+    suppressNextClearRef.current = true;
+    onUndo(groupsRef.current.flat());
+    setHasHistory(groupsRef.current.length > 0);
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -96,9 +138,9 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    (canvas as unknown as { _drawLine: typeof drawLine; _clearAll: typeof clearAll })._drawLine = drawLine;
-    (canvas as unknown as { _clearAll: typeof clearAll })._clearAll = clearAll;
-  }, [drawLine, clearAll]);
+    (canvas as unknown as { _drawLine: typeof drawLine; _clearAll: typeof receiveClear })._drawLine = drawLine;
+    (canvas as unknown as { _clearAll: typeof receiveClear })._clearAll = receiveClear;
+  }, [drawLine, receiveClear]);
 
   return (
     <div className="relative">
@@ -110,12 +152,22 @@ function DrawCanvas({ canDraw, onStroke, onClear }: DrawCanvasProps) {
         onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw}
       />
       {canDraw && (
-        <button
-          onClick={() => { clearAll(); onClear(); }}
-          className="absolute top-2 right-2 px-3 py-1 rounded-md bg-white/10 text-white/50 text-xs hover:bg-white/20"
-        >
-          {locale === 'ru' ? 'Очистить' : 'Clear'}
-        </button>
+        <div className="absolute top-2 right-2 flex gap-2">
+          {hasHistory && (
+            <button
+              onClick={undoLast}
+              className="px-3 py-1 rounded-md bg-white/10 text-white/50 text-xs hover:bg-white/20"
+            >
+              {locale === 'ru' ? 'Отменить' : 'Undo'}
+            </button>
+          )}
+          <button
+            onClick={() => { suppressNextClearRef.current = true; clearAll(); onClear(); }}
+            className="px-3 py-1 rounded-md bg-white/10 text-white/50 text-xs hover:bg-white/20"
+          >
+            {locale === 'ru' ? 'Очистить' : 'Clear'}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -144,7 +196,7 @@ function FitWord({ text, className, max, min = 14 }: { text: string; className?:
 }
 
 type SpyMode = 'guess' | 'draw';
-type Phase = 'modeSelect' | 'dealing' | 'playing' | 'voting' | 'spyGuess' | 'roundResult';
+type Phase = 'modeSelect' | 'dealing' | 'playing' | 'discussion' | 'voting' | 'spyGuess' | 'roundResult';
 
 interface GamePlayer { id: string; nickname: string; isHost: boolean; }
 
@@ -162,10 +214,15 @@ interface SpyGameState {
   players: GamePlayer[];
   playerOrder: string[];
   playerOrderIdx: number;
+  guessAskerId: string;
+  guessTargetId: string;
+  guessCycleAnswered: string[];
   timerLeft: number;
   timerRunning: boolean;
   readyPlayers: string[];
   votes: Record<string, string>;
+  discussionTimeLeft: number;
+  discussionTimerRunning: boolean;
   voteTimerLeft: number;
   voteTimerRunning: boolean;
   roundResult: {
@@ -187,6 +244,7 @@ interface SpyGameState {
 }
 
 const TIMER_TOTAL = 300;
+const DISCUSSION_TIMER_TOTAL = 120;
 const VOTE_TIMER_TOTAL = 60;
 const mkInitial = (): SpyGameState => ({
   phase: 'modeSelect',
@@ -202,10 +260,15 @@ const mkInitial = (): SpyGameState => ({
   players: [],
   playerOrder: [],
   playerOrderIdx: 0,
+  guessAskerId: '',
+  guessTargetId: '',
+  guessCycleAnswered: [],
   timerLeft: TIMER_TOTAL,
   timerRunning: false,
   readyPlayers: [],
   votes: {},
+  discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
+  discussionTimerRunning: false,
   voteTimerLeft: VOTE_TIMER_TOTAL,
   voteTimerRunning: false,
   roundResult: null,
@@ -233,6 +296,28 @@ const shufflePlayers = (players: GamePlayer[]): string[] => {
     [ids[i], ids[j]] = [ids[j], ids[i]];
   }
   return ids;
+};
+
+const pickNextTarget = (
+  players: GamePlayer[],
+  askerId: string,
+  answeredThisCycle: string[],
+): { targetId: string; cycleAnswered: string[] } => {
+  const notAsker = players.filter(p => p.id !== askerId);
+  let candidates = notAsker.filter(p => !answeredThisCycle.includes(p.id));
+  let nextCycleAnswered = answeredThisCycle;
+
+  if (candidates.length === 0) {
+    candidates = notAsker;
+    nextCycleAnswered = [];
+  }
+
+  if (candidates.length === 0) {
+    return { targetId: '', cycleAnswered: nextCycleAnswered };
+  }
+
+  const chosen = candidates[Math.floor(Math.random() * candidates.length)].id;
+  return { targetId: chosen, cycleAnswered: [...nextCycleAnswered, chosen] };
 };
 
 const pickRandomSpy = (players: GamePlayer[]): string => {
@@ -337,6 +422,11 @@ export default function SpyGamePage() {
     sendAction('spy:clear');
   }, [sendAction]);
 
+  const handleUndo = useCallback((remainingStrokes: DrawStroke[]) => {
+    sendClear();
+    remainingStrokes.forEach((stroke) => sendAction('spy:stroke', stroke));
+  }, [sendClear, sendAction]);
+
   useRoomState(roomId, (data) => {
     const room = data as { players: GamePlayer[] };
     setS(prev => ({ ...prev, players: room.players }));
@@ -345,9 +435,13 @@ export default function SpyGamePage() {
   const isSpy = effectivePlayerId === s.spyId;
   const isJudge = effectivePlayerId === s.spyGuessJudgeId;
   const isDrawer = s.mode === 'draw' && s.drawerId === effectivePlayerId;
-  const activePlayerId = s.playerOrder[s.playerOrderIdx % Math.max(s.playerOrder.length, 1)] ?? '';
+  const activePlayerId = s.mode === 'guess'
+    ? (s.guessAskerId || s.playerOrder[s.playerOrderIdx % Math.max(s.playerOrder.length, 1)] || '')
+    : (s.playerOrder[s.playerOrderIdx % Math.max(s.playerOrder.length, 1)] ?? '');
   const isActivePlayer = activePlayerId === effectivePlayerId;
   const activePlayerName = s.players.find(p => p.id === activePlayerId)?.nickname ?? '???';
+  const targetPlayerName = s.players.find(p => p.id === s.guessTargetId)?.nickname ?? '???';
+  const isTargetPlayer = s.guessTargetId === effectivePlayerId;
   const myReadyInDealing = s.readyPlayers.includes(effectivePlayerId);
   const myVoteInVoting = s.votes[effectivePlayerId];
   const selectedVoteName = s.players.find(p => p.id === localVote)?.nickname ?? '';
@@ -489,10 +583,9 @@ export default function SpyGamePage() {
         const patch = {
           timerLeft: 0,
           timerRunning: false,
-          phase: 'voting' as Phase,
-          votes: {},
-          voteTimerLeft: VOTE_TIMER_TOTAL,
-          voteTimerRunning: true,
+          phase: 'discussion' as Phase,
+          discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
+          discussionTimerRunning: true,
         };
         setS(prev => ({ ...prev, ...patch }));
         broadcast(patch);
@@ -538,6 +631,42 @@ export default function SpyGamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.voteTimerRunning, isGameHost, broadcast]);
 
+  useEffect(() => {
+    if (!isGameHost) return;
+    if (!s.discussionTimerRunning || s.discussionTimeLeft <= 0) return;
+
+    const id = setInterval(() => {
+      const cur = sRef.current;
+      if (cur.phase !== 'discussion' || !cur.discussionTimerRunning || cur.discussionTimeLeft <= 0) {
+        clearInterval(id);
+        return;
+      }
+
+      const newLeft = cur.discussionTimeLeft - 1;
+      if (newLeft <= 0) {
+        const patch = {
+          discussionTimeLeft: 0,
+          discussionTimerRunning: false,
+          phase: 'voting' as Phase,
+          votes: {},
+          voteTimerLeft: VOTE_TIMER_TOTAL,
+          voteTimerRunning: true,
+        };
+        setS(prev => ({ ...prev, ...patch }));
+        broadcast(patch);
+        clearInterval(id);
+        return;
+      }
+
+      const patch = { discussionTimeLeft: newLeft };
+      setS(prev => ({ ...prev, ...patch }));
+      broadcast(patch);
+    }, 1000);
+
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.discussionTimerRunning, isGameHost, broadcast]);
+
   const startGame = (mode: SpyMode) => {
     if (!isGameHost) return;
     if (mode === 'draw') {
@@ -557,10 +686,15 @@ export default function SpyGamePage() {
         drawerId: '',
         playerOrder,
         playerOrderIdx: 0,
+        guessAskerId: '',
+        guessTargetId: '',
+        guessCycleAnswered: [],
         timerLeft: TIMER_TOTAL,
         timerRunning: false,
         readyPlayers: [],
         votes: {},
+        discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
+        discussionTimerRunning: false,
         voteTimerLeft: VOTE_TIMER_TOTAL,
         voteTimerRunning: false,
         roundResult: null,
@@ -591,10 +725,15 @@ export default function SpyGamePage() {
       drawerId: '',
       playerOrder: shufflePlayers(s.players),
       playerOrderIdx: 0,
+      guessAskerId: '',
+      guessTargetId: '',
+      guessCycleAnswered: [],
       timerLeft: TIMER_TOTAL,
       timerRunning: false,
       readyPlayers: [],
       votes: {},
+      discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
+      discussionTimerRunning: false,
       voteTimerLeft: VOTE_TIMER_TOTAL,
       voteTimerRunning: false,
       roundResult: null,
@@ -623,7 +762,15 @@ export default function SpyGamePage() {
   const startPlaying = () => {
     if (!isGameHost) return;
     const patch: Partial<SpyGameState> = { phase: 'playing', timerRunning: true };
-    if (s.mode === 'draw') patch.drawerId = s.playerOrder[0] ?? '';
+    if (s.mode === 'draw') {
+      patch.drawerId = s.playerOrder[0] ?? '';
+    } else {
+      const asker = s.playerOrder[0] ?? '';
+      const { targetId, cycleAnswered } = pickNextTarget(s.players, asker, []);
+      patch.guessAskerId = asker;
+      patch.guessTargetId = targetId;
+      patch.guessCycleAnswered = cycleAnswered;
+    }
     update(patch);
   };
 
@@ -636,11 +783,17 @@ export default function SpyGamePage() {
 
   const passTurn = () => {
     if (!isActivePlayer) return;
+    if (s.mode === 'guess') {
+      const newAsker = s.guessTargetId || s.playerOrder[(s.playerOrderIdx + 1) % Math.max(s.playerOrder.length, 1)] || '';
+      const { targetId, cycleAnswered } = pickNextTarget(s.players, newAsker, s.guessCycleAnswered);
+      update({ guessAskerId: newAsker, guessTargetId: targetId, guessCycleAnswered: cycleAnswered });
+      return;
+    }
     const nextIdx = (s.playerOrderIdx + 1) % Math.max(s.playerOrder.length, 1);
     const nextPlayerId = s.playerOrder[nextIdx] ?? '';
     update({
       playerOrderIdx: nextIdx,
-      drawerId: s.mode === 'draw' ? nextPlayerId : s.drawerId,
+      drawerId: nextPlayerId,
     });
   };
 
@@ -662,10 +815,15 @@ export default function SpyGamePage() {
       drawerId: '',
       playerOrder: shufflePlayers(s.players),
       playerOrderIdx: 0,
+      guessAskerId: '',
+      guessTargetId: '',
+      guessCycleAnswered: [],
       timerLeft: TIMER_TOTAL,
       timerRunning: false,
       readyPlayers: [],
       votes: {},
+      discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
+      discussionTimerRunning: false,
       voteTimerLeft: VOTE_TIMER_TOTAL,
       voteTimerRunning: false,
       roundResult: null,
@@ -685,6 +843,7 @@ export default function SpyGamePage() {
     update({
       phase: 'voting',
       timerRunning: false,
+      discussionTimerRunning: false,
       votes: {},
       voteTimerLeft: VOTE_TIMER_TOTAL,
       voteTimerRunning: true,
@@ -726,10 +885,15 @@ export default function SpyGamePage() {
         drawerId: '',
         playerOrder,
         playerOrderIdx: 0,
+        guessAskerId: '',
+        guessTargetId: '',
+        guessCycleAnswered: [],
         timerLeft: TIMER_TOTAL,
         timerRunning: false,
         readyPlayers: [],
         votes: {},
+        discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
+        discussionTimerRunning: false,
         voteTimerLeft: VOTE_TIMER_TOTAL,
         voteTimerRunning: false,
         roundResult: null,
@@ -759,10 +923,15 @@ export default function SpyGamePage() {
       drawerId: '',
       playerOrder: shufflePlayers(s.players),
       playerOrderIdx: 0,
+      guessAskerId: '',
+      guessTargetId: '',
+      guessCycleAnswered: [],
       timerLeft: TIMER_TOTAL,
       timerRunning: false,
       readyPlayers: [],
       votes: {},
+      discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
+      discussionTimerRunning: false,
       voteTimerLeft: VOTE_TIMER_TOTAL,
       voteTimerRunning: false,
       roundResult: null,
@@ -789,8 +958,13 @@ export default function SpyGamePage() {
       usedWordIndices: newUsed,
       playerOrder,
       playerOrderIdx: 0,
+      guessAskerId: '',
+      guessTargetId: '',
+      guessCycleAnswered: [],
       timerLeft: TIMER_TOTAL,
       timerRunning: false,
+      discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
+      discussionTimerRunning: false,
       spyGuessText: '',
       spyGuessNeedsConfirm: false,
       spyGuessAwaitingJudge: false,
@@ -887,7 +1061,9 @@ export default function SpyGamePage() {
   const renderBackButton = () => {
     if (!isGameHost) return null;
 
-    const needConfirm = s.phase === 'playing' && s.timerRunning;
+    const needConfirm =
+      (s.phase === 'playing' && s.timerRunning) ||
+      (s.phase === 'discussion' && s.discussionTimerRunning);
 
     if (!needConfirm) {
       return (
@@ -1021,59 +1197,66 @@ export default function SpyGamePage() {
             </h2>
           </div>
 
-          {s.mode === 'draw' ? (
-            isSpy ? (
+          {myReadyInDealing ? (
+            <GlassCard className="spy-card p-6 text-center space-y-2">
+              <SpyIcon name="hide" className="mx-auto h-10 w-10 text-white/40" />
+              <p className="text-sm text-white/50">
+                {l('Слово спрятано', 'Word hidden')}
+              </p>
+            </GlassCard>
+          ) : s.mode === 'draw' ? (
+              isSpy ? (
+                <GlassCard className="spy-card-red p-6 text-center space-y-4">
+                  <SpyIcon name="mask" className="mx-auto h-16 w-16" />
+                  <div>
+                    <h3 className="text-2xl font-black text-white">{l('Ты — ШПИОН', 'You are the SPY')}</h3>
+                    <p className="text-white/55">
+                      {l('Слова у тебя нет — рисуй что угодно похожее', 'You have no word — draw anything that fits')}
+                    </p>
+                  </div>
+                  <div className="space-y-2 text-left text-sm text-white/75">
+                    <p>{l('1. Смотри как рисуют другие и подражай', '1. Watch others draw and mimic')}</p>
+                    <p>{l('2. Рисуй что-то похожее на тему', '2. Draw something related to the theme')}</p>
+                    <p>{l('3. Не дай себя раскрыть на голосовании', '3. Avoid being exposed in the vote')}</p>
+                  </div>
+                </GlassCard>
+              ) : (
+                <GlassCard className="spy-card p-6 text-center space-y-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-teal-200/70">{l('слово для рисования', 'word to draw')}</p>
+                    <FitWord text={s.word} max={36} className="mt-3 font-black text-white" />
+                  </div>
+                  <div className="h-px bg-white/10" />
+                  <p className="text-sm text-white/70">
+                    {l('Рисуй это слово по очереди. Среди вас шпион — он слова не знает.', 'Take turns drawing this word. The spy among you doesn\'t know it.')}
+                  </p>
+                </GlassCard>
+              )
+            ) : isSpy ? (
               <GlassCard className="spy-card-red p-6 text-center space-y-4">
                 <SpyIcon name="mask" className="mx-auto h-16 w-16" />
                 <div>
-                  <h3 className="text-2xl font-black text-white">{l('Ты — ШПИОН', 'You are the SPY')}</h3>
-                  <p className="text-white/55">
-                    {l('Слова у тебя нет — рисуй что угодно похожее', 'You have no word — draw anything that fits')}
-                  </p>
+                  <h3 className="text-2xl font-black text-white">{l('Слова у тебя нет', 'You have no word')}</h3>
+                  <p className="text-white/55">{l('Категория:', 'Category:')} {s.category}</p>
                 </div>
                 <div className="space-y-2 text-left text-sm text-white/75">
-                  <p>{l('1. Смотри как рисуют другие и подражай', '1. Watch others draw and mimic')}</p>
-                  <p>{l('2. Рисуй что-то похожее на тему', '2. Draw something related to the theme')}</p>
+                  <p>{l('1. Слушай чужие ответы и притворяйся своим', '1. Listen to others and blend in')}</p>
+                  <p>{l('2. Вычисли слово по описаниям', '2. Guess the word from descriptions')}</p>
                   <p>{l('3. Не дай себя раскрыть на голосовании', '3. Avoid being exposed in the vote')}</p>
                 </div>
               </GlassCard>
             ) : (
               <GlassCard className="spy-card p-6 text-center space-y-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-teal-200/70">{l('слово для рисования', 'word to draw')}</p>
-                  <FitWord text={s.word} max={36} className="mt-3 font-black text-white" />
+                  <p className="text-xs font-bold uppercase tracking-widest text-teal-200/70">{l('твоё секретное слово', 'your secret word')}</p>
+                  <p className="mt-2 text-white/55">{s.category}</p>
+                  <FitWord text={s.word} max={36} className="mt-2 font-black text-white" />
                 </div>
                 <div className="h-px bg-white/10" />
                 <p className="text-sm text-white/70">
-                  {l('Рисуй это слово по очереди. Среди вас шпион — он слова не знает.', 'Take turns drawing this word. The spy among you doesn\'t know it.')}
+                  {l('Описывай слово, не называя его. Среди вас шпион — он слова не знает.', 'Describe the word without naming it. The spy among you does not know it.')}
                 </p>
               </GlassCard>
-            )
-          ) : isSpy ? (
-            <GlassCard className="spy-card-red p-6 text-center space-y-4">
-              <SpyIcon name="mask" className="mx-auto h-16 w-16" />
-              <div>
-                <h3 className="text-2xl font-black text-white">{l('Слова у тебя нет', 'You have no word')}</h3>
-                <p className="text-white/55">{l('Категория:', 'Category:')} {s.category}</p>
-              </div>
-              <div className="space-y-2 text-left text-sm text-white/75">
-                <p>{l('1. Слушай чужие ответы и притворяйся своим', '1. Listen to others and blend in')}</p>
-                <p>{l('2. Вычисли слово по описаниям', '2. Guess the word from descriptions')}</p>
-                <p>{l('3. Не дай себя раскрыть на голосовании', '3. Avoid being exposed in the vote')}</p>
-              </div>
-            </GlassCard>
-          ) : (
-            <GlassCard className="spy-card p-6 text-center space-y-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-teal-200/70">{l('твоё секретное слово', 'your secret word')}</p>
-                <p className="mt-2 text-white/55">{s.category}</p>
-                <FitWord text={s.word} max={36} className="mt-2 font-black text-white" />
-              </div>
-              <div className="h-px bg-white/10" />
-              <p className="text-sm text-white/70">
-                {l('Описывай слово, не называя его. Среди вас шпион — он слова не знает.', 'Describe the word without naming it. The spy among you does not know it.')}
-              </p>
-            </GlassCard>
           )}
 
           <p className="text-center text-sm text-white/45">
@@ -1137,12 +1320,19 @@ export default function SpyGamePage() {
               {isActivePlayer ? (
                 <GlassCard className="spy-card p-4 text-center">
                   <h2 className="text-2xl font-black text-teal-200">{l('Твой ход', 'Your turn')}</h2>
-                  <p className="mt-1 text-sm text-white/60">{l('Опиши слово одним предложением — но не называй его.', 'Describe the word in one sentence, but do not name it.')}</p>
+                  <p className="mt-1 text-sm text-white/60">
+                    {l(`Задай вопрос игроку ${targetPlayerName}`, `Ask a question to ${targetPlayerName}`)}
+                  </p>
                 </GlassCard>
               ) : (
-                <GlassCard className="spy-card p-4 text-center">
-                  <p className="text-white/40">{l('Сейчас отвечает', 'Now speaking')}</p>
+                <GlassCard className={`spy-card p-4 text-center ${isTargetPlayer ? 'border-teal-400/40 bg-teal-500/10' : ''}`}>
+                  <p className="text-white/40">{l('Задаёт вопрос', 'Asking a question')}</p>
                   <p className="mt-1 text-2xl font-black text-white">{activePlayerName}</p>
+                  <p className="mt-2 text-sm text-white/40">
+                    {isTargetPlayer
+                      ? l('Вопрос адресован тебе', 'The question is for you')
+                      : l(`Спрашивает: ${targetPlayerName}`, `Asking: ${targetPlayerName}`)}
+                  </p>
                 </GlassCard>
               )}
             </div>
@@ -1157,7 +1347,7 @@ export default function SpyGamePage() {
           )}
 
           {s.mode === 'draw' && (
-            <DrawCanvas canDraw={isDrawer} onStroke={sendStroke} onClear={sendClear} />
+            <DrawCanvas canDraw={isDrawer} onStroke={sendStroke} onClear={sendClear} onUndo={handleUndo} />
           )}
 
           {s.mode === 'guess' && isActivePlayer && (
@@ -1272,6 +1462,33 @@ export default function SpyGamePage() {
             </GlassCard>
           ) : (
             <BreathingPlaceholder text={l('Шпион угадывает слово…', 'The spy is guessing the word…')} variant="breathing-text" />
+          )}
+        </div>
+      )}
+
+      {!s.gameOver && s.phase === 'discussion' && (
+        <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
+          <div className="text-center space-y-1">
+            <h2 className="text-3xl font-black text-white">{l('Обсуждение', 'Discussion')}</h2>
+            <p className="text-amber-300">⏱ {formatTime(s.discussionTimeLeft)}</p>
+          </div>
+          <GlassCard className="spy-card p-6 text-center space-y-2">
+            <p className="text-white/70">
+              {l(
+                'Обсудите, кто вам кажется подозрительным.',
+                'Discuss who seems suspicious.',
+              )}
+            </p>
+          </GlassCard>
+          {isGameHost && (
+            <div className="space-y-2">
+              {renderHostAction(
+                'voting',
+                l('Начать голосование', 'Start voting'),
+                <SpyIcon name="ballot" className="inline-block h-[1em] w-[1em] align-[-0.15em]" />,
+                'border-amber-400/30 bg-amber-500/15 text-amber-200',
+              )}
+            </div>
           )}
         </div>
       )}

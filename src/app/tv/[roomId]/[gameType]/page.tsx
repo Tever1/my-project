@@ -255,10 +255,13 @@ export default function TVGamePage() {
     players: { id: string; nickname: string; isHost: boolean }[];
     playerOrder: string[];
     playerOrderIdx: number;
+    guessAskerId: string;
+    guessTargetId: string;
     timerLeft: number;
     timerRunning: boolean;
     readyPlayers: string[];
     votes: Record<string, string>;
+    discussionTimeLeft: number;
     voteTimerLeft: number;
     roundResult: {
       spyCaught: boolean;
@@ -287,10 +290,13 @@ export default function TVGamePage() {
     players: [],
     playerOrder: [],
     playerOrderIdx: 0,
+    guessAskerId: '',
+    guessTargetId: '',
     timerLeft: 300,
     timerRunning: false,
     readyPlayers: [],
     votes: {},
+    discussionTimeLeft: 120,
     voteTimerLeft: 60,
     roundResult: null,
     spyGuessText: '',
@@ -1386,8 +1392,11 @@ export default function TVGamePage() {
     const sp = spyState;
     const spyPlayerList = sp.players.length > 0 ? sp.players : players;
     const spyGetName = (id: string) => spyPlayerList.find(p => p.id === id)?.nickname ?? id;
-    const activePlayerId = sp.playerOrder[sp.playerOrderIdx % Math.max(sp.playerOrder.length, 1)] ?? '';
+    const activePlayerId = sp.mode === 'guess'
+      ? (sp.guessAskerId || sp.playerOrder[sp.playerOrderIdx % Math.max(sp.playerOrder.length, 1)] || '')
+      : (sp.playerOrder[sp.playerOrderIdx % Math.max(sp.playerOrder.length, 1)] ?? '');
     const activePlayerName = spyGetName(activePlayerId);
+    const targetPlayerName = sp.guessTargetId ? spyGetName(sp.guessTargetId) : '???';
     const formatSec = (sec: number) =>
       `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
     const spyName = spyGetName(sp.spyId);
@@ -1417,6 +1426,12 @@ export default function TVGamePage() {
             <div className="glass-card px-4 py-2 flex items-center gap-2">
               <span>⏱</span>
               <span className="font-mono font-bold text-xl">{formatSec(sp.voteTimerLeft)}</span>
+            </div>
+          )}
+          {sp.phase === 'discussion' && (
+            <div className="glass-card px-4 py-2 flex items-center gap-2">
+              <span>⏱</span>
+              <span className="font-mono font-bold text-xl">{formatSec(sp.discussionTimeLeft)}</span>
             </div>
           )}
           {(sp.phase === 'dealing' || sp.phase === 'playing') && (
@@ -1539,8 +1554,9 @@ export default function TVGamePage() {
               </div>
               <div className="flex-1 flex flex-col justify-center gap-6">
                 <div>
-                  <p className="text-lg text-teal-300 uppercase tracking-widest mb-2">Сейчас отвечает</p>
+                  <p className="text-lg text-teal-300 uppercase tracking-widest mb-2">Задаёт вопрос</p>
                   <span className="text-5xl font-black">{activePlayerName}</span>
+                  <p className="text-2xl text-white/60 mt-2">→ {targetPlayerName}</p>
                   <p className="text-white/40 mt-2">Опиши слово одним предложением — но не называй его</p>
                 </div>
                 <div className="glass-card px-6 py-4">
@@ -1565,6 +1581,18 @@ export default function TVGamePage() {
             </div>
           )}
 
+          {!sp.gameOver && sp.phase === 'discussion' && (
+            <div className="h-full flex flex-col items-center justify-center gap-6 px-12">
+              <h2 className="text-6xl font-black text-center">Обсуждение</h2>
+              <p className="text-2xl text-white/50 text-center max-w-2xl">
+                Обсудите, кто кажется подозрительным
+              </p>
+              <div className="font-mono text-5xl font-black text-amber-300">
+                {formatSec(sp.discussionTimeLeft)}
+              </div>
+            </div>
+          )}
+
           {!sp.gameOver && sp.phase === 'voting' && (
             <div className="h-full flex flex-col px-12 py-6 gap-6">
               <div className="flex items-center justify-center gap-4">
@@ -1581,9 +1609,6 @@ export default function TVGamePage() {
                       Object.values(sp.votes).filter(v => v === pp.id).length
                     ));
                     const barPct = Math.round((votesFor / maxVotes) * 100);
-                    const voters = Object.entries(sp.votes)
-                      .filter(([, suspectId]) => suspectId === p.id)
-                      .map(([voterId]) => voterId);
                     return (
                       <div key={p.id} className={`glass-card px-6 py-5 flex flex-col items-center gap-3 min-w-[160px] ${votesFor === maxVotes && votesFor > 0 ? 'border-amber-400/40' : ''}`}>
                         {votesFor === maxVotes && votesFor > 0 && (
@@ -1592,13 +1617,6 @@ export default function TVGamePage() {
                         <span className="font-semibold">{p.nickname}</span>
                         <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                           <div className="h-full rounded-full bg-teal-400 transition-all" style={{ width: `${barPct}%` }} />
-                        </div>
-                        <div className="flex gap-1 min-h-6">
-                          {voters.map(voterId => (
-                            <div key={voterId} className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">
-                              {spyGetName(voterId)[0]}
-                            </div>
-                          ))}
                         </div>
                         <div className="font-bold text-xl">{votesFor}</div>
                       </div>
@@ -1652,8 +1670,12 @@ export default function TVGamePage() {
             <div className="flex items-center gap-3 overflow-x-auto">
               <p className="text-xs text-white/30 uppercase tracking-widest flex-shrink-0">Порядок хода</p>
               {sp.playerOrder.map((id, i) => {
-                const isActive = i === sp.playerOrderIdx % sp.playerOrder.length;
-                const isDone = i < sp.playerOrderIdx % sp.playerOrder.length;
+                const isActive = sp.mode === 'guess'
+                  ? id === activePlayerId
+                  : i === sp.playerOrderIdx % sp.playerOrder.length;
+                const isDone = sp.mode === 'guess'
+                  ? false
+                  : i < sp.playerOrderIdx % sp.playerOrder.length;
                 return (
                   <div key={id} className={`flex items-center gap-1 flex-shrink-0 ${isActive ? '' : isDone ? 'opacity-30' : 'opacity-60'}`}>
                     {i > 0 && <span className="text-white/20 text-sm mx-1">›</span>}

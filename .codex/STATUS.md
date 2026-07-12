@@ -1,6 +1,46 @@
 # Codex Status
 
-## Active (2026-07-12): TASK-335
+## Active (2026-07-12): TASK-341
+
+TASK-341: Шпион (режим «Угадывай») — не повторять адресата вопроса, пока
+  не ответят все игроки текущего круга (уточнение TASK-340, было —
+  чисто случайный выбор). Только `spy/page.tsx`, TV не трогать (simple,
+  1 файл). Запущен Claude сама.
+File: codex-tasks/341-spy-question-cycle-no-repeat.md
+Whitelist: src/app/game/[roomId]/spy/page.tsx
+
+## Ожидает пользователя в Codex Desktop (2026-07-12): TASK-340
+
+TASK-340: Шпион (режим «Угадывай») — показывать КОМУ адресован вопрос
+  (mobile+TV) + передача хода по цепочке «кого спросили — тот теперь
+  сам спрашивает» вместо фиксированного круга. Draw-режим не трогать.
+  Плюс убрать «вслух» на TV (complex, 2 файла, меняет турн-механику) —
+  юзер запускает в Codex Desktop.
+File: codex-tasks/340-spy-question-target-chain.md
+Whitelist: src/app/game/[roomId]/spy/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок spy)
+
+## Ожидает пользователя в Codex Desktop (2026-07-12): TASK-338
+
+TASK-338: Шпион — новый этап «Обсуждение» (2 минуты) между окончанием
+  таймера раунда и голосованием. Новая фаза + таймер-эффект (по образцу
+  уже существующего voteTimer) + экраны mobile/TV (complex, 2 файла) —
+  юзер запускает в Codex Desktop.
+File: codex-tasks/338-spy-discussion-phase.md
+Whitelist: src/app/game/[roomId]/spy/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок spy)
+
+## Прошлый active (2026-07-12): TASK-337
+
+TASK-337: Шпион — 4 live-QA фикса: надпись «Задаёт вопрос» вместо
+  «Сейчас отвечает», баг «Понятно, спрятать» не прячет слово, кнопка
+  отмены последнего мазка в рисовании, скрыть кто-за-кого во время
+  живого голосования на TV (simple, 2 файла). Запущен Claude сама.
+File: codex-tasks/337-spy-live-qa-fixes.md
+Whitelist: src/app/game/[roomId]/spy/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок spy)
+
+## Прошлый active (2026-07-12): TASK-335
 
 TASK-335: Квиз/Крокодил/Alias/Шпион/100 к 1 — тот же баг зависания
   телефонов, что чинили в «Кто я?» (TASK-333). У всех 5 игр host-ответчик
