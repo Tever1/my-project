@@ -155,6 +155,19 @@ export default function CrocodilePage() {
     return () => { unsub1(); };
   }, [on, broadcast]);
 
+  useEffect(() => {
+    broadcast('croc:request-state');
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) broadcast('croc:request-state');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [broadcast]);
+
   // ------------------------------------------------------------------
   // Host: timer management
   // ------------------------------------------------------------------

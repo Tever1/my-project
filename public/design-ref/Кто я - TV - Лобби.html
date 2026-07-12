@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>КТО Я? · TV — Лобби</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<link rel="stylesheet" href="whoami/whoami.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 52px 64px 48px; position: relative; z-index: 1; }
+  .hd { display: flex; justify-content: space-between; align-items: center; }
+
+  .main { flex: 1; display: grid; grid-template-columns: 1fr 420px; align-items: center; gap: 72px; }
+
+  /* left: game identity */
+  .id { display: flex; flex-direction: column; align-items: flex-start; gap: 26px; }
+  .id .gamemark {
+    width: 148px; height: 148px; border-radius: 40px;
+    background:
+      radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.28), transparent 55%),
+      linear-gradient(165deg, #38bdf8 0%, #0369a1 100%);
+    display: flex; align-items: center; justify-content: center; color: #f0f9ff;
+    box-shadow: 0 30px 70px -18px rgba(2,132,199,.7), inset 0 1px 0 rgba(255,255,255,.45);
+  }
+  .id .ttl { font-family: var(--font-display); font-weight: 800; font-size: 128px; line-height: .92; letter-spacing: -4px; }
+  .id .ttl em { font-style: normal; color: var(--wai-1); }
+  .id .sub { font-size: 30px; font-weight: 500; color: var(--text-secondary); letter-spacing: -.3px; }
+  .id .sub b { color: var(--wai-soft); font-weight: 700; }
+
+  /* players row */
+  .roster { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 20px; }
+  .pl {
+    display: inline-flex; align-items: center; gap: 14px;
+    padding: 12px 24px 12px 12px; border-radius: var(--r-full);
+  }
+  .pl .av { width: 52px; height: 52px; font-size: 22px; }
+  .pl .nm { font-family: var(--font-display); font-weight: 700; font-size: 23px; letter-spacing: -.3px; }
+  .pl .host { width: 22px; height: 22px; color: var(--ph-yellow); }
+  .pl.ghost { border: 1.5px dashed rgba(125,211,252,.3); background: none; box-shadow: none; }
+  .pl.ghost .slot { width: 52px; height: 52px; border-radius: 50%; background: rgba(125,211,252,.07); }
+  .pl.ghost .nm { color: var(--text-quaternary); font-weight: 600; }
+
+  /* right: QR card */
+  .join { display: flex; flex-direction: column; align-items: center; gap: 26px; padding: 44px 40px 38px; border-radius: var(--r-2xl); }
+  .join .qr {
+    width: 300px; height: 300px; border-radius: var(--r-lg); background: #f3f9fd; padding: 22px;
+    box-shadow: 0 20px 50px -16px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.9);
+  }
+  .join .qr svg { width: 100%; height: 100%; display: block; color: #0a2536; }
+  .join .code { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .join .code .k { font-family: var(--font-mono); font-size: 14px; letter-spacing: 4px; text-transform: uppercase; color: var(--text-tertiary); }
+  .join .code .v { font-family: var(--font-mono); font-weight: 700; font-size: 52px; letter-spacing: 12px; color: var(--wai-soft); padding-left: 12px; }
+  .join .url { font-size: 19px; color: var(--text-tertiary); }
+  .join .url b { color: var(--text-secondary); font-weight: 600; }
+
+  .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 34px; }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen wai" data-screen-label="TV · Лобби">
+    <div class="wai-bg"><div class="blob b1"></div><div class="blob b2"></div></div>
+    <div class="screen">
+
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark"><span class="li" style="width:36px;height:36px;color:#052e46;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8.2" r="3.4"></circle><path d="M3.8 19.4c.8-3.3 3.1-5.2 5.7-5.2 1.6 0 3 .6 4.1 1.8"></path><path d="M16.2 9.4c0-1.4 1.1-2.3 2.4-2.2 1.2 0 2.2 1 2.1 2.3-.1 1.6-2.2 1.7-2.3 3.2"></path><path d="M18.4 16.3v.01"></path></svg></span></div>
+          <div class="name">Кто я?<small>Party Hub</small></div>
+        </div>
+        <div class="pill live"><span class="dot"></span> 4 подключились</div>
+      </div>
+
+      <div class="main">
+        <div class="id">
+          <div class="gamemark"><span class="li" style="width:78px;height:78px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8.2" r="3.4"></circle><path d="M3.8 19.4c.8-3.3 3.1-5.2 5.7-5.2 1.6 0 3 .6 4.1 1.8"></path><path d="M16.2 9.4c0-1.4 1.1-2.3 2.4-2.2 1.2 0 2.2 1 2.1 2.3-.1 1.6-2.2 1.7-2.3 3.2"></path><path d="M18.4 16.3v.01"></path></svg></span></div>
+          <div class="ttl">Кто <em>я?</em></div>
+          <div class="sub">Угадай, кем тебя назначили — задавай вопросы <b>«Да»/«Нет»</b></div>
+          <div class="roster">
+            <div class="pl glass"><div class="av" data-seed="0">А</div><div class="nm">Аня</div><span class="li host"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z"></path></svg></span></div>
+            <div class="pl glass"><div class="av" data-seed="1">М</div><div class="nm">Макс</div></div>
+            <div class="pl glass"><div class="av" data-seed="3">К</div><div class="nm">Катя</div></div>
+            <div class="pl glass"><div class="av" data-seed="4">Д</div><div class="nm">Дима</div></div>
+            <div class="pl ghost"><div class="slot"></div><div class="nm">ждём ещё…</div></div>
+          </div>
+        </div>
+
+        <div class="join glass-strong">
+          <div class="qr">
+            <svg viewBox="0 0 29 29" fill="currentColor">
+              <path d="M0 0h7v7H0zM2 2v3h3V2z" fill-rule="evenodd"></path>
+              <path d="M22 0h7v7h-7zM24 2v3h3V2z" fill-rule="evenodd"></path>
+              <path d="M0 22h7v7H0zM2 24v3h3v-3z" fill-rule="evenodd"></path>
+              <path d="M9 0h1v1H9zM11 0h2v1h-2zM15 0h1v2h-1zM18 0h2v1h-2zM9 2h1v2H9zM12 2h1v1h-1zM14 3h2v1h-2zM17 2h1v3h-1zM19 3h1v2h-1zM10 4h1v1h-1zM12 5h2v1h-2zM9 6h1v1H9zM15 6h1v1h-1zM18 6h2v1h-2zM0 9h2v1H0zM3 9h1v2H3zM5 9h2v1H5zM8 9h2v1H8zM11 9h1v1h-1zM13 9h1v3h-1zM16 9h2v1h-2zM20 9h1v2h-1zM22 9h2v1h-2zM25 9h1v1h-1zM27 9h2v1h-2zM1 11h1v1H1zM4 11h2v1H4zM7 11h1v2H7zM9 12h2v1H9zM12 12h1v1h-1zM15 11h1v2h-1zM17 12h2v1h-2zM21 11h2v1h-2zM24 11h1v2h-1zM26 12h2v1h-2zM0 13h1v2H0zM2 14h2v1H2zM5 13h1v1H5zM8 14h1v1H8zM10 14h2v1h-2zM13 14h2v1h-2zM16 14h1v2h-1zM19 14h1v1h-1zM22 13h1v2h-1zM25 14h2v1h-2zM28 13h1v2h-1zM1 16h2v1H1zM4 16h1v2H4zM6 17h2v1H6zM9 16h1v1H9zM11 16h2v1h-2zM14 17h1v1h-1zM18 16h2v1h-2zM21 16h1v2h-1zM23 17h2v1h-2zM26 16h1v1h-1zM28 17h1v2h-1zM0 19h2v1H0zM3 19h1v1H3zM5 19h2v1H5zM8 19h1v2H8zM10 19h1v1h-1zM12 19h2v1h-2zM15 19h1v2h-1zM17 20h2v1h-2zM20 19h2v1h-2zM24 19h1v1h-1zM26 20h2v1h-2zM9 22h2v1H9zM12 22h1v2h-1zM14 22h2v1h-2zM17 22h1v1h-1zM19 23h2v1h-2zM22 22h1v1h-1zM24 22h2v1h-2zM27 22h2v1h-2zM9 24h1v1H9zM11 25h2v1h-2zM14 24h1v2h-1zM16 25h2v1h-2zM19 25h1v1h-1zM21 24h2v1h-2zM25 24h1v2h-1zM27 25h2v1h-2zM9 27h2v1H9zM12 27h1v1h-1zM15 27h2v1h-2zM18 27h1v1h-1zM20 27h2v1h-2zM23 27h1v1h-1zM25 28h2v1h-2zM28 27h1v1h-1z"></path>
+            </svg>
+          </div>
+          <div class="code"><span class="k">код комнаты</span><span class="v">A7QX</span></div>
+          <div class="url">или введи код на <b>partyhub.app</b></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="remote-hint glass"><span class="li" style="width:24px;height:24px;color:var(--wai-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.6"></rect><path d="M10.5 18.6h3"></path></svg></span> <span>Хост нажмёт</span> <b>«Начать игру»</b> <span>на телефоне</span></div>
+        <div class="remote-hint glass" style="font-size:18px;">Нужно минимум <b>2 игрока</b></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

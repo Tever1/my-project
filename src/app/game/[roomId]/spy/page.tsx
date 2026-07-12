@@ -462,6 +462,19 @@ export default function SpyGamePage() {
   }, [broadcast, isGameHost, on]);
 
   useEffect(() => {
+    sendAction('spy:request-state');
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) sendAction('spy:request-state');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [sendAction]);
+
+  useEffect(() => {
     if (!isGameHost) return;
     if (!s.timerRunning || s.timerLeft <= 0) return;
 

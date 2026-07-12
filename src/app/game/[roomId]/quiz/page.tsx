@@ -382,6 +382,19 @@ export default function QuizPage() {
     return unsub2;
   }, [on, sendAction]);
 
+  useEffect(() => {
+    sendAction('quiz:request-state');
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) sendAction('quiz:request-state');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [sendAction]);
+
   // ------- Host timer logic -------
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 # Codex Tasks — индекс закрытых задач
 
-_Последняя синхронизация: 2026-07-01_
+_Последняя синхронизация: 2026-07-12_
 
 Одна строка на каждый TASK. Источник правды — файлы `codex-tasks/NNN-*.md`
 (ТЗ) и `codex-reports/NNN-*.md` (отчёты). Этот индекс — быстрый обзор, чтобы
@@ -338,3 +338,17 @@ bash codex-tasks/_regen-done.sh
 | 320 | `320-alias-mobile-waiting-remove-team-cards.md` | Alias mobile waiting-экран — убрать карточки команд/игроков |
 | 321 | `321-alias-tv-waiting-remove-duplicate-name.md` | Alias TV waiting-экран — убрать дубль имени игрока |
 | 322 | `322-whoami-icon-preview-design-tokens.md` | «Кто я?» — превью плоских иконок вместо эмодзи на /design-tokens |
+| 323 | `323-whoami-yesno-turn-logic.md` | «Кто я?» — новая механика передачи хода через «Да»/«Нет» |
+| 324 | `324-whoami-badges-layout-fix.md` | «Кто я?» — фикс верстки бейджей «Вопросов задано» / «Да подряд» |
+| 325 | `325-whoami-yes-quotes.md` | «Кто я?» — кавычки вместо скобок в бейдже серии «Да» |
+| 326 | `326-whoami-tv-screen-draft.md` | «Кто я?» — черновой TV-рендер («игровое поле»), ДО финального редизайна |
+| 327 | `327-whoami-remove-top-turn-card.md` | «Кто я?» — убрать верхнюю карточку «Сейчас ходит» на мобильном |
+| 328 | `328-whoami-remove-duplicate-end-button.md` | «Кто я?» — убрать дублирующую кнопку «Завершить игру» внизу |
+| 329 | `329-whoami-yes-counter-bug-and-dispute-guess.md` | «Кто я?» — багфикс счётчика «Да» подряд + механика оспаривания угаданного ответа |
+| 330 | `330-whoami-remove-questions-badge-and-mobile-guessed-indicator.md` | «Кто я?» — убрать бейдж «Вопросов задано» и индикатор угаданных с мобильного |
+| 331 | `331-whoami-full-visual-redesign.md` | «Кто я?» — полный визуальный редизайн (mobile + TV) по утверждённому макету |
+| 332 | `332-whoami-literal-design-port-and-separate-guess-screens.md` | «Кто я?» — буквальный порт дизайна из design-ref + отдельные экраны ввода/оспаривания/судьи |
+| 333 | `333-whoami-mobile-tv-freeze-fix.md` | «Кто я?» — исправить зависание телефонов/TV после нескольких раундов (добавить full-state resync) |
+| 334 | `334-whoami-more-characters-and-no-repeat.md` | «Кто я?» — добавить 100 персонажей в пул + не повторять недавних |
+| 335 | `335-five-games-mobile-resync-request.md` | Квиз/Крокодил/Alias/Шпион/100 к 1 — телефон запрашивает ресинк состояния (тот же баг зависания, что чинили в «Кто я?») |
+| 336 | `336-mafia-mobile-tv-freeze-fix.md` | Мафия — исправить зависание телефонов/TV (та же дыра, что была в «Кто я?», TASK-333) |

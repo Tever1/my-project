@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
-import { useGameBroadcast } from '@/lib/use-game-action';
+import { useGameAction, useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
@@ -121,6 +121,7 @@ export default function HundredToOnePage() {
   const topic = TOPICS.find(t => t.id === s.topicId) || TOPICS[0];
   const ROUNDS = topic.rounds;
   const BIG_Q = topic.bigQ;
+  const sendAction = useGameAction(roomId);
   const broadcast = useGameBroadcast(roomId, 'h2o:sync') as (payload: Partial<GState>) => void;
   const q = ROUNDS[s.curQ];
   const roundNames = [
@@ -181,6 +182,19 @@ export default function HundredToOnePage() {
     });
     return unsub;
   }, [on, effectivePlayerId, broadcast]);
+
+  useEffect(() => {
+    sendAction('h2o:request-state');
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) sendAction('h2o:request-state');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [sendAction]);
 
   const update = useCallback((patch: Partial<GState>) => {
     setS(prev => ({ ...prev, ...patch }));

@@ -1,6 +1,111 @@
 # Codex Status
 
-## Active (2026-06-12): TASK-231
+## Active (2026-07-12): TASK-335
+
+TASK-335: Квиз/Крокодил/Alias/Шпион/100 к 1 — тот же баг зависания
+  телефонов, что чинили в «Кто я?» (TASK-333). У всех 5 игр host-ответчик
+  на request-state УЖЕ существует (был добавлен раньше для TV) — не
+  хватает только стороны запроса на телефоне. Мехапический повтор
+  паттерна в 5 файлах (simple). Запущен Claude сама.
+File: codex-tasks/335-five-games-mobile-resync-request.md
+Whitelist: src/app/game/[roomId]/quiz/page.tsx,
+  src/app/game/[roomId]/crocodile/page.tsx,
+  src/app/game/[roomId]/alias/page.tsx,
+  src/app/game/[roomId]/spy/page.tsx,
+  src/app/game/[roomId]/hundred-to-one/page.tsx
+
+## Ожидает пользователя в Codex Desktop (2026-07-12): TASK-336
+
+TASK-336: Мафия — тот же баг зависания, но Мафия — единственная игра без
+  вообще какой-либо ресинхронизации (ни TV, ни телефон). Заготовка
+  (sync-state case) уже существует как мёртвый код, как и было в «Кто
+  я?» до TASK-333. Нужно добавить request-state + host-ответчик +
+  инициаторов на телефоне и TV (complex, 2 файла) — юзер запускает в
+  Codex Desktop.
+File: codex-tasks/336-mafia-mobile-tv-freeze-fix.md
+Whitelist: src/app/game/[roomId]/mafia/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок mafia)
+
+## Прошлый active (2026-07-11): TASK-334
+
+TASK-334: «Кто я?» — +100 персонажей в пул (30→130) + анти-повтор между
+  раундами (simple, 2 файла). Запущен Claude сама.
+File: codex-tasks/334-whoami-more-characters-and-no-repeat.md
+Whitelist: src/lib/game-data.ts, src/app/game/[roomId]/who-am-i/page.tsx
+
+## Ожидает пользователя в Codex Desktop (2026-07-11): TASK-333
+
+TASK-333: «Кто я?» — баг «зависает после пары кругов» на телефонах.
+  Корневая причина найдена: who-am-i — единственная из 7 игр без
+  механизма ресинхронизации состояния (нет request-state/sync-state
+  паттерна, который есть у quiz/crocodile/alias/spy/100к1). Пропущенный
+  broadcast (телефон свернули/разлочили) навсегда рассинхронивает
+  локальное состояние клиента. Fix: добавить request-state/sync-state
+  по образцу quiz (complex, 2 файла) — юзер запускает в Codex Desktop.
+File: codex-tasks/333-whoami-mobile-tv-freeze-fix.md
+Whitelist: src/app/game/[roomId]/who-am-i/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок who-am-i)
+
+## Прошлый active (2026-07-10): TASK-332
+
+TASK-332: «Кто я?» — буквальный порт дизайна из public/design-ref (13
+  файлов от Claude Design) + отдельные полноэкранные состояния для ввода
+  ответа/оспаривания/судьи (правка TASK-331 по фидбеку продакта: дизайн
+  не совпадал буквально, экраны были встроены как карточки а не отдельные
+  состояния). Запущен Claude сама по прямой просьбе пользователя.
+File: codex-tasks/332-whoami-literal-design-port-and-separate-guess-screens.md
+Whitelist: src/app/game/[roomId]/who-am-i/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок who-am-i),
+  src/components/games/WhoAmIIcon.tsx
+
+## Прошлый active (2026-07-10): TASK-331
+
+TASK-331: «Кто я?» — полный визуальный редизайн mobile+TV по утверждённому
+  макету «Вариант 1» + референс-файлам от Claude Design (complex, 2 файла
+  + 1 новый). Запущен Claude сама по прямой просьбе пользователя.
+File: codex-tasks/331-whoami-full-visual-redesign.md
+Whitelist: src/app/game/[roomId]/who-am-i/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок who-am-i),
+  src/components/games/WhoAmIIcon.tsx (новый)
+
+## Прошлый active (2026-07-10): TASK-330
+
+TASK-330: «Кто я?» — убрать бейдж «Вопросов задано» + убрать индикатор
+  угаданных с мобильного (оставить только на TV) (simple, 1 файл)
+File: codex-tasks/330-whoami-remove-questions-badge-and-mobile-guessed-indicator.md
+Whitelist: src/app/game/[roomId]/who-am-i/page.tsx
+
+## Выполнен, не закоммичен (2026-07-10): TASK-329
+
+TASK-329: «Кто я?» — баг счётчика «Да» (guard-фикс) + оспаривание ответа
+  по образцу Spy. lint+tsc чисто, provalidировано Claude вручную (diff read).
+File: codex-tasks/329-whoami-yes-counter-bug-and-dispute-guess.md
+
+## Прошлый active (2026-07-10): TASK-329
+
+TASK-329: «Кто я?» — баг счётчика «Да» подряд (+2 вместо +1) + механика
+  оспаривания угаданного персонажа по образцу Spy (complex, 2 файла)
+File: codex-tasks/329-whoami-yes-counter-bug-and-dispute-guess.md
+Whitelist: src/app/game/[roomId]/who-am-i/page.tsx, src/app/tv/[roomId]/[gameType]/page.tsx
+
+## Выполнены, не закоммичены (2026-07-03): TASK-323…328
+
+TASK-323…328: «Кто я?» — механика «Да»/«Нет», черновой TV-экран, live-QA правки.
+Все 6 выполнены, провалидированы (lint+tsc чисто), ждут финального прогона
+и команды коммитить. Файлы: codex-tasks/323..328-*.md, codex-reports/323..328-*.md.
+
+## Прошлый active (2026-07-02): TASK-323
+
+TASK-323: «Кто я?» — механика передачи хода «Да»/«Нет» вместо «Дальше» (simple, 1 файл)
+File: codex-tasks/323-whoami-yesno-turn-logic.md
+Whitelist: src/app/game/[roomId]/who-am-i/page.tsx
+Суть: кнопка «Дальше» → «Да»/«Нет». «Нет» = передать ход (как раньше).
+  «Да» = засчитать вопрос, ход остаётся, счётчик серии; на 3-м «Да» подряд —
+  автопередача хода, сброс счётчика. Только логика, без редизайна кнопок
+  (финальный визуал — отдельная задача после макетов от «Claude Design»,
+  см. docs/who-am-i-design-brief.md).
+
+## Прошлый active (2026-06-12): TASK-231
 
 TASK-231: Шпион — фон в цвет игры, таймеры, peek-бар, кнопка «Завершить» (complex, 4 файла)
 File: codex-tasks/231-spy-polish-bg-timers-peek-end.md

@@ -225,6 +225,19 @@ export default function AliasPage() {
     return () => { unsub1(); };
   }, [on, broadcast]);
 
+  useEffect(() => {
+    broadcast('alias:request-state');
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) broadcast('alias:request-state');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [broadcast]);
+
   // ------------------------------------------------------------------
   // Host: timer
   // ------------------------------------------------------------------

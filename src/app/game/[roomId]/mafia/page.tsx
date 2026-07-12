@@ -39,6 +39,7 @@ interface MafiaGameState {
 type GameAction =
   | { type: 'start-game' }
   | { type: 'sync-state'; state: MafiaGameState }
+  | { type: 'request-state' }
   | { type: 'assign-roles'; roles: Record<string, MafiaRole> }
   | { type: 'start-night' }
   | { type: 'mafia-vote'; voterId: string; targetId: string }
@@ -150,6 +151,7 @@ export default function MafiaPage() {
   const myRole = effectivePlayerId ? gs.roles[effectivePlayerId] : undefined;
   const amAlive = effectivePlayerId ? gs.alive.includes(effectivePlayerId) : false;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const gsRef = useRef<MafiaGameState>(getInitialState());
 
   const playerName = useCallback(
     (id: string) => nicknameCache[id] ?? players.find((p) => p.id === id)?.nickname ?? id,
@@ -160,6 +162,30 @@ export default function MafiaPage() {
   // Broadcast helper
   // -----------------------------------------------------------------------
   const broadcast = useGameBroadcast(roomId, 'mafia') as (payload: GameAction) => void;
+
+  const requestState = useCallback(() => {
+    if (gsRef.current.phase === 'lobby') return;
+    broadcast({ type: 'request-state' });
+  }, [broadcast]);
+
+  useEffect(() => {
+    gsRef.current = gs;
+  }, [gs]);
+
+  useEffect(() => {
+    requestState();
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        requestState();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [requestState]);
 
   // -----------------------------------------------------------------------
   // Listen for room state (players list)
@@ -193,6 +219,12 @@ export default function MafiaPage() {
         case 'sync-state':
           setGs(payload.state);
           setNightActionDone(false);
+          break;
+
+        case 'request-state':
+          if (isGameHost) {
+            broadcast({ type: 'sync-state', state: gsRef.current });
+          }
           break;
 
         case 'assign-roles':
@@ -309,7 +341,7 @@ export default function MafiaPage() {
       }
     });
     return cleanup;
-  }, [on, isGameHost, effectivePlayerId]);
+  }, [on, isGameHost, effectivePlayerId, broadcast]);
 
   // -----------------------------------------------------------------------
   // Day timer

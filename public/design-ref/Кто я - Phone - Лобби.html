@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>КТО Я? · Phone — Лобби</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="mobile/phone.css"/>
+<link rel="stylesheet" href="whoami/whoami.css"/>
+<style>
+  .hero { margin-top: 8px; padding: 30px 24px 26px; border-radius: var(--r-2xl); display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+  .hero .gm { width: 92px; height: 92px; border-radius: 26px;
+    background: radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.28), transparent 55%), linear-gradient(165deg, #38bdf8 0%, #0369a1 100%);
+    display: flex; align-items: center; justify-content: center; color: #f0f9ff;
+    box-shadow: 0 18px 44px -12px rgba(2,132,199,.7), inset 0 1px 0 rgba(255,255,255,.45); }
+  .hero h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 40px; letter-spacing: -1px; }
+  .hero h1 em { font-style: normal; color: var(--wai-1); }
+  .hero .sub { font-size: 15px; color: var(--text-secondary); line-height: 1.4; max-width: 300px; }
+  .hero .cnt { display: inline-flex; align-items: center; gap: 9px; padding: 8px 16px; border-radius: var(--r-full);
+    background: rgba(125,211,252,.1); border: .5px solid rgba(125,211,252,.3);
+    font-family: var(--font-mono); font-weight: 600; font-size: 13px; letter-spacing: 1px; color: var(--wai-soft); }
+
+  .roster { margin-top: 16px; display: flex; flex-direction: column; gap: 9px; }
+  .pl { display: flex; align-items: center; gap: 13px; padding: 10px 16px 10px 10px; border-radius: var(--r-lg); }
+  .pl .av { width: 44px; height: 44px; font-size: 19px; }
+  .pl .nm { font-family: var(--font-display); font-weight: 700; font-size: 17px; letter-spacing: -.2px; }
+  .pl .you { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.5px; color: var(--text-tertiary); text-transform: uppercase; }
+  .pl .host { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; color: var(--ph-yellow);
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+  .pl .host .li { width: 17px; height: 17px; }
+  .pl.ghost { border: 1.5px dashed rgba(125,211,252,.26); background: none; box-shadow: none; }
+  .pl.ghost .slot { width: 44px; height: 44px; border-radius: 50%; background: rgba(125,211,252,.06); flex-shrink: 0; }
+  .pl.ghost .nm { color: var(--text-quaternary); font-weight: 600; font-size: 15px; }
+</style>
+</head>
+<body>
+<div class="phone-stage wai-stage">
+  <div class="phone">
+    <div class="island"></div>
+    <div class="phone-screen wai" data-screen-label="Phone · Лобби">
+      <div class="wai-bg"><div class="blob b1"></div><div class="blob b2"></div></div>
+      <div class="status">
+        <span class="time">9:41</span>
+        <span class="ic">
+          <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx=".6" fill="#fff"></rect><rect x="4.5" y="4.5" width="3" height="7.5" rx=".6" fill="#fff"></rect><rect x="9" y="2" width="3" height="10" rx=".6" fill="#fff"></rect><rect x="13.5" y="0" width="3" height="12" rx=".6" fill="#fff" opacity=".4"></rect></svg>
+          <svg width="26" height="13" viewBox="0 0 26 13"><rect x="1" y="1" width="21" height="11" rx="3" stroke="#fff" stroke-opacity=".4" fill="none"></rect><rect x="2.5" y="2.5" width="16" height="8" rx="1.6" fill="#fff"></rect><path d="M24 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#fff" fill-opacity=".5"></path></svg>
+        </span>
+      </div>
+
+      <div class="content">
+        <div class="appbar">
+          <div class="brand"><div class="m"><span class="li" style="width:22px;height:22px;color:#052e46;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8.2" r="3.4"></circle><path d="M3.8 19.4c.8-3.3 3.1-5.2 5.7-5.2 1.6 0 3 .6 4.1 1.8"></path><path d="M16.2 9.4c0-1.4 1.1-2.3 2.4-2.2 1.2 0 2.2 1 2.1 2.3-.1 1.6-2.2 1.7-2.3 3.2"></path><path d="M18.4 16.3v.01"></path></svg></span></div><div class="nm">Кто я?<small>Party Hub</small></div></div>
+          <div class="rcode">A7QX</div>
+        </div>
+
+        <div class="hero glass-strong">
+          <div class="gm"><span class="li" style="width:50px;height:50px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8.2" r="3.4"></circle><path d="M3.8 19.4c.8-3.3 3.1-5.2 5.7-5.2 1.6 0 3 .6 4.1 1.8"></path><path d="M16.2 9.4c0-1.4 1.1-2.3 2.4-2.2 1.2 0 2.2 1 2.1 2.3-.1 1.6-2.2 1.7-2.3 3.2"></path><path d="M18.4 16.3v.01"></path></svg></span></div>
+          <h1>Кто <em>я?</em></h1>
+          <div class="sub">Каждому достанется тайный персонаж. Угадай своего — задавай вопросы «Да»/«Нет»</div>
+          <div class="cnt">игроков в комнате · 4</div>
+        </div>
+
+        <div class="roster">
+          <div class="pl glass"><div class="av" data-seed="0">А</div><div class="nm">Аня</div><span class="you">это ты</span><span class="host"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z"></path></svg></span>хост</span></div>
+          <div class="pl glass"><div class="av" data-seed="1">М</div><div class="nm">Макс</div></div>
+          <div class="pl glass"><div class="av" data-seed="3">К</div><div class="nm">Катя</div></div>
+          <div class="pl glass"><div class="av" data-seed="4">Д</div><div class="nm">Дима</div></div>
+          <div class="pl ghost"><div class="slot"></div><div class="nm">место свободно — зови по QR на экране</div></div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <button class="btn wai" data-comment-anchor="wai-start-btn">Начать игру</button>
+      </div>
+
+      <div class="home-ind"></div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min((innerHeight-28)/874, (innerWidth-28)/402); document.querySelector('.phone').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

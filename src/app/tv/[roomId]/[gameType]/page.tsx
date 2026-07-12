@@ -14,6 +14,7 @@ import { CrocIcon } from '@/components/games/CrocIcon';
 import { GameSurface } from '@/components/games/GameSurface';
 import { AliasIcon } from '@/components/games/AliasIcon';
 import { SpyIcon, type SpyIconName } from '@/components/games/SpyIcon';
+import { WhoAmIIcon } from '@/components/games/WhoAmIIcon';
 import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
@@ -132,6 +133,53 @@ interface H2OState {
   buzzerWinner: number; buzzerCountdown: number;
 }
 
+interface WhoAmIState {
+  phase: 'lobby' | 'playing' | 'finished';
+  characters: Record<string, { ru: string; en: string }>;
+  currentTurnIndex: number;
+  turnOrder: string[];
+  guessedPlayers: string[];
+  questionsAsked: Record<string, number>;
+  consecutiveYesAnswers: number;
+  guessNeedsConfirm: boolean;
+  guessAwaitingJudge: boolean;
+  guessJudgeId: string;
+  guessPendingPlayerId: string;
+  guessPendingText: string;
+  scores: Record<string, number>;
+}
+
+type WhoAmIAction =
+  | { type: 'start-game'; characters: Record<string, { ru: string; en: string }>; turnOrder: string[] }
+  | { type: 'sync-state'; state: WhoAmIState }
+  | { type: 'request-state' }
+  | { type: 'next-turn' }
+  | { type: 'ask-question'; answer?: 'yes' | 'no' }
+  | { type: 'guess-try'; playerId: string; guess: string }
+  | { type: 'guess-confirm'; playerId: string; judgeId: string }
+  | { type: 'guess'; playerId: string; guess: string; correct: boolean }
+  | { type: 'end-game' };
+
+const clearWhoAmIGuessDispute = () => ({
+  guessNeedsConfirm: false,
+  guessAwaitingJudge: false,
+  guessJudgeId: '',
+  guessPendingPlayerId: '',
+  guessPendingText: '',
+});
+
+const mkWhoAmIInitial = (): WhoAmIState => ({
+  phase: 'lobby',
+  characters: {},
+  currentTurnIndex: 0,
+  turnOrder: [],
+  guessedPlayers: [],
+  questionsAsked: {},
+  consecutiveYesAnswers: 0,
+  ...clearWhoAmIGuessDispute(),
+  scores: {},
+});
+
 const mkH2OInitial = (): H2OState => ({
   phase: 'roleSelect', curQ: 0, topicId: 'general',
   t1n: 'Команда 1', t2n: 'Команда 2', t1s: 0, t2s: 0,
@@ -147,6 +195,27 @@ const mkH2OInitial = (): H2OState => ({
 });
 
 const QUESTIONS_PER_GAME = 10;
+
+function calculateWhoAmIScore(questionsAsked: number): number {
+  if (questionsAsked <= 1) return 100;
+  if (questionsAsked <= 3) return 80;
+  if (questionsAsked <= 5) return 60;
+  if (questionsAsked <= 8) return 40;
+  if (questionsAsked <= 12) return 20;
+  return 10;
+}
+
+const WHO_AM_I_TV_SURFACE =
+  "h-screen bg-[linear-gradient(135deg,#071825_0%,#0a2d3f_30%,#0c2530_60%,#071825_100%)] text-white flex flex-col overflow-hidden before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,.28),transparent_34%),radial-gradient(circle_at_82%_12%,rgba(2,132,199,.24),transparent_32%)] before:animate-pulse";
+const WHO_AM_I_ACCENT_MARK =
+  'bg-[radial-gradient(110%_70%_at_50%_-5%,rgba(255,255,255,.28),transparent_55%),linear-gradient(165deg,#38bdf8_0%,#0369a1_100%)] text-sky-50 shadow-[0_24px_60px_-14px_rgba(2,132,199,.8),inset_0_1px_0_rgba(255,255,255,.5)]';
+
+function whoAmIRankStyle(index: number) {
+  if (index === 0) return 'border-amber-300/35 bg-amber-400/10 text-amber-300';
+  if (index === 1) return 'border-slate-200/30 bg-slate-200/10 text-slate-200';
+  if (index === 2) return 'border-orange-300/30 bg-orange-400/10 text-orange-300';
+  return 'border-white/10 bg-white/5 text-white/55';
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -264,6 +333,13 @@ export default function TVGamePage() {
     winner: string | null;
     round: number;
   }>({ phase: 'lobby', alive: [], eliminated: [], lastEvent: '', winner: null, round: 1 });
+  const [whoAmIState, setWhoAmIState] = useState<WhoAmIState>(mkWhoAmIInitial);
+  const [lastWhoAmIGuessResult, setLastWhoAmIGuessResult] = useState<{
+    playerId: string;
+    correct: boolean;
+    guess: string;
+  } | null>(null);
+  const whoAmIGuessTimeoutRef = useRef<number | null>(null);
   const [localIp, setLocalIp] = useState('');
   const [showQrOverlay, setShowQrOverlay] = useState(false);
 
@@ -300,7 +376,13 @@ export default function TVGamePage() {
       // Request full game state only after the socket has joined the room,
       // otherwise the h2o:sync response won't be delivered to this socket yet.
       const requestAction = TV_STATE_REQUEST[gameType];
-      if (requestAction) sendAction(requestAction);
+      if (gameType === 'who-am-i') {
+        sendAction('who-am-i', { type: 'request-state' });
+      } else if (gameType === 'mafia') {
+        sendAction('mafia', { type: 'request-state' });
+      } else if (requestAction) {
+        sendAction(requestAction);
+      }
     });
   }, [isConnected, roomId, emit, gameType, sendAction]);
 
@@ -464,8 +546,26 @@ export default function TVGamePage() {
       }
 
       if (action === 'mafia') {
-        const mp = payload as { type: string; roles?: Record<string, string>; killedId?: string | null; saved?: boolean; playerId?: string; winner?: string; round?: number };
+        const mp = payload as { type: string; roles?: Record<string, string>; killedId?: string | null; saved?: boolean; playerId?: string; winner?: string; round?: number; state?: unknown };
         switch (mp.type) {
+          case 'sync-state': {
+            const state = mp.state as {
+              phase: string;
+              alive: string[];
+              eliminated: { id: string; role: string }[];
+              winner: string | null;
+              round: number;
+            };
+            setMafiaState({
+              phase: state.phase === 'voting' ? 'day' : state.phase,
+              alive: state.alive,
+              eliminated: state.eliminated.map((e) => ({ id: e.id })),
+              lastEvent: '',
+              winner: state.winner,
+              round: state.round,
+            });
+            break;
+          }
           case 'assign-roles':
             setMafiaState(prev => ({
               ...prev,
@@ -522,6 +622,138 @@ export default function TVGamePage() {
         }
       }
 
+      if (gameType === 'who-am-i' && action === 'who-am-i') {
+        const wp = payload as unknown as WhoAmIAction;
+        switch (wp.type) {
+          case 'start-game':
+            setWhoAmIState({
+              phase: 'playing',
+              characters: wp.characters,
+              currentTurnIndex: 0,
+              turnOrder: wp.turnOrder,
+              guessedPlayers: [],
+              questionsAsked: Object.fromEntries(wp.turnOrder.map((id) => [id, 0])),
+              consecutiveYesAnswers: 0,
+              ...clearWhoAmIGuessDispute(),
+              scores: Object.fromEntries(wp.turnOrder.map((id) => [id, 0])),
+            });
+            setLastWhoAmIGuessResult(null);
+            if (whoAmIGuessTimeoutRef.current !== null) {
+              window.clearTimeout(whoAmIGuessTimeoutRef.current);
+              whoAmIGuessTimeoutRef.current = null;
+            }
+            break;
+
+          case 'sync-state':
+            setWhoAmIState(wp.state);
+            break;
+
+          case 'next-turn':
+            setWhoAmIState((prev) => ({
+              ...prev,
+              currentTurnIndex: prev.currentTurnIndex + 1,
+              consecutiveYesAnswers: 0,
+              ...clearWhoAmIGuessDispute(),
+            }));
+            setLastWhoAmIGuessResult(null);
+            break;
+
+          case 'ask-question':
+            setWhoAmIState((prev) => {
+              const activeOrder = prev.turnOrder.filter((id) => !prev.guessedPlayers.includes(id));
+              const currentPlayerId = activeOrder.length > 0
+                ? activeOrder[prev.currentTurnIndex % activeOrder.length]
+                : null;
+              if (!currentPlayerId) return prev;
+
+              return {
+                ...prev,
+                questionsAsked: {
+                  ...prev.questionsAsked,
+                  [currentPlayerId]: (prev.questionsAsked[currentPlayerId] || 0) + 1,
+                },
+                consecutiveYesAnswers: wp.answer === 'yes'
+                  ? prev.consecutiveYesAnswers + 1
+                  : prev.consecutiveYesAnswers,
+              };
+            });
+            break;
+
+          case 'guess-try':
+            setWhoAmIState((prev) => ({
+              ...prev,
+              guessNeedsConfirm: true,
+              guessAwaitingJudge: false,
+              guessJudgeId: '',
+              guessPendingPlayerId: wp.playerId,
+              guessPendingText: wp.guess,
+            }));
+            setLastWhoAmIGuessResult(null);
+            break;
+
+          case 'guess-confirm':
+            setWhoAmIState((prev) => ({
+              ...prev,
+              guessNeedsConfirm: false,
+              guessAwaitingJudge: true,
+              guessJudgeId: wp.judgeId,
+              guessPendingPlayerId: wp.playerId,
+            }));
+            break;
+
+          case 'guess':
+            if (wp.correct) {
+              setWhoAmIState((prev) => {
+                const score = calculateWhoAmIScore(prev.questionsAsked[wp.playerId] || 0);
+                const guessedPlayers = prev.guessedPlayers.includes(wp.playerId)
+                  ? prev.guessedPlayers
+                  : [...prev.guessedPlayers, wp.playerId];
+                const allGuessed = guessedPlayers.length >= prev.turnOrder.length;
+
+                return {
+                  ...prev,
+                  guessedPlayers,
+                  scores: {
+                    ...prev.scores,
+                    [wp.playerId]: (prev.scores[wp.playerId] || 0) + score,
+                  },
+                  phase: allGuessed ? 'finished' : prev.phase,
+                  currentTurnIndex: prev.currentTurnIndex + 1,
+                  consecutiveYesAnswers: 0,
+                  ...clearWhoAmIGuessDispute(),
+                };
+              });
+            } else {
+              setWhoAmIState((prev) => ({
+                ...prev,
+                ...clearWhoAmIGuessDispute(),
+              }));
+            }
+            setLastWhoAmIGuessResult({
+              playerId: wp.playerId,
+              correct: wp.correct,
+              guess: wp.guess,
+            });
+            if (whoAmIGuessTimeoutRef.current !== null) {
+              window.clearTimeout(whoAmIGuessTimeoutRef.current);
+            }
+            whoAmIGuessTimeoutRef.current = window.setTimeout(() => {
+              setLastWhoAmIGuessResult(null);
+              whoAmIGuessTimeoutRef.current = null;
+            }, 3000);
+            break;
+
+          case 'end-game':
+            setWhoAmIState((prev) => ({
+              ...prev,
+              phase: 'finished',
+              ...clearWhoAmIGuessDispute(),
+            }));
+            setLastWhoAmIGuessResult(null);
+            break;
+        }
+      }
+
       setGenericState((prev) => ({ ...prev, lastAction: action, ...payload }));
     });
 
@@ -530,6 +762,14 @@ export default function TVGamePage() {
 
     return unsub2;
   }, [on, gameType, locale]);
+
+  useEffect(() => {
+    return () => {
+      if (whoAmIGuessTimeoutRef.current !== null) {
+        window.clearTimeout(whoAmIGuessTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // TV-pivot: read lobby quiz config and broadcast it to all clients.
   useEffect(() => {
@@ -2058,6 +2298,346 @@ export default function TVGamePage() {
             </p>
           )}
         </div>
+        {qrOverlay}
+      </GameSurface>
+    );
+  }
+
+  // ===================== WHO AM I TV RENDER =====================
+  if (gameType === 'who-am-i') {
+    const ws = whoAmIState;
+    const activeOrder = ws.turnOrder.filter((id) => !ws.guessedPlayers.includes(id));
+    const currentPlayerId = activeOrder.length > 0
+      ? activeOrder[ws.currentTurnIndex % activeOrder.length]
+      : null;
+    const currentPlayerName = currentPlayerId ? getPlayerName(currentPlayerId) : l('ожидание', 'waiting');
+    const disputingPlayerName = ws.guessPendingPlayerId ? getPlayerName(ws.guessPendingPlayerId) : l('Игрок', 'Player');
+    const otherPlayerIds = ws.turnOrder.filter((id) => id !== currentPlayerId);
+    const resultRows = (ws.turnOrder.length > 0 ? ws.turnOrder : players.map((p) => p.id))
+      .map((id) => ({
+        id,
+        name: getPlayerName(id),
+        score: ws.scores[id] || 0,
+        character: ws.characters[id],
+        guessed: ws.guessedPlayers.includes(id),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    const revealStep = resultRows.length >= 10 ? 0.34 : 0.46;
+    const winner = resultRows[0];
+
+    return (
+      <GameSurface className={WHO_AM_I_TV_SURFACE}>
+        {ws.phase === 'lobby' && (
+          <div className="flex flex-1 items-center justify-center px-12 py-10">
+            <div className="grid w-full max-w-7xl grid-cols-[1fr_360px] items-center gap-12">
+              <div className="min-w-0">
+                <div className={`mb-8 flex h-36 w-36 items-center justify-center rounded-[40px] ${WHO_AM_I_ACCENT_MARK}`}>
+                  <WhoAmIIcon name="profile" className="h-20 w-20" />
+                </div>
+                <h1 className="text-[112px] font-black leading-[.9] tracking-tight">
+                  {l('Кто я?', 'Who Am I?')}
+                </h1>
+                <p className="mt-6 max-w-4xl text-3xl font-medium leading-tight text-white/65">
+                  {l('Угадай, кем тебя назначили — задавай вопросы Да/Нет', 'Guess who you are — ask Yes/No questions')}
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  {players.map((p) => (
+                    <div key={p.id} className="glass-card flex items-center gap-3 rounded-full px-4 py-3">
+                      <PlayerAvatar nickname={p.nickname} size="sm" />
+                      <span className="text-xl font-bold">{p.nickname}</span>
+                      {p.isHost && <WhoAmIIcon name="star" className="h-5 w-5 text-amber-300" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="glass-card flex flex-col items-center gap-5 rounded-[32px] px-8 py-8 text-center">
+                <div className="rounded-2xl bg-white p-4 shadow-xl">
+                  <QRCodeCanvas value={joinUrl} size={248} />
+                </div>
+                <div>
+                  <p className="font-mono text-sm uppercase tracking-[0.28em] text-white/45">{l('код комнаты', 'room code')}</p>
+                  <p className="mt-2 font-mono text-5xl font-black tracking-[0.18em] text-sky-200">{roomId}</p>
+                </div>
+                <p className="text-lg text-white/45">{siteUrl}/join</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {ws.phase === 'playing' && (
+          <>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 border-b border-white/10 px-8 py-4 backdrop-blur-sm">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${WHO_AM_I_ACCENT_MARK}`}>
+                  <WhoAmIIcon name="profile" className="h-7 w-7" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold leading-none">{l('Кто я?', 'Who Am I?')}</h1>
+                  <p className="font-mono text-xs uppercase tracking-widest text-white/40">Party Hub</p>
+                </div>
+              </div>
+              <div className="glass-card flex items-center gap-4 rounded-full px-5 py-3">
+                <PlayerAvatar nickname={currentPlayerName} size="sm" />
+                <div>
+                  <p className="font-mono text-xs uppercase tracking-[0.2em] text-white/40">{l('Сейчас ходит', 'Current turn')}</p>
+                  <p className="text-2xl font-black text-sky-200">{currentPlayerName}</p>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <div className="glass-card flex items-center gap-3 rounded-full px-5 py-3 text-xl font-bold">
+                  <WhoAmIIcon name="check" className="h-6 w-6 text-green-300" />
+                  <span>{l('Угадали', 'Guessed')} <b className="font-mono text-sky-200">{ws.guessedPlayers.length} / {ws.turnOrder.length}</b></span>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative flex flex-1 flex-col items-center justify-center gap-8 px-8 py-8">
+              <div className={(ws.guessNeedsConfirm || ws.guessAwaitingJudge) ? 'opacity-[.38] saturate-[.7] transition' : 'transition'}>
+                {currentPlayerId ? (
+                  <div className="relative">
+                    <motion.div
+                      className="absolute -inset-4 rounded-[40px] border border-sky-300/35"
+                      animate={{ scale: [1, 1.035, 1], opacity: [0.35, 0.75, 0.35] }}
+                      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <div className="glass-card relative w-[min(980px,calc(100vw-160px))] rounded-[32px] border-sky-300/20 bg-white/10 px-12 py-10">
+                      <div className="flex items-center gap-9">
+                        <PlayerAvatar nickname={currentPlayerName} sizePx={156} ring="rgba(56,189,248,.65)" />
+                        <div className="min-w-0">
+                          <p className="text-lg font-semibold uppercase tracking-[0.24em] text-sky-300">{l('Сейчас ходит', 'Current turn')}</p>
+                          <p className="truncate text-7xl font-black leading-none tracking-tight">{currentPlayerName}</p>
+                          <p className="mt-4 inline-flex rounded-full border border-sky-300/30 bg-sky-400/10 px-5 py-2 font-mono text-lg font-semibold text-sky-100">
+                            {l('Вопросов задано', 'Questions asked')} · {ws.questionsAsked[currentPlayerId] ?? 0}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-8 flex items-center gap-6 overflow-hidden rounded-3xl border border-dashed border-sky-200/25 bg-black/25 px-8 py-6">
+                        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-sky-200/25 bg-sky-400/10 text-sky-200">
+                          <WhoAmIIcon name="profile" className="h-11 w-11" />
+                        </div>
+                        <div>
+                          <p className="text-3xl font-bold">{l('Персонаж скрыт', 'Character hidden')}</p>
+                          <p className="mt-1 text-xl text-white/45">
+                            {l('Откроется, когда игрок угадает или передаст ход', 'Reveals when the player guesses or passes the turn')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="glass-card px-10 py-8 text-center">
+                    <WhoAmIIcon name="trophy" className="mx-auto mb-3 h-14 w-14 text-sky-200" />
+                    <p className="text-3xl font-bold">{l('Все игроки угадали', 'Everyone guessed')}</p>
+                  </div>
+                )}
+              </div>
+
+              {otherPlayerIds.length > 0 && (
+                <div className="flex w-full max-w-[1760px] flex-nowrap items-center justify-center gap-2">
+                  {otherPlayerIds.map((id) => {
+                    const guessed = ws.guessedPlayers.includes(id);
+                    return (
+                      <div
+                        key={id}
+                        className={`glass-card flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 ${
+                          guessed ? 'border-green-300/25 bg-green-500/10' : ''
+                        }`}
+                      >
+                        <PlayerAvatar nickname={getPlayerName(id)} size="xs" />
+                        <span className="truncate text-base font-bold text-white/75">{getPlayerName(id)}</span>
+                        {guessed && <WhoAmIIcon name="check" className="h-5 w-5 shrink-0 text-green-300" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <AnimatePresence>
+                {(ws.guessNeedsConfirm || ws.guessAwaitingJudge) && (
+                  <motion.div
+                    key="whoami-dispute-tv"
+                    initial={{ opacity: 0, scale: 0.82 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.92 }}
+                    transition={{ duration: 0.5, ease: [0.2, 0.9, 0.3, 1.3] }}
+                      className="glass-card absolute left-1/2 top-1/2 z-30 flex -translate-x-1/2 -translate-y-1/2 items-center gap-6 rounded-full border-white/20 bg-neutral-900/75 px-12 py-8 shadow-2xl"
+                      style={{
+                        boxShadow: '0 36px 100px -20px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.14)',
+                      }}
+                  >
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/70">
+                      <WhoAmIIcon name="profile" className="h-11 w-11" />
+                    </div>
+                    <div>
+                      <p className="text-4xl font-black tracking-[-.8px]">
+                        {l(
+                          `${disputingPlayerName} оспаривает ответ`,
+                          `${disputingPlayerName} is disputing the answer`,
+                        )}
+                      </p>
+                      <p className="mt-2 text-2xl text-white/45">{l('Вердикт выносится на телефоне судьи', 'The verdict happens on the judge phone')}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {lastWhoAmIGuessResult && (
+                  <motion.div
+                    key={`${lastWhoAmIGuessResult.playerId}-${lastWhoAmIGuessResult.guess}-${lastWhoAmIGuessResult.correct}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(4,14,22,.66)] px-8 backdrop-blur-[16px] backdrop-saturate-[140%]"
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.72, y: 30 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -12 }}
+                      transition={{ duration: 0.55, ease: [0.2, 0.9, 0.3, 1.3] }}
+                      className={`glass-card flex max-w-5xl flex-col items-center gap-[30px] rounded-[56px] px-24 pb-14 pt-16 text-center shadow-[0_40px_120px_-24px_rgba(2,132,199,.75),inset_0_1px_0_rgba(255,255,255,.16)] ${
+                        lastWhoAmIGuessResult.correct
+                          ? 'border-sky-300/35 bg-sky-400/10'
+                          : 'border-red-300/35 bg-red-500/15'
+                      }`}
+                    >
+                      <div className={`mx-auto mb-8 flex h-32 w-32 items-center justify-center rounded-full ${
+                        lastWhoAmIGuessResult.correct
+                          ? WHO_AM_I_ACCENT_MARK
+                          : 'border border-red-300/35 bg-red-500/20 text-red-200'
+                      }`}
+                      >
+                        <WhoAmIIcon name={lastWhoAmIGuessResult.correct ? 'celebrate' : 'cross'} className="h-20 w-20" />
+                      </div>
+                      <p className="text-[92px] font-black leading-[.95] tracking-[-3px]">
+                        {lastWhoAmIGuessResult.correct
+                          ? l(`${getPlayerName(lastWhoAmIGuessResult.playerId)} угадал!`, `${getPlayerName(lastWhoAmIGuessResult.playerId)} guessed!`)
+                          : l('Неверная попытка', 'Wrong guess')}
+                      </p>
+                      <div className="flex items-center gap-[14px]">
+                        <span className="inline-flex rounded-full border border-sky-300/40 bg-sky-300/10 px-7 py-[15px] text-[26px] font-bold tracking-[-.3px] text-sky-200">
+                          {lastWhoAmIGuessResult.guess}
+                        </span>
+                        {lastWhoAmIGuessResult.correct && (
+                          <span className="inline-flex rounded-full border border-green-400/40 bg-green-500/15 px-7 py-[15px] font-mono text-[26px] font-bold text-green-300">
+                            +{calculateWhoAmIScore(ws.questionsAsked[lastWhoAmIGuessResult.playerId] || 0)} {l('очков', 'points')}
+                          </span>
+                        )}
+                      </div>
+                      {lastWhoAmIGuessResult.correct && (
+                        <p className="text-[23px] text-white/65">
+                          {l(
+                            `Понадобилось ${ws.questionsAsked[lastWhoAmIGuessResult.playerId] || 0} вопросов`,
+                            `It took ${ws.questionsAsked[lastWhoAmIGuessResult.playerId] || 0} questions`,
+                          )}
+                        </p>
+                      )}
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            <div className="flex items-center justify-between px-16 pb-11">
+              <div className="glass-card inline-flex items-center gap-3 rounded-full px-6 py-3 text-xl text-white/65">
+                <WhoAmIIcon name="profile" className="h-6 w-6 text-sky-200" />
+                {ws.guessNeedsConfirm || ws.guessAwaitingJudge ? (
+                  <span>{l('Вердикт выносится на телефоне судьи', 'The verdict happens on the judge phone')}</span>
+                ) : (
+                  <>
+                    <span>
+                      {l(`У ${currentPlayerName} на телефоне:`, `On ${currentPlayerName}'s phone:`)}
+                    </span>
+                    <b className="text-white">{l('Нет · Да · Я знаю!', 'No · Yes · I know!')}</b>
+                  </>
+                )}
+              </div>
+              <div className="glass-card inline-flex items-center gap-2 rounded-full px-5 py-3 text-lg text-white/70">
+                <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
+                {l(`${ws.turnOrder.length} в игре`, `${ws.turnOrder.length} playing`)}
+              </div>
+            </div>
+          </>
+        )}
+
+        {ws.phase === 'finished' && (
+          <div className="flex flex-1 flex-col px-12 py-8">
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.2, 0.9, 0.3, 1.2] }}
+              className="flex items-center justify-center gap-5"
+            >
+              <div className={`flex h-20 w-20 items-center justify-center rounded-[24px] ${WHO_AM_I_ACCENT_MARK}`}>
+                <WhoAmIIcon name="trophy" className="h-12 w-12" />
+              </div>
+              <h1 className="text-6xl font-black tracking-tight">{l('Игра окончена!', 'Game over!')}</h1>
+            </motion.div>
+
+            <div className="mx-auto mt-8 flex w-full max-w-6xl flex-1 flex-col justify-center gap-2">
+              {resultRows.map((row, index) => {
+                const character = row.guessed
+                  ? row.character?.[locale] ?? '???'
+                  : l('не угадал', 'not guessed');
+                const delay = 0.35 + (resultRows.length - 1 - index) * revealStep;
+
+                return (
+                  <motion.div
+                    key={row.id}
+                    initial={{ opacity: 0, y: 24, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay, duration: 0.42, ease: [0.2, 0.9, 0.3, 1.15] }}
+                    className={`glass-card grid grid-cols-[64px_56px_1fr_auto] items-center gap-4 rounded-2xl border px-5 py-3 text-left ${whoAmIRankStyle(index)} ${
+                      index === 0 ? 'py-4' : ''
+                    }`}
+                  >
+                    <div className="relative flex h-12 w-12 items-center justify-center">
+                      {index < 3 ? (
+                        <>
+                          <WhoAmIIcon name="medal" className={index === 0 ? 'h-14 w-14' : 'h-12 w-12'} />
+                          <span className="absolute mt-1 font-mono text-sm font-black">{index + 1}</span>
+                        </>
+                      ) : (
+                        <span className="font-mono text-2xl font-black text-white/45">{index + 1}</span>
+                      )}
+                    </div>
+                    <PlayerAvatar nickname={row.name} size={index === 0 ? 'md' : 'sm'} />
+                    <div className="min-w-0">
+                      <p className={`truncate font-black ${index === 0 ? 'text-4xl' : 'text-2xl'}`}>{row.name}</p>
+                      <p className="truncate text-lg text-white/55">
+                        <span className="text-sky-100/85">{character}</span>
+                        {row.guessed && (
+                          <span className="text-white/35"> · {ws.questionsAsked[row.id] ?? 0} {l('вопросов', 'questions')}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-mono font-black ${index === 0 ? 'text-4xl' : 'text-3xl'}`}>{row.score}</p>
+                      <p className="font-mono text-xs uppercase tracking-widest text-white/35">{l('очков', 'points')}</p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+            <div className="mt-8 flex items-center justify-between px-4">
+              {winner ? (
+                <div className="glass-card inline-flex items-center gap-3 rounded-full px-6 py-3 text-xl text-white/65">
+                  <WhoAmIIcon name="profile" className="h-6 w-6 text-sky-200" />
+                  <span>{l(`У ${winner.name} на телефоне:`, `On ${winner.name}'s phone:`)}</span>
+                  <b className="text-white">{l('Играть снова', 'Play again')}</b>
+                </div>
+              ) : (
+                <span />
+              )}
+              <div className="glass-card inline-flex items-center gap-2 rounded-full px-5 py-3 text-lg text-white/70">
+                <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
+                {l(`${ws.turnOrder.length} в игре`, `${ws.turnOrder.length} playing`)}
+              </div>
+            </div>
+          </div>
+        )}
+
         {qrOverlay}
       </GameSurface>
     );
