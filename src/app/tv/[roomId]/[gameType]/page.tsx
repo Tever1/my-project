@@ -154,7 +154,7 @@ type WhoAmIAction =
   | { type: 'sync-state'; state: WhoAmIState }
   | { type: 'request-state' }
   | { type: 'next-turn' }
-  | { type: 'ask-question'; answer?: 'yes' | 'no' }
+  | { type: 'ask-question'; answer?: 'yes' | 'no'; playerId: string; questionsAsked: number; consecutiveYesAnswers: number }
   | { type: 'guess-try'; playerId: string; guess: string }
   | { type: 'guess-confirm'; playerId: string; judgeId: string }
   | { type: 'guess'; playerId: string; guess: string; correct: boolean }
@@ -665,24 +665,14 @@ export default function TVGamePage() {
             break;
 
           case 'ask-question':
-            setWhoAmIState((prev) => {
-              const activeOrder = prev.turnOrder.filter((id) => !prev.guessedPlayers.includes(id));
-              const currentPlayerId = activeOrder.length > 0
-                ? activeOrder[prev.currentTurnIndex % activeOrder.length]
-                : null;
-              if (!currentPlayerId) return prev;
-
-              return {
-                ...prev,
-                questionsAsked: {
-                  ...prev.questionsAsked,
-                  [currentPlayerId]: (prev.questionsAsked[currentPlayerId] || 0) + 1,
-                },
-                consecutiveYesAnswers: wp.answer === 'yes'
-                  ? prev.consecutiveYesAnswers + 1
-                  : prev.consecutiveYesAnswers,
-              };
-            });
+            setWhoAmIState((prev) => ({
+              ...prev,
+              questionsAsked: {
+                ...prev.questionsAsked,
+                [wp.playerId]: wp.questionsAsked,
+              },
+              consecutiveYesAnswers: wp.consecutiveYesAnswers,
+            }));
             break;
 
           case 'guess-try':
@@ -2431,7 +2421,7 @@ export default function TVGamePage() {
                           <p className="text-lg font-semibold uppercase tracking-[0.24em] text-sky-300">{l('Сейчас ходит', 'Current turn')}</p>
                           <p className="truncate text-7xl font-black leading-none tracking-tight">{currentPlayerName}</p>
                           <p className="mt-4 inline-flex rounded-full border border-sky-300/30 bg-sky-400/10 px-5 py-2 font-mono text-lg font-semibold text-sky-100">
-                            {l('Вопросов задано', 'Questions asked')} · {ws.questionsAsked[currentPlayerId] ?? 0}
+                            {l('«Да» подряд', 'Yes streak')} · {ws.consecutiveYesAnswers}/3
                           </p>
                         </div>
                       </div>

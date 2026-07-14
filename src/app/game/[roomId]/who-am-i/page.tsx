@@ -49,7 +49,7 @@ type GameAction =
   | { type: 'sync-state'; state: WhoAmIGameState }
   | { type: 'request-state' }
   | { type: 'next-turn' }
-  | { type: 'ask-question'; answer?: 'yes' | 'no' }
+  | { type: 'ask-question'; answer?: 'yes' | 'no'; playerId: string; questionsAsked: number; consecutiveYesAnswers: number }
   | { type: 'guess-try'; playerId: string; guess: string }
   | { type: 'guess-confirm'; playerId: string; judgeId: string }
   | { type: 'guess'; playerId: string; guess: string; correct: boolean }
@@ -273,27 +273,14 @@ export default function WhoAmIPage() {
           break;
 
         case 'ask-question':
-          setGs((prev) => {
-            const activeOrder = prev.turnOrder.filter(
-              (id) => !prev.guessedPlayers.includes(id),
-            );
-            const cid =
-              activeOrder.length > 0
-                ? activeOrder[prev.currentTurnIndex % activeOrder.length]
-                : null;
-            if (!cid) return prev;
-            return {
-              ...prev,
-              questionsAsked: {
-                ...prev.questionsAsked,
-                [cid]: (prev.questionsAsked[cid] || 0) + 1,
-              },
-              consecutiveYesAnswers:
-                payload.answer === 'yes'
-                  ? prev.consecutiveYesAnswers + 1
-                  : prev.consecutiveYesAnswers,
-            };
-          });
+          setGs((prev) => ({
+            ...prev,
+            questionsAsked: {
+              ...prev.questionsAsked,
+              [payload.playerId]: payload.questionsAsked,
+            },
+            consecutiveYesAnswers: payload.consecutiveYesAnswers,
+          }));
           break;
 
         case 'guess-try':
@@ -402,12 +389,26 @@ export default function WhoAmIPage() {
   };
 
   const handleQuestionAsked = (answer?: 'yes' | 'no') => {
+    const myId = effectivePlayerId;
+    if (!myId) return false;
     if (!canSendQuestionAnswer()) return false;
-    broadcast({ type: 'ask-question', answer });
+    const nextQuestions = (gs.questionsAsked[myId] || 0) + 1;
+    const nextStreak =
+      answer === 'yes'
+        ? gs.consecutiveYesAnswers + 1
+        : gs.consecutiveYesAnswers;
+
+    broadcast({
+      type: 'ask-question',
+      answer,
+      playerId: myId,
+      questionsAsked: nextQuestions,
+      consecutiveYesAnswers: nextStreak,
+    });
     if (answer === 'no') {
       broadcast({ type: 'next-turn' });
     }
-    return true;
+    return nextStreak;
   };
 
   const handleNoAnswer = () => {
@@ -415,8 +416,9 @@ export default function WhoAmIPage() {
   };
 
   const handleYesAnswer = () => {
-    if (!handleQuestionAsked('yes')) return;
-    if (gs.consecutiveYesAnswers + 1 >= 3) {
+    const nextStreak = handleQuestionAsked('yes');
+    if (nextStreak === false) return;
+    if (nextStreak >= 3) {
       handleNextTurn();
     }
   };
@@ -766,7 +768,7 @@ export default function WhoAmIPage() {
               `${pendingPlayerName} insists the character was guessed, but the spelling did not match exactly`,
             )}
           </p>
-          <div className="grid w-full grid-cols-2 gap-2.5">
+          <div className="grid w-full grid-cols-1 gap-2.5">
             <div className="flex flex-col gap-[7px] rounded-[24px] border border-white/15 bg-white/5 px-3.5 py-4 text-left">
               <span className="font-mono text-[10px] uppercase tracking-[1.8px] text-white/42">
                 {l(`ответ ${pendingPlayerName}`, `${pendingPlayerName}'s answer`)}
@@ -1038,26 +1040,6 @@ export default function WhoAmIPage() {
             })}
           </div>
 
-          {/* Reveal all characters */}
-          <div className="border-t border-white/10 pt-4">
-            <h3 className="text-white/50 text-sm mb-3">
-              {l('Все персонажи', 'All Characters')}
-            </h3>
-            <div className="space-y-1">
-              {gs.turnOrder.map((id) => (
-                <div
-                  key={id}
-                  className="flex items-center justify-between gap-3 rounded-full border border-sky-300/15 bg-sky-400/5 px-3 py-1.5 text-sm"
-                >
-                  <span className="text-white/70">{playerName(id)}</span>
-                  <span className="truncate text-sky-100/80">
-                    {gs.characters[id]?.[locale]}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {isGameHost && (
             <GlassButton
               variant="primary"
@@ -1096,7 +1078,7 @@ export default function WhoAmIPage() {
       icon={<WhoAmIIcon name="profile" className="h-7 w-7 text-sky-300" />}
       scores={gs.phase !== 'lobby' ? layoutScores : undefined}
       onEnd={isGameHost ? handleEndGame : undefined}
-      showScoreboard={gs.phase === 'finished'}
+      showScoreboard={false}
       phaseKey={gs.phase}
       gradientClass={WHO_AM_I_GRADIENT_CLASS}
     >
