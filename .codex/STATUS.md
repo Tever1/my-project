@@ -1,6 +1,22 @@
 # Codex Status
 
-## Active (2026-07-12): TASK-341
+## Active (2026-07-12): TASK-343
+
+TASK-343: «Кто я?» — экран итогов: убрать верхний HUD со счётом
+  (showScoreboard) и блок «Все персонажи» (simple, 1 файл). Запущен
+  Claude сама.
+File: codex-tasks/343-whoami-finished-screen-cleanup.md
+Whitelist: src/app/game/[roomId]/who-am-i/page.tsx
+
+## Прошлый active (2026-07-12): TASK-342
+
+TASK-342: «Кто я?» — экран судьи, карточки «ответ»/«персонаж» с
+  grid-cols-2 на grid-cols-1 (текст выходил за рамку при длинных
+  значениях) (simple, 1 файл). Запущен Claude сама.
+File: codex-tasks/342-whoami-judge-cards-stacked.md
+Whitelist: src/app/game/[roomId]/who-am-i/page.tsx
+
+## Прошлый active (2026-07-12): TASK-341
 
 TASK-341: Шпион (режим «Угадывай») — не повторять адресата вопроса, пока
   не ответят все игроки текущего круга (уточнение TASK-340, было —

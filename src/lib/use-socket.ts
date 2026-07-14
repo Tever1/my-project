@@ -67,9 +67,13 @@ export function useSocket() {
   }, []);
 
   const on = useCallback((event: string, handler: (...args: unknown[]) => void) => {
-    socketRef.current?.on(event, handler);
+    const socket = socketRef.current;
+    if (!socket) return () => {};
+    socket.on(event, handler);
     return () => {
-      socketRef.current?.off(event, handler);
+      // Capture the socket instance because StrictMode cleanup order nulls this hook's ref
+      // before dependent effects clean up, which otherwise leaks singleton handlers.
+      socket.off(event, handler);
     };
   }, []);
 
