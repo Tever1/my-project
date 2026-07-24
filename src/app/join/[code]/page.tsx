@@ -20,6 +20,7 @@ type JoinRoomState = {
   currentGame: string | null;
   gameHostPlayerId: string | null;
   status: string;
+  showQrCode: boolean;
 };
 
 type Locale = "ru" | "en";
@@ -41,6 +42,7 @@ const t = {
   pickGame: { ru: "Выберите игру на большом экране…", en: "Pick a game on the big screen…" },
   waitingHost: { ru: "Ожидание ведущего...", en: "Waiting for the host..." },
   addPlayer: { ru: "+ Добавить игрока", en: "+ Add player" },
+  backToLobby: { ru: "Вернуться в лобби", en: "Back to lobby" },
   leave: { ru: "Выйти", en: "Leave" },
   leaveRoom: { ru: "Выйти из комнаты?", en: "Leave the room?" },
   cancel: { ru: "Отмена", en: "Cancel" },
@@ -75,9 +77,11 @@ export default function JoinPage() {
   const [gameError, setGameError] = useState<string | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [qrShown, setQrShown] = useState(false);
   const [roomState, setRoomState] = useState<JoinRoomState | null>(null);
 
   const playerId = user?.id ?? guestPlayerId;
+  const roomStateShowQrCode = roomState?.showQrCode;
 
   useEffect(() => {
     if (typeof navigator !== "undefined" && navigator.language.startsWith("en")) {
@@ -103,6 +107,7 @@ export default function JoinPage() {
         currentGame: typeof payload.currentGame === "string" ? payload.currentGame : null,
         gameHostPlayerId: typeof payload.gameHostPlayerId === "string" ? payload.gameHostPlayerId : null,
         status: typeof payload.status === "string" ? payload.status : "lobby",
+        showQrCode: typeof payload.showQrCode === "boolean" ? payload.showQrCode : false,
       });
     });
   }, [on]);
@@ -113,6 +118,18 @@ export default function JoinPage() {
       setGameError(payload.messageRu ?? t.noPlayers[locale]);
     });
   }, [locale, on]);
+
+  useEffect(() => {
+    return on("room:show-qr", (data: unknown) => {
+      const show = (data as { show?: boolean } | undefined)?.show !== false;
+      setQrShown(show);
+    });
+  }, [on]);
+
+  useEffect(() => {
+    if (roomStateShowQrCode === undefined) return;
+    queueMicrotask(() => setQrShown(roomStateShowQrCode));
+  }, [roomStateShowQrCode]);
 
   useEffect(() => {
     if (!selectedPlayerId) return;
@@ -206,7 +223,14 @@ export default function JoinPage() {
 
   const handleAddPlayer = useCallback(() => {
     if (!code) return;
-    emit("room:show-qr", { code });
+    emit("room:show-qr", { code, show: true });
+    setQrShown(true);
+  }, [code, emit]);
+
+  const handleCloseAddPlayerQr = useCallback(() => {
+    if (!code) return;
+    emit("room:show-qr", { code, show: false });
+    setQrShown(false);
   }, [code, emit]);
 
   const handleLeaveRoom = useCallback(() => {
@@ -558,24 +582,45 @@ export default function JoinPage() {
                 </p>
               )}
 
-              <button
-                type="button"
-                onClick={handleAddPlayer}
-                style={{
-                  width: "100%",
-                  padding: "14px 20px",
-                  borderRadius: 14,
-                  background: "transparent",
-                  color: "rgba(255,255,255,0.86)",
-                  fontWeight: 800,
-                  fontSize: 16,
-                  border: "1.5px solid rgba(255,255,255,0.22)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {t.addPlayer[locale]}
-              </button>
+              {qrShown ? (
+                <button
+                  type="button"
+                  onClick={handleCloseAddPlayerQr}
+                  style={{
+                    width: "100%",
+                    padding: "14px 20px",
+                    borderRadius: 14,
+                    background: "transparent",
+                    color: "rgba(255,255,255,0.86)",
+                    fontWeight: 800,
+                    fontSize: 16,
+                    border: "1.5px solid rgba(255,255,255,0.22)",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {t.backToLobby[locale]}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAddPlayer}
+                  style={{
+                    width: "100%",
+                    padding: "14px 20px",
+                    borderRadius: 14,
+                    background: "transparent",
+                    color: "rgba(255,255,255,0.86)",
+                    fontWeight: 800,
+                    fontSize: 16,
+                    border: "1.5px solid rgba(255,255,255,0.22)",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {t.addPlayer[locale]}
+                </button>
+              )}
 
               <button
                 type="button"

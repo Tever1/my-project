@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>100 К 1 · Phone — Раунд · Ведущий</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="mobile/phone.css"/>
+<link rel="stylesheet" href="h2o/h2o.css"/>
+<style>
+  .score { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .sc { display: flex; align-items: center; gap: 9px; padding: 9px 13px; border-radius: var(--r-lg); }
+  .sc .nm { font-family: var(--font-display); font-weight: 800; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sc .v { margin-left: auto; font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: -.5px; }
+  .sc.tm1-card .v { color: #ffe155; } .sc.tm2-card .v { color: #ff7a70; }
+  .sc.active { position: relative; }
+  .sc.active::before { content: ''; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none;
+    border: 1.5px solid rgba(255,214,10,.6); box-shadow: 0 0 18px -3px rgba(255,214,10,.4); }
+  .rline { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 8px; }
+  .rline .rt { font-family: var(--font-mono); font-weight: 700; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--h2o-soft); }
+  .swap { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: var(--r-full); cursor: pointer;
+    background: var(--glass-bg); border: .5px solid var(--glass-border-strong); font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; color: var(--text-secondary); }
+  .swap .li { width: 13px; height: 13px; color: var(--h2o-soft); }
+  .bankrow { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; padding: 9px 16px; border-radius: var(--r-xl); }
+  .bankrow .strikes { gap: 5px; }
+  .bankrow .strike-x { width: 26px; height: 26px; border-width: 1.2px; cursor: pointer; }
+  .bankrow .strike-x:not(.on) { border-style: dashed; }
+  .bankrow .strike-x .li { width: 13px; height: 13px; }
+  .bankrow .bank { gap: 0; }
+  .bankrow .bank .k { font-size: 10px; letter-spacing: 3px; }
+  .bankrow .bank .v { font-size: 30px; line-height: 1.05; letter-spacing: -1px; }
+  .q { display: flex; align-items: center; gap: 11px; padding: 10px 13px; border-radius: var(--r-lg); margin: 9px 0 8px; }
+  .q .tx { font-family: var(--font-display); font-weight: 700; font-size: 15px; line-height: 1.25; text-wrap: balance; }
+  .board { display: flex; flex-direction: column; gap: 6px; }
+  .ans { height: 42px; gap: 10px; padding-right: 13px; border-radius: var(--r-md); cursor: pointer; }
+  .ans .idx { width: 34px; font-size: 13px; }
+  .ans .tx { font-size: 15px; }
+  .ans .pts { font-size: 15px; }
+  /* host sees hidden answers muted + dashed (tap to reveal) */
+  .ans.hidden-h { border-style: dashed; border-color: var(--glass-border-strong); background: rgba(0,0,0,.18); }
+  .ans.hidden-h .tx { color: var(--text-tertiary); font-weight: 600; }
+  .ans.hidden-h .pts { color: var(--text-quaternary); }
+  .hint { margin: 6px 2px 0; font-size: 11.5px; color: var(--text-quaternary); text-align: center; }
+  .controls { display: grid; grid-template-columns: 1fr 1.1fr 1fr; gap: 9px; margin-top: 10px; }
+  .controls .btn { height: 50px; font-size: 15px; gap: 7px; border-radius: var(--r-md); }
+  .controls .btn .li { width: 17px; height: 17px; }
+</style>
+</head>
+<body>
+<div class="phone-stage h2o-stage">
+  <div class="phone">
+    <div class="island"></div>
+    <div class="phone-screen h2o" data-screen-label="Phone · Раунд (ведущий)">
+      <div class="h2o-bg"><div class="beam l"></div><div class="beam r"></div><div class="glow"></div></div>
+      <div class="status">
+        <span class="time">9:41</span>
+        <span class="ic">
+          <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx=".6" fill="#fff"></rect><rect x="4.5" y="4.5" width="3" height="7.5" rx=".6" fill="#fff"></rect><rect x="9" y="2" width="3" height="10" rx=".6" fill="#fff"></rect><rect x="13.5" y="0" width="3" height="12" rx=".6" fill="#fff" opacity=".4"></rect></svg>
+          <svg width="26" height="13" viewBox="0 0 26 13"><rect x="1" y="1" width="21" height="11" rx="3" stroke="#fff" stroke-opacity=".4" fill="none"></rect><rect x="2.5" y="2.5" width="16" height="8" rx="1.6" fill="#fff"></rect><path d="M24 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#fff" fill-opacity=".5"></path></svg>
+        </span>
+      </div>
+      <div class="content">
+        <div class="appbar">
+          <div class="brand"><div class="m"><span class="li" style="width:22px;height:22px;color:#341f02;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14.2a6.5 6.5 0 0113 0"></path><path d="M4 14.2h16v2.4a1.6 1.6 0 01-1.6 1.6H5.6A1.6 1.6 0 014 16.6z"></path><path d="M12 5.2V3.4"></path><path d="M6.9 6.6L5.7 5.2"></path><path d="M17.1 6.6l1.2-1.4"></path></svg></span></div><div class="nm">100 к 1<small>Ведущий</small></div></div>
+          <div class="rcode">A7QX</div>
+        </div>
+
+        <div class="score">
+          <div class="sc tm1-card active"><span class="tm-dot t1"></span><span class="nm">АКУЛЫ</span><span class="v">240</span></div>
+          <div class="sc tm2-card"><span class="tm-dot t2"></span><span class="nm">ЗУБРЫ</span><span class="v">180</span></div>
+        </div>
+
+        <div class="rline"><span class="rt">Раунд 2 · ×2</span><button class="swap"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3"></path><path d="M20 16H7l3 3"></path></svg></span>сменить атаку</button></div>
+
+        <div class="bankrow glass-strong">
+          <div class="strikes v">
+            <span class="strike-x on"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span></span>
+            <span class="strike-x"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span></span>
+            <span class="strike-x"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span></span>
+          </div>
+          <div class="bank"><span class="k">Банк раунда</span><span class="v">120</span></div>
+          <div class="strikes v">
+            <span class="strike-x"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span></span>
+            <span class="strike-x"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span></span>
+            <span class="strike-x"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span></span>
+          </div>
+        </div>
+
+        <div class="q glass">
+          <div class="tx">Что люди чаще всего забывают, выходя из дома?</div>
+        </div>
+
+        <div class="board">
+          <div class="ans open"><span class="idx">1</span><span class="tx">Телефон</span><span class="pts">34</span></div>
+          <div class="ans open"><span class="idx">2</span><span class="tx">Ключи</span><span class="pts">26</span></div>
+          <div class="ans hidden-h"><span class="idx">3</span><span class="tx">Кошелёк</span><span class="pts">15</span></div>
+          <div class="ans hidden-h"><span class="idx">4</span><span class="tx">Зонт</span><span class="pts">9</span></div>
+          <div class="ans hidden-h"><span class="idx">5</span><span class="tx">Документы</span><span class="pts">7</span></div>
+          <div class="ans hidden-h"><span class="idx">6</span><span class="tx">Зарядку</span><span class="pts">4</span></div>
+        </div>
+        <div class="hint">Тап по ответу — открыть на игровом поле · тап по кресту — страйк</div>
+
+        <div class="spacer"></div>
+        <div class="controls">
+          <button class="btn glass"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12h-15"></path><path d="M10 6.5L4.5 12l5.5 5.5"></path></svg></span>Назад</button>
+          <button class="btn h2o-danger"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 111.9 5"></path><path d="M4.5 20v-5h5"></path></svg></span>Сброс</button>
+          <button class="btn h2o">Далее<span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12h15"></path><path d="M14 6.5l5.5 5.5-5.5 5.5"></path></svg></span></button>
+        </div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min((innerHeight-28)/874, (innerWidth-28)/402); document.querySelector('.phone').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

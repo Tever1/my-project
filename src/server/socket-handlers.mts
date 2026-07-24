@@ -26,6 +26,7 @@ interface Room {
   createdAt: number;
   kickedPlayerIds: Set<string>;
   gameHostPlayerId: string | null;
+  showQrCode: boolean;
   inactivityTimer?: ReturnType<typeof setTimeout>;
   pendingQuizConfig?: {
     mode: 'general' | 'special';
@@ -92,6 +93,7 @@ function broadcastRoomState(io: SocketIOServer, room: Room) {
     gameState: room.gameState,
     tvConnected,
     gameHostPlayerId: room.gameHostPlayerId,
+    showQrCode: room.showQrCode,
     pendingQuizConfig: room.pendingQuizConfig ?? null,
   };
   io.to(`room:${room.code}`).emit('room:state', state);
@@ -224,6 +226,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         createdAt: Date.now(),
         kickedPlayerIds: new Set<string>(),
         gameHostPlayerId: null,
+        showQrCode: false,
         pendingQuizConfig: null,
       };
 
@@ -359,6 +362,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         gameState: room.gameState,
         tvConnected,
         gameHostPlayerId: room.gameHostPlayerId,
+        showQrCode: room.showQrCode,
         pendingQuizConfig: room.pendingQuizConfig ?? null,
       };
       socket.emit('room:state', state);
@@ -492,10 +496,11 @@ export function setupSocketHandlers(io: SocketIOServer) {
     });
 
     // Show QR screen on TV lobby when host/game-host wants to add players.
-    socket.on('room:show-qr', (data: { code: string }) => {
+    socket.on('room:show-qr', (data: { code: string; show?: boolean }) => {
       const room = getRoomByCode(data.code);
       if (!room) return;
-      io.to(`room:${room.code}`).emit('room:show-qr');
+      room.showQrCode = data.show !== false;
+      io.to(`room:${room.code}`).emit('room:show-qr', { show: room.showQrCode });
     });
 
     // Leave room

@@ -88,13 +88,13 @@ export function GameLayout({
                 <p className="text-sm font-bold leading-tight">{scores.length}</p>
               </div>
 
-              {scores.map((entry) => {
+              {scores.map((entry, idx) => {
                 const isAnswered = entry.hasAnswered;
                 const isCorrect = entry.isCorrect;
 
                 return (
                   <div
-                    key={entry.name}
+                    key={`${idx}-${entry.name}`}
                     className={`
                       flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl
                       border transition-colors duration-300

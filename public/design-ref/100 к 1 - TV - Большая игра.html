@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>100 К 1 · TV — Большая игра</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<link rel="stylesheet" href="h2o/h2o.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 44px 64px 40px; position: relative; z-index: 1; }
+  .hd { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .hd .right { display: flex; justify-content: flex-end; }
+  .ph-pill { display: inline-flex; align-items: center; gap: 14px; padding: 14px 30px; border-radius: var(--r-full); }
+  .ph-pill .li { width: 26px; height: 26px; color: var(--h2o-1); }
+  .ph-pill b { font-family: var(--font-display); font-weight: 800; font-size: 26px; letter-spacing: 2px; color: var(--h2o-soft); }
+  .main { flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 30px; margin-top: 26px; min-height: 0; }
+  .qs { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .qrow { display: flex; align-items: center; gap: 20px; padding: 16px 26px; border-radius: var(--r-xl);
+    background: var(--glass-bg); border: .5px solid var(--glass-border); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); flex: 1; }
+  .qrow .n { font-family: var(--font-mono); font-weight: 700; font-size: 20px; color: var(--text-quaternary); width: 30px; }
+  .qrow .tx { font-family: var(--font-display); font-weight: 700; font-size: 27px; letter-spacing: -.4px; flex: 1; min-width: 0; }
+  .qrow.now { border-color: rgba(245,158,11,.5); background: rgba(245,158,11,.08); }
+  .qrow.now .n { color: var(--h2o-1); }
+  .chip { display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border-radius: var(--r-full);
+    font-family: var(--font-display); font-weight: 700; font-size: 19px; flex-shrink: 0; }
+  .chip .li { width: 19px; height: 19px; }
+  .chip.ok { background: rgba(48,209,88,.13); color: #54e57e; border: .5px solid rgba(48,209,88,.4); }
+  .chip.no { background: rgba(255,69,58,.11); color: #ff8d84; border: .5px solid rgba(255,69,58,.35); }
+  .chip.wait { background: var(--glass-bg); color: var(--text-quaternary); border: .5px dashed var(--glass-border-strong); letter-spacing: 3px; }
+  .chip.typing { background: rgba(245,158,11,.12); color: var(--h2o-soft); border: .5px solid rgba(245,158,11,.45); }
+  .side { display: flex; flex-direction: column; gap: 22px; }
+  .timer { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: var(--r-2xl); }
+  .timer .k { font-family: var(--font-mono); font-size: 15px; letter-spacing: 4px; text-transform: uppercase; color: var(--text-tertiary); }
+  .timer .v { font-family: var(--font-display); font-weight: 800; font-size: 128px; line-height: 1; letter-spacing: -4px; color: #fffbeb;
+    font-variant-numeric: tabular-nums; text-shadow: 0 0 44px rgba(245,158,11,.4); }
+  .timer .who { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+  .timer .who .av { width: 42px; height: 42px; font-size: 18px; }
+  .timer .who b { font-family: var(--font-display); font-weight: 700; font-size: 22px; }
+  .fund { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 20px; border-radius: var(--r-2xl); }
+  .fund .k { font-family: var(--font-mono); font-size: 15px; letter-spacing: 4px; text-transform: uppercase; color: rgba(255,251,235,.8); }
+  .fund .v { font-family: var(--font-display); font-weight: 800; font-size: 84px; line-height: 1; letter-spacing: -3px; }
+  .fund .goal { font-family: var(--font-mono); font-weight: 600; font-size: 15px; letter-spacing: 1px; color: rgba(255,251,235,.75); }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen h2o" data-screen-label="TV · Большая игра">
+    <div class="h2o-bg"><div class="beam l"></div><div class="beam r"></div><div class="glow"></div></div>
+    <div class="screen">
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark"><span class="li" style="width:36px;height:36px;color:#341f02;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14.2a6.5 6.5 0 0113 0"></path><path d="M4 14.2h16v2.4a1.6 1.6 0 01-1.6 1.6H5.6A1.6 1.6 0 014 16.6z"></path><path d="M12 5.2V3.4"></path><path d="M6.9 6.6L5.7 5.2"></path><path d="M17.1 6.6l1.2-1.4"></path></svg></span></div>
+          <div class="name">100 к 1<small>Party Hub</small></div>
+        </div>
+        <div class="ph-pill glass"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l4.5 5L8 17"></path><path d="M16 7l-4.5 5L16 17"></path></svg></span><b>БОЛЬШАЯ ИГРА · ИГРОК 2 — 40 СЕК</b></div>
+        <div class="right"><div class="pill live"><span class="dot"></span> АКУЛЫ играют</div></div>
+      </div>
+
+      <div class="main">
+        <div class="qs">
+          <div class="qrow"><span class="n">1</span><span class="tx">Самый популярный домашний питомец?</span><span class="chip ok"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span>Кошка +34</span><span class="chip ok"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span>Собака +28</span></div>
+          <div class="qrow"><span class="n">2</span><span class="tx">Что берут с собой на пляж?</span><span class="chip ok"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span>Полотенце +31</span><span class="chip no"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span>Мяч</span></div>
+          <div class="qrow now"><span class="n">3</span><span class="tx">Профессия, о которой мечтают дети?</span><span class="chip ok"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span>Космонавт +30</span><span class="chip typing">Аня печатает…</span></div>
+          <div class="qrow"><span class="n">4</span><span class="tx">Что есть в каждой кухне?</span><span class="chip ok"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span>Холодильник +31</span><span class="chip wait">···</span></div>
+          <div class="qrow"><span class="n">5</span><span class="tx">Куда опаздывают чаще всего?</span><span class="chip no"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"></path></svg></span>В кино</span><span class="chip wait">···</span></div>
+        </div>
+        <div class="side">
+          <div class="timer glass-strong h2o-pulse">
+            <span class="k">Осталось</span>
+            <span class="v">0:23</span>
+            <div class="who"><div class="av" data-seed="0">А</div><b>Аня</b> <span style="color:var(--text-tertiary);font-size:19px;">· Игрок 2</span></div>
+          </div>
+          <div class="fund h2o-accent-card">
+            <span class="k">Фонд</span>
+            <span class="v">154</span>
+            <span class="goal">цель — 200 очков</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

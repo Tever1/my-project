@@ -93,6 +93,7 @@ interface RoomState {
   tvConnected?: boolean;
   currentGame?: string | null;
   gameHostPlayerId?: string | null;
+  showQrCode?: boolean;
 }
 
 type PendingQuizConfig = {
@@ -381,6 +382,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const [pendingQuizConfig, setPendingQuizConfig] = useState<PendingQuizConfig | null>(null);
   const [, setIsCreatingRoom] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const roomStateShowQrCode = roomState?.showQrCode;
   const roomMenuRef = useRef<HTMLDivElement>(null);
   const tileStripRef = useRef<HTMLDivElement>(null);
   const startGameButtonRef = useRef<HTMLButtonElement>(null);
@@ -458,6 +460,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         tvConnected: typeof payload.tvConnected === "boolean" ? payload.tvConnected : false,
         currentGame: typeof payload.currentGame === "string" ? payload.currentGame : null,
         gameHostPlayerId: typeof payload.gameHostPlayerId === "string" ? payload.gameHostPlayerId : null,
+        showQrCode: typeof payload.showQrCode === "boolean" ? payload.showQrCode : false,
       });
     });
 
@@ -544,10 +547,16 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   );
 
   useEffect(() => {
-    return on('room:show-qr', () => {
-      setIsWaitingForPlayers(true);
+    return on('room:show-qr', (data: unknown) => {
+      const show = (data as { show?: boolean } | undefined)?.show !== false;
+      setIsWaitingForPlayers(show);
     });
   }, [on]);
+
+  useEffect(() => {
+    if (myRole !== "tv" || roomStateShowQrCode === undefined) return;
+    queueMicrotask(() => setIsWaitingForPlayers(roomStateShowQrCode));
+  }, [myRole, roomStateShowQrCode]);
 
   const getPlayerPayload = useCallback(() => {
     if (!user?.id || !user.nickname) {
@@ -669,6 +678,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     emit('game:select', { code, gameType: activeGame, quizConfig: selectedQuizConfig });
     setRoomMenuOpen(false);
     setIsWaitingForPlayers(true);
+    emit('room:show-qr', { code, show: true });
   }, [activeGame, canSelectGame, createRoom, emit, pendingQuizConfig, roomCode]);
 
   const handleQuizGeneralConfigConfirm = useCallback(() => {
@@ -699,6 +709,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const handleCancelWaiting = useCallback(() => {
     if (roomCode) {
       emit('game:deselect', { code: roomCode });
+      emit('room:show-qr', { code: roomCode, show: false });
     }
     setIsWaitingForPlayers(false);
   }, [emit, roomCode]);
@@ -708,11 +719,12 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
     if (myRole === "tv" && !roomState?.currentGame) {
       emit('game:select', { code: roomCode, gameType: activeGame });
     }
-    emit('room:show-qr', { code: roomCode });
+    emit('room:show-qr', { code: roomCode, show: true });
   }, [activeGame, emit, myRole, roomCode, roomState?.currentGame]);
 
   const handleEmitStartGame = useCallback(() => {
     if (!roomCode) return;
+    emit('room:show-qr', { code: roomCode, show: false });
     emit('game:start', { code: roomCode });
   }, [emit, roomCode]);
 

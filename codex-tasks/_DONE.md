@@ -1,6 +1,6 @@
 # Codex Tasks — индекс закрытых задач
 
-_Последняя синхронизация: 2026-07-13_
+_Последняя синхронизация: 2026-07-24_
 
 Одна строка на каждый TASK. Источник правды — файлы `codex-tasks/NNN-*.md`
 (ТЗ) и `codex-reports/NNN-*.md` (отчёты). Этот индекс — быстрый обзор, чтобы
@@ -361,3 +361,36 @@ bash codex-tasks/_regen-done.sh
 | 343 | `343-whoami-finished-screen-cleanup.md` | «Кто я?» — экран итогов: убрать верхний HUD-счёт и блок «Все персонажи» |
 | 344 | `344-use-socket-on-cleanup-leak.md` | use-socket — утечка слушателя в cleanup `on()` (корень бага счётчика «Да» 2/3 в «Кто я?») |
 | 345 | `345-whoami-ask-question-absolute-values.md` | «Кто я?» — ask-question шлёт абсолютные значения вместо дельт |
+| 346 | `346-h2o-tv-answers-single-column.md` | «100 к 1» — игровое поле (TV): ответы в один столбец |
+| 347 | `347-h2o-tv-strikes-sidebars.md` | «100 к 1» — игровое поле (TV): счётчики ошибок слева/справа от ответов |
+| 348 | `348-h2o-line-icons-preview.md` | «100 к 1» — превью вариантов плоских line-иконок на /design-tokens |
+| 349 | `349-h2o-tv-biggame-topic-aware-questions.md` | TV «100 к 1» — Большая игра использует не ту тему вопросов |
+| 350 | `350-h2o-reset-round-fund-not-refunded.md` | «100 к 1» — «Сброс раунда» не откатывает очки за фонд раундов 1-3 |
+| 351 | `351-h2o-mobile-fund-position-match-host.md` | «100 к 1» — БАНК на мобильном экране игроков переместить наверх (как у ведущего) |
+| 352 | `352-gamelayout-duplicate-score-key.md` | GameLayout — дубликат React key в скорборде при одинаковых именах |
+| 353 | `353-h2o-literal-design-port.md` | «100 к 1» — буквальный порт дизайна из 13 новых design-ref файлов |
+| 354 | `354-h2o-live-qa-fixes.md` | «100 к 1» — 12 багов из живого QA после TASK-353 |
+| 355 | `355-h2o-live-qa-fixes-2.md` | «100 к 1» — вторая волна live QA (6 пунктов) |
+| 356 | `356-h2o-topicselect-text-tweaks.md` | «100 к 1» TV — убрать подсказку и увеличить шрифт темы |
+| 357 | `357-h2o-roleselect-unassigned-players-instead-qr.md` | «100 к 1» TV — во время выбора роли показывать неопределившихся игроков вместо QR |
+| 358 | `358-h2o-roleselect-two-columns-plus-host.md` | «100 к 1» TV — список неопределившихся в 2 колонки + статус ведущего снизу |
+| 359 | `359-h2o-mobile-title-topic-label.md` | «100 к 1» mobile — экран title: «Тема: {название}» вдвое крупнее |
+| 360 | `360-h2o-mobile-title-topic-gap-fix.md` | «100 к 1» mobile — убрать лишний зазор между «Тема:» и названием темы |
+| 361 | `361-h2o-rename-change-attack-button.md` | «100 к 1» mobile — переименовать кнопку «сменить атаку» → «сменить команду» |
+| 362 | `362-h2o-mobile-active-team-footer-text.md` | «100 к 1» mobile — футер под доской ответов одинаковый для обеих команд |
+| 363 | `363-h2o-tv-captainselect-center-message.md` | TV «100 к 1» — заменить QR-код в центральной панели на этапе captainSelect |
+| 364 | `364-h2o-tv-teamnames-center-message.md` | TV «100 к 1» — заменить QR-код в центральной панели на этапе teamNames |
+| 365 | `365-h2o-tv-buzzer-winner-highlight.md` | TV «100 к 1» — подсветить рамку выигравшей команды на фазе buzzer |
+| 366 | `366-h2o-tv-buzzer-team2-highlight-contrast.md` | TV «100 к 1» — усилить контраст подсветки team2 на фазе buzzer |
+| 367 | `367-h2o-round4-timer-hide-continue-at-zero.md` | «100 к 1» раунд 4 (наоборот) — убрать кнопку ПРОДОЛЖИТЬ после истечения таймера |
+| 368 | `368-h2o-tv-biggame-hide-all-questions.md` | TV «100 к 1» Большая игра — не показывать все вопросы во время выбора игроков и ответов |
+| 369 | `369-h2o-biggame-reset-button.md` | «100 к 1» Большая игра — добавить кнопку сброса раунда (мобильный, хост) |
+| 370 | `370-h2o-tv-biggame-single-question-size-fix.md` | TV «100 к 1» Большая игра — не растягивать карточку вопроса, когда виден только один |
+| 371 | `371-h2o-biggame-question-timer-sync-bug.md` | «100 к 1» Большая игра — вопрос на TV не синхронизируется с телефоном + таймер не возобновляется после ответа |
+| 372 | `372-h2o-tv-biggame-all-answered-message.md` | TV «100 к 1» Большая игра — сообщение, когда все 5 вопросов отвечены |
+| 373 | `373-h2o-tv-biggame-all-answered-text-fix.md` | TV «100 к 1» Большая игра — исправить текст сообщения «все вопросы отвечены» |
+| 374 | `374-join-page-add-player-return-to-lobby-button.md` | Мобильный экран `/join/[code]` — кнопка «Вернуться в лобби» после «+ Добавить игрока» |
+| 375 | `375-room-show-qr-explicit-boolean.md` | `room:show-qr` — сделать явным boolean вместо неявного toggle/always-true |
+| 376 | `376-room-show-qr-persist-server-state.md` | `room:show-qr` — сохранить состояние на сервере, инициализировать по нему всех клиентов |
+| 377 | `377-lobby-start-game-emit-show-qr.md` | `handleStartGame` не сообщает серверу о показе QR — рассинхрон с телефоном |
+| 378 | `378-mafia-line-icons-preview.md` | «Мафия» — превью плоских line-иконок на `/design-tokens` (по образцу остальных 5 игр) |

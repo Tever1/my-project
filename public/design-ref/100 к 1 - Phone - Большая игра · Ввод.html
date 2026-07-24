@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>100 К 1 · Phone — Большая игра · Ввод</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="mobile/phone.css"/>
+<link rel="stylesheet" href="h2o/h2o.css"/>
+<style>
+  .top { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; margin-top: 4px; }
+  .top .k { font-family: var(--font-mono); font-weight: 700; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--h2o-soft); }
+  .top .sub { font-size: 12.5px; color: var(--text-tertiary); margin-top: 2px; }
+  .tchip { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: var(--r-full);
+    font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: -.5px; color: #fffbeb; font-variant-numeric: tabular-nums; }
+  .tchip .li { width: 19px; height: 19px; color: var(--h2o-1); }
+  .prog { display: flex; gap: 6px; margin: 14px 0 12px; }
+  .prog .p { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); }
+  .prog .p.done { background: rgba(245,158,11,.75); }
+  .prog .p.now { background: var(--h2o-soft); box-shadow: 0 0 10px rgba(245,158,11,.7); }
+  .qcard { display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: var(--r-xl); }
+  .qcard .n { font-family: var(--font-mono); font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--h2o-1); }
+  .qcard .tx { font-family: var(--font-display); font-weight: 800; font-size: 23px; letter-spacing: -.4px; line-height: 1.2; text-wrap: balance; }
+  .in { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .in input { height: 58px; border-radius: var(--r-lg); padding: 0 18px; font-family: var(--font-display); font-weight: 700; font-size: 19px;
+    color: var(--text-primary); background: var(--glass-bg-strong); border: 1px solid rgba(245,158,11,.5); outline: none;
+    box-shadow: 0 0 0 4px rgba(245,158,11,.1); caret-color: var(--h2o-1); }
+  .in input::placeholder { color: var(--text-quaternary); font-weight: 600; }
+  .done-list { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; }
+  .dr { display: flex; align-items: center; gap: 10px; padding: 9px 13px; border-radius: var(--r-md);
+    background: rgba(0,0,0,.2); border: .5px solid var(--glass-border); }
+  .dr .n { font-family: var(--font-mono); font-weight: 700; font-size: 12px; color: var(--text-quaternary); width: 16px; }
+  .dr .qq { font-size: 13px; color: var(--text-tertiary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dr .a { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--text-secondary); flex-shrink: 0; }
+  .dr.next { border-style: dashed; }
+  .dr.next .a { color: var(--text-quaternary); letter-spacing: 2px; }
+  .note { margin-top: 12px; text-align: center; font-size: 12.5px; color: var(--text-quaternary); line-height: 1.45; }
+  .note b { color: var(--h2o-soft); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="phone-stage h2o-stage">
+  <div class="phone">
+    <div class="island"></div>
+    <div class="phone-screen h2o" data-screen-label="Phone · Большая игра · Ввод">
+      <div class="h2o-bg"><div class="beam l"></div><div class="beam r"></div><div class="glow"></div></div>
+      <div class="status">
+        <span class="time">9:41</span>
+        <span class="ic">
+          <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx=".6" fill="#fff"></rect><rect x="4.5" y="4.5" width="3" height="7.5" rx=".6" fill="#fff"></rect><rect x="9" y="2" width="3" height="10" rx=".6" fill="#fff"></rect><rect x="13.5" y="0" width="3" height="12" rx=".6" fill="#fff" opacity=".4"></rect></svg>
+          <svg width="26" height="13" viewBox="0 0 26 13"><rect x="1" y="1" width="21" height="11" rx="3" stroke="#fff" stroke-opacity=".4" fill="none"></rect><rect x="2.5" y="2.5" width="16" height="8" rx="1.6" fill="#fff"></rect><path d="M24 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#fff" fill-opacity=".5"></path></svg>
+        </span>
+      </div>
+      <div class="content">
+        <div class="appbar">
+          <div class="brand"><div class="m"><span class="li" style="width:22px;height:22px;color:#341f02;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14.2a6.5 6.5 0 0113 0"></path><path d="M4 14.2h16v2.4a1.6 1.6 0 01-1.6 1.6H5.6A1.6 1.6 0 014 16.6z"></path><path d="M12 5.2V3.4"></path><path d="M6.9 6.6L5.7 5.2"></path><path d="M17.1 6.6l1.2-1.4"></path></svg></span></div><div class="nm">100 к 1<small>Party Hub</small></div></div>
+          <div class="rcode">A7QX</div>
+        </div>
+
+        <div class="top">
+          <div><div class="k">Большая игра · Игрок 2</div><div class="sub">Аня, отвечай быстро — первое, что придёт в голову</div></div>
+          <div class="tchip glass h2o-pulse"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7.5"></circle><path d="M12 9.6V13l2.4 1.9"></path><path d="M9.5 3.5h5"></path></svg></span>0:23</div>
+        </div>
+
+        <div class="prog">
+          <span class="p done"></span><span class="p done"></span><span class="p now"></span><span class="p"></span><span class="p"></span>
+        </div>
+
+        <div class="qcard glass-strong">
+          <span class="n">Вопрос 3 из 5</span>
+          <span class="tx">Профессия, о которой мечтают дети?</span>
+        </div>
+
+        <div class="in">
+          <input type="text" value="Космона" placeholder="Твой ответ…"/>
+          <button class="btn h2o">Ответить</button>
+        </div>
+
+        <div class="done-list">
+          <div class="dr"><span class="n">1</span><span class="qq">Самый популярный домашний питомец?</span><span class="a">Кошка</span></div>
+          <div class="dr"><span class="n">2</span><span class="qq">Что берут с собой на пляж?</span><span class="a">Полотенце</span></div>
+          <div class="dr next"><span class="n">4</span><span class="qq">Что есть в каждой кухне?</span><span class="a">···</span></div>
+          <div class="dr next"><span class="n">5</span><span class="qq">Куда опаздывают чаще всего?</span><span class="a">···</span></div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="note">Ответы игрока 1 скрыты — <b>если совпадёт, попросим другой</b>. Очки покажем в конце.</div>
+      </div>
+      <div class="home-ind"></div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min((innerHeight-28)/874, (innerWidth-28)/402); document.querySelector('.phone').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

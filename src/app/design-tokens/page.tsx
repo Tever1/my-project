@@ -421,6 +421,151 @@ const WHOAMI_SAMPLE_ICONS: { name: string; label: string; render: IconRenderer }
   { name: "medal", label: "Место в топе", render: WaMedal },
 ];
 
+const H2O_BG_DARK =
+  "linear-gradient(135deg, #1f1206 0%, #3b2206 30%, #2e1c05 60%, #1f1206 100%)";
+const H2O_BG_CARD =
+  "radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #f59e0b 0%, #b45309 100%)";
+
+// Плоские line-иконки «100 к 1» (viewBox 24). currentColor — цвет задаёт панель.
+const HoQuestion: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <path d="M5 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6.5L8 20v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M10 9a2.2 2.2 0 1 1 3.4 1.8c-.8.5-1.4 1-1.4 2.1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <circle cx="12" cy="15.6" r=".6" fill="currentColor" />
+  </svg>
+);
+const HoAnswer: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <rect x="4" y="5" width="16" height="14" rx="3" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M8 10h5M8 14h3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    <path d="M14.5 14l1.8 1.8 3.2-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const HoStrike: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
+const HoFund: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M12 7.5v9M15 9.5c-.7-.8-1.8-1.2-3-1.2-1.6 0-2.7.8-2.7 1.9 0 1.3 1.3 1.7 2.8 2 1.6.4 2.8.8 2.8 2.1 0 1.1-1.1 1.9-2.9 1.9-1.3 0-2.5-.5-3.2-1.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const HoBuzzer: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <path d="M7 17h10l1 3H6l1-3Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <circle cx="12" cy="11" r="6" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M9 8.7c.8-.8 1.9-1.2 3-1.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const HoRounds: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <circle cx="5" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.6" />
+    <circle cx="5" cy="12" r="1.5" stroke="currentColor" strokeWidth="1.6" />
+    <circle cx="5" cy="17" r="1.5" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M10 7h9M10 12h7M10 17h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+const HoDuel: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <circle cx="7" cy="8" r="2.4" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M3.5 16c.4-2.2 1.8-3.7 3.5-3.7s3.1 1.5 3.5 3.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <circle cx="17" cy="8" r="2.4" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M13.5 16c.4-2.2 1.8-3.7 3.5-3.7s3.1 1.5 3.5 3.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M10.5 19h3M11.2 5h1.6M11.2 7.5h1.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const HoTrophy: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M7 5H4v2.2A3.3 3.3 0 0 0 7.2 10M17 5h3v2.2a3.3 3.3 0 0 1-3.2 2.8M12 13.5V18M8.5 20h7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 7h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const H2O_SAMPLE_ICONS: { name: string; label: string; render: IconRenderer }[] = [
+  { name: "question", label: "Вопрос", render: HoQuestion },
+  { name: "answer", label: "Ответ открыт", render: HoAnswer },
+  { name: "strike", label: "Ошибка", render: HoStrike },
+  { name: "fund", label: "Банк", render: HoFund },
+  { name: "buzzer", label: "Буззер", render: HoBuzzer },
+  { name: "rounds", label: "Раунды", render: HoRounds },
+  { name: "duel", label: "Большая игра", render: HoDuel },
+  { name: "trophy", label: "Победа", render: HoTrophy },
+];
+
+const MAFIA_BG_DARK =
+  "linear-gradient(135deg, #150a2e 0%, #2e1065 30%, #1f0a4a 60%, #150a2e 100%)";
+const MAFIA_BG_CARD =
+  "radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.22), transparent 55%), linear-gradient(165deg, #8b5cf6 0%, #4c1d95 100%)";
+
+// Плоские line-иконки «Мафия» (viewBox 24). currentColor — цвет задаёт панель.
+const MfRole: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <rect x="5" y="3" width="14" height="18" rx="2.5" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M8 10.5c1.1-1.2 2.5-1.8 4-1.8s2.9.6 4 1.8v2.1c-.9 1.1-2.3 1.7-4 1.7s-3.1-.6-4-1.7v-2.1Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    <path d="M9.5 11.5h1M13.5 11.5h1M10 17h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+const MfNight: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <path d="M18.5 15.7A7 7 0 0 1 8.3 5.5 8 8 0 1 0 18.5 15.7Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M16.5 4.5l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4.4-1.1ZM19.5 8.5l.3.8.7.2-.7.3-.3.7-.3-.7-.7-.3.7-.2.3-.8Z" fill="currentColor" />
+  </svg>
+);
+const MfDay: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M12 2.5v2.2M12 19.3v2.2M4.7 4.7l1.6 1.6M17.7 17.7l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.7 19.3l1.6-1.6M17.7 6.3l1.6-1.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const MfVote: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <path d="M7 12h10l2 8H5l2-8Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M9 12V9h6v3M9 6.5l2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9 16h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+const MfDetective: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <circle cx="10.5" cy="10.5" r="5.5" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M14.7 14.7L20 20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M8.2 10.4l1.7 1.7 3.1-3.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const MfDoctor: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <path d="M12 3.5l7 2.6v5.3c0 4.2-2.8 7.4-7 9.1-4.2-1.7-7-4.9-7-9.1V6.1l7-2.6Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M12 8v7M8.5 11.5h7" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+  </svg>
+);
+const MfEliminated: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="8.5" r="3.2" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M6.5 19c.5-3.4 2.6-5.4 5.5-5.4s5 2 5.5 5.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M5 5l14 14" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+  </svg>
+);
+const MfTrophy: IconRenderer = (s = 28) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <path d="M7 4h10v4.5a5 5 0 0 1-10 0V4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M7 5H4v2.2A3.3 3.3 0 0 0 7.2 10M17 5h3v2.2a3.3 3.3 0 0 1-3.2 2.8M12 13.5V18M8.5 20h7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 7.5h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const MAFIA_SAMPLE_ICONS: { name: string; label: string; render: IconRenderer }[] = [
+  { name: "role", label: "Роль", render: MfRole },
+  { name: "night", label: "Ночь", render: MfNight },
+  { name: "day", label: "День", render: MfDay },
+  { name: "vote", label: "Голосование", render: MfVote },
+  { name: "detective", label: "Проверка детектива", render: MfDetective },
+  { name: "doctor", label: "Спасение доктора", render: MfDoctor },
+  { name: "eliminated", label: "Устранён", render: MfEliminated },
+  { name: "trophy", label: "Победа", render: MfTrophy },
+];
+
 export default function DesignTokensPage() {
   // Force-dark for this page
   useEffect(() => {
@@ -1203,9 +1348,11 @@ export default function DesignTokensPage() {
         </Section>
 
         <CrocIconColorMatrix />
+        <MafiaIconPreview />
         <SpyIconPreview />
         <AliasIconPreview />
         <WhoAmIIconPreview />
+        <HundredToOneIconPreview />
 
         <p
           style={{
@@ -1470,6 +1617,106 @@ function WhoAmIIconPreview() {
               }}
             >
               {WHOAMI_SAMPLE_ICONS.map((ic) => (
+                <div
+                  key={ic.name}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}
+                >
+                  <span style={{ display: "inline-flex", lineHeight: 0 }}>{ic.render(34)}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.85 }}>{ic.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function HundredToOneIconPreview() {
+  const panels = [
+    { label: "На тёмном фоне (янтарный)", bg: H2O_BG_DARK, color: "#fbbf24" },
+    { label: "На янтарной карточке (кремовый)", bg: H2O_BG_CARD, color: "#fffbeb" },
+  ];
+  return (
+    <Section
+      title="100 к 1 · плоские иконки (превью)"
+      subtitle="Кандидаты на замену эмодзи в «100 к 1». В игру пока не внедрены — оцени форму и цвет."
+    >
+      <div style={{ display: "grid", gap: 18 }}>
+        {panels.map((panel) => (
+          <div
+            key={panel.label}
+            style={{
+              padding: 20,
+              borderRadius: radius.xl,
+              background: panel.bg,
+              color: panel.color,
+              border: "1px solid rgba(255,255,255,0.14)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.24)",
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: "rgba(255,255,255,0.6)" }}>
+              {panel.label}
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))",
+                gap: 18,
+              }}
+            >
+              {H2O_SAMPLE_ICONS.map((ic) => (
+                <div
+                  key={ic.name}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}
+                >
+                  <span style={{ display: "inline-flex", lineHeight: 0 }}>{ic.render(34)}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.85 }}>{ic.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function MafiaIconPreview() {
+  const panels = [
+    { label: "На тёмном фоне (фиолетовый)", bg: MAFIA_BG_DARK, color: "#c4b5fd" },
+    { label: "На фиолетовой карточке (светлый)", bg: MAFIA_BG_CARD, color: "#f5f3ff" },
+  ];
+  return (
+    <Section
+      title="Мафия · плоские иконки (превью)"
+      subtitle="Кандидаты на замену эмодзи в «Мафии». В игру пока не внедрены — оцени форму и цвет."
+    >
+      <div style={{ display: "grid", gap: 18 }}>
+        {panels.map((panel) => (
+          <div
+            key={panel.label}
+            style={{
+              padding: 20,
+              borderRadius: radius.xl,
+              background: panel.bg,
+              color: panel.color,
+              border: "1px solid rgba(255,255,255,0.14)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 14px 30px rgba(0,0,0,0.24)",
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: "rgba(255,255,255,0.6)" }}>
+              {panel.label}
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))",
+                gap: 18,
+              }}
+            >
+              {MAFIA_SAMPLE_ICONS.map((ic) => (
                 <div
                   key={ic.name}
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}

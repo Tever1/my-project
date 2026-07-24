@@ -1,5 +1,56 @@
 # Codex Status
 
+## Active (2026-07-21): TASK-376
+
+TASK-376: `room:show-qr` — сохранить состояние на сервере (`Room.showQrCode`),
+  включить в `room:state`/`room:get-state`, инициализировать локальный
+  qrShown/isWaitingForPlayers/showQrOverlay на всех клиентах при получении
+  снапшота, а не только через live-listener (TASK-375 закрыл только
+  live-путь, но состояние оставалось эфемерным — новый/перезагруженный
+  клиент не узнавал текущее состояние). Затрагивает socket-handlers.mts
+  (complex, 4 файла) — юзер запускает в Codex Desktop.
+File: codex-tasks/376-room-show-qr-persist-server-state.md
+Whitelist: src/server/socket-handlers.mts, src/components/lobby/Lobby.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx, src/app/join/[code]/page.tsx
+
+## Прошлый active (2026-07-15): TASK-355
+
+TASK-355: «100 к 1» — вторая волна live QA (6 пунктов): TV-статус ожидания
+  во время выбора темы (не показывать тему заранее), убрать ложный фоллбэк
+  «ведущий = комнатный хост», деселект команды повторным кликом, tabular-nums
+  для полей очков/таймера в раунде 4 (дрожание ширины), лимит «1 начисление
+  на команду за раунд 4» без модалки после обеих, «Сыграть ещё раз» → полный
+  рестарт на выбор темы (меняет решение TASK-354 п.11 по явному запросу
+  пользователя).
+File: codex-tasks/355-h2o-live-qa-fixes-2.md
+Whitelist: src/app/game/[roomId]/hundred-to-one/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок hundred-to-one)
+
+## Прошлый active (2026-07-15): TASK-354
+
+TASK-354: «100 к 1» — 12 багов из живого QA после TASK-353 (порта дизайна):
+  TV-шаг «Роли» вместо «Тема» (root cause найден — дефолт mkH2OInitial),
+  роль ведущего не эксклюзивна, Enter-сабмит для team name инпута, générique
+  «Телеигра/Общие вопросы» вместо реальной темы (mobile+TV), надпись «по
+  нулю» на буззере, перенос строки рвёт «та», футер перекрывает доску
+  ответов, страйки на TV — регресс с TASK-347 (вернуть боковые колонки),
+  «ОБСУЖДЕНИЕ» лишний лейбл, лишняя кнопка «АВТО-ПРОВЕРКА», «Сыграть ещё
+  раз» уводит не туда (расследовать), дублирующийся HUD-счёт вверху mobile.
+File: codex-tasks/354-h2o-live-qa-fixes.md
+Whitelist: src/app/game/[roomId]/hundred-to-one/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок hundred-to-one)
+
+## Прошлый active (2026-07-15): TASK-353
+
+TASK-353: «100 к 1» — буквальный порт дизайна из 13 новых design-ref файлов
+  (7 mobile + 6 TV), по образцу подхода TASK-332 («Кто я?»). Полный визуальный
+  порт 2 больших файлов, много фаз без прямого макета (extrapolate по
+  аналогии) — сложный, юзер запускает в Codex Desktop.
+File: codex-tasks/353-h2o-literal-design-port.md
+Whitelist: src/app/game/[roomId]/hundred-to-one/page.tsx,
+  src/app/tv/[roomId]/[gameType]/page.tsx (только блок hundred-to-one),
+  src/components/games/HundredToOneIcon.tsx (новый, опционально)
+
 ## Active (2026-07-12): TASK-343
 
 TASK-343: «Кто я?» — экран итогов: убрать верхний HUD со счётом
