@@ -1325,7 +1325,7 @@ interface GameDataResponse {
   items?: unknown[];
   topics?: HundredToOneTopicPreview[];
   roles?: { id: string; icon: string; nameRu: string; nameEn: string; team: string; condition: string }[];
-  roleTable?: { players: number; mafia: number; detective: boolean; doctor: boolean; citizens: number }[];
+  roleTable?: { players: number; mafia: number; don: number; maniac: number; sheriff: number; doctor: number; lover: number; citizens: number }[];
 }
 
 function GameDataViewer({ game }: { game: GameStat | null }) {
@@ -1550,7 +1550,11 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
           <div className="grid grid-cols-2 gap-3">
             {(data.roles ?? []).map((r) => (
               <div key={r.id} className={`rounded-2xl p-4 border ${
-                r.team === 'mafia' ? 'bg-red-900/20 border-red-500/30' : 'bg-blue-900/20 border-blue-500/30'
+                r.team === 'mafia'
+                  ? 'bg-red-900/20 border-red-500/30'
+                  : r.team === 'neutral'
+                    ? 'bg-purple-900/20 border-purple-500/30'
+                    : 'bg-blue-900/20 border-blue-500/30'
               }`}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">{r.icon}</span>
@@ -1567,14 +1571,17 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
           {/* Role distribution table */}
           <div>
             <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Распределение ролей</p>
-            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-              <table className="w-full text-xs">
+            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-x-auto">
+              <table className="w-full min-w-[680px] text-xs">
                 <thead>
                   <tr className="border-b border-white/10 text-white/30">
                     <th className="text-left px-4 py-2">Игроков</th>
                     <th className="text-center px-3 py-2 text-red-400/70">Мафия</th>
-                    <th className="text-center px-3 py-2 text-blue-400/70">Детектив</th>
+                    <th className="text-center px-3 py-2 text-red-300/70">Дон</th>
+                    <th className="text-center px-3 py-2 text-purple-400/70">Маньяк</th>
+                    <th className="text-center px-3 py-2 text-blue-400/70">Шериф</th>
                     <th className="text-center px-3 py-2 text-green-400/70">Доктор</th>
+                    <th className="text-center px-3 py-2 text-pink-400/70">Любовница</th>
                     <th className="text-center px-3 py-2 text-white/50">Мирных</th>
                   </tr>
                 </thead>
@@ -1583,8 +1590,11 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
                     <tr key={i} className={i < (data.roleTable ?? []).length - 1 ? 'border-b border-white/5' : ''}>
                       <td className="px-4 py-2 text-white font-bold">{row.players}</td>
                       <td className="px-3 py-2 text-center text-red-400 font-bold">{row.mafia}</td>
-                      <td className="px-3 py-2 text-center">{row.detective ? <span className="text-blue-400">✓</span> : <span className="text-white/20">—</span>}</td>
-                      <td className="px-3 py-2 text-center">{row.doctor ? <span className="text-green-400">✓</span> : <span className="text-white/20">—</span>}</td>
+                      <td className="px-3 py-2 text-center">{row.don ? <span className="text-red-300 font-bold">{row.don}</span> : <span className="text-white/20">—</span>}</td>
+                      <td className="px-3 py-2 text-center">{row.maniac ? <span className="text-purple-400 font-bold">{row.maniac}</span> : <span className="text-white/20">—</span>}</td>
+                      <td className="px-3 py-2 text-center">{row.sheriff ? <span className="text-blue-400 font-bold">{row.sheriff}</span> : <span className="text-white/20">—</span>}</td>
+                      <td className="px-3 py-2 text-center">{row.doctor ? <span className="text-green-400 font-bold">{row.doctor}</span> : <span className="text-white/20">—</span>}</td>
+                      <td className="px-3 py-2 text-center">{row.lover ? <span className="text-pink-400 font-bold">{row.lover}</span> : <span className="text-white/20">—</span>}</td>
                       <td className="px-3 py-2 text-center text-white/60">{row.citizens}</td>
                     </tr>
                   ))}
