@@ -1324,7 +1324,7 @@ interface GameDataResponse {
   type?: string;
   items?: unknown[];
   topics?: HundredToOneTopicPreview[];
-  roles?: { id: string; icon: string; nameRu: string; nameEn: string; team: string; condition: string }[];
+  roles?: { id: string; icon: string; nameRu: string; nameEn: string; team: string; condition: string; description: string }[];
   roleTable?: { players: number; mafia: number; don: number; maniac: number; sheriff: number; doctor: number; lover: number; citizens: number }[];
 }
 
@@ -1547,23 +1547,29 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
       {!loading && data?.type === 'mafia' && (
         <div className="flex-1 overflow-y-auto space-y-5">
           {/* Roles */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(data.roles ?? []).map((r) => (
-              <div key={r.id} className={`rounded-2xl p-4 border ${
+              <div key={r.id} className={`rounded-2xl p-5 border ${
                 r.team === 'mafia'
                   ? 'bg-red-900/20 border-red-500/30'
                   : r.team === 'neutral'
                     ? 'bg-purple-900/20 border-purple-500/30'
                     : 'bg-blue-900/20 border-blue-500/30'
               }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">{r.icon}</span>
-                  <div>
+                <div className="flex items-start gap-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/icons/mafia-roles/${r.id}.png`}
+                    alt={`${r.nameRu} ${r.icon}`}
+                    className="w-16 h-16 object-contain shrink-0"
+                  />
+                  <div className="min-w-0">
                     <p className="text-white font-bold text-sm">{r.nameRu}</p>
                     <p className="text-white/40 text-xs">{r.nameEn}</p>
+                    <p className="text-xs text-white/50 mt-2">{r.condition}</p>
+                    <p className="text-xs text-white/60 mt-2 leading-relaxed">{r.description}</p>
                   </div>
                 </div>
-                <p className="text-xs text-white/50">{r.condition}</p>
               </div>
             ))}
           </div>

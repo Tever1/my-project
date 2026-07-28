@@ -48,13 +48,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         type: 'mafia',
         roles: [
-          { id: 'citizen',   icon: '👤', nameRu: 'Мирный',    nameEn: 'Citizen', team: 'citizens', condition: 'всегда' },
-          { id: 'mafia',     icon: '🔫', nameRu: 'Мафия',     nameEn: 'Mafia',   team: 'mafia',    condition: '≈1/3 от общего числа игроков' },
-          { id: 'don',       icon: '🎩', nameRu: 'Дон',       nameEn: 'Don',     team: 'mafia',    condition: 'при 10+ игроках' },
-          { id: 'maniac',    icon: '🔪', nameRu: 'Маньяк',    nameEn: 'Maniac',  team: 'neutral',  condition: 'при 10+ игроках, играет сам за себя' },
-          { id: 'detective', icon: '🔍', nameRu: 'Шериф',     nameEn: 'Sheriff', team: 'citizens', condition: 'при 4+ игроках' },
-          { id: 'doctor',    icon: '💉', nameRu: 'Доктор',    nameEn: 'Doctor',  team: 'citizens', condition: 'при 7+ игроках' },
-          { id: 'lover',     icon: '💋', nameRu: 'Любовница', nameEn: 'Lover',   team: 'citizens', condition: 'при 12+ игроках' },
+          { id: 'citizen', icon: '👤', nameRu: 'Мирный', nameEn: 'Citizen', team: 'citizens', condition: 'всегда', description: 'Без способностей. Голосует днём вместе с остальными.' },
+          { id: 'mafia', icon: '🔫', nameRu: 'Мафия', nameEn: 'Mafia', team: 'mafia', condition: '≈1/3 от общего числа игроков', description: 'Ночью вся мафия вместе выбирает жертву — при разногласиях решает большинство.' },
+          { id: 'don', icon: '🎩', nameRu: 'Дон', nameEn: 'Don', team: 'mafia', condition: 'при 10+ игроках', description: 'Глава мафии. Каждую ночь сначала выбирает жертву вместе с мафией (решающий голос за ним), затем отдельно проверяет одного игрока — не Шериф ли это.' },
+          { id: 'maniac', icon: '🔪', nameRu: 'Маньяк', nameEn: 'Maniac', team: 'neutral', condition: 'при 10+ игроках, играет сам за себя', description: 'Играет сам за себя. Ночью убивает любого — мафию или мирного, независимо от мафии. Не обязан убивать каждую ночь.' },
+          { id: 'sheriff', icon: '🔍', nameRu: 'Шериф', nameEn: 'Sheriff', team: 'citizens', condition: 'при 4+ игроках', description: 'Ночью проверяет одного игрока и узнаёт, мафия он или мирный. Днём пытается убедить город, не раскрывая себя.' },
+          { id: 'doctor', icon: '💉', nameRu: 'Доктор', nameEn: 'Doctor', team: 'citizens', condition: 'при 7+ игроках', description: 'Ночью лечит одного игрока от выстрела мафии или маньяка. Не может лечить себя и того же игрока две ночи подряд.' },
+          { id: 'lover', icon: '💋', nameRu: 'Любовница', nameEn: 'Lover', team: 'citizens', condition: 'при 12+ игроках', description: 'Ночью блокирует способность одного игрока (доктор не лечит, шериф не проверяет, маньяк не убивает, Дон не проверяет на шерифа). Даёт цели алиби — она не выбывает по итогам дневного голосования. Если Любовницу убивают, погибает и тот, к кому она ходила.' },
         ],
         roleTable: [
           { players: 4,  mafia: 1, don: 0, maniac: 0, sheriff: 1, doctor: 0, lover: 0, citizens: 2 },

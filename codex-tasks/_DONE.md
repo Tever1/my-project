@@ -1,6 +1,6 @@
 # Codex Tasks — индекс закрытых задач
 
-_Последняя синхронизация: 2026-07-24_
+_Последняя синхронизация: 2026-07-27_
 
 Одна строка на каждый TASK. Источник правды — файлы `codex-tasks/NNN-*.md`
 (ТЗ) и `codex-reports/NNN-*.md` (отчёты). Этот индекс — быстрый обзор, чтобы
@@ -394,3 +394,4 @@ bash codex-tasks/_regen-done.sh
 | 376 | `376-room-show-qr-persist-server-state.md` | `room:show-qr` — сохранить состояние на сервере, инициализировать по нему всех клиентов |
 | 377 | `377-lobby-start-game-emit-show-qr.md` | `handleStartGame` не сообщает серверу о показе QR — рассинхрон с телефоном |
 | 378 | `378-mafia-line-icons-preview.md` | «Мафия» — превью плоских line-иконок на `/design-tokens` (по образцу остальных 5 игр) |
+| 379 | `379-admin-mafia-role-table-expand.md` | Расширить таблицу распределения ролей Мафии на /admin |

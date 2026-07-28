@@ -378,7 +378,9 @@ export default function TVGamePage() {
     lastEvent: string; // human-readable last event
     winner: string | null;
     round: number;
-  }>({ phase: 'lobby', alive: [], eliminated: [], lastEvent: '', winner: null, round: 1 });
+    votingRound: number;
+    votingCandidates: string[];
+  }>({ phase: 'lobby', alive: [], eliminated: [], lastEvent: '', winner: null, round: 1, votingRound: 1, votingCandidates: [] });
   const [whoAmIState, setWhoAmIState] = useState<WhoAmIState>(mkWhoAmIInitial);
   const [lastWhoAmIGuessResult, setLastWhoAmIGuessResult] = useState<{
     playerId: string;
@@ -600,7 +602,7 @@ export default function TVGamePage() {
       }
 
       if (action === 'mafia') {
-        const mp = payload as { type: string; roles?: Record<string, string>; killedId?: string | null; saved?: boolean; playerId?: string; winner?: string; round?: number; state?: unknown };
+        const mp = payload as { type: string; roles?: Record<string, string>; killedId?: string | null; killedIds?: string[]; saved?: boolean; playerId?: string; playerIds?: string[]; winner?: string; round?: number; candidates?: string[]; state?: unknown };
         switch (mp.type) {
           case 'sync-state': {
             const state = mp.state as {
@@ -609,14 +611,18 @@ export default function TVGamePage() {
               eliminated: { id: string; role: string }[];
               winner: string | null;
               round: number;
+              votingRound?: number;
+              votingCandidates?: string[];
             };
             setMafiaState({
-              phase: state.phase === 'voting' ? 'day' : state.phase,
+              phase: state.phase,
               alive: state.alive,
               eliminated: state.eliminated.map((e) => ({ id: e.id })),
               lastEvent: '',
               winner: state.winner,
               round: state.round,
+              votingRound: state.votingRound ?? 1,
+              votingCandidates: state.votingCandidates ?? [],
             });
             break;
           }
@@ -628,6 +634,8 @@ export default function TVGamePage() {
               eliminated: [],
               lastEvent: locale === 'ru' ? '🎭 Роли розданы' : '🎭 Roles assigned',
               winner: null,
+              votingRound: 1,
+              votingCandidates: [],
             }));
             break;
           case 'start-night':
@@ -635,24 +643,61 @@ export default function TVGamePage() {
               ...prev,
               phase: 'night',
               lastEvent: locale === 'ru' ? '🌙 Ночь наступила...' : '🌙 Night falls...',
+              votingRound: 1,
+              votingCandidates: [],
             }));
             break;
           case 'night-result': {
-            const killed = mp.killedId ?? null;
+            const killedCount = mp.killedIds?.length ?? (mp.killedId ? 1 : 0);
             const saved = mp.saved ?? false;
             setMafiaState(prev => ({
               ...prev,
-              lastEvent: killed && !saved
-                ? (locale === 'ru' ? '💀 Ночью кто-то погиб' : '💀 Someone died last night')
-                : (locale === 'ru' ? '🛡️ Доктор спас жертву!' : '🛡️ Doctor saved the victim!'),
+              lastEvent: killedCount > 0
+                ? (killedCount > 1
+                  ? (locale === 'ru' ? '💀 Ночью погибли несколько игроков' : '💀 Several players died last night')
+                  : (locale === 'ru' ? '💀 Ночью кто-то погиб' : '💀 Someone died last night'))
+                : saved
+                ? (locale === 'ru' ? '🛡️ Доктор спас жертву!' : '🛡️ Doctor saved the victim!')
+                : (locale === 'ru' ? '🌅 Мирная ночь' : '🌅 Peaceful night'),
             }));
             break;
           }
           case 'start-voting':
             setMafiaState(prev => ({
               ...prev,
-              phase: 'day',
+              phase: 'voting',
               lastEvent: locale === 'ru' ? '🗳️ Голосование' : '🗳️ Voting',
+              votingRound: 1,
+              votingCandidates: [],
+            }));
+            break;
+          case 'vote-tie':
+            setMafiaState(prev => ({
+              ...prev,
+              phase: 'voting',
+              lastEvent: mp.round === 2
+                ? (locale === 'ru' ? '🗳️ Переголосование' : '🗳️ Revote')
+                : (locale === 'ru' ? '⚖️ Казнить или помиловать?' : '⚖️ Execute or pardon?'),
+              votingRound: mp.round ?? 1,
+              votingCandidates: mp.candidates ?? [],
+            }));
+            break;
+          case 'vote-alibi':
+            setMafiaState(prev => ({
+              ...prev,
+              phase: 'results',
+              lastEvent: locale === 'ru' ? '💋 Алиби сработало' : '💋 Alibi worked',
+              votingRound: 1,
+              votingCandidates: [],
+            }));
+            break;
+          case 'vote-pardoned':
+            setMafiaState(prev => ({
+              ...prev,
+              phase: 'results',
+              lastEvent: locale === 'ru' ? '⚖️ Кандидаты оправданы' : '⚖️ Candidates pardoned',
+              votingRound: 1,
+              votingCandidates: [],
             }));
             break;
           case 'eliminate':
@@ -661,6 +706,21 @@ export default function TVGamePage() {
               alive: prev.alive.filter(id => id !== mp.playerId),
               eliminated: [...prev.eliminated, { id: mp.playerId! }],
               lastEvent: locale === 'ru' ? '⚖️ Игрок исключён' : '⚖️ Player eliminated',
+              votingRound: 1,
+              votingCandidates: [],
+            }));
+            break;
+          case 'eliminate-many':
+            setMafiaState(prev => ({
+              ...prev,
+              alive: prev.alive.filter(id => !(mp.playerIds ?? []).includes(id)),
+              eliminated: [
+                ...prev.eliminated,
+                ...(mp.playerIds ?? []).map((id) => ({ id })),
+              ],
+              lastEvent: locale === 'ru' ? '⚖️ Кандидаты исключены' : '⚖️ Candidates eliminated',
+              votingRound: 1,
+              votingCandidates: [],
             }));
             break;
           case 'game-over':
@@ -670,6 +730,8 @@ export default function TVGamePage() {
               winner: mp.winner ?? null,
               lastEvent: mp.winner === 'mafia'
                 ? (locale === 'ru' ? '🔫 Мафия победила!' : '🔫 Mafia wins!')
+                : mp.winner === 'maniac'
+                ? (locale === 'ru' ? '🪓 Маньяк победил!' : '🪓 Maniac wins!')
                 : (locale === 'ru' ? '🎉 Мирные победили!' : '🎉 Citizens win!'),
             }));
             break;
@@ -2581,7 +2643,13 @@ export default function TVGamePage() {
     const phaseLabel = ms.phase === 'night'
       ? (locale === 'ru' ? '🌙 Ночь' : '🌙 Night')
       : ms.phase === 'day'
-      ? (locale === 'ru' ? '☀️ День — Голосование' : '☀️ Day — Voting')
+      ? (locale === 'ru' ? '☀️ День' : '☀️ Day')
+      : ms.phase === 'voting' && ms.votingRound === 2
+      ? (locale === 'ru' ? '🗳️ Переголосование' : '🗳️ Revote')
+      : ms.phase === 'voting' && ms.votingRound === 3
+      ? (locale === 'ru' ? '⚖️ Казнить или помиловать?' : '⚖️ Execute or pardon?')
+      : ms.phase === 'voting'
+      ? (locale === 'ru' ? '🗳️ Голосование' : '🗳️ Voting')
       : ms.phase === 'role-reveal'
       ? (locale === 'ru' ? '🎭 Роли розданы' : '🎭 Roles assigned')
       : ms.phase === 'results'
@@ -2591,6 +2659,9 @@ export default function TVGamePage() {
     const alivePlayers = ms.alive.length > 0
       ? ms.alive.map(id => players.find(p => p.id === id)?.nickname ?? id)
       : players.map(p => p.nickname);
+    const votingCandidateNames = ms.votingCandidates
+      .map(id => players.find(p => p.id === id)?.nickname ?? id)
+      .join(', ');
 
     return (
       <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
@@ -2616,11 +2687,13 @@ export default function TVGamePage() {
 
           {/* Winner announcement */}
           {ms.winner && (
-            <div className={`glass-card px-12 py-8 text-center ${ms.winner === 'mafia' ? 'border-red-400/40 bg-red-500/10' : 'border-green-400/40 bg-green-500/10'}`}>
-              <p className="text-7xl mb-4">{ms.winner === 'mafia' ? '🔫' : '🎉'}</p>
+            <div className={`glass-card px-12 py-8 text-center ${ms.winner === 'mafia' ? 'border-red-400/40 bg-red-500/10' : ms.winner === 'maniac' ? 'border-orange-400/40 bg-orange-500/10' : 'border-green-400/40 bg-green-500/10'}`}>
+              <p className="text-7xl mb-4">{ms.winner === 'mafia' ? '🔫' : ms.winner === 'maniac' ? '🪓' : '🎉'}</p>
               <p className="text-4xl font-bold">
                 {ms.winner === 'mafia'
                   ? (locale === 'ru' ? 'Мафия победила!' : 'Mafia wins!')
+                  : ms.winner === 'maniac'
+                  ? (locale === 'ru' ? 'Маньяк победил!' : 'Maniac wins!')
                   : (locale === 'ru' ? 'Мирные победили!' : 'Citizens win!')}
               </p>
             </div>
@@ -2644,7 +2717,13 @@ export default function TVGamePage() {
               {ms.phase === 'night'
                 ? (locale === 'ru' ? 'Закройте глаза — мафия действует' : 'Close your eyes — mafia is acting')
                 : ms.phase === 'day'
-                ? (locale === 'ru' ? 'Обсуждайте и голосуйте!' : 'Discuss and vote!')
+                ? (locale === 'ru' ? 'Обсуждайте перед голосованием' : 'Discuss before voting')
+                : ms.phase === 'voting' && ms.votingRound === 2
+                ? (locale === 'ru' ? `Повторное голосование: ${votingCandidateNames}` : `Revote: ${votingCandidateNames}`)
+                : ms.phase === 'voting' && ms.votingRound === 3
+                ? (locale === 'ru' ? `Город решает судьбу: ${votingCandidateNames}` : `The town decides: ${votingCandidateNames}`)
+                : ms.phase === 'voting'
+                ? (locale === 'ru' ? 'Город голосует за казнь' : 'The town votes for elimination')
                 : (locale === 'ru' ? 'Смотрите на телефоны' : 'Check your phones')}
             </p>
           )}

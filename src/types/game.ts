@@ -125,8 +125,10 @@ export interface SpyState extends GameState {
 }
 
 // Mafia types
-export type MafiaRole = 'citizen' | 'mafia' | 'detective' | 'doctor';
+export type MafiaRole = 'citizen' | 'mafia' | 'don' | 'maniac' | 'detective' | 'doctor' | 'lover';
 export type MafiaPhase = 'night' | 'day' | 'voting' | 'results';
+export type MafiaVoteRound = 1 | 2 | 3;
+export type MafiaVoteResult = 'eliminated' | 'alibi' | 'pardoned' | null;
 
 export interface MafiaState extends GameState {
   type: 'mafia';
@@ -137,8 +139,18 @@ export interface MafiaState extends GameState {
     eliminated: string[];
     votes: Record<string, string>;
     nightActions: Record<string, string>;
+    mafiaVotes?: Record<string, string>;
+    maniacKill?: string | null;
+    donCheck?: string | null;
+    loverVisit?: string | null;
+    lastDoctorSave?: string | null;
+    lastLoverVisit?: string | null;
+    votingRound?: MafiaVoteRound;
+    votingCandidates?: string[];
+    lastVoteResult?: MafiaVoteResult;
+    lastVoteTargetIds?: string[];
     lastEliminatedId: string | null;
-    winner: 'mafia' | 'citizens' | null;
+    winner: 'mafia' | 'citizens' | 'maniac' | null;
   };
 }
 
