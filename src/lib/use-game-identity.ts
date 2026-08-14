@@ -6,13 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import type { User } from '@/lib/auth-context';
 import { useRoomState } from '@/lib/use-room-state';
 import { useSocket } from '@/lib/use-socket';
-
-const GUEST_ID_KEY = 'party-hub-join-guest-id';
-
-function getGuestPlayerId() {
-  if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem(GUEST_ID_KEY) ?? '';
-}
+import { getGuestPlayerId } from '@/lib/guest-player-id';
 
 export interface GameIdentity {
   user: User | null;

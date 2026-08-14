@@ -16,11 +16,17 @@ import { AliasIcon } from '@/components/games/AliasIcon';
 import { SpyIcon, type SpyIconName } from '@/components/games/SpyIcon';
 import { WhoAmIIcon } from '@/components/games/WhoAmIIcon';
 import { HundredToOneIcon } from '@/components/games/HundredToOneIcon';
+import {
+  MafiaClubTvLayout,
+  MafiaPlayerToken,
+  MafiaRoleThumb,
+  mafiaClubStyles as club,
+} from '@/components/games/mafia-club/MafiaClub';
 import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
-import type { QuizDifficulty, QuizTopic } from '@/types/game';
+import type { MafiaRole, QuizDifficulty, QuizTopic } from '@/types/game';
 
 const ROOM_CLOSED_NOTICE_KEY = 'party-hub-room-closed-notice';
 
@@ -373,14 +379,23 @@ export default function TVGamePage() {
   });
   const [mafiaState, setMafiaState] = useState<{
     phase: string;
+    hostPlayerId: string | null;
+    nightStage: 'mafia' | 'lover' | 'maniac' | 'doctor' | 'detective' | 'don' | null;
     alive: string[];   // player IDs currently alive
     eliminated: { id: string }[];
+    roles: Record<string, string>;
+    lastNightKilledIds: string[];
+    lastNightSaved: boolean;
+    lastEliminatedIds: string[];
+    lastVerdict: 'alibi' | 'pardoned' | 'eliminated' | null;
+    lastVerdictPlayerIds: string[];
+    votesReceived: string[];
     lastEvent: string; // human-readable last event
     winner: string | null;
     round: number;
     votingRound: number;
     votingCandidates: string[];
-  }>({ phase: 'lobby', alive: [], eliminated: [], lastEvent: '', winner: null, round: 1, votingRound: 1, votingCandidates: [] });
+  }>({ phase: 'lobby', hostPlayerId: null, nightStage: null, alive: [], eliminated: [], roles: {}, lastNightKilledIds: [], lastNightSaved: false, lastEliminatedIds: [], lastVerdict: null, lastVerdictPlayerIds: [], votesReceived: [], lastEvent: '', winner: null, round: 1, votingRound: 1, votingCandidates: [] });
   const [whoAmIState, setWhoAmIState] = useState<WhoAmIState>(mkWhoAmIInitial);
   const [lastWhoAmIGuessResult, setLastWhoAmIGuessResult] = useState<{
     playerId: string;
@@ -498,7 +513,7 @@ export default function TVGamePage() {
             const ctx = canvas.getContext('2d');
             if (ctx) {
               const { w, h } = spyCanvasSizeRef.current;
-              ctx.strokeStyle = '#fbbf24';
+              ctx.strokeStyle = '#000000';
               ctx.lineWidth = 3;
               ctx.lineCap = 'round';
               ctx.lineJoin = 'round';
@@ -602,22 +617,43 @@ export default function TVGamePage() {
       }
 
       if (action === 'mafia') {
-        const mp = payload as { type: string; roles?: Record<string, string>; killedId?: string | null; killedIds?: string[]; saved?: boolean; playerId?: string; playerIds?: string[]; winner?: string; round?: number; candidates?: string[]; state?: unknown };
+        const mp = payload as { type: string; roles?: Record<string, string>; role?: string; hostPlayerId?: string; stage?: 'mafia' | 'lover' | 'maniac' | 'doctor' | 'detective' | 'don'; killedId?: string | null; killedIds?: string[]; saved?: boolean; playerId?: string; playerIds?: string[]; voterId?: string; winner?: string; round?: number; candidates?: string[]; state?: unknown };
         switch (mp.type) {
+          case 'select-host':
+            setMafiaState(prev => ({
+              ...prev,
+              hostPlayerId: mp.hostPlayerId ?? prev.hostPlayerId,
+              lastEvent: locale === 'ru' ? 'Ведущий выбран' : 'Host selected',
+            }));
+            break;
           case 'sync-state': {
             const state = mp.state as {
               phase: string;
+              hostPlayerId?: string | null;
+              nightStage?: 'mafia' | 'lover' | 'maniac' | 'doctor' | 'detective' | 'don' | null;
+              roles?: Record<string, string>;
               alive: string[];
               eliminated: { id: string; role: string }[];
               winner: string | null;
               round: number;
               votingRound?: number;
               votingCandidates?: string[];
+              lastVoteResult?: 'alibi' | 'pardoned' | 'eliminated' | null;
+              lastVoteTargetIds?: string[];
             };
             setMafiaState({
               phase: state.phase,
+              hostPlayerId: state.hostPlayerId ?? null,
+              nightStage: state.nightStage ?? null,
+              roles: state.roles ?? {},
               alive: state.alive,
               eliminated: state.eliminated.map((e) => ({ id: e.id })),
+              lastNightKilledIds: [],
+              lastNightSaved: false,
+              lastEliminatedIds: state.lastVoteResult === 'eliminated' ? state.lastVoteTargetIds ?? [] : [],
+              lastVerdict: state.lastVoteResult ?? null,
+              lastVerdictPlayerIds: state.lastVoteTargetIds ?? [],
+              votesReceived: [],
               lastEvent: '',
               winner: state.winner,
               round: state.round,
@@ -630,10 +666,20 @@ export default function TVGamePage() {
             setMafiaState(prev => ({
               ...prev,
               phase: 'role-reveal',
+              hostPlayerId: mp.hostPlayerId ?? prev.hostPlayerId,
+              nightStage: null,
+              roles: mp.roles ?? {},
               alive: Object.keys(mp.roles ?? {}),
               eliminated: [],
-              lastEvent: locale === 'ru' ? '🎭 Роли розданы' : '🎭 Roles assigned',
+              lastNightKilledIds: [],
+              lastNightSaved: false,
+              lastEliminatedIds: [],
+              lastVerdict: null,
+              lastVerdictPlayerIds: [],
+              votesReceived: [],
+              lastEvent: locale === 'ru' ? 'Роли розданы' : 'Roles assigned',
               winner: null,
+              round: 1,
               votingRound: 1,
               votingCandidates: [],
             }));
@@ -642,23 +688,50 @@ export default function TVGamePage() {
             setMafiaState(prev => ({
               ...prev,
               phase: 'night',
-              lastEvent: locale === 'ru' ? '🌙 Ночь наступила...' : '🌙 Night falls...',
+              nightStage: 'mafia',
+              lastNightKilledIds: [],
+              lastNightSaved: false,
+              lastEliminatedIds: [],
+              lastVerdict: null,
+              lastVerdictPlayerIds: [],
+              votesReceived: [],
+              lastEvent: locale === 'ru' ? 'Ночь наступила' : 'Night falls',
+              round: mp.round ?? prev.round,
               votingRound: 1,
               votingCandidates: [],
+            }));
+            break;
+          case 'advance-night-stage':
+            setMafiaState(prev => ({
+              ...prev,
+              nightStage: mp.stage ?? prev.nightStage,
+              lastEvent: locale === 'ru' ? 'Следующая ночная роль' : 'Next night role',
             }));
             break;
           case 'night-result': {
             const killedCount = mp.killedIds?.length ?? (mp.killedId ? 1 : 0);
             const saved = mp.saved ?? false;
+            const killedIds = mp.killedIds ?? (mp.killedId ? [mp.killedId] : []);
             setMafiaState(prev => ({
               ...prev,
+              phase: 'day',
+              nightStage: null,
+              alive: prev.alive.filter((id) => !killedIds.includes(id)),
+              eliminated: [
+                ...prev.eliminated,
+                ...killedIds.filter((id) => !prev.eliminated.some((entry) => entry.id === id)).map((id) => ({ id })),
+              ],
+              lastNightKilledIds: killedIds,
+              lastNightSaved: saved,
+              lastVerdict: null,
+              lastVerdictPlayerIds: [],
               lastEvent: killedCount > 0
                 ? (killedCount > 1
-                  ? (locale === 'ru' ? '💀 Ночью погибли несколько игроков' : '💀 Several players died last night')
-                  : (locale === 'ru' ? '💀 Ночью кто-то погиб' : '💀 Someone died last night'))
+                  ? (locale === 'ru' ? 'Ночью погибли несколько игроков' : 'Several players died last night')
+                  : (locale === 'ru' ? 'Ночью кто-то погиб' : 'Someone died last night'))
                 : saved
-                ? (locale === 'ru' ? '🛡️ Доктор спас жертву!' : '🛡️ Doctor saved the victim!')
-                : (locale === 'ru' ? '🌅 Мирная ночь' : '🌅 Peaceful night'),
+                ? (locale === 'ru' ? 'Доктор спас жертву' : 'The doctor saved the victim')
+                : (locale === 'ru' ? 'Мирная ночь' : 'A peaceful night'),
             }));
             break;
           }
@@ -666,7 +739,10 @@ export default function TVGamePage() {
             setMafiaState(prev => ({
               ...prev,
               phase: 'voting',
-              lastEvent: locale === 'ru' ? '🗳️ Голосование' : '🗳️ Voting',
+              votesReceived: [],
+              lastVerdict: null,
+              lastVerdictPlayerIds: [],
+              lastEvent: locale === 'ru' ? 'Голосование' : 'Voting',
               votingRound: 1,
               votingCandidates: [],
             }));
@@ -676,17 +752,31 @@ export default function TVGamePage() {
               ...prev,
               phase: 'voting',
               lastEvent: mp.round === 2
-                ? (locale === 'ru' ? '🗳️ Переголосование' : '🗳️ Revote')
-                : (locale === 'ru' ? '⚖️ Казнить или помиловать?' : '⚖️ Execute or pardon?'),
+                ? (locale === 'ru' ? 'Переголосование' : 'Revote')
+                : (locale === 'ru' ? 'Казнить или помиловать?' : 'Execute or pardon?'),
               votingRound: mp.round ?? 1,
               votingCandidates: mp.candidates ?? [],
+              votesReceived: [],
             }));
+            break;
+          case 'cast-vote':
+            if (mp.voterId) {
+              setMafiaState(prev => ({
+                ...prev,
+                votesReceived: prev.votesReceived.includes(mp.voterId!)
+                  ? prev.votesReceived
+                  : [...prev.votesReceived, mp.voterId!],
+              }));
+            }
             break;
           case 'vote-alibi':
             setMafiaState(prev => ({
               ...prev,
               phase: 'results',
-              lastEvent: locale === 'ru' ? '💋 Алиби сработало' : '💋 Alibi worked',
+              lastEliminatedIds: [],
+              lastVerdict: 'alibi',
+              lastVerdictPlayerIds: mp.playerId ? [mp.playerId] : [],
+              lastEvent: locale === 'ru' ? 'Алиби сработало' : 'The alibi worked',
               votingRound: 1,
               votingCandidates: [],
             }));
@@ -695,7 +785,10 @@ export default function TVGamePage() {
             setMafiaState(prev => ({
               ...prev,
               phase: 'results',
-              lastEvent: locale === 'ru' ? '⚖️ Кандидаты оправданы' : '⚖️ Candidates pardoned',
+              lastEliminatedIds: [],
+              lastVerdict: 'pardoned',
+              lastVerdictPlayerIds: mp.playerIds ?? [],
+              lastEvent: locale === 'ru' ? 'Кандидаты оправданы' : 'Candidates pardoned',
               votingRound: 1,
               votingCandidates: [],
             }));
@@ -703,9 +796,14 @@ export default function TVGamePage() {
           case 'eliminate':
             setMafiaState(prev => ({
               ...prev,
+              phase: 'results',
               alive: prev.alive.filter(id => id !== mp.playerId),
               eliminated: [...prev.eliminated, { id: mp.playerId! }],
-              lastEvent: locale === 'ru' ? '⚖️ Игрок исключён' : '⚖️ Player eliminated',
+              roles: mp.playerId && mp.role ? { ...prev.roles, [mp.playerId]: mp.role } : prev.roles,
+              lastEliminatedIds: mp.playerId ? [mp.playerId] : [],
+              lastVerdict: 'eliminated',
+              lastVerdictPlayerIds: mp.playerId ? [mp.playerId] : [],
+              lastEvent: locale === 'ru' ? 'Игрок исключён' : 'Player eliminated',
               votingRound: 1,
               votingCandidates: [],
             }));
@@ -713,12 +811,17 @@ export default function TVGamePage() {
           case 'eliminate-many':
             setMafiaState(prev => ({
               ...prev,
+              phase: 'results',
               alive: prev.alive.filter(id => !(mp.playerIds ?? []).includes(id)),
               eliminated: [
                 ...prev.eliminated,
                 ...(mp.playerIds ?? []).map((id) => ({ id })),
               ],
-              lastEvent: locale === 'ru' ? '⚖️ Кандидаты исключены' : '⚖️ Candidates eliminated',
+              roles: mp.roles ? { ...prev.roles, ...mp.roles } : prev.roles,
+              lastEliminatedIds: mp.playerIds ?? [],
+              lastVerdict: 'eliminated',
+              lastVerdictPlayerIds: mp.playerIds ?? [],
+              lastEvent: locale === 'ru' ? 'Кандидаты исключены' : 'Candidates eliminated',
               votingRound: 1,
               votingCandidates: [],
             }));
@@ -729,10 +832,10 @@ export default function TVGamePage() {
               phase: 'results',
               winner: mp.winner ?? null,
               lastEvent: mp.winner === 'mafia'
-                ? (locale === 'ru' ? '🔫 Мафия победила!' : '🔫 Mafia wins!')
+                ? (locale === 'ru' ? 'Мафия победила' : 'The mafia wins')
                 : mp.winner === 'maniac'
-                ? (locale === 'ru' ? '🪓 Маньяк победил!' : '🪓 Maniac wins!')
-                : (locale === 'ru' ? '🎉 Мирные победили!' : '🎉 Citizens win!'),
+                ? (locale === 'ru' ? 'Маньяк победил' : 'The maniac wins')
+                : (locale === 'ru' ? 'Мирные победили' : 'The citizens win'),
             }));
             break;
         }
@@ -1045,7 +1148,7 @@ export default function TVGamePage() {
               <p className="text-2xl text-white/50 animate-pulse">
                 {isSetup
                   ? locale === 'ru' ? 'Настройка игры...' : 'Setting up...'
-                  : locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}
+                  : locale === 'ru' ? 'Ожидаем начала игры' : 'Waiting for the game to start'}
               </p>
               {specialQuizInfo ? (
                 <div className="mt-6 flex items-center justify-center gap-4">
@@ -1795,293 +1898,51 @@ export default function TVGamePage() {
     const timerRatio = Math.max(0, Math.min(1, sp.timerLeft / 300));
     const timerOffset = CIRC * (1 - timerRatio);
     const timerColor = sp.timerLeft <= 30 ? '#ff453a' : sp.timerLeft <= 90 ? '#ffd60a' : '#64d2ff';
+    const votedCount = Object.keys(sp.votes).length;
+    const tvPhase = sp.gameOver
+      ? l('Итоги операции', 'Operation results')
+      : sp.phase === 'modeSelect' ? l('Выбор режима', 'Mode selection')
+      : sp.phase === 'dealing' ? l('Секретное задание', 'Secret briefing')
+      : sp.phase === 'playing' ? (sp.mode === 'draw' ? l('Нарисуй', 'Draw') : l('Допрос', 'Interview'))
+      : sp.phase === 'spyGuess' ? (sp.spyGuessAwaitingJudge ? l('Проверка ответа', 'Answer review') : l('Попытка шпиона', 'Spy attempt'))
+      : sp.phase === 'discussion' ? l('Обсуждение', 'Discussion')
+      : sp.phase === 'voting' ? l('Голосование', 'Voting')
+      : l('Итог раунда', 'Round result');
 
     return (
-      <GameSurface className="h-screen bg-gradient-spy text-white flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-8 py-4 border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <SpyImg name="mask" className="h-8 w-8" />
-            <div>
-              <h1 className="text-2xl font-bold leading-none">Шпион</h1>
-              <p className="text-xs text-white/40 font-mono uppercase tracking-widest">Party Hub</p>
-            </div>
-          </div>
-          {sp.phase === 'playing' && (
-            <div className="glass-card px-4 py-2 text-sm">
-              Раунд <span className="font-bold text-teal-300">{sp.currentRound}</span>
-              {' · '}
-              {sp.category && <span>{sp.category}</span>}
-            </div>
-          )}
-          {sp.phase === 'voting' && (
-            <div className="glass-card px-4 py-2 flex items-center gap-2">
-              <span>⏱</span>
-              <span className="font-mono font-bold text-xl">{formatSec(sp.voteTimerLeft)}</span>
-            </div>
-          )}
-          {sp.phase === 'discussion' && (
-            <div className="glass-card px-4 py-2 flex items-center gap-2">
-              <span>⏱</span>
-              <span className="font-mono font-bold text-xl">{formatSec(sp.discussionTimeLeft)}</span>
-            </div>
-          )}
-          {(sp.phase === 'dealing' || sp.phase === 'playing') && (
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-              <span className="text-sm text-white/60">{spyPlayerList.length} в игре</span>
-            </div>
-          )}
-        </div>
+      <GameSurface className="spy-live-tv h-screen overflow-hidden text-white">
+        <div className="spy-live-tv-grid" />
+        <header className="spy-live-tv-header">
+          <div><SpyImg name="mask" className="h-10 w-10" /><span><b>{l('ШПИОН', 'SPY')}</b></span></div>
+          <p><span>{l('ТЕКУЩИЙ ЭТАП', 'CURRENT STAGE')}</span><b>{tvPhase}</b></p>
+          <em><i />{sp.phase === 'voting' ? `${votedCount} ${l('ИЗ', 'OF')} ${spyPlayerList.length} ${l('ПРОГОЛОСОВАЛИ', 'VOTED')}` : sp.gameOver ? l('ОПЕРАЦИЯ ЗАКРЫТА', 'OPERATION CLOSED') : `${spyPlayerList.length} ${l('УЧАСТНИКОВ', 'PLAYERS')}`}</em>
+        </header>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {sp.gameOver && (
-            <div className="h-full flex flex-col items-center justify-center gap-8 px-12">
-              <h2 className="text-6xl font-black">Игра окончена!</h2>
-            </div>
-          )}
+        {sp.gameOver && <div className="spy-live-tv-center spy-live-tv-over"><div className="spy-live-tv-end"><SpyImg name="mask" className="h-28 w-28" /><i /></div><span>{l('ВСЕ ДЕЛА ЗАКРЫТЫ', 'ALL CASES CLOSED')}</span><h1>{l('Операция завершена', 'Operation complete')}</h1><p>{l('Спасибо за игру. Никому нельзя доверять.', 'Thank you for playing. Trust no one.')}</p></div>}
 
-          {!sp.gameOver && sp.phase === 'modeSelect' && (
-            <div className="h-full flex flex-col items-center justify-center gap-6">
-              <SpyImg name="mask" className="h-32 w-32" />
-              <h2 className="text-7xl font-black tracking-tight">ШПИОН</h2>
-              <p className="text-2xl text-white/40 animate-pulse">Ожидание ведущего…</p>
-            </div>
-          )}
+        {!sp.gameOver && sp.phase === 'modeSelect' && <div className="spy-live-tv-center spy-live-tv-wait"><div className="spy-live-tv-radar"><SpyImg name="mask" className="h-28 w-28" /><i /><i /><i /></div><span>{l('ОПЕРАЦИЯ ЕЩЁ НЕ НАЧАЛАСЬ', 'OPERATION NOT STARTED')}</span><h1>{l('Ожидаем решения ведущего', 'Waiting for the host')}</h1><p>{l('На телефоне ведущего выбирается режим игры.', 'The host is choosing a game mode on their phone.')}</p></div>}
 
-          {!sp.gameOver && sp.phase === 'dealing' && (
-            <div className="h-full flex flex-col items-center justify-center gap-8 px-16">
-              <div className="text-center">
-                <p className="text-xl text-white/40 uppercase tracking-[4px] font-mono mb-3">Категория раунда</p>
-                <div className="flex items-center justify-center gap-4">
-                  <span className="text-7xl font-black">{sp.category}</span>
-                </div>
-              </div>
-              <p className="text-xl text-white/60">
-                Слово отправлено на телефоны · <span className="text-teal-300"><SpyImg name="mask" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />Один из вас — шпион. Он слова не получил.</span>
-              </p>
-              <div className="w-full">
-                <p className="text-center text-white/40 text-sm mb-3">
-                  Посмотрели слово: <b>{sp.readyPlayers.length}</b> / {spyPlayerList.length}
-                </p>
-                <div className="flex flex-wrap gap-3 justify-center">
-                  {spyPlayerList.map(p => {
-                    const ready = sp.readyPlayers.includes(p.id);
-                    return (
-                      <div key={p.id} className={`glass-card px-4 py-2 flex items-center gap-2 transition-all ${ready ? 'border-teal-400/40' : 'opacity-50'}`}>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${ready ? 'bg-teal-500/30' : 'bg-white/10'}`}>
-                          {p.nickname[0]}
-                        </div>
-                        <span>{p.nickname}</span>
-                        {ready && <SpyImg name="check" className="h-5 w-5" />}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+        {!sp.gameOver && sp.phase === 'dealing' && <div className="spy-live-tv-center spy-live-tv-brief"><span>{l('СЕКРЕТНЫЕ ДАННЫЕ ОТПРАВЛЕНЫ', 'CLASSIFIED DATA SENT')}</span><h1>{l('Проверьте свои телефоны', 'Check your phones')}</h1><p>{l('Один участник не получил слово. Не показывайте экран соседям.', 'One player did not receive the word. Keep your screen private.')}</p><div className="spy-live-tv-ready">{spyPlayerList.map((player) => { const ready = sp.readyPlayers.includes(player.id); return <div key={player.id} className={ready ? 'ready' : ''}><i>{player.nickname[0]}</i><b>{player.nickname}</b><span>{ready ? l('ГОТОВ', 'READY') : l('ОЖИДАЕМ', 'WAITING')}</span></div>; })}</div><div className="spy-live-tv-progress"><i><b style={{ width: spyPlayerList.length ? `${(sp.readyPlayers.length / spyPlayerList.length) * 100}%` : '0%' }} /></i><span>{sp.readyPlayers.length} / {spyPlayerList.length}</span></div></div>}
 
-          {!sp.gameOver && sp.phase === 'playing' && sp.mode === 'draw' && (
-            <div className="relative h-full flex flex-col items-center justify-center gap-4 px-12 py-6">
-              <div className="absolute top-6 left-6 z-10 h-[120px] w-[120px]">
-                <svg viewBox="0 0 260 260" width="120" height="120">
-                  <circle cx="130" cy="130" r="118" stroke="rgba(255,255,255,.08)" strokeWidth="14" fill="none" />
-                  <circle
-                    cx="130"
-                    cy="130"
-                    r="118"
-                    stroke={timerColor}
-                    strokeWidth="14"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeDasharray={CIRC}
-                    strokeDashoffset={timerOffset}
-                    style={{ filter: `drop-shadow(0 0 14px ${timerColor}80)`, transition: 'stroke-dashoffset 1s linear' }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="font-mono text-3xl font-black tabular-nums">{sp.timerLeft}</span>
-                </div>
-              </div>
-              <p className="text-2xl text-white/50">
-                <SpyImg name="palette" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />
-                {l('Рисует: ', 'Drawing: ')}
-                <span className="font-bold text-amber-400">{activePlayerName}</span>
-              </p>
-              <div className="flex-1 min-h-0 w-full flex items-center justify-center">
-                <canvas
-                  ref={initSpyCanvas}
-                  className="rounded-2xl bg-black/30 border-2 border-white/10"
-                  style={{ height: '100%', maxWidth: '100%', maxHeight: '100%', aspectRatio: '1' }}
-                />
-              </div>
-            </div>
-          )}
+        {!sp.gameOver && sp.phase === 'playing' && sp.mode !== 'draw' && <div className="spy-live-tv-question">
+          <div className="spy-live-tv-timer"><svg viewBox="0 0 260 260"><circle cx="130" cy="130" r="118" /><circle className="progress" cx="130" cy="130" r="118" stroke={timerColor} strokeDasharray={CIRC} strokeDashoffset={timerOffset} /></svg><b>{formatSec(sp.timerLeft)}</b><span>{l('ДО ГОЛОСОВАНИЯ', 'UNTIL VOTING')}</span></div>
+          <div className="spy-live-tv-interview"><span>{l('АКТИВНЫЙ ДОПРОС', 'ACTIVE INTERVIEW')}</span><div><i>{activePlayerName[0]}</i><p><small>{l('ЗАДАЁТ ВОПРОС', 'ASKING')}</small><b>{activePlayerName}</b></p></div><em>→</em><div className="target"><i>{targetPlayerName[0]}</i><p><small>{l('ОТВЕЧАЕТ', 'ANSWERING')}</small><b>{targetPlayerName}</b></p></div><small>{l('Опишите слово, не называя его', 'Describe the word without saying it')}</small></div>
+          <aside>{sp.playerOrder.slice(0, 7).map((id, index) => <div key={id} className={id === activePlayerId ? 'active' : ''}><i>{index + 1}</i><b>{spyGetName(id)}</b><span>{id === activePlayerId ? l('ГОВОРИТ', 'SPEAKING') : l('ОЖИДАЕТ', 'WAITING')}</span></div>)}</aside>
+        </div>}
 
-          {!sp.gameOver && sp.phase === 'playing' && sp.mode !== 'draw' && (
-            <div className="h-full flex gap-8 px-12 py-6">
-              <div className="flex flex-col items-center justify-center gap-4 flex-shrink-0">
-                <div className="relative h-[260px] w-[260px]">
-                  <svg width="260" height="260">
-                    <circle cx="130" cy="130" r="118" stroke="rgba(255,255,255,.08)" strokeWidth="14" fill="none" />
-                    <circle
-                      cx="130"
-                      cy="130"
-                      r="118"
-                      stroke={timerColor}
-                      strokeWidth="14"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeDasharray={CIRC}
-                      strokeDashoffset={timerOffset}
-                      style={{ filter: `drop-shadow(0 0 14px ${timerColor}80)`, transition: 'stroke-dashoffset 1s linear' }}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="font-mono text-6xl font-black tabular-nums">{sp.timerLeft}</span>
-                    <span className="text-lg text-white/40 uppercase tracking-widest">ход</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex-1 flex flex-col justify-center gap-6">
-                <div>
-                  <p className="text-lg text-teal-300 uppercase tracking-widest mb-2">Задаёт вопрос</p>
-                  <span className="text-5xl font-black">{activePlayerName}</span>
-                  <p className="text-2xl text-white/60 mt-2">→ {targetPlayerName}</p>
-                  <p className="text-white/40 mt-2">Опиши слово одним предложением — но не называй его</p>
-                </div>
-                <div className="glass-card px-6 py-4">
-                  <span className="text-white/40 text-sm">Категория</span>
-                  <p className="text-2xl font-bold mt-1">{sp.category}</p>
-                  <p className="text-white/30 mt-1 text-sm font-mono uppercase tracking-widest">СЛОВО СКРЫТО</p>
-                </div>
-              </div>
-            </div>
-          )}
+        {!sp.gameOver && sp.phase === 'playing' && sp.mode === 'draw' && <div className="spy-live-tv-draw"><div className="spy-live-tv-draw-meta"><span><i /> LIVE CANVAS</span><b>{formatSec(sp.timerLeft)}</b></div><canvas ref={initSpyCanvas} /><div className="spy-live-tv-drawer"><span>{l('РИСУЕТ', 'DRAWING')}</span><b>{activePlayerName}</b><small>{l('СЛЕДУЮЩИЙ', 'NEXT')} · {spyGetName(sp.playerOrder[(sp.playerOrderIdx + 1) % Math.max(1, sp.playerOrder.length)] ?? '')}</small></div><div className="spy-live-tv-order">{sp.playerOrder.slice(0, 8).map((id) => <i key={id} className={id === activePlayerId ? 'active' : ''}>{spyGetName(id)[0]}</i>)}</div></div>}
 
-          {!sp.gameOver && sp.phase === 'spyGuess' && (
-            <div className="h-full flex flex-col items-center justify-center gap-6 px-12">
-              <SpyImg name="mask" className="h-24 w-24" />
-              <h2 className="text-6xl font-black text-center">
-                {l('Шпион', 'Spy')} <span className="text-red-300">{spyName}</span>
-              </h2>
-              <p className="text-3xl text-white/60">{l('угадывает слово…', 'is guessing the word...')}</p>
-              {sp.spyGuessAwaitingJudge && (
-                <p className="text-xl text-teal-300">{l(`${spyGetName(sp.spyGuessJudgeId)} проверяет ответ`, `${spyGetName(sp.spyGuessJudgeId)} is checking the answer`)}</p>
-              )}
-            </div>
-          )}
+        {!sp.gameOver && sp.phase === 'discussion' && <div className="spy-live-tv-center spy-live-tv-discussion"><span>{l('ОБЩИЙ КАНАЛ ОТКРЫТ', 'OPEN CHANNEL')}</span><div>{formatSec(sp.discussionTimeLeft)}</div><h1>{l('Обсудите подозреваемых', 'Discuss the suspects')}</h1><p>{l('Сопоставьте ответы и рисунки. Голосование начнётся после сигнала ведущего.', 'Compare answers and drawings. Voting starts on the host’s signal.')}</p><section>{Array.from({ length: 36 }, (_, index) => <i key={index} style={{ height: `${18 + ((index * 17) % 66)}px` }} />)}</section></div>}
 
-          {!sp.gameOver && sp.phase === 'discussion' && (
-            <div className="h-full flex flex-col items-center justify-center gap-6 px-12">
-              <h2 className="text-6xl font-black text-center">Обсуждение</h2>
-              <p className="text-2xl text-white/50 text-center max-w-2xl">
-                Обсудите, кто кажется подозрительным
-              </p>
-              <div className="font-mono text-5xl font-black text-amber-300">
-                {formatSec(sp.discussionTimeLeft)}
-              </div>
-            </div>
-          )}
+        {!sp.gameOver && sp.phase === 'voting' && <div className="spy-live-tv-voting"><div><span>{l('ГОЛОСОВАНИЕ ИДЁТ', 'VOTING IN PROGRESS')}</span><h1>{l('Кто здесь шпион?', 'Who is the spy?')}</h1><p>{l('Личный выбор каждого остаётся скрытым до завершения голосования.', 'Every choice stays private until voting ends.')}</p><div className="spy-live-tv-vote-progress"><i><b style={{ width: spyPlayerList.length ? `${(votedCount / spyPlayerList.length) * 100}%` : '0%' }} /></i><span>{votedCount} / {spyPlayerList.length}</span></div></div><div className="spy-live-tv-voters">{spyPlayerList.map((player) => { const done = Object.hasOwn(sp.votes, player.id); return <div key={player.id} className={done ? 'done' : ''}><i>{player.nickname[0]}</i><b>{player.nickname}</b><span>{done ? l('ГОЛОС ПРИНЯТ', 'VOTE ACCEPTED') : l('ОЖИДАЕМ', 'WAITING')}</span></div>; })}</div></div>}
 
-          {!sp.gameOver && sp.phase === 'voting' && (
-            <div className="h-full flex flex-col px-12 py-6 gap-6">
-              <div className="flex items-center justify-center gap-4">
-                <h2 className="text-5xl font-black">Кто шпион?</h2>
-                <div className="glass-card px-4 py-2 text-sm">
-                  Проголосовали <b>{Object.keys(sp.votes).length}</b> / {spyPlayerList.length}
-                </div>
-              </div>
-              <div className="flex-1 flex items-center justify-center">
-                <div className="flex gap-4 flex-wrap justify-center">
-                  {spyPlayerList.map(p => {
-                    const votesFor = Object.values(sp.votes).filter(v => v === p.id).length;
-                    const maxVotes = Math.max(1, ...spyPlayerList.map(pp =>
-                      Object.values(sp.votes).filter(v => v === pp.id).length
-                    ));
-                    const barPct = Math.round((votesFor / maxVotes) * 100);
-                    return (
-                      <div key={p.id} className={`glass-card px-6 py-5 flex flex-col items-center gap-3 min-w-[160px] ${votesFor === maxVotes && votesFor > 0 ? 'border-amber-400/40' : ''}`}>
-                        {votesFor === maxVotes && votesFor > 0 && (
-                          <span className="text-xs font-mono uppercase text-amber-400 tracking-widest">лидер</span>
-                        )}
-                        <span className="font-semibold">{p.nickname}</span>
-                        <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
-                          <div className="h-full rounded-full bg-teal-400 transition-all" style={{ width: `${barPct}%` }} />
-                        </div>
-                        <div className="font-bold text-xl">{votesFor}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+        {!sp.gameOver && sp.phase === 'spyGuess' && !sp.spyGuessAwaitingJudge && <div className="spy-live-tv-center spy-live-tv-spy"><div><SpyImg name="mask" className="h-24 w-24" /></div><span>{l('ЛИЧНОСТЬ УСТАНОВЛЕНА', 'IDENTITY CONFIRMED')}</span><h1>{l(`${spyName} оказался шпионом`, `${spyName} is the spy`)}</h1><p>{l('У него остался последний шанс угадать секретное слово.', 'One final chance remains to guess the secret word.')}</p><section><span>{l('КАТЕГОРИЯ', 'CATEGORY')}</span><b>{sp.category}</b><small>{l('ОТВЕТ ВВОДИТСЯ НА ТЕЛЕФОНЕ', 'ANSWER ENTERED ON PHONE')}</small></section></div>}
 
-          {!sp.gameOver && sp.phase === 'roundResult' && sp.roundResult && (
-            <div className="h-full flex flex-col px-12 py-6 gap-6">
-              <div className={`rounded-2xl px-6 py-4 flex items-center gap-4 ${sp.roundResult.spyCaught ? 'bg-green-500/20 border border-green-400/30' : 'bg-red-500/20 border border-red-400/30'}`}>
-                {sp.roundResult.spyCaught ? <SpyImg name="check" className="h-8 w-8" /> : <SpyImg name="cross" className="h-8 w-8" />}
-                <div>
-                  <p className="text-2xl font-bold">{sp.roundResult.spyCaught ? 'Мирные вычислили шпиона!' : 'Шпион победил!'}</p>
-                </div>
-              </div>
-              <div className="flex-1 min-h-0 flex items-center justify-center">
-                <div className="flex w-full gap-6">
-                  <div className="glass-card spy-card flex-1 flex flex-col items-center justify-center gap-4 p-8">
-                    <p className="text-white/40 text-sm uppercase tracking-widest">Шпионом был(а)</p>
-                    <div className="relative">
-                      <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center text-3xl font-bold">
-                        {spyName[0]}
-                      </div>
-                      <SpyImg name="mask" className="absolute -bottom-1 -right-1 h-5 w-5" />
-                    </div>
-                    <p className="text-white/40 text-sm">
-                      {sp.roundResult.viaGuess
-                        ? l('Шпион пытался угадать слово', 'Spy attempted to guess the word')
-                        : l(`${sp.roundResult.voteCount} из ${spyPlayerList.length} голосов`, `${sp.roundResult.voteCount} of ${spyPlayerList.length} votes`)}
-                    </p>
-                  </div>
-                  <div className="glass-card spy-card flex-1 flex flex-col items-center justify-center gap-4 p-8">
-                    <p className="text-white/40 text-sm uppercase tracking-widest">Загаданное слово</p>
-                    <p className="text-white/60 text-lg">Категория · {sp.category}</p>
-                    <p className="text-6xl font-black">{sp.word}</p>
-                    {sp.roundResult.viaGuess && (
-                      <p className="text-sm text-white/40">{l('Шпион пытался угадать слово', 'Spy attempted to guess the word')}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {!sp.gameOver && sp.phase === 'spyGuess' && sp.spyGuessAwaitingJudge && <div className="spy-live-tv-center spy-live-tv-verdict"><span>{l('ОТВЕТ ПЕРЕДАН НА ПРОВЕРКУ', 'ANSWER SENT FOR REVIEW')}</span><h1>{l(`Ожидаем решение ${spyGetName(sp.spyGuessJudgeId)}`, `Waiting for ${spyGetName(sp.spyGuessJudgeId)}`)}</h1><p>{l('Автоматическая проверка не нашла точного совпадения.', 'Automatic review found no exact match.')}</p><div><section><span>{l('ВЕРСИЯ ШПИОНА', 'SPY GUESS')}</span><b>{sp.spyGuessText}</b></section><i>?</i><section><span>{l('СЕКРЕТНОЕ СЛОВО', 'SECRET WORD')}</span><b>{l('СКРЫТО', 'HIDDEN')}</b></section></div><small>{l('ТОЛЬКО ПРОВЕРЯЮЩИЙ ВИДИТ ОБА СЛОВА', 'ONLY THE JUDGE SEES BOTH WORDS')}</small></div>}
 
-        {sp.phase === 'playing' && sp.playerOrder.length > 0 && !sp.gameOver && (
-          <div className="flex-shrink-0 border-t border-white/10 px-8 py-3">
-            <div className="flex items-center gap-3 overflow-x-auto">
-              <p className="text-xs text-white/30 uppercase tracking-widest flex-shrink-0">Порядок хода</p>
-              {sp.playerOrder.map((id, i) => {
-                const isActive = sp.mode === 'guess'
-                  ? id === activePlayerId
-                  : i === sp.playerOrderIdx % sp.playerOrder.length;
-                const isDone = sp.mode === 'guess'
-                  ? false
-                  : i < sp.playerOrderIdx % sp.playerOrder.length;
-                return (
-                  <div key={id} className={`flex items-center gap-1 flex-shrink-0 ${isActive ? '' : isDone ? 'opacity-30' : 'opacity-60'}`}>
-                    {i > 0 && <span className="text-white/20 text-sm mx-1">›</span>}
-                    <div className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-all ${isActive ? 'bg-teal-500/20 border border-teal-400/30' : ''}`}>
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${isActive ? 'bg-teal-400/20' : 'bg-white/10'}`}>
-                        {spyGetName(id)[0]}
-                      </div>
-                      {isActive && <span className="text-[10px] text-teal-300">{sp.mode === 'draw' ? 'рисует' : 'говорит'}</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {!sp.gameOver && sp.phase === 'roundResult' && sp.roundResult && <div className="spy-live-tv-result"><div className={sp.roundResult.spyCaught ? '' : 'danger'}><SpyImg name={sp.roundResult.spyCaught ? 'shield' : 'mask'} className="h-14 w-14" /><span><small>{sp.roundResult.spyCaught ? l('ОПЕРАЦИЯ УСПЕШНА', 'OPERATION SUCCESSFUL') : l('ОПЕРАЦИЯ ПРОВАЛЕНА', 'OPERATION FAILED')}</small><b>{sp.roundResult.spyCaught ? l('ШПИОН РАСКРЫТ', 'SPY EXPOSED') : l('ШПИОН ПОБЕДИЛ', 'SPY WINS')}</b></span></div><section><div><span>{l('ШПИОНОМ БЫЛ', 'THE SPY WAS')}</span><i>{spyName[0]}</i><b>{spyName}</b><small>{sp.roundResult.viaGuess ? l('ПОСЛЕДНЯЯ ПОПЫТКА', 'FINAL ATTEMPT') : `${sp.roundResult.voteCount} ${l('ИЗ', 'OF')} ${spyPlayerList.length} ${l('ГОЛОСОВ', 'VOTES')}`}</small></div><div><span>{l('СЕКРЕТНОЕ СЛОВО', 'SECRET WORD')}</span><small>{sp.category}</small><b>{sp.word}</b><em>{sp.roundResult.spyCaught ? l('ДЕЛО ЗАКРЫТО', 'CASE CLOSED') : l('ШПИОН СКРЫЛСЯ', 'SPY ESCAPED')}</em></div></section></div>}
+
+        <footer className="spy-live-tv-footer"><span>{l('ДЕЛО', 'CASE')} 01 · {l('РАУНД', 'ROUND')} {sp.currentRound}</span><b>{sp.gameOver ? l('АРХИВ СОХРАНЁН', 'ARCHIVE SAVED') : sp.phase === 'roundResult' ? l('ДЕЛО ЗАКРЫТО', 'CASE CLOSED') : l('КТО-ТО ЗА СТОЛОМ ЛЖЁТ', 'SOMEONE IS LYING')}</b><span>{l('СИГНАЛ СТАБИЛЕН', 'SIGNAL STABLE')}</span></footer>
         {qrOverlay}
       </GameSurface>
     );
@@ -2173,7 +2034,7 @@ export default function TVGamePage() {
               <div className="mb-6 flex justify-center">
                 <CrocIcon name="croc" className="h-24 w-24" />
               </div>
-              <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}</h2>
+              <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидаем начала игры' : 'Waiting for the game to start'}</h2>
               <div className="mt-6 flex items-center justify-center gap-4 flex-wrap">
                 {players.map(p => (
                   <div key={p.id} className="glass-card flex items-center justify-center gap-2 px-6 py-3">
@@ -2328,310 +2189,64 @@ export default function TVGamePage() {
     const aliasTimerCirc = 2 * Math.PI * aliasTimerRadius;
     const aliasTimerRatio = Math.max(0, Math.min(1, aliasState.timeLeft / aliasDuration));
     const aliasTimerOffset = aliasTimerCirc * (1 - aliasTimerRatio);
-    const aliasCounters: { label: string; value: number; name: 'check' | 'cross'; color: string }[] = [
-      { label: locale === 'ru' ? 'Угадано' : 'Guessed', value: aliasState.wordsGuessed, name: 'check', color: '#22c55e' },
-      { label: locale === 'ru' ? 'Пропущено' : 'Skipped', value: aliasState.wordsSkipped, name: 'cross', color: '#f59e0b' },
-    ];
-
+    const aliasSortedTeams = [...aliasState.teams].sort((a, b) => b.score - a.score);
+    const aliasWinner = aliasSortedTeams[0];
+    const aliasTurnPoints = aliasState.mode === 'letter' ? aliasState.wordsGuessed : aliasState.wordsGuessed - aliasState.wordsSkipped;
+    const aliasGuessedWords = aliasState.turnHistory.filter((item) => item.guessed);
+    const aliasSkippedWords = aliasState.turnHistory.filter((item) => !item.guessed);
     return (
-      <GameSurface className="h-screen bg-gradient-alias text-white flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-8 px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <AliasIcon name="speech" className="h-10 w-10" />
-            <h1 className="text-3xl font-bold">
-              {locale === 'ru' ? 'Угадай слово' : 'Guess the Word'}
-              {aliasState.mode === 'letter' && (
-                <span className="text-lg text-pink-300 ml-3">
-                  {locale === 'ru' ? '(на букву)' : '(letter mode)'}
-                </span>
-              )}
-            </h1>
-            {aliasState.phase === 'explaining' && (
-              <span className="rounded-full border border-pink-300/30 bg-pink-500/20 px-4 py-1.5 font-mono text-sm font-bold uppercase tracking-[0.18em] text-pink-100">
-                {locale === 'ru' ? 'Раунд' : 'Round'} {aliasState.round} / {aliasState.totalRounds}
-              </span>
-            )}
-          </div>
-          {aliasState.phase === 'explaining' && (
-            <div className="flex items-center gap-3">
-              {aliasCounters.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="flex min-w-[150px] items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_14px_38px_rgba(0,0,0,.22)]"
-                >
-                  <span
-                    className="flex h-11 w-11 items-center justify-center rounded-2xl"
-                    style={{ backgroundColor: `${stat.color}22`, color: stat.color }}
-                  >
-                    <AliasIcon name={stat.name} className="h-6 w-6" />
-                  </span>
-                  <span className="flex flex-col leading-none">
-                    <span className="font-mono text-[42px] font-black tabular-nums leading-none" style={{ color: stat.color }}>
-                      {stat.value}
-                    </span>
-                    <span className="mt-1 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
-                      {stat.label}
-                    </span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-3 overflow-hidden min-h-0">
+      <GameSurface className="alias-live-tv">
+        <div className="alias-live-tv-decor" aria-hidden="true">{Array.from({ length: 22 }, (_, index) => <i key={index} />)}</div>
+        <header><div><AliasIcon name="speech" className="h-11 w-11" /><span><b>{l('УГАДАЙ СЛОВО', 'GUESS THE WORD')}</b><small>{aliasState.mode === 'classic' ? l('КЛАССИКА', 'CLASSIC') : l('НА БУКВУ', 'LETTER MODE')}</small></span></div></header>
+        <main>
           {/* WAITING / MODE SELECT — no game yet */}
           {(aliasState.phase === 'modeSelect' || (aliasState.phase === 'waiting' && aliasState.teams.length === 0)) && (
-            <div className="text-center">
-              <div className="mb-6 flex justify-center"><AliasIcon name="speech" className="h-24 w-24" /></div>
-              <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидание начала...' : 'Waiting to start...'}</h2>
-              <div className="mt-6 flex items-center justify-center gap-4 flex-wrap">
-                {players.map(p => (
-                  <div key={p.id} className="glass-card px-6 py-3">
-                    <span className="text-xl">{p.nickname}</span>
-                    {p.isHost && <span className="ml-2 inline-flex items-center"><CrocIcon name="crown" style={{ width: '1em', height: '1em', color: '#facc15' }} /></span>}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <section className="alias-live-tv-lobby"><div className="alias-live-tv-deck"><i /><i /><article><AliasIcon name="speech" className="h-24 w-24" /></article></div><small>{l('СОБИРАЕМ ИГРОКОВ', 'GATHERING PLAYERS')}</small><h1>{l('Выберите режим и начнём игру', 'Choose a mode and start the game')}</h1><div className="alias-live-tv-avatars">{players.map((player) => <span key={player.id}><i>{player.nickname.slice(0, 1).toUpperCase()}</i><b>{player.nickname}</b></span>)}</div><p>{l('Хост выбирает правила на своём телефоне', 'The host chooses the rules on their phone')}</p></section>
           )}
 
           {/* TEAM SELECT */}
           {aliasState.phase === 'teamSelect' && (
-            <div className="flex gap-8 w-full max-w-4xl">
-              {aliasState.teams.map((team) => (
-                <div key={team.id} className="flex-1 glass-card px-8 py-6 text-center">
-                  <p className="text-2xl font-bold text-amber-400 mb-4">{team.name}</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {team.playerIds.map(id => (
-                      <span key={id} className="glass-badge text-lg px-3 py-1">{getPlayerName(id)}</span>
-                    ))}
-                    {team.playerIds.length === 0 && (
-                      <p className="text-white/30 text-sm">{locale === 'ru' ? 'пока никого' : 'nobody yet'}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <section className="alias-live-tv-setup"><small>{l('РАСПРЕДЕЛЕНИЕ ПО КОМАНДАМ', 'TEAM ASSIGNMENT')}</small><h1>{l('Выберите свою сторону', 'Choose your side')}</h1><div className="alias-live-tv-teamtables">{aliasState.teams.map((team, teamIndex) => <article key={team.id}><span>{l('КОМАНДА', 'TEAM')} 0{teamIndex + 1}</span><b>{team.name}</b><div className="alias-live-tv-avatars">{team.playerIds.map((id) => <span key={id}><i>{getPlayerName(id).slice(0, 1).toUpperCase()}</i><b>{getPlayerName(id)}</b></span>)}</div>{team.playerIds.length === 0 && <em>{l('ПОКА НИКОГО', 'NOBODY YET')}</em>}</article>)}</div><p>{l('Все игроки выбирают команду на своих телефонах', 'Players choose a team on their phones')}</p></section>
+          )}
+
+          {aliasState.phase === 'individualSetup' && (
+            <section className="alias-live-tv-setup"><small>{l('ЛИЧНЫЙ ЗАЧЁТ', 'INDIVIDUAL GAME')}</small><h1>{l('Порядок игроков определён', 'Player order is ready')}</h1><div className="alias-live-tv-order">{aliasState.teams.map((team, index) => <article key={team.id}><span>{String(index + 1).padStart(2, '0')}</span><i>{team.name.slice(0, 1).toUpperCase()}</i><b>{team.name}</b></article>)}</div><p>{l('Каждый играет сам за себя', 'Every player competes individually')}</p></section>
           )}
 
           {/* TEAM NAME */}
           {aliasState.phase === 'teamName' && (
-            <>
-              <h2 className="text-4xl font-bold mb-2">
-                {locale === 'ru' ? 'Команды выбирают названия' : 'Teams are choosing names'}
-              </h2>
-              <div className="flex gap-8 w-full max-w-4xl">
-                {aliasState.teams.map((team, ti) => {
-                  const namerId =
-                    team.playerIds.find((id) => players.find((p) => p.id === id)?.isConnected) ?? team.playerIds[0];
-                  const done = (aliasState.teamNameConfirmed ?? [])[ti];
-                  return (
-                    <div key={team.id} className="flex-1 glass-card px-8 py-6 text-center">
-                      <p className="text-3xl font-bold text-amber-400 mb-3">{team.name}</p>
-                      <p className="text-lg text-white/60">
-                        {done
-                          ? (locale === 'ru' ? 'Имя выбрано ✓' : 'Name set ✓')
-                          : (locale === 'ru' ? `${getPlayerName(namerId)} выбирает имя…` : `${getPlayerName(namerId)} is naming…`)}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+            <section className="alias-live-tv-setup"><small>{l('КОМАНДЫ ВЫБИРАЮТ НАЗВАНИЯ', 'TEAMS ARE CHOOSING NAMES')}</small><h1>{l('Последний штрих', 'The final touch')}</h1><div className="alias-live-tv-namecards">{aliasState.teams.map((team, teamIndex) => { const namerId = team.playerIds.find((id) => players.find((p) => p.id === id)?.isConnected) ?? team.playerIds[0]; const done = (aliasState.teamNameConfirmed ?? [])[teamIndex]; return <article key={team.id}><span>{l('КОМАНДА', 'TEAM')} 0{teamIndex + 1}</span><b>{team.name || '…'}</b><small>{done ? l('ИМЯ ВЫБРАНО ✓', 'NAME SET ✓') : l(`${getPlayerName(namerId)} ВЫБИРАЕТ ИМЯ`, `${getPlayerName(namerId)} IS NAMING`)}</small></article>; })}</div></section>
+          )}
+
+          {aliasState.phase === 'letterRule' && (
+            <section className="alias-live-tv-setup"><small>{l('ПРАВИЛО ЛИЧНОГО РАУНДА', 'INDIVIDUAL ROUND RULE')}</small><h1>{l('Объясняйте только на букву', 'Explain only using the letter')}</h1><div className="alias-live-tv-bigletter"><span>{l('БУКВА ПЕРВОГО ХОДА', 'FIRST TURN LETTER')}</span><b>{aliasState.currentLetter}</b><small>{l('90 СЕКУНД · ПРОПУСК БЕЗ ШТРАФА', '90 SECONDS · NO SKIP PENALTY')}</small></div></section>
           )}
 
           {/* WAITING for explainer to start turn */}
           {aliasState.phase === 'waiting' && aliasState.teams.length > 0 && (
-            <>
-              {/* Team cards */}
-              <div className="flex gap-8 w-full max-w-3xl">
-                {aliasState.teams.map((team, ti) => (
-                  <div
-                    key={team.id}
-                    className={`flex-1 glass-card px-8 py-6 text-center ${
-                      ti === aliasState.activeTeamIndex ? 'outline outline-2 outline-pink-400' : 'opacity-50'
-                    }`}
-                  >
-                    {aliasState.mode !== 'letter' && (
-                      <p className="text-2xl font-bold mb-2">{team.name}</p>
-                    )}
-                    <p className="text-5xl font-bold text-amber-400 mb-3">{team.score}</p>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {team.playerIds.map(id => {
-                        const isExp = ti === aliasState.activeTeamIndex && id === explainerId;
-                        return (
-                          <span key={id} className={`glass-badge text-lg px-3 py-1 ${isExp ? 'outline outline-1 outline-amber-400' : ''}`}>
-                            {getPlayerName(id)} {isExp && <AliasIcon name="mic" className="inline-block h-[1em] w-[1em] align-[-0.15em]" />}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-2xl text-white/50">
-                {locale === 'ru' ? `${explainerName} начинает ход...` : `${explainerName} starting turn...`}
-              </p>
-            </>
+            <section className="alias-live-tv-ready"><div className="alias-live-tv-playercard"><i /><i /><article><AliasIcon name="mic" className="h-20 w-20" /><small>{l('СЕЙЧАС ОБЪЯСНЯЕТ', 'NOW EXPLAINING')}</small><b>{explainerName}</b><span>{aliasState.mode === 'classic' ? `${l('КОМАНДА', 'TEAM')} «${activeTeam?.name ?? ''}»` : l('ЛИЧНЫЙ ХОД · БУКВА СКРЫТА', 'INDIVIDUAL TURN · LETTER HIDDEN')}</span></article></div><h1>{l('Передаём ход', 'Passing the turn')}</h1><p>{l(`${explainerName} запускает таймер на своём телефоне`, `${explainerName} starts the timer on their phone`)}</p></section>
           )}
 
           {/* EXPLAINING */}
           {aliasState.phase === 'explaining' && (
-            <>
-              <div className="flex flex-1 min-h-0 w-full items-center justify-center gap-[clamp(2rem,6vw,4rem)]">
-                {/* Circular timer */}
-                <div className="relative h-[280px] w-[280px] flex-shrink-0">
-                  <svg viewBox="0 0 260 260" width="280" height="280">
-                    <circle cx="130" cy="130" r={aliasTimerRadius} stroke="rgba(255,255,255,.08)" strokeWidth="14" fill="none" />
-                    <circle
-                      cx="130"
-                      cy="130"
-                      r={aliasTimerRadius}
-                      stroke={aliasState.timeLeft <= 10 ? '#ef4444' : '#ec4899'}
-                      strokeWidth="14"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeDasharray={aliasTimerCirc}
-                      strokeDashoffset={aliasTimerOffset}
-                      transform="rotate(-90 130 130)"
-                      style={{ filter: 'drop-shadow(0 0 12px #ec489988)', transition: 'stroke-dashoffset 1s linear' }}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className={`font-mono text-7xl font-black tabular-nums leading-none ${aliasState.timeLeft <= 10 ? 'text-red-200 animate-pulse' : 'text-white'}`}>
-                      {aliasState.timeLeft}
-                    </span>
-                    <span className="mt-2 font-mono text-sm font-bold uppercase tracking-[0.28em] text-white/40">
-                      {locale === 'ru' ? 'сек' : 'sec'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Explainer + letter */}
-                <div className="min-w-0 max-w-[48vw] flex-1">
-                  <p className="mb-4 font-mono text-lg font-bold uppercase tracking-[0.22em] text-white/45">
-                    {locale === 'ru' ? 'Объясняет' : 'Explaining'}
-                  </p>
-                  <div className="min-w-0">
-                    <p className="min-w-0 truncate text-[clamp(3rem,6vw,4.5rem)] font-black leading-none" style={{ letterSpacing: '-1.5px' }}>
-                      {explainerName}
-                    </p>
-                  </div>
-                  {aliasState.mode === 'letter' && aliasState.currentLetter && (
-                    <p className="mt-5 font-mono text-lg uppercase tracking-[0.22em] text-white/45">
-                      {locale === 'ru' ? 'Буква' : 'Letter'}: <span className="font-black text-pink-300">{aliasState.currentLetter}</span>
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Scoreboard (teams) */}
-              <div className="w-full flex-shrink-0 rounded-[24px] border border-white/10 bg-white/[0.05] p-4 shadow-[0_18px_54px_rgba(0,0,0,.25)]">
-                <div className="mb-3 flex items-center gap-2">
-                  <AliasIcon name="trophy" className="h-7 w-7" />
-                  <h2 className="text-xl font-black">{locale === 'ru' ? 'Таблица очков' : 'Scoreboard'}</h2>
-                </div>
-                <div
-                  className="grid gap-3"
-                  style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(aliasState.teams.length, 8))}, minmax(0, 1fr))` }}
-                >
-                  {aliasState.teams.map((team, ti) => {
-                    const active = ti === aliasState.activeTeamIndex;
-                    return (
-                      <div
-                        key={team.id}
-                        className="min-w-0 rounded-[20px] px-3 py-3 text-center"
-                        style={{
-                          background: active ? 'linear-gradient(180deg, #ec48992e, rgba(255,255,255,.04))' : 'rgba(255,255,255,.04)',
-                          border: active ? '1px solid #ec489966' : '1px solid rgba(255,255,255,.08)',
-                        }}
-                      >
-                        <p className="truncate text-[15px] font-bold text-white">{team.name}</p>
-                        <p className="mt-1 font-mono text-[26px] font-black leading-none text-white tabular-nums">{team.score}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
+            <section className="alias-live-tv-playing">
+              <div className="alias-live-tv-timer"><svg viewBox="0 0 260 260"><circle cx="130" cy="130" r={aliasTimerRadius} /><circle className={aliasState.timeLeft <= 10 ? 'danger' : ''} cx="130" cy="130" r={aliasTimerRadius} strokeDasharray={aliasTimerCirc} strokeDashoffset={aliasTimerOffset} transform="rotate(-90 130 130)" /></svg><b>{aliasState.timeLeft}</b><small>{l('СЕКУНД', 'SECONDS')}</small></div>
+              <div className="alias-live-tv-focus"><small>{l('СЕЙЧАС ОБЪЯСНЯЕТ', 'NOW EXPLAINING')}</small><h1>{explainerName}</h1>{aliasState.mode === 'letter' ? <div className="alias-live-tv-letter"><span>{l('ОБЪЯСНЯЙТЕ НА БУКВУ', 'EXPLAIN USING LETTER')}</span><b>{aliasState.currentLetter}</b></div> : <div className="alias-live-tv-team"><div>{(activeTeam?.playerIds ?? []).slice(0, 4).map((id) => <i key={id}>{getPlayerName(id).slice(0, 1).toUpperCase()}</i>)}</div><span>{l(`КОМАНДА «${activeTeam?.name ?? ''}» УГАДЫВАЕТ`, `TEAM “${activeTeam?.name ?? ''}” IS GUESSING`)}</span></div>}<div className="alias-live-tv-counters"><span><AliasIcon name="check" className="h-7 w-7" /><b>{aliasState.wordsGuessed}</b><small>{l('УГАДАНО', 'GUESSED')}</small></span><span><AliasIcon name="cross" className="h-7 w-7" /><b>{aliasState.wordsSkipped}</b><small>{l('ПРОПУЩЕНО', 'SKIPPED')}</small></span></div></div>
+              <aside><small>{l('ТАБЛИЦА ОЧКОВ', 'SCOREBOARD')}</small>{aliasSortedTeams.slice(0, 8).map((team, index) => <article className={team.id === activeTeam?.id ? 'active' : ''} key={team.id}><span>0{index + 1}</span><b>{team.name}</b><strong>{team.score}</strong></article>)}</aside>
+            </section>
           )}
 
           {/* TURN RESULT */}
           {aliasState.phase === 'turnResult' && (
-            <>
-              <div className="text-center">
-                <p className="text-4xl font-bold text-amber-400 mb-4">
-                  {locale === 'ru' ? 'Время вышло!' : "Time's up!"}
-                </p>
-                <p className="text-6xl font-bold mb-2">
-                  {activeTeam?.name}: {(aliasState.wordsGuessed - aliasState.wordsSkipped) > 0 ? '+' : ''}{aliasState.wordsGuessed - aliasState.wordsSkipped}
-                </p>
-                <div className="flex gap-8 justify-center text-2xl mt-4">
-                  <span className="text-green-400">
-                    <AliasIcon name="check" className="mr-1 inline-block h-[1em] w-[1em] align-[-0.15em]" />
-                    {locale === 'ru' ? 'Угадано' : 'Guessed'}: {aliasState.wordsGuessed}
-                  </span>
-                  <span className="text-red-400">
-                    <AliasIcon name="cross" className="mr-1 inline-block h-[1em] w-[1em] align-[-0.15em]" />
-                    {locale === 'ru' ? 'Пропущено' : 'Skipped'}: {aliasState.wordsSkipped}
-                  </span>
-                </div>
-              </div>
-
-              {/* Word history */}
-              {aliasState.mode !== 'classic' && aliasState.turnHistory.length > 0 && (
-                <div className="w-full max-w-2xl grid grid-cols-2 gap-2 max-h-[28vh] overflow-y-auto">
-                  {aliasState.turnHistory.map((item, i) => (
-                    <div
-                      key={i}
-                      className={`glass-card px-3 py-1.5 flex items-center justify-between gap-2 ${
-                        item.guessed ? 'bg-green-500/10' : 'bg-red-500/10'
-                      }`}
-                    >
-                      <span className="text-base truncate">{locale === 'ru' ? item.word.ru : item.word.en}</span>
-                      <span className="text-lg flex-shrink-0">
-                        {item.guessed ? <AliasIcon name="check" className="h-5 w-5" /> : <AliasIcon name="cross" className="h-5 w-5" />}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Team scores */}
-              <div className="flex gap-8 w-full max-w-2xl">
-                {aliasState.teams.map((team) => (
-                  <div key={team.id} className="flex-1 glass-card px-5 py-4 text-center">
-                    <p className="text-xl font-bold mb-1">{team.name}</p>
-                    <p className="text-4xl font-bold text-amber-400">{team.score}</p>
-                  </div>
-                ))}
-              </div>
-            </>
+            <section className="alias-live-tv-result"><small>{l('ВРЕМЯ ВЫШЛО', 'TIME IS UP')}</small><h1>{aliasTurnPoints > 0 ? '+' : ''}{aliasTurnPoints}</h1><p>{aliasState.mode === 'classic' ? activeTeam?.name : explainerName} · {l('ОЧКОВ ЗА ХОД', 'POINTS THIS TURN')}</p><div className="alias-live-tv-result-stats"><span><i>✓</i><b>{aliasState.wordsGuessed}</b><small>{l('УГАДАНО', 'GUESSED')}</small></span><span><i>×</i><b>{aliasState.wordsSkipped}</b><small>{l('ПРОПУЩЕНО', 'SKIPPED')}</small></span></div>{aliasState.turnHistory.length > 0 && <div className="alias-live-tv-ledger"><article><b><i>✓</i>{l('УГАДАНЫ', 'GUESSED')} · {aliasGuessedWords.length}</b><div>{aliasGuessedWords.map((item, index) => <span key={`${item.word.ru}-${index}`}>{locale === 'ru' ? item.word.ru : item.word.en}</span>)}</div></article><article className="skipped"><b><i>×</i>{l('ПРОПУЩЕНЫ', 'SKIPPED')} · {aliasSkippedWords.length}</b><div>{aliasSkippedWords.map((item, index) => <span key={`${item.word.ru}-${index}`}>{locale === 'ru' ? item.word.ru : item.word.en}</span>)}</div></article></div>}<aside>{aliasSortedTeams.slice(0, 8).map((team, index) => <article className={index === 0 ? 'active' : ''} key={team.id}><span>0{index + 1}</span><b>{team.name}</b><strong>{team.score}</strong></article>)}</aside></section>
           )}
 
           {/* FINISHED */}
           {aliasState.phase === 'finished' && (
-            <div className="text-center">
-              <div className="mb-4 flex justify-center"><AliasIcon name="trophy" className="h-20 w-20" /></div>
-              <h2 className="text-4xl font-bold text-amber-400 mb-6">{locale === 'ru' ? 'Игра окончена!' : 'Game Over!'}</h2>
-              <div className="w-full max-w-xl mx-auto space-y-3">
-                {[...aliasState.teams].sort((a, b) => b.score - a.score).map((team, idx) => (
-                  <div
-                    key={team.id}
-                    className={`glass-card px-8 py-4 flex items-center justify-between gap-3 ${
-                      idx === 0 ? 'outline outline-2 outline-amber-400 bg-amber-500/10' : ''
-                    }`}
-                  >
-                    <span className="min-w-0 truncate text-xl font-bold">{team.name}</span>
-                    <span className="shrink-0 text-2xl font-bold text-amber-400">{team.score}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <section className="alias-live-tv-finished"><div><AliasIcon name="trophy" className="h-28 w-28" /></div><small>{l('ИГРА ОКОНЧЕНА · ПОБЕДИТЕЛЬ', 'GAME OVER · WINNER')}</small><h1>{aliasWinner?.name ?? '—'}</h1><strong>{aliasWinner?.score ?? 0} <span>{l('ОЧКОВ', 'POINTS')}</span></strong><section>{aliasSortedTeams.slice(0, 4).map((team, index) => <article key={team.id}><span>{index + 1}</span><b>{team.name}</b><strong>{team.score}</strong></article>)}</section></section>
           )}
-        </div>
+        </main>
+        <footer><span>{aliasState.phase === 'turnResult' ? l('РЕЗУЛЬТАТЫ ХОДА ОТКРЫТЫ', 'TURN RESULTS REVEALED') : l('СЕКРЕТНЫЕ СЛОВА ВИДИТ ТОЛЬКО ОБЪЯСНЯЮЩИЙ', 'ONLY THE EXPLAINER SEES SECRET WORDS')}</span><b>{aliasState.phase === 'finished' ? l('СПАСИБО ЗА ИГРУ', 'THANKS FOR PLAYING') : aliasSortedTeams.slice(0, 2).map((team) => `${team.name} ${team.score}`).join(' · ')}</b></footer>
         {qrOverlay}
       </GameSurface>
     );
@@ -2641,95 +2256,234 @@ export default function TVGamePage() {
   if (gameType === 'mafia') {
     const ms = mafiaState;
     const phaseLabel = ms.phase === 'night'
-      ? (locale === 'ru' ? '🌙 Ночь' : '🌙 Night')
+      ? (locale === 'ru' ? `Ночь · ${ms.round}` : `Night · ${ms.round}`)
       : ms.phase === 'day'
-      ? (locale === 'ru' ? '☀️ День' : '☀️ Day')
+      ? (locale === 'ru' ? `День · ${ms.round}` : `Day · ${ms.round}`)
       : ms.phase === 'voting' && ms.votingRound === 2
-      ? (locale === 'ru' ? '🗳️ Переголосование' : '🗳️ Revote')
+      ? (locale === 'ru' ? 'Переголосование' : 'Revote')
       : ms.phase === 'voting' && ms.votingRound === 3
-      ? (locale === 'ru' ? '⚖️ Казнить или помиловать?' : '⚖️ Execute or pardon?')
+      ? (locale === 'ru' ? 'Вердикт города' : 'The city verdict')
       : ms.phase === 'voting'
-      ? (locale === 'ru' ? '🗳️ Голосование' : '🗳️ Voting')
+      ? (locale === 'ru' ? 'Голосование' : 'Voting')
       : ms.phase === 'role-reveal'
-      ? (locale === 'ru' ? '🎭 Роли розданы' : '🎭 Roles assigned')
+      ? (locale === 'ru' ? 'Роли розданы' : 'Roles assigned')
       : ms.phase === 'results'
-      ? (locale === 'ru' ? '🏁 Игра окончена' : '🏁 Game over')
-      : (locale === 'ru' ? '⏳ Ожидание...' : '⏳ Waiting...');
+      ? (locale === 'ru' ? 'Итоги вечера' : 'The final record')
+      : (locale === 'ru' ? 'Приём гостей' : 'Guest reception');
 
-    const alivePlayers = ms.alive.length > 0
-      ? ms.alive.map(id => players.find(p => p.id === id)?.nickname ?? id)
-      : players.map(p => p.nickname);
-    const votingCandidateNames = ms.votingCandidates
-      .map(id => players.find(p => p.id === id)?.nickname ?? id)
-      .join(', ');
+    const aliveIds = ms.alive.length > 0 ? ms.alive : players.map((player) => player.id);
+    const isMafiaRole = (role: string | undefined): role is MafiaRole =>
+      role != null && ['citizen', 'mafia', 'don', 'maniac', 'detective', 'doctor', 'lover'].includes(role);
+    const roleLabel = (role: MafiaRole) => ({
+      citizen: locale === 'ru' ? 'Мирный житель' : 'Citizen',
+      mafia: locale === 'ru' ? 'Мафия' : 'Mafia',
+      don: locale === 'ru' ? 'Дон' : 'Don',
+      maniac: locale === 'ru' ? 'Маньяк' : 'Maniac',
+      detective: locale === 'ru' ? 'Шериф' : 'Detective',
+      doctor: locale === 'ru' ? 'Доктор' : 'Doctor',
+      lover: locale === 'ru' ? 'Любовница' : 'Lover',
+    })[role];
+    const candidateIds = ms.votingCandidates.length > 0 ? ms.votingCandidates : aliveIds;
+    const hasAliveDon = aliveIds.some((id) => ms.roles[id] === 'don');
+    const nightStageTitle = ({
+      mafia: hasAliveDon
+        ? (locale === 'ru' ? 'Просыпаются Мафия и Дон' : 'The Mafia and Don wake up')
+        : (locale === 'ru' ? 'Просыпается Мафия' : 'The Mafia wakes up'),
+      lover: locale === 'ru' ? 'Просыпается Любовница' : 'The Lover wakes up',
+      maniac: locale === 'ru' ? 'Просыпается Маньяк' : 'The Maniac wakes up',
+      doctor: locale === 'ru' ? 'Просыпается Доктор' : 'The Doctor wakes up',
+      detective: locale === 'ru' ? 'Просыпается Шериф' : 'The Detective wakes up',
+      don: locale === 'ru' ? 'Дон ищет Шерифа' : 'The Don searches for the Detective',
+    } as const)[ms.nightStage ?? 'mafia'];
+    const nightStageCopy = ({
+      mafia: locale === 'ru'
+        ? (ms.round === 1 ? 'Семья знакомится и выбирает общую цель.' : hasAliveDon ? 'Семья выбирает общую цель. Последнее слово остаётся за Доном.' : 'Семья выбирает общую цель.')
+        : (ms.round === 1 ? 'The family meets and chooses a shared target.' : hasAliveDon ? 'The family chooses a shared target. The Don has the final word.' : 'The family chooses a shared target.'),
+      lover: locale === 'ru' ? 'Любовница выбирает, чью способность заблокировать.' : 'The Lover chooses whose ability to block.',
+      maniac: locale === 'ru' ? 'Маньяк принимает своё независимое решение.' : 'The Maniac makes an independent decision.',
+      doctor: locale === 'ru' ? 'Доктор выбирает, кого защитить этой ночью.' : 'The Doctor chooses whom to protect tonight.',
+      detective: locale === 'ru' ? 'Шериф проводит тайную проверку.' : 'The Detective conducts a secret investigation.',
+      don: locale === 'ru' ? 'Последнее действие ночи: Дон проверяет игрока на Шерифа.' : 'The final action of the night: the Don searches for the Detective.',
+    } as const)[ms.nightStage ?? 'mafia'];
+    const footer = ms.phase === 'night'
+      ? (locale === 'ru' ? 'Смотрите только на свой телефон' : 'Keep your eyes on your own phone')
+      : ms.phase === 'day'
+      ? (locale === 'ru' ? 'Обсуждение ведётся вслух' : 'The discussion takes place aloud')
+      : ms.phase === 'voting'
+      ? (locale === 'ru' ? 'Голосуйте на личных экранах' : 'Cast your vote on your private screen')
+      : ms.phase === 'results' && ms.winner
+      ? (locale === 'ru' ? 'Партия завершена' : 'The game is over')
+      : (locale === 'ru' ? 'Следуйте указаниям на телефонах' : 'Follow the directions on your phones');
+
+    const guestGrid = (ids: string[], eliminated = false) => (
+      <div className={club.tvPlayerGrid}>
+        {ids.map((id) => {
+          const name = getPlayerName(id);
+          const voted = ms.votesReceived.includes(id);
+          return (
+            <div key={id} className={`${club.tvPlayer} ${eliminated ? club.tvPlayerEliminated : ''}`}>
+              <MafiaPlayerToken name={name} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-lg font-semibold text-[#fbf3df]">{name}</p>
+                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[#fbf3df]/40">
+                  {voted
+                    ? (locale === 'ru' ? 'Голос принят' : 'Vote received')
+                    : eliminated
+                    ? (locale === 'ru' ? 'Покинул игру' : 'Left the game')
+                    : (locale === 'ru' ? 'В клубе' : 'In the club')}
+                </p>
+              </div>
+              {voted && <span className="h-2.5 w-2.5 rounded-full bg-[#d6b46a] shadow-[0_0_16px_#d6b46a]" aria-hidden="true" />}
+            </div>
+          );
+        })}
+      </div>
+    );
 
     return (
-      <GameSurface className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <span className="text-4xl">🕵️</span>
-            <h1 className="text-3xl font-bold">{locale === 'ru' ? 'Мафия' : 'Mafia'}</h1>
-            <span className="glass-badge px-3 py-1 text-sm">{phaseLabel}</span>
+      <MafiaClubTvLayout
+        phase={phaseLabel}
+        playerCount={locale === 'ru' ? `${aliveIds.length} в клубе` : `${aliveIds.length} in the club`}
+        footer={footer}
+      >
+        {ms.phase === 'lobby' && (
+          <div className="flex flex-1 flex-col justify-center">
+            <span className="font-mono text-sm font-bold uppercase tracking-[0.24em] text-[#d6b46a]">
+              {locale === 'ru' ? 'Частная сессия' : 'Private session'}
+            </span>
+            <h1 className={club.tvHeroTitle}>{locale === 'ru' ? 'Гости собираются' : 'The guests arrive'}</h1>
+            <p className={club.tvHeroCopy}>
+              {locale === 'ru' ? 'Вечер ещё не начался. Займите своё место и дождитесь приглашения ведущего.' : 'The evening has not begun. Take your seat and wait for the host’s invitation.'}
+            </p>
+            {ms.hostPlayerId && (
+              <div className="mx-auto mt-8 flex min-h-20 items-center gap-4 border border-[#d6b46a]/45 bg-[#d6b46a]/[.08] px-6 py-4 shadow-[0_0_50px_rgba(214,180,106,.12)] transition-all duration-300 motion-reduce:transition-none">
+                <MafiaPlayerToken name={getPlayerName(ms.hostPlayerId)} />
+                <div className="text-left"><span className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#d6b46a]">{locale === 'ru' ? 'Выбран ведущий' : 'Host selected'}</span><p className="mt-1 font-serif text-2xl text-[#fbf3df]">{getPlayerName(ms.hostPlayerId)}</p></div>
+              </div>
+            )}
+            <div className="mt-12">{guestGrid(players.map((player) => player.id))}</div>
           </div>
-          <span className="text-white/50 text-lg">
-            {locale === 'ru' ? `В живых: ${alivePlayers.length}` : `Alive: ${alivePlayers.length}`}
-          </span>
-        </div>
+        )}
 
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
-          {/* Last event banner */}
-          {ms.lastEvent && (
-            <div className="glass-card px-10 py-5 text-center border-white/20">
-              <p className="text-3xl font-bold">{ms.lastEvent}</p>
+        {ms.phase === 'role-reveal' && (
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <span className="mb-8 grid h-32 w-32 place-items-center rounded-full border border-[#d6b46a]/35 font-serif text-6xl text-[#f0d795] shadow-[0_0_70px_rgba(214,180,106,.1)]">M</span>
+            <span className="font-mono text-sm font-bold uppercase tracking-[0.24em] text-[#d6b46a]">{locale === 'ru' ? 'Личные досье' : 'Private dossiers'}</span>
+            <h1 className={club.tvHeroTitle}>{locale === 'ru' ? 'Роли розданы' : 'The roles are dealt'}</h1>
+            <p className={club.tvHeroCopy}>{locale === 'ru' ? 'Каждый гость получил тайную карту. Не выдавайте себя.' : 'Every guest has received a secret card. Do not reveal yourself.'}</p>
+          </div>
+        )}
+
+        {ms.phase === 'night' && (
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <div className="relative mb-8 h-32 w-32 rounded-full bg-[#f0d795] shadow-[0_0_80px_rgba(214,180,106,.17)]" aria-hidden="true">
+              <span className="absolute -right-4 -top-3 h-32 w-32 rounded-full bg-[#170919]" />
             </div>
-          )}
+            <span className="font-mono text-sm font-bold uppercase tracking-[0.26em] text-[#d6b46a]">{locale === 'ru' ? `Ночь ${ms.round}` : `Night ${ms.round}`}</span>
+            <h1 className={club.tvHeroTitle}>{nightStageTitle}</h1>
+            <p className={club.tvHeroCopy}>{nightStageCopy}</p>
+          </div>
+        )}
 
-          {/* Winner announcement */}
-          {ms.winner && (
-            <div className={`glass-card px-12 py-8 text-center ${ms.winner === 'mafia' ? 'border-red-400/40 bg-red-500/10' : ms.winner === 'maniac' ? 'border-orange-400/40 bg-orange-500/10' : 'border-green-400/40 bg-green-500/10'}`}>
-              <p className="text-7xl mb-4">{ms.winner === 'mafia' ? '🔫' : ms.winner === 'maniac' ? '🪓' : '🎉'}</p>
-              <p className="text-4xl font-bold">
-                {ms.winner === 'mafia'
-                  ? (locale === 'ru' ? 'Мафия победила!' : 'Mafia wins!')
-                  : ms.winner === 'maniac'
-                  ? (locale === 'ru' ? 'Маньяк победил!' : 'Maniac wins!')
-                  : (locale === 'ru' ? 'Мирные победили!' : 'Citizens win!')}
+        {ms.phase === 'day' && (
+          <div className="flex flex-1 flex-col justify-center">
+            <span className="text-center font-mono text-sm font-bold uppercase tracking-[0.24em] text-[#d6b46a]">{locale === 'ru' ? `Утро · День ${ms.round}` : `Morning · Day ${ms.round}`}</span>
+            <div className={`${club.tvEvent} mt-7`}>
+              <h2>
+                {ms.lastNightKilledIds.length > 0
+                  ? ms.lastNightKilledIds.length > 1
+                    ? (locale === 'ru' ? 'Ночь забрала нескольких гостей' : 'The night claimed several guests')
+                    : (locale === 'ru' ? 'Ночь забрала гостя' : 'The night claimed a guest')
+                  : ms.lastNightSaved
+                  ? (locale === 'ru' ? 'Покушение не удалось' : 'The attempt failed')
+                  : (locale === 'ru' ? 'Этой ночью — тишина' : 'A silent night')}
+              </h2>
+              <p>
+                {ms.lastNightKilledIds.length > 0
+                  ? ms.lastNightKilledIds.map(getPlayerName).join(', ')
+                  : ms.lastNightSaved
+                  ? (locale === 'ru' ? 'Доктор успел вмешаться' : 'The doctor intervened in time')
+                  : (locale === 'ru' ? 'Все гости встречают новый день' : 'Every guest lives to see another day')}
               </p>
             </div>
-          )}
+            <div className="mt-10">{guestGrid(aliveIds)}</div>
+          </div>
+        )}
 
-          {/* Alive players grid */}
-          {alivePlayers.length > 0 && !ms.winner && (
-            <div className="flex flex-wrap gap-3 justify-center">
-              {alivePlayers.map((name, i) => (
-                <div key={i} className="glass-card px-6 py-3 flex items-center gap-2">
-                  <span className="text-green-400">●</span>
-                  <span className="text-xl">{name}</span>
-                </div>
-              ))}
+        {ms.phase === 'voting' && (
+          <div className="flex flex-1 flex-col justify-center">
+            <div className="text-center">
+              <span className="font-mono text-sm font-bold uppercase tracking-[0.24em] text-[#d6b46a]">
+                {locale === 'ru' ? `Раунд голосования ${ms.votingRound}` : `Voting round ${ms.votingRound}`}
+              </span>
+              <h1 className={club.tvHeroTitle}>
+                {ms.votingRound === 3
+                  ? (locale === 'ru' ? 'Казнить или помиловать?' : 'Execute or pardon?')
+                  : ms.votingRound === 2
+                  ? (locale === 'ru' ? 'Город должен решить' : 'The city must decide')
+                  : (locale === 'ru' ? 'Время назвать виновного' : 'Name the guilty one')}
+              </h1>
+              <p className={club.tvHeroCopy + ' mx-auto'}>
+                {locale === 'ru' ? `Принято голосов: ${ms.votesReceived.length} из ${aliveIds.length}` : `Votes received: ${ms.votesReceived.length} of ${aliveIds.length}`}
+              </p>
             </div>
-          )}
+            <div className="mt-10">{guestGrid(candidateIds)}</div>
+          </div>
+        )}
 
-          {/* Phase instructions */}
-          {!ms.winner && (
-            <p className="text-white/40 text-lg">
-              {ms.phase === 'night'
-                ? (locale === 'ru' ? 'Закройте глаза — мафия действует' : 'Close your eyes — mafia is acting')
-                : ms.phase === 'day'
-                ? (locale === 'ru' ? 'Обсуждайте перед голосованием' : 'Discuss before voting')
-                : ms.phase === 'voting' && ms.votingRound === 2
-                ? (locale === 'ru' ? `Повторное голосование: ${votingCandidateNames}` : `Revote: ${votingCandidateNames}`)
-                : ms.phase === 'voting' && ms.votingRound === 3
-                ? (locale === 'ru' ? `Город решает судьбу: ${votingCandidateNames}` : `The town decides: ${votingCandidateNames}`)
-                : ms.phase === 'voting'
-                ? (locale === 'ru' ? 'Город голосует за казнь' : 'The town votes for elimination')
-                : (locale === 'ru' ? 'Смотрите на телефоны' : 'Check your phones')}
-            </p>
-          )}
-        </div>
+        {ms.phase === 'results' && (
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <span className="font-mono text-sm font-bold uppercase tracking-[0.24em] text-[#d6b46a]">{ms.winner ? (locale === 'ru' ? 'Последняя запись' : 'The final record') : (locale === 'ru' ? 'Вердикт' : 'The verdict')}</span>
+            <h1 className={club.tvHeroTitle}>
+              {ms.winner === 'mafia'
+                ? (locale === 'ru' ? 'Клуб принадлежит мафии' : 'The club belongs to the mafia')
+                : ms.winner === 'maniac'
+                ? (locale === 'ru' ? 'Маньяк остался один' : 'The maniac stands alone')
+                : ms.winner === 'citizens'
+                ? (locale === 'ru' ? 'Город выстоял' : 'The city endured')
+                : ms.lastVerdict === 'eliminated'
+                ? (locale === 'ru' ? 'Гость покидает клуб' : 'A guest leaves the club')
+                : ms.lastVerdict === 'alibi'
+                ? (locale === 'ru' ? 'Алиби принято' : 'The alibi stands')
+                : (locale === 'ru' ? 'Кандидаты помилованы' : 'The candidates are pardoned')}
+            </h1>
+            {!ms.winner && ms.lastVerdict === 'eliminated' && ms.lastEliminatedIds.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-8">
+                {ms.lastEliminatedIds.map((id) => {
+                  return (
+                    <div key={id} className="flex items-center gap-4 border border-[#d6b46a]/20 bg-black/15 px-6 py-4 text-left">
+                      <MafiaPlayerToken name={getPlayerName(id)} />
+                      <p className="text-2xl font-semibold">{getPlayerName(id)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {!ms.winner && ms.lastVerdict !== 'eliminated' && ms.lastVerdictPlayerIds.length > 0 && (
+              <p className={`${club.tvHeroCopy} mt-2 text-center`}>
+                {ms.lastVerdict === 'alibi'
+                  ? (locale === 'ru'
+                    ? `${ms.lastVerdictPlayerIds.map(getPlayerName).join(', ')} остаётся в клубе благодаря алиби.`
+                    : `${ms.lastVerdictPlayerIds.map(getPlayerName).join(', ')} remains in the club under an alibi.`)
+                  : (locale === 'ru'
+                    ? `${ms.lastVerdictPlayerIds.map(getPlayerName).join(', ')} остаются в клубе.`
+                    : `${ms.lastVerdictPlayerIds.map(getPlayerName).join(', ')} remain in the club.`)}
+              </p>
+            )}
+            {ms.winner && (
+              <div className="mt-4 flex max-w-5xl flex-wrap justify-center gap-4">
+                {Object.entries(ms.roles).map(([id, role]) => isMafiaRole(role) && (
+                  <div key={id} className="flex items-center gap-3 border border-[#d6b46a]/15 bg-black/15 px-4 py-3 text-left">
+                    <MafiaRoleThumb role={role} alt={roleLabel(role)} />
+                    <div><p className="max-w-40 truncate text-base font-semibold">{getPlayerName(id)}</p><p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[#d6b46a]">{roleLabel(role)}</p></div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {qrOverlay}
-      </GameSurface>
+      </MafiaClubTvLayout>
     );
   }
 

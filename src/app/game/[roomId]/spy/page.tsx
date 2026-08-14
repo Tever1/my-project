@@ -8,11 +8,9 @@ import { useGameAction, useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
-import { GameLayout } from '@/components/games/GameLayout';
+import { GameSurface } from '@/components/games/GameSurface';
 import { SpyIcon } from '@/components/games/SpyIcon';
 import { BreathingPlaceholder } from '@/components/ingame';
-import { GlassCard } from '@/components/ui/GlassCard';
-import { GlassButton } from '@/components/ui/GlassButton';
 import { SPY_LOCATIONS, SpyLocation, SPY_WORDS } from '@/lib/game-data';
 
 interface DrawStroke {
@@ -51,7 +49,7 @@ function DrawCanvas({ canDraw, onStroke, onClear, onUndo }: DrawCanvasProps) {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!ctx || !canvas) return;
-    ctx.strokeStyle = '#fbbf24';
+    ctx.strokeStyle = '#18322c';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -400,9 +398,23 @@ export default function SpyGamePage() {
   const [guessInput, setGuessInput] = useState('');
   const [confirmPlay, setConfirmPlay] = useState<null | 'replace' | 'voting'>(null);
   const [confirmBack, setConfirmBack] = useState(false);
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false);
 
   const sRef = useRef(s);
   useEffect(() => { sRef.current = s; }, [s]);
+
+  useEffect(() => {
+    if (!peeking) return;
+    const hideSecret = () => setPeeking(false);
+    window.addEventListener('pointerup', hideSecret);
+    window.addEventListener('pointercancel', hideSecret);
+    window.addEventListener('blur', hideSecret);
+    return () => {
+      window.removeEventListener('pointerup', hideSecret);
+      window.removeEventListener('pointercancel', hideSecret);
+      window.removeEventListener('blur', hideSecret);
+    };
+  }, [peeking]);
 
   const l = useCallback(
     (ru: string, en: string) => (locale === 'ru' ? ru : en),
@@ -475,7 +487,15 @@ export default function SpyGamePage() {
           const patch: Partial<SpyGameState> = { readyPlayers: newReady };
           if (newReady.length >= prev.players.length && prev.phase === 'dealing') {
             Object.assign(patch, { phase: 'playing' as Phase, timerRunning: true });
-            if (prev.mode === 'draw') patch.drawerId = prev.playerOrder[0] ?? '';
+            if (prev.mode === 'draw') {
+              patch.drawerId = prev.playerOrder[0] ?? '';
+            } else {
+              const asker = prev.playerOrder[0] ?? '';
+              const { targetId, cycleAnswered } = pickNextTarget(prev.players, asker, []);
+              patch.guessAskerId = asker;
+              patch.guessTargetId = targetId;
+              patch.guessCycleAnswered = cycleAnswered;
+            }
           }
           broadcast(patch);
           return { ...prev, ...patch };
@@ -985,6 +1005,22 @@ export default function SpyGamePage() {
       onPointerUp={() => setPeeking(false)}
       onPointerLeave={() => setPeeking(false)}
       onPointerCancel={() => setPeeking(false)}
+      onKeyDown={(event) => {
+        if (event.key === ' ' || event.key === 'Enter') {
+          event.preventDefault();
+          setPeeking(true);
+        }
+      }}
+      onKeyUp={(event) => {
+        if (event.key === ' ' || event.key === 'Enter') {
+          event.preventDefault();
+          setPeeking(false);
+        }
+      }}
+      onContextMenu={(event) => event.preventDefault()}
+      role="button"
+      tabIndex={0}
+      aria-label={l('Удерживайте, чтобы посмотреть секретное слово', 'Hold to reveal the secret word')}
     >
       <div className="flex h-6 items-center justify-between gap-3">
         <div className="flex h-6 min-w-0 items-center overflow-hidden">
@@ -1111,485 +1147,178 @@ export default function SpyGamePage() {
     );
   };
 
+  const phaseLabel = s.gameOver
+    ? l('Итоги операции', 'Operation results')
+    : ({
+        modeSelect: l('Выбор режима', 'Mode selection'),
+        dealing: l('Секретное задание', 'Secret briefing'),
+        playing: s.mode === 'draw' ? l('Нарисуй', 'Draw') : l('Допрос', 'Interview'),
+        spyGuess: l('Попытка шпиона', 'Spy attempt'),
+        discussion: l('Обсуждение', 'Discussion'),
+        voting: l('Голосование', 'Voting'),
+        roundResult: l('Итог раунда', 'Round result'),
+      } as const)[s.phase];
+  const spyPlayerName = s.players.find((player) => player.id === s.spyId)?.nickname ?? '???';
+  const readyRatio = s.players.length > 0 ? `${(s.readyPlayers.length / s.players.length) * 100}%` : '0%';
+
   return (
-    <GameLayout
-      title={l('Шпион', 'Spy')}
-      icon={<SpyIcon name="mask" className="h-7 w-7 text-teal-300" />}
-      onEnd={isGameHost ? endGame : undefined}
-      phaseKey={s.gameOver ? 'gameOver' : s.phase}
-      gradientClass="bg-gradient-spy"
-    >
-      {s.gameOver && (
-        <div className="mx-auto w-full max-w-md py-6 animate-fade-in space-y-4">
-          <div className="text-center space-y-2 text-teal-300">
-            <SpyIcon name="trophy" className="mx-auto h-16 w-16" />
-            <h2 className="text-3xl font-black text-white">{l('Игра окончена!', 'Game over!')}</h2>
-          </div>
-          {isGameHost && (
-            <GlassButton variant="primary" size="lg" className="w-full" onClick={endGame}>
-              {l('Завершить игру', 'End game')}
-            </GlassButton>
-          )}
+    <GameSurface className="spy-live-phone min-h-[100dvh] text-white">
+      <header className="spy-live-header">
+        <div className="spy-live-brand">
+          <SpyIcon name="mask" className="h-6 w-6" />
+          <div><b>{l('ШПИОН', 'SPY')}</b></div>
         </div>
-      )}
+        <div className="spy-live-stage"><b>{s.phase === 'modeSelect' ? l('НАСТРОЙКА', 'SETUP') : `${l('РАУНД', 'ROUND')} ${s.currentRound}`}</b><span>{phaseLabel}</span></div>
+        {isGameHost && (
+          <button type="button" className="spy-live-end" onClick={() => setEndConfirmOpen(true)}>{l('ЗАВЕРШИТЬ', 'END')}</button>
+        )}
+      </header>
 
-      {!s.gameOver && s.phase === 'modeSelect' && (
-        <div className="mx-auto max-w-lg py-6 animate-fade-in space-y-4">
-          <div className="text-center space-y-2 text-teal-300">
-            <SpyIcon name="mask" className="mx-auto h-16 w-16" />
-            <h2 className="text-3xl font-black text-white">{l('Шпион', 'Spy')}</h2>
-          </div>
-          <GlassCard className="spy-card p-4 space-y-3">
-            {[
-              l('Все получают одно секретное слово — кроме шпиона', 'Everyone gets one secret word, except the spy'),
-              l('По очереди описывайте слово, не называя его', 'Take turns describing the word without naming it'),
-              l('Найдите шпиона на голосовании', 'Find the spy during the vote'),
-            ].map((rule, idx) => (
-              <div key={rule} className="flex gap-3 text-sm text-white/80">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-500/20 text-xs font-black text-teal-300">
-                  {idx + 1}
-                </span>
-                <span>{rule}</span>
+      <main className="spy-live-main">
+        {s.gameOver && (
+          <section className="spy-live-screen spy-live-over">
+            <span className="spy-live-kicker">{l('ОПЕРАЦИЯ ЗАВЕРШЕНА', 'OPERATION COMPLETE')}</span>
+            <div className="spy-live-end-mark"><SpyIcon name="mask" className="h-20 w-20" /><i /></div>
+            <h1>{l('Никому нельзя доверять', 'Trust no one')}</h1>
+            <p>{l('Все раунды завершены. Ведущий может закрыть комнату.', 'All rounds are complete. The host can close the room.')}</p>
+            <div className="spy-live-stats"><div><b>{s.currentRound}</b><span>{l('РАУНДОВ', 'ROUNDS')}</span></div><div><b>{s.players.length}</b><span>{l('АГЕНТОВ', 'AGENTS')}</span></div><div><b>{Object.keys(s.lastRoundDelta).length}</b><span>{l('УЛИК', 'CLUES')}</span></div></div>
+            {isGameHost && <button type="button" className="spy-live-primary" onClick={endGame}>{l('ЗАВЕРШИТЬ ИГРУ', 'END GAME')}</button>}
+          </section>
+        )}
+
+        {!s.gameOver && s.phase === 'modeSelect' && (
+          <section className="spy-live-screen spy-live-mode">
+            <span className="spy-live-kicker">{l('НОВАЯ ОПЕРАЦИЯ', 'NEW OPERATION')}</span>
+            <h1>{l('Выберите формат расследования', 'Choose an investigation format')}</h1>
+            <p>{l('Режим определяет, как участники будут оставлять улики.', 'The mode determines how players leave clues.')}</p>
+            {isGameHost ? (
+              <div className="spy-live-mode-list">
+                <button type="button" onClick={() => startGame('guess')}><SpyIcon name="speech" className="h-9 w-9" /><span><b>{l('УГАДАЙ СЛОВО', 'GUESS THE WORD')}</b><small>{l('Задавайте вопросы по цепочке', 'Ask questions in a chain')}</small></span><i>→</i></button>
+                <button type="button" onClick={() => startGame('draw')}><SpyIcon name="palette" className="h-9 w-9" /><span><b>{l('НАРИСУЙ', 'DRAW')}</b><small>{l('Оставляйте улики на общем холсте', 'Leave clues on a shared canvas')}</small></span><i>→</i></button>
               </div>
-            ))}
-            <div className="border-t border-white/10 pt-2 text-white/50 text-xs">
-              <SpyIcon name="palette" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />
-              {l('В режиме ', 'In ')}
-              <b>{l('«Нарисуй»', '"Draw"')}</b>
-              {l(' каждый по очереди рисует слово. Шпион не знает что рисовать.', ' mode each player draws the word in turn. The spy doesn\'t know what to draw.')}
-            </div>
-          </GlassCard>
-          {isGameHost ? (
-            <div className="space-y-3">
-              <GlassButton variant="primary" size="lg" className="w-full" onClick={() => startGame('guess')}>
-                <SpyIcon name="speech" className="mr-2 h-6 w-6" /> {l('Угадай слово', 'Guess the Word')}
-              </GlassButton>
-              <GlassButton variant="primary" size="lg" className="w-full" onClick={() => startGame('draw')}>
-                <SpyIcon name="palette" className="mr-2 h-6 w-6" /> {l('Нарисуй', 'Draw')}
-              </GlassButton>
-            </div>
-          ) : (
-            <BreathingPlaceholder text={l('Ожидание ведущего…', 'Waiting for the host...')} variant="breathing-text" />
-          )}
-        </div>
-      )}
-
-      {!s.gameOver && s.phase === 'dealing' && (
-        <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
-          {renderBackButton()}
-
-          <div className="text-center">
-            <p className="text-sm text-white/40">
-              {l('Раунд', 'Round')} {s.currentRound}
-            </p>
-            <h2 className={`text-2xl font-black ${isSpy ? 'text-red-300' : 'text-teal-300'}`}>
-              {isSpy ? (
-                <>
-                  <SpyIcon name="mask" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1.5" />
-                  {l('Ты — ШПИОН', 'You are the SPY')}
-                </>
-              ) : (
-                <>
-                  <SpyIcon name="shield" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1.5" />
-                  {l('Ты — мирный житель', 'You are a civilian')}
-                </>
-              )}
-            </h2>
-          </div>
-
-          {myReadyInDealing ? (
-            <GlassCard className="spy-card p-6 text-center space-y-2">
-              <SpyIcon name="hide" className="mx-auto h-10 w-10 text-white/40" />
-              <p className="text-sm text-white/50">
-                {l('Слово спрятано', 'Word hidden')}
-              </p>
-            </GlassCard>
-          ) : s.mode === 'draw' ? (
-              isSpy ? (
-                <GlassCard className="spy-card-red p-6 text-center space-y-4">
-                  <SpyIcon name="mask" className="mx-auto h-16 w-16" />
-                  <div>
-                    <h3 className="text-2xl font-black text-white">{l('Ты — ШПИОН', 'You are the SPY')}</h3>
-                    <p className="text-white/55">
-                      {l('Слова у тебя нет — рисуй что угодно похожее', 'You have no word — draw anything that fits')}
-                    </p>
-                  </div>
-                  <div className="space-y-2 text-left text-sm text-white/75">
-                    <p>{l('1. Смотри как рисуют другие и подражай', '1. Watch others draw and mimic')}</p>
-                    <p>{l('2. Рисуй что-то похожее на тему', '2. Draw something related to the theme')}</p>
-                    <p>{l('3. Не дай себя раскрыть на голосовании', '3. Avoid being exposed in the vote')}</p>
-                  </div>
-                </GlassCard>
-              ) : (
-                <GlassCard className="spy-card p-6 text-center space-y-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-teal-200/70">{l('слово для рисования', 'word to draw')}</p>
-                    <FitWord text={s.word} max={36} className="mt-3 font-black text-white" />
-                  </div>
-                  <div className="h-px bg-white/10" />
-                  <p className="text-sm text-white/70">
-                    {l('Рисуй это слово по очереди. Среди вас шпион — он слова не знает.', 'Take turns drawing this word. The spy among you doesn\'t know it.')}
-                  </p>
-                </GlassCard>
-              )
-            ) : isSpy ? (
-              <GlassCard className="spy-card-red p-6 text-center space-y-4">
-                <SpyIcon name="mask" className="mx-auto h-16 w-16" />
-                <div>
-                  <h3 className="text-2xl font-black text-white">{l('Слова у тебя нет', 'You have no word')}</h3>
-                  <p className="text-white/55">{l('Категория:', 'Category:')} {s.category}</p>
-                </div>
-                <div className="space-y-2 text-left text-sm text-white/75">
-                  <p>{l('1. Слушай чужие ответы и притворяйся своим', '1. Listen to others and blend in')}</p>
-                  <p>{l('2. Вычисли слово по описаниям', '2. Guess the word from descriptions')}</p>
-                  <p>{l('3. Не дай себя раскрыть на голосовании', '3. Avoid being exposed in the vote')}</p>
-                </div>
-              </GlassCard>
             ) : (
-              <GlassCard className="spy-card p-6 text-center space-y-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-teal-200/70">{l('твоё секретное слово', 'your secret word')}</p>
-                  <p className="mt-2 text-white/55">{s.category}</p>
-                  <FitWord text={s.word} max={36} className="mt-2 font-black text-white" />
-                </div>
-                <div className="h-px bg-white/10" />
-                <p className="text-sm text-white/70">
-                  {l('Описывай слово, не называя его. Среди вас шпион — он слова не знает.', 'Describe the word without naming it. The spy among you does not know it.')}
-                </p>
-              </GlassCard>
-          )}
+              <div className="spy-live-radar"><SpyIcon name="mask" className="h-20 w-20" /><i /><i /><i /></div>
+            )}
+            <div className="spy-live-host-note"><i /><span>{isGameHost ? l('Только вы выбираете режим', 'Only you choose the mode') : l('Ожидаем решения ведущего', 'Waiting for the host')}</span></div>
+          </section>
+        )}
 
-          <p className="text-center text-sm text-white/45">
-            {s.readyPlayers.length} / {s.players.length} {l('посмотрели слово', 'saw the word')}
-          </p>
+        {!s.gameOver && s.phase === 'dealing' && (
+          <section className="spy-live-screen spy-live-briefing">
+            {renderBackButton()}
+            <span className="spy-live-kicker">{myReadyInDealing ? l('ДАННЫЕ ПОЛУЧЕНЫ', 'DATA RECEIVED') : l('СЕКРЕТНАЯ РОЛЬ', 'SECRET ROLE')}</span>
+            <h1>{myReadyInDealing ? l('Задание сохранено', 'Briefing secured') : l('Узнайте задание', 'Reveal your mission')}</h1>
+            <p>{myReadyInDealing ? l('Секрет снова скрыт. Дождитесь остальных участников.', 'The secret is hidden again. Wait for the other agents.') : l('Убедитесь, что никто не видит экран.', 'Make sure nobody can see your screen.')}</p>
 
-          {myReadyInDealing ? (
-            <GlassButton className="w-full border-green-400/30 bg-green-500/15 text-green-300" disabled>
-              <SpyIcon name="check" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />
-              {l('Готов', 'Ready')}
-            </GlassButton>
-          ) : (
-            <GlassButton variant="primary" size="lg" className="w-full" onClick={acknowledgeWord}>
-              {isSpy ? l('Понятно, спрятать', 'Got it, hide') : (
-                <>
-                  <SpyIcon name="hide" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />
-                  {l('Понятно, спрятать', 'Got it, hide')}
-                </>
-              )}
-            </GlassButton>
-          )}
+            {!myReadyInDealing && !peeking && (
+              <button
+                type="button"
+                className="spy-live-secret"
+                onPointerDown={() => setPeeking(true)} onPointerUp={() => setPeeking(false)} onPointerLeave={() => setPeeking(false)} onPointerCancel={() => setPeeking(false)}
+                onKeyDown={(event) => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); setPeeking(true); } }}
+                onKeyUp={(event) => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); setPeeking(false); } }}
+                onContextMenu={(event) => event.preventDefault()}
+              >
+                <span><SpyIcon name="eye" className="h-12 w-12" /></span><b>{l('УДЕРЖИВАЙТЕ', 'PRESS AND HOLD')}</b><small>{l('Данные исчезнут, когда вы отпустите экран', 'Data disappears when you release')}</small>
+              </button>
+            )}
 
-          {isGameHost && (
-            <GlassButton className="w-full" onClick={startPlaying}>
-              {s.mode === 'draw'
-                ? l('▶ Начать рисование', '▶ Start drawing')
-                : l('▶ Начать обсуждение', '▶ Start discussion')}
-            </GlassButton>
-          )}
-        </div>
-      )}
-
-      {!s.gameOver && s.phase === 'playing' && (
-        <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
-          {renderBackButton()}
-
-          <GlassCard className="spy-card p-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs text-white/40">{l('Раунд', 'Round')} {s.currentRound}</p>
-              {s.category && <p className="text-sm text-white/70">{s.category}</p>}
-            </div>
-            {s.mode === 'draw' && (
-              <div className="text-right text-sm">
-                {isActivePlayer ? (
-                  <span className="font-bold text-purple-300">
-                    <SpyIcon name="palette" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />
-                    {l('Твой ход — рисуй!', 'Your turn — draw!')}
-                  </span>
-                ) : (
-                  <span className="text-white/60">
-                    {l('Рисует: ', 'Drawing: ')}
-                    <span className="font-bold text-white">{activePlayerName}</span>
-                  </span>
-                )}
+            {!myReadyInDealing && peeking && (
+              <div className={`spy-live-role ${isSpy ? 'is-spy' : ''}`}>
+                <div><SpyIcon name={isSpy ? 'mask' : 'shield'} className="h-16 w-16" /></div>
+                <span>{l('ВАША РОЛЬ', 'YOUR ROLE')}</span><b>{isSpy ? l('ШПИОН', 'SPY') : l('МИРНЫЙ', 'CIVILIAN')}</b>
+                <small>{isSpy ? l('СЕКРЕТНОЕ СЛОВО ОТСУТСТВУЕТ', 'NO SECRET WORD') : `${l('КАТЕГОРИЯ', 'CATEGORY')} · ${s.category || l('РИСОВАНИЕ', 'DRAWING')}`}</small>
+                {!isSpy && <FitWord text={s.word} max={30} className="spy-live-role-word" />}
+                <p>{isSpy ? l('Слушайте улики. Вычислите слово. Не выдайте себя.', 'Listen to the clues. Find the word. Stay hidden.') : l('Запомните слово и не показывайте его соседям.', 'Remember the word and keep it hidden.')}</p>
               </div>
             )}
-          </GlassCard>
 
-          {s.mode === 'guess' && (
-            <div className="space-y-4">
-              {isActivePlayer ? (
-                <GlassCard className="spy-card p-4 text-center">
-                  <h2 className="text-2xl font-black text-teal-200">{l('Твой ход', 'Your turn')}</h2>
-                  <p className="mt-1 text-sm text-white/60">
-                    {l(`Задай вопрос игроку ${targetPlayerName}`, `Ask a question to ${targetPlayerName}`)}
-                  </p>
-                </GlassCard>
-              ) : (
-                <GlassCard className={`spy-card p-4 text-center ${isTargetPlayer ? 'border-teal-400/40 bg-teal-500/10' : ''}`}>
-                  <p className="text-white/40">{l('Задаёт вопрос', 'Asking a question')}</p>
-                  <p className="mt-1 text-2xl font-black text-white">{activePlayerName}</p>
-                  <p className="mt-2 text-sm text-white/40">
-                    {isTargetPlayer
-                      ? l('Вопрос адресован тебе', 'The question is for you')
-                      : l(`Спрашивает: ${targetPlayerName}`, `Asking: ${targetPlayerName}`)}
-                  </p>
-                </GlassCard>
-              )}
-            </div>
-          )}
+            {myReadyInDealing && (
+              <div className={`spy-live-role is-saved ${isSpy ? 'is-spy' : ''}`}><div><SpyIcon name={isSpy ? 'mask' : 'shield'} className="h-14 w-14" /></div><span>{l('ВАША СТОРОНА', 'YOUR SIDE')}</span><b>{isSpy ? l('ШПИОН', 'SPY') : l('МИРНЫЙ', 'CIVILIAN')}</b><small>{l('СЛОВО ЗАЩИЩЕНО', 'WORD SECURED')}</small></div>
+            )}
 
-          {renderPeekBar()}
+            {!myReadyInDealing && <button type="button" className="spy-live-primary" onClick={acknowledgeWord}>{l('ПОНЯТНО · СКРЫТЬ ДАННЫЕ', 'UNDERSTOOD · HIDE DATA')}</button>}
+            <div className="spy-live-progress"><i style={{ width: readyRatio }} /><span>{s.readyPlayers.length} {l('ИЗ', 'OF')} {s.players.length} {l('ГОТОВЫ', 'READY')}</span></div>
+            {isGameHost && <button type="button" className="spy-live-secondary" onClick={startPlaying}>{s.mode === 'draw' ? l('НАЧАТЬ РИСОВАНИЕ', 'START DRAWING') : l('НАЧАТЬ ДОПРОС', 'START INTERVIEW')}</button>}
+          </section>
+        )}
 
-          {isSpy && (
-            <GlassButton size="lg" className="w-full" onClick={() => sendAction('spy:guess-start')}>
-              {l('Угадать слово', 'Guess the word')}
-            </GlassButton>
-          )}
+        {!s.gameOver && s.phase === 'playing' && (
+          <section className={`spy-live-screen spy-live-playing ${s.mode === 'draw' ? 'is-draw' : ''}`}>
+            {renderBackButton()}
+            <div className="spy-live-round-row"><span>{formatTime(s.timerLeft)}</span><b>{s.mode === 'draw' ? (isActivePlayer ? l('РИСУЕТЕ ВЫ', 'YOU ARE DRAWING') : `${l('РИСУЕТ', 'DRAWING')} · ${activePlayerName}`) : s.category}</b></div>
+            {s.mode === 'guess' ? (
+              <>
+                <span className="spy-live-kicker">{isActivePlayer ? l('ВАШ ХОД', 'YOUR TURN') : isTargetPlayer ? l('ВАМ ЗАДАЮТ ВОПРОС', 'YOU ARE BEING ASKED') : l('АКТИВНЫЙ ДОПРОС', 'ACTIVE INTERVIEW')}</span>
+                <h1>{isActivePlayer ? l(`Задайте вопрос ${targetPlayerName}`, `Ask ${targetPlayerName}`) : l(`${activePlayerName} задаёт вопрос`, `${activePlayerName} is asking`)}</h1>
+                <div className={`spy-live-target ${isTargetPlayer ? 'is-you' : ''}`}><i>{targetPlayerName[0] ?? '?'}</i><div><small>{l('АДРЕСАТ', 'TARGET')}</small><b>{targetPlayerName}</b><span>{l('После ответа он продолжит цепочку', 'They continue the chain after answering')}</span></div></div>
+                <div className="spy-live-rule"><SpyIcon name="speech" className="h-6 w-6" /><p>{l('Спросите так, чтобы мирные узнали слово, но шпион не получил прямую подсказку.', 'Ask so civilians recognize the word without giving the spy a direct clue.')}</p></div>
+              </>
+            ) : (
+              <>
+                <span className="spy-live-kicker">{isActivePlayer ? l('ВАШ ХОД', 'YOUR TURN') : l('ОБЩИЙ ХОЛСТ', 'SHARED CANVAS')}</span>
+                <h1>{isActivePlayer ? l('Нарисуйте улику', 'Draw a clue') : l(`${activePlayerName} рисует`, `${activePlayerName} is drawing`)}</h1>
+                <p>{l('Не используйте буквы и цифры.', 'Do not use letters or numbers.')}</p>
+                <div className="spy-live-canvas"><DrawCanvas canDraw={isDrawer} onStroke={sendStroke} onClear={sendClear} onUndo={handleUndo} /><span>{l('ХОЛСТ СИНХРОНИЗИРУЕТСЯ С TV', 'CANVAS SYNCED WITH TV')}</span></div>
+              </>
+            )}
 
-          {s.mode === 'draw' && (
-            <DrawCanvas canDraw={isDrawer} onStroke={sendStroke} onClear={sendClear} onUndo={handleUndo} />
-          )}
+            {renderPeekBar()}
+            {isSpy && <button type="button" className="spy-live-secondary" onClick={() => sendAction('spy:guess-start')}>{l('УГАДАТЬ СЛОВО', 'GUESS THE WORD')}</button>}
+            {isActivePlayer && <button type="button" className="spy-live-primary" onClick={passTurn}>{s.mode === 'draw' ? l('ГОТОВО · ПЕРЕДАТЬ ХОД', 'DONE · PASS TURN') : l('ВОПРОС ЗАДАН · ПЕРЕДАТЬ ХОД', 'QUESTION ASKED · PASS TURN')}</button>}
+            {s.mode === 'draw' && isGameHost && <button type="button" className="spy-live-secondary" onClick={nextWord}>{l('СЛЕДУЮЩЕЕ СЛОВО', 'NEXT WORD')}</button>}
+            {isGameHost && <div className="spy-live-host-actions">{s.mode === 'guess' && renderHostAction('replace', l('ЗАМЕНИТЬ СЛОВО', 'REPLACE WORD'), <SpyIcon name="refresh" className="h-5 w-5" />)}{renderHostAction('voting', l('ОТКРЫТЬ ГОЛОСОВАНИЕ', 'OPEN VOTING'), <SpyIcon name="ballot" className="h-5 w-5" />)}</div>}
+          </section>
+        )}
 
-          {s.mode === 'guess' && isActivePlayer && (
-            <GlassButton variant="primary" size="lg" className="w-full bg-teal-500/25" onClick={passTurn}>
-              {l('→ Передать ход', '→ Pass turn')}
-            </GlassButton>
-          )}
+        {!s.gameOver && s.phase === 'discussion' && (
+          <section className="spy-live-screen spy-live-discussion">
+            <span className="spy-live-kicker">{l('ОБЩИЙ КАНАЛ ОТКРЫТ', 'OPEN CHANNEL')}</span>
+            <div className="spy-live-timer"><svg viewBox="0 0 180 180"><circle cx="90" cy="90" r="78" /><circle className="progress" cx="90" cy="90" r="78" /></svg><b>{formatTime(s.discussionTimeLeft)}</b><small>{l('ДО ГОЛОСОВАНИЯ', 'UNTIL VOTING')}</small></div>
+            <h1>{l('Сверьте показания', 'Compare the evidence')}</h1><p>{l('Обсудите улики и назовите тех, чьи ответы звучали подозрительно.', 'Discuss the clues and identify suspicious answers.')}</p>
+            <div className="spy-live-agents">{s.players.slice(0, 7).map((player) => <i key={player.id}>{player.nickname[0]}</i>)}</div>
+            {isGameHost ? renderHostAction('voting', l('НАЧАТЬ ГОЛОСОВАНИЕ', 'START VOTING'), <SpyIcon name="ballot" className="h-5 w-5" />) : <div className="spy-live-host-note"><i /><span>{l('Ведущий откроет голосование', 'The host will open voting')}</span></div>}
+          </section>
+        )}
 
-          {s.mode === 'draw' && isActivePlayer && (
-            <GlassButton className="w-full" onClick={passTurn}>
-              {l('➡ Передать ход', '➡ Pass turn')}
-            </GlassButton>
-          )}
+        {!s.gameOver && s.phase === 'voting' && (
+          <section className="spy-live-screen spy-live-voting">
+            <div className="spy-live-round-row"><span>{formatTime(s.voteTimerLeft)}</span><b>{l('ВЫБОР ЗАШИФРОВАН', 'ENCRYPTED VOTE')}</b></div>
+            <span className="spy-live-kicker">{l('ФИНАЛЬНОЕ РЕШЕНИЕ', 'FINAL DECISION')}</span><h1>{l('Кто здесь шпион?', 'Who is the spy?')}</h1><p>{l('Выберите одного участника. После подтверждения изменить голос нельзя.', 'Choose one player. The vote cannot be changed after confirmation.')}</p>
+            <div className="spy-live-vote-list">{s.players.filter((player) => player.id !== effectivePlayerId).map((player) => { const selected = localVote === player.id; return <button key={player.id} type="button" className={selected ? 'selected' : ''} disabled={hasVoted || Boolean(myVoteInVoting)} onClick={() => setLocalVote(player.id)}><i>{player.nickname[0]}</i><b>{player.nickname}</b><span>{selected ? l('ВЫБРАН', 'SELECTED') : ''}</span></button>; })}</div>
+            {hasVoted || myVoteInVoting ? <div className="spy-live-accepted"><SpyIcon name="check" className="h-6 w-6" /><span>{l('ГОЛОС ПРИНЯТ · ОЖИДАЕМ ОСТАЛЬНЫХ', 'VOTE ACCEPTED · WAITING')}</span></div> : <button type="button" className="spy-live-primary" disabled={!localVote} onClick={handleSubmitVote}>{selectedVoteName ? l(`ПОДТВЕРДИТЬ · ${selectedVoteName}`, `CONFIRM · ${selectedVoteName}`) : l('ВЫБЕРИТЕ ИГРОКА', 'SELECT A PLAYER')}</button>}
+          </section>
+        )}
 
-          {s.mode === 'draw' && isGameHost && (
-            <GlassButton variant="primary" size="lg" className="w-full" onClick={nextWord}>
-              <SpyIcon name="refresh" className="inline-block h-[1em] w-[1em] align-[-0.15em] mr-1" />
-              {l('Следующее слово', 'Next word')}
-            </GlassButton>
-          )}
+        {!s.gameOver && s.phase === 'spyGuess' && (
+          <section className="spy-live-screen spy-live-guess">
+            {isSpy ? <>
+              <span className="spy-live-kicker is-danger">{l('ВАС РАСКРЫЛИ', 'IDENTITY EXPOSED')}</span><div className="spy-live-alert"><SpyIcon name="mask" className="h-16 w-16" /></div><h1>{l('Последний шанс', 'One last chance')}</h1><p>{l('Угадайте секретное слово и перехватите победу.', 'Guess the secret word and steal the victory.')}</p>
+              <label className="spy-live-input"><span>{l('ВАША ВЕРСИЯ', 'YOUR GUESS')}</span><input value={guessInput} onChange={(event) => setGuessInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && guessInput.trim()) sendAction('spy:guess-try', { text: guessInput }); }} placeholder={l('Введите слово', 'Enter the word')} /></label>
+              <div className="spy-live-category"><span>{l('КАТЕГОРИЯ', 'CATEGORY')}</span><b>{s.category}</b></div>
+              {!s.spyGuessAwaitingJudge && <button type="button" className="spy-live-danger" disabled={!guessInput.trim()} onClick={() => sendAction('spy:guess-try', { text: guessInput })}>{l('ОТПРАВИТЬ ОТВЕТ', 'SUBMIT ANSWER')}</button>}
+              {s.spyGuessNeedsConfirm && !s.spyGuessAwaitingJudge && <button type="button" className="spy-live-secondary" onClick={() => sendAction('spy:guess-confirm')}>{l('ДА, ПРОВЕРИТЬ У ИГРОКА', 'YES, ASK A PLAYER')}</button>}
+              {s.spyGuessAwaitingJudge && <BreathingPlaceholder text={l('Ожидаем решение проверяющего…', 'Waiting for the judge...')} variant="breathing-text" />}
+            </> : isJudge && s.spyGuessAwaitingJudge ? <>
+              <span className="spy-live-kicker">{l('ТРЕБУЕТСЯ ПРОВЕРКА', 'REVIEW REQUIRED')}</span><h1>{l('Ответ можно засчитать?', 'Can this answer count?')}</h1><p>{l('Сравните версию шпиона с секретным словом.', 'Compare the spy guess with the secret word.')}</p>
+              <div className="spy-live-compare"><div><span>{l('ОТВЕТ ШПИОНА', 'SPY ANSWER')}</span><b>{s.spyGuessText}</b></div><i>≠</i><div><span>{l('СЕКРЕТНОЕ СЛОВО', 'SECRET WORD')}</span><b>{s.word}</b></div></div>
+              <button type="button" className="spy-live-primary" onClick={() => sendAction('spy:guess-verdict', { accept: true })}>{l('ДА, ЭТО ВЕРНЫЙ ОТВЕТ', 'YES, ACCEPT')}</button><button type="button" className="spy-live-danger" onClick={() => sendAction('spy:guess-verdict', { accept: false })}>{l('НЕТ, ОТКЛОНИТЬ', 'NO, REJECT')}</button>
+            </> : <div className="spy-live-wait"><div className="spy-live-alert"><SpyIcon name="mask" className="h-16 w-16" /></div><h1>{l(`${spyPlayerName} угадывает слово`, `${spyPlayerName} is guessing`)}</h1><BreathingPlaceholder text={l('Ответ вводится на личном экране', 'The answer is entered privately')} variant="breathing-text" /></div>}
+          </section>
+        )}
 
-          {s.mode === 'draw' && isGameHost && (
-            renderHostAction(
-              'voting',
-              l('Голосование', 'Voting'),
-              <SpyIcon name="ballot" className="inline-block h-[1em] w-[1em] align-[-0.15em]" />,
-              'border-amber-400/30 bg-amber-500/15 text-amber-200',
-            )
-          )}
+        {!s.gameOver && s.phase === 'roundResult' && s.roundResult && (
+          <section className="spy-live-screen spy-live-result">
+            {renderBackButton()}<span className="spy-live-kicker">{l('ДЕЛО ЗАКРЫТО', 'CASE CLOSED')}</span><div className={`spy-live-success ${s.roundResult.spyCaught ? '' : 'is-danger'}`}><SpyIcon name={s.roundResult.spyCaught ? 'shield' : 'mask'} className="h-16 w-16" /></div><h1>{s.roundResult.spyCaught ? l('Шпион раскрыт', 'Spy exposed') : l('Шпион победил', 'Spy wins')}</h1><p>{s.roundResult.viaGuess ? l('Результат определила последняя попытка шпиона.', 'The spy’s final attempt decided the round.') : l('Большинство завершило расследование.', 'The majority closed the investigation.')}</p>
+            <div className="spy-live-result-grid"><div><span>{l('ШПИОН', 'SPY')}</span><b>{spyPlayerName}</b></div><div><span>{l('СЛОВО', 'WORD')}</span><b>{s.word}</b></div></div>
+            {!s.roundResult.viaGuess && <div className="spy-live-progress"><i style={{ width: `${Math.min(100, (s.roundResult.voteCount / Math.max(1, s.players.length)) * 100)}%` }} /><span>{s.roundResult.voteCount} {l('ИЗ', 'OF')} {s.players.length} {l('ГОЛОСОВ', 'VOTES')}</span></div>}
+            {isGameHost ? <button type="button" className="spy-live-primary" onClick={nextRound}>{l('НОВОЕ СЛОВО', 'NEW WORD')}</button> : <BreathingPlaceholder text={l('Ведущий запустит следующий раунд', 'The host starts the next round')} variant="breathing-text" />}
+          </section>
+        )}
+      </main>
 
-          {s.mode === 'guess' && isGameHost && (
-            <div className="space-y-2">
-              {renderHostAction(
-                'replace',
-                l('Заменить слово', 'Replace word'),
-                <SpyIcon name="refresh" className="inline-block h-[1em] w-[1em] align-[-0.15em]" />,
-              )}
-              {renderHostAction(
-                'voting',
-                l('Голосование', 'Voting'),
-                <SpyIcon name="ballot" className="inline-block h-[1em] w-[1em] align-[-0.15em]" />,
-                'border-amber-400/30 bg-amber-500/15 text-amber-200',
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!s.gameOver && s.phase === 'spyGuess' && (
-        <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
-          {isSpy ? (
-            <GlassCard className="spy-card-red p-5 space-y-4">
-              <h2 className="text-2xl font-black text-red-300 text-center">{l('Угадай слово', 'Guess the word')}</h2>
-              <p className="text-sm text-white/60 text-center">{l('Впиши слово, которое загадали остальные.', 'Type the word the others were given.')}</p>
-              <input
-                value={guessInput}
-                onChange={(e) => setGuessInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && guessInput.trim()) {
-                    sendAction('spy:guess-try', { text: guessInput });
-                  }
-                }}
-                placeholder={l('Твоя версия…', 'Your guess…')}
-                className="w-full rounded-xl bg-black/30 border border-white/15 px-4 py-3 text-lg text-white outline-none focus:border-teal-400/50"
-              />
-              <GlassButton
-                variant="primary"
-                size="lg"
-                className="w-full"
-                disabled={!guessInput.trim()}
-                onClick={() => sendAction('spy:guess-try', { text: guessInput })}
-              >
-                {l('Проверить', 'Check')}
-              </GlassButton>
-              {s.spyGuessNeedsConfirm && !s.spyGuessAwaitingJudge && (
-                <div className="space-y-2">
-                  <p className="text-sm text-amber-300 text-center">{l('Не совпало автоматически. Настаиваешь, что верно?', 'No exact match. Insist it is correct?')}</p>
-                  <GlassButton
-                    size="lg"
-                    className="w-full border-amber-400/30 bg-amber-500/15 text-amber-200"
-                    onClick={() => sendAction('spy:guess-confirm')}
-                  >
-                    {l('Подтвердить', 'Confirm')}
-                  </GlassButton>
-                </div>
-              )}
-              {s.spyGuessAwaitingJudge && (
-                <p className="text-center text-sm text-white/60">{l('Ожидание подтверждения игрока…', 'Waiting for a player to confirm…')}</p>
-              )}
-            </GlassCard>
-          ) : isJudge && s.spyGuessAwaitingJudge ? (
-            <GlassCard className="spy-card p-5 space-y-4">
-              <p className="text-sm text-white/60 text-center">{l('Шпион вписал слово. Это правильное слово?', 'The spy typed a word. Is it correct?')}</p>
-              <div className="space-y-3">
-                <div className="rounded-xl bg-white/5 p-3">
-                  <p className="text-xs uppercase tracking-widest text-white/35">{l('Слово шпиона', 'Spy word')}</p>
-                  <p className="mt-1 text-2xl font-black text-white">{s.spyGuessText}</p>
-                </div>
-                <div className="rounded-xl bg-white/5 p-3">
-                  <p className="text-xs uppercase tracking-widest text-white/35">{l('Правильное слово', 'Correct word')}</p>
-                  <p className="mt-1 text-2xl font-black text-white">{s.word}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <GlassButton variant="primary" size="lg" onClick={() => sendAction('spy:guess-verdict', { accept: true })}>
-                  {l('Верно', 'Correct')}
-                </GlassButton>
-                <GlassButton variant="danger" size="lg" onClick={() => sendAction('spy:guess-verdict', { accept: false })}>
-                  {l('Отклонить', 'Reject')}
-                </GlassButton>
-              </div>
-            </GlassCard>
-          ) : (
-            <BreathingPlaceholder text={l('Шпион угадывает слово…', 'The spy is guessing the word…')} variant="breathing-text" />
-          )}
-        </div>
-      )}
-
-      {!s.gameOver && s.phase === 'discussion' && (
-        <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
-          <div className="text-center space-y-1">
-            <h2 className="text-3xl font-black text-white">{l('Обсуждение', 'Discussion')}</h2>
-            <p className="text-amber-300">⏱ {formatTime(s.discussionTimeLeft)}</p>
-          </div>
-          <GlassCard className="spy-card p-6 text-center space-y-2">
-            <p className="text-white/70">
-              {l(
-                'Обсудите, кто вам кажется подозрительным.',
-                'Discuss who seems suspicious.',
-              )}
-            </p>
-          </GlassCard>
-          {isGameHost && (
-            <div className="space-y-2">
-              {renderHostAction(
-                'voting',
-                l('Начать голосование', 'Start voting'),
-                <SpyIcon name="ballot" className="inline-block h-[1em] w-[1em] align-[-0.15em]" />,
-                'border-amber-400/30 bg-amber-500/15 text-amber-200',
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!s.gameOver && s.phase === 'voting' && (
-        <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
-          <div className="text-center space-y-1">
-            <h2 className="text-3xl font-black text-white">{l('Кто шпион?', 'Who is the spy?')}</h2>
-            <p className="text-amber-300">⏱ {formatTime(s.voteTimerLeft)}</p>
-          </div>
-
-          <div className="space-y-2">
-            {s.players.filter(p => p.id !== effectivePlayerId).map((p, idx) => {
-              const selected = localVote === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => !hasVoted && setLocalVote(p.id)}
-                  className={`glass-card flex w-full items-center gap-3 px-4 py-3 text-left transition-all ${selected ? 'border-teal-400/50 bg-teal-500/15' : 'border-white/10'}`}
-                  disabled={hasVoted}
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 font-black">
-                    {p.nickname[0] ?? idx + 1}
-                  </span>
-                  <span className="flex-1 font-bold text-white">{p.nickname}</span>
-                  <span className={`h-5 w-5 rounded-full border ${selected ? 'border-teal-300 bg-teal-300 shadow-[0_0_12px_rgba(45,212,191,.7)]' : 'border-white/25'}`} />
-                </button>
-              );
-            })}
-          </div>
-
-          {hasVoted || myVoteInVoting ? (
-            <GlassCard className="spy-card p-4 text-center text-sm text-white/60">
-              {l('Ваш голос принят, ожидание результатов…', 'Your vote is in, waiting for results...')}
-            </GlassCard>
-          ) : (
-            <GlassButton
-              variant="primary"
-              size="lg"
-              className="w-full"
-              onClick={handleSubmitVote}
-              disabled={!localVote}
-            >
-              <SpyIcon name="ballot" className="mr-1.5 h-5 w-5" />
-              {selectedVoteName
-                ? l(`Голосовать за ${selectedVoteName}`, `Vote for ${selectedVoteName}`)
-                : l('Выбери игрока', 'Choose a player')}
-            </GlassButton>
-          )}
-        </div>
-      )}
-
-      {!s.gameOver && s.phase === 'roundResult' && s.roundResult && (
-        <div className="mx-auto w-full max-w-md py-4 animate-fade-in space-y-4">
-          {renderBackButton()}
-
-          <GlassCard className={`p-4 ${s.roundResult.spyCaught ? 'spy-card-green' : 'spy-card-red'}`}>
-            <div className="flex items-center gap-3">
-              {s.roundResult.spyCaught ? <SpyIcon name="check" className="h-8 w-8" /> : <SpyIcon name="cross" className="h-8 w-8" />}
-              <div>
-                <h2 className="text-xl font-black text-white">
-                  {s.roundResult.spyCaught
-                    ? l('Шпиона раскрыли!', 'Spy exposed!')
-                    : l('Шпион победил!', 'Spy won!')}
-                </h2>
-                <p className="text-sm text-white/55">
-                  {s.roundResult.viaGuess
-                    ? l('Шпион угадывал слово', 'Spy attempted to guess')
-                    : (
-                        <>
-                          {l('Больше всего голосов:', 'Most votes:')} {s.players.find(p => p.id === s.roundResult?.exposedId)?.nickname ?? '???'}
-                        </>
-                      )}
-                </p>
-              </div>
-            </div>
-          </GlassCard>
-
-          <div className="grid grid-cols-2 gap-3">
-            <GlassCard className="spy-card p-4 text-center">
-              <p className="text-xs uppercase tracking-widest text-white/35">{l('Шпион', 'Spy')}</p>
-              <SpyIcon name="mask" className="mx-auto mt-2 h-8 w-8" />
-              <p className="mt-1 font-black text-white">{s.players.find(p => p.id === s.spyId)?.nickname ?? '???'}</p>
-            </GlassCard>
-            <GlassCard className="spy-card p-4 text-center">
-              <p className="text-xs uppercase tracking-widest text-white/35">{l('Слово', 'Word')}</p>
-              <p className="mt-2 text-sm text-white/55">{s.category}</p>
-              <FitWord text={s.word} max={20} className="mt-1 font-black text-white" />
-            </GlassCard>
-          </div>
-
-          {isGameHost ? (
-            <GlassButton variant="primary" size="lg" className="w-full" onClick={nextRound}>
-              {l('Новое слово', 'New word')}
-            </GlassButton>
-          ) : (
-            <BreathingPlaceholder text={l('Ведущий запустит следующий раунд', 'The host will start the next round')} variant="breathing-text" />
-          )}
-        </div>
-      )}
-    </GameLayout>
+      <footer className="spy-live-footer"><i /> {l('ЗАЩИЩЁННАЯ СЕТЬ · СИГНАЛ СТАБИЛЕН', 'SECURE NETWORK · SIGNAL STABLE')}</footer>
+      {endConfirmOpen && <div className="spy-live-modal" role="dialog" aria-modal="true"><div><span className="spy-live-kicker is-danger">{l('ЗАКРЫТЬ ОПЕРАЦИЮ?', 'CLOSE OPERATION?')}</span><h2>{l('Завершить игру', 'End game')}</h2><p>{l('Все участники вернутся в лобби.', 'Everyone will return to the lobby.')}</p><button type="button" className="spy-live-danger" onClick={endGame}>{l('ДА, ЗАВЕРШИТЬ', 'YES, END')}</button><button type="button" className="spy-live-secondary" onClick={() => setEndConfirmOpen(false)}>{l('ОТМЕНА', 'CANCEL')}</button></div></div>}
+    </GameSurface>
   );
 }

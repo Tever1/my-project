@@ -89,6 +89,7 @@ interface RoomPlayer {
 
 interface RoomState {
   players: RoomPlayer[];
+  ownerId: string;
   hostId: string;
   tvConnected?: boolean;
   currentGame?: string | null;
@@ -110,7 +111,7 @@ const games: GameInfo[] = [
     heroTitle: { word: "Ночной", accent: "город" },
     description:
       "Шесть игроков за столом, и кто-то из них точно врёт. Найди мафию раньше, чем она найдёт тебя.",
-    players: "6–14 игроков",
+    players: "5–17 игроков",
     duration: "≈ 20 минут",
     mode: "Роли",
     rules: { sections: [
@@ -238,7 +239,7 @@ const games: GameInfo[] = [
     heroTitle: { word: "Объясни", accent: "быстрее" },
     description:
       "Минута, секундомер и стопка слов. Чем больше угадает команда — тем больше очков.",
-    players: "4–20 игроков",
+    players: "2–10 игроков",
     duration: "≈ 20 минут",
     mode: "На скорость",
     rules: { sections: [
@@ -456,6 +457,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       const payload = data as Partial<RoomState>;
       setRoomState({
         players: Array.isArray(payload.players) ? payload.players : [],
+        ownerId: typeof payload.ownerId === "string" ? payload.ownerId : "",
         hostId: typeof payload.hostId === "string" ? payload.hostId : "",
         tvConnected: typeof payload.tvConnected === "boolean" ? payload.tvConnected : false,
         currentGame: typeof payload.currentGame === "string" ? payload.currentGame : null,
@@ -498,14 +500,14 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
   useEffect(() => {
     const unsubscribe = on('room:kicked', () => {
-      if (isRoomRoute) {
-        router.push("/");
-        return;
-      }
       setRoomCode(null);
       setRoomState(null);
       setRoomMenuOpen(false);
       toast.error("Вас удалили из комнаты");
+      if (isRoomRoute) {
+        router.push("/");
+        return;
+      }
     });
 
     return unsubscribe;
@@ -2512,6 +2514,7 @@ const RoomMenu = forwardRef<HTMLDivElement, {
   const connectedPlayers = (roomState?.players ?? []).filter(
     (p) => p.nickname
   );
+  const isCurrentUserOwner = currentUserId !== "" && currentUserId === roomState?.ownerId;
   const isCurrentUserHost = currentUserId !== "" && currentUserId === roomState?.hostId;
   const handleClose = () => {
     onClose();
@@ -2659,7 +2662,9 @@ const RoomMenu = forwardRef<HTMLDivElement, {
         {connectedPlayers.length > 0 ? (
           connectedPlayers.map((player) => {
             const isHost = player.id === roomState?.gameHostPlayerId;
-            const canManagePlayer = isCurrentUserHost && player.id !== currentUserId;
+            const canKickPlayer = isCurrentUserOwner && player.id !== currentUserId;
+            const canTransferHost = isCurrentUserHost && !isHost && player.id !== currentUserId;
+            const canManagePlayer = canKickPlayer || canTransferHost;
             return (
               <div
                 key={player.id}
@@ -2727,16 +2732,18 @@ const RoomMenu = forwardRef<HTMLDivElement, {
                         boxShadow: "0 8px 32px -8px rgba(0,0,0,0.6)",
                       }}
                     >
-                      <RoomMenuActionButton
-                        icon={<KickPlayerIcon />}
-                        label="Удалить из комнаты"
-                        hoverColor="#ef4444"
-                        onClick={() => {
-                          onKick(player.id);
-                          setSelectedPlayerId(null);
-                        }}
-                      />
-                      {!isHost && (
+                      {canKickPlayer && (
+                        <RoomMenuActionButton
+                          icon={<KickPlayerIcon />}
+                          label="Удалить из комнаты"
+                          hoverColor="#ef4444"
+                          onClick={() => {
+                            onKick(player.id);
+                            setSelectedPlayerId(null);
+                          }}
+                        />
+                      )}
+                      {canTransferHost && (
                         <RoomMenuActionButton
                           icon={<HostCrownIcon />}
                           label="Передать роль хоста"

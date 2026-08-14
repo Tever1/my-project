@@ -1325,7 +1325,7 @@ interface GameDataResponse {
   items?: unknown[];
   topics?: HundredToOneTopicPreview[];
   roles?: { id: string; icon: string; nameRu: string; nameEn: string; team: string; condition: string; description: string }[];
-  roleTable?: { players: number; mafia: number; don: number; maniac: number; sheriff: number; doctor: number; lover: number; citizens: number }[];
+  roleTable?: { players: number; host: number; mafia: number; don: number; maniac: number; sheriff: number; doctor: number; lover: number; citizens: number }[];
 }
 
 function GameDataViewer({ game }: { game: GameStat | null }) {
@@ -1578,10 +1578,11 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
           <div>
             <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">Распределение ролей</p>
             <div className="bg-white/5 border border-white/10 rounded-2xl overflow-x-auto">
-              <table className="w-full min-w-[680px] text-xs">
+              <table className="w-full min-w-[760px] text-xs">
                 <thead>
                   <tr className="border-b border-white/10 text-white/30">
                     <th className="text-left px-4 py-2">Игроков</th>
+                    <th className="text-center px-3 py-2 text-amber-300/70">Ведущий</th>
                     <th className="text-center px-3 py-2 text-red-400/70">Мафия</th>
                     <th className="text-center px-3 py-2 text-red-300/70">Дон</th>
                     <th className="text-center px-3 py-2 text-purple-400/70">Маньяк</th>
@@ -1595,6 +1596,7 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
                   {(data.roleTable ?? []).map((row, i: number) => (
                     <tr key={i} className={i < (data.roleTable ?? []).length - 1 ? 'border-b border-white/5' : ''}>
                       <td className="px-4 py-2 text-white font-bold">{row.players}</td>
+                      <td className="px-3 py-2 text-center text-amber-300 font-bold">{row.host}</td>
                       <td className="px-3 py-2 text-center text-red-400 font-bold">{row.mafia}</td>
                       <td className="px-3 py-2 text-center">{row.don ? <span className="text-red-300 font-bold">{row.don}</span> : <span className="text-white/20">—</span>}</td>
                       <td className="px-3 py-2 text-center">{row.maniac ? <span className="text-purple-400 font-bold">{row.maniac}</span> : <span className="text-white/20">—</span>}</td>

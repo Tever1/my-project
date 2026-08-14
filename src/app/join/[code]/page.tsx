@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { gameColors, type GameId } from "@/lib/design/tokens";
 import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
 import { useSocket } from "@/lib/use-socket";
+import { getGuestPlayerId } from "@/lib/guest-player-id";
 
 type JoinRoomPlayer = {
   id: string;
@@ -48,17 +49,6 @@ const t = {
   cancel: { ru: "Отмена", en: "Cancel" },
 } satisfies Record<string, Record<Locale, string>>;
 
-const GUEST_ID_KEY = "party-hub-join-guest-id";
-
-function getGuestPlayerId() {
-  if (typeof window === "undefined") return "";
-  const existing = window.localStorage.getItem(GUEST_ID_KEY);
-  if (existing) return existing;
-  const next = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  window.localStorage.setItem(GUEST_ID_KEY, next);
-  return next;
-}
-
 // Phone-proportioned join page.
 // Narrow centered layout regardless of device — works on both phone and desktop.
 export default function JoinPage() {
@@ -92,12 +82,6 @@ export default function JoinPage() {
   useEffect(() => {
     queueMicrotask(() => setGuestPlayerId(getGuestPlayerId()));
   }, []);
-
-  useEffect(() => {
-    if (user?.nickname && !nickname) {
-      queueMicrotask(() => setNickname(user.nickname));
-    }
-  }, [nickname, user]);
 
   useEffect(() => {
     return on("room:state", (data: unknown) => {

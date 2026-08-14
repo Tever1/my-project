@@ -16,6 +16,7 @@ interface Player {
 interface Room {
   id: string;
   code: string;
+  ownerId: string;
   hostId: string;
   players: Map<string, Player>;
   maxPlayers: number;
@@ -26,6 +27,7 @@ interface Room {
   createdAt: number;
   kickedPlayerIds: Set<string>;
   gameHostPlayerId: string | null;
+  mafiaHostPlayerId: string | null;
   showQrCode: boolean;
   inactivityTimer?: ReturnType<typeof setTimeout>;
   pendingQuizConfig?: {
@@ -85,6 +87,7 @@ function broadcastRoomState(io: SocketIOServer, room: Room) {
   const state = {
     id: room.id,
     code: room.code,
+    ownerId: room.ownerId,
     hostId: room.hostId,
     players,
     maxPlayers: room.maxPlayers,
@@ -216,6 +219,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       const room: Room = {
         id: uuidv4(),
         code,
+        ownerId: data.playerId,
         hostId: '',
         players: new Map(),
         maxPlayers: 20,
@@ -226,7 +230,8 @@ export function setupSocketHandlers(io: SocketIOServer) {
         createdAt: Date.now(),
         kickedPlayerIds: new Set<string>(),
         gameHostPlayerId: null,
-        showQrCode: false,
+        mafiaHostPlayerId: null,
+        showQrCode: true,
         pendingQuizConfig: null,
       };
 
@@ -354,6 +359,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       const state = {
         id: room.id,
         code: room.code,
+        ownerId: room.ownerId,
         hostId: room.hostId,
         players,
         maxPlayers: room.maxPlayers,
@@ -408,8 +414,11 @@ export function setupSocketHandlers(io: SocketIOServer) {
         });
         return;
       }
+      room.showQrCode = false;
       room.status = 'in-game';
+      room.mafiaHostPlayerId = null;
       room.gameState = { type: room.currentGame, status: 'playing', round: 1 };
+      io.to(`room:${room.code}`).emit('room:show-qr', { show: false });
       broadcastRoomState(io, room);
       io.to(`room:${room.code}`).emit('game:started', {
         gameType: room.currentGame,
@@ -422,6 +431,52 @@ export function setupSocketHandlers(io: SocketIOServer) {
     socket.on('game:action', (data: { code: string; action: string; payload: Record<string, unknown> }) => {
       const room = getRoomByCode(data.code);
       if (!room) return;
+
+      if (data.action === 'mafia') {
+        const type = typeof data.payload.type === 'string' ? data.payload.type : '';
+        const sender = Array.from(room.players.values()).find((player) => player.socketId === socket.id);
+        if (type === 'select-host') {
+          const selectedHostId = typeof data.payload.hostPlayerId === 'string'
+            ? data.payload.hostPlayerId
+            : '';
+          const selectedHost = room.players.get(selectedHostId);
+          if (sender?.id !== room.gameHostPlayerId || !selectedHost || !isHostEligible(selectedHost)) return;
+          room.mafiaHostPlayerId = selectedHost.id;
+        }
+        const hostOnlyActions = new Set([
+          'assign-roles',
+          'start-night',
+          'advance-night-stage',
+          'sync-state',
+          'detective-result',
+          'don-check-result',
+          'resolve-night',
+          'night-result',
+          'start-voting',
+          'vote-alibi',
+          'vote-tie',
+          'vote-pardoned',
+          'eliminate',
+          'eliminate-many',
+          'game-over',
+          'end-game',
+        ]);
+        const mafiaControllerId = room.mafiaHostPlayerId ?? room.gameHostPlayerId;
+        if (hostOnlyActions.has(type) && sender?.id !== mafiaControllerId) return;
+
+        const actorFields: Record<string, string> = {
+          'role-seen': 'playerId',
+          'mafia-vote': 'voterId',
+          'maniac-kill': 'maniacId',
+          'don-check-sheriff': 'donId',
+          'lover-visit': 'loverId',
+          'detective-check': 'detectiveId',
+          'doctor-save': 'doctorId',
+          'cast-vote': 'voterId',
+        };
+        const actorField = actorFields[type];
+        if (actorField && (!sender || data.payload[actorField] !== sender.id)) return;
+      }
 
       // Broadcast game action to all players in the room
       io.to(`room:${room.code}`).emit('game:action', {
@@ -446,6 +501,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
       room.status = 'lobby';
       room.currentGame = null;
       room.gameState = null;
+      room.mafiaHostPlayerId = null;
       room.pendingQuizConfig = null;
       broadcastRoomState(io, room);
       io.to(`room:${room.code}`).emit('game:ended');
@@ -467,15 +523,22 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Kick player
     socket.on('room:kick', (data: { code: string; playerId: string }) => {
       const room = getRoomByCode(data.code);
-      if (!room) return;
+      if (!room || room.status !== 'lobby') return;
       const sender = Array.from(room.players.values()).find((p) => p.socketId === socket.id);
-      if (!sender || !sender.isHost) return;
+      if (!sender || sender.id !== room.ownerId) return;
       const player = room.players.get(data.playerId);
-      if (player) {
-        io.to(player.socketId).emit('room:kicked');
-        room.players.delete(data.playerId);
-        broadcastRoomState(io, room);
-      }
+      if (!player || player.id === room.ownerId || player.role === 'tv') return;
+
+      const wasHost = player.isHost;
+      if (player.reconnectTimer) clearTimeout(player.reconnectTimer);
+      room.kickedPlayerIds.add(player.id);
+      io.to(player.socketId).emit('room:kicked');
+      io.sockets.sockets.get(player.socketId)?.leave(`room:${room.code}`);
+      playerRooms.delete(player.socketId);
+      room.players.delete(player.id);
+      if (wasHost) reassignHostOnLeave(room, player.id);
+      scheduleRoomInactivityCheck(io, room);
+      broadcastRoomState(io, room);
     });
 
     // Transfer host
