@@ -16,7 +16,7 @@ CODE="$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
 COUNT="${2:-2}"
 MAX_COUNT=6
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-CACHE_ROOT="$HOME/.cache/party-phones"
+PROFILE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/party-phones.XXXXXX")"
 
 if [ ! -x "$CHROME" ]; then
   echo "Google Chrome not found: $CHROME" >&2
@@ -34,28 +34,24 @@ if [ "$COUNT" -gt "$MAX_COUNT" ]; then
   COUNT="$MAX_COUNT"
 fi
 
-mkdir -p "$CACHE_ROOT"
-
 URL="$BASE_URL/join/$CODE"
 
 for ((i = 1; i <= COUNT; i++)); do
-  PROFILE_DIR="$CACHE_ROOT/phone-$i"
+  PROFILE_DIR="$PROFILE_ROOT/phone-$i"
   X=$((20 + ((i - 1) % 4) * 410))
   Y=$((40 + ((i - 1) / 4) * 880))
 
   mkdir -p "$PROFILE_DIR"
 
-  "$CHROME" \
+  open -na "Google Chrome" --args \
     --user-data-dir="$PROFILE_DIR" \
     --no-first-run --no-default-browser-check \
     --window-size=390,844 \
     --window-position="$X,$Y" \
-    --app="$URL" \
-    >/dev/null 2>&1 &
+    --app="$URL"
 done
-
-disown
 
 echo "Opened $COUNT phone window(s)."
 echo "URL: $URL"
-echo "Close all: pkill -f party-phones"
+echo "Profiles: $PROFILE_ROOT"
+echo "Close all: pkill -f '$PROFILE_ROOT'"

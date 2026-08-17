@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
@@ -8,11 +8,15 @@ import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
-import { GameLayout } from '@/components/games/GameLayout';
 import { BreathingPlaceholder } from '@/components/ingame';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { WhoAmIIcon } from '@/components/games/WhoAmIIcon';
+import {
+  ClayBlob,
+  WhoAmIClayMobileLayout,
+  whoAmIClayStyles as clay,
+} from '@/components/games/who-am-i-clay/WhoAmIClay';
 import { WHO_AM_I_CHARACTERS } from '@/lib/game-data';
 import { Player } from '@/types/room';
 
@@ -84,17 +88,8 @@ function calculateScore(questionsAsked: number): number {
 }
 
 const QUESTION_ANSWER_GUARD_MS = 700;
-const WHO_AM_I_GRADIENT_CLASS =
-  "bg-[linear-gradient(135deg,#071825_0%,#0a2d3f_30%,#0c2530_60%,#071825_100%)] before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,.28),transparent_34%),radial-gradient(circle_at_82%_12%,rgba(2,132,199,.24),transparent_32%)] before:animate-pulse";
 const WHO_AM_I_ACCENT_CARD =
   'bg-[radial-gradient(110%_70%_at_50%_-5%,rgba(255,255,255,.22),transparent_55%),linear-gradient(165deg,#38bdf8_0%,#0369a1_100%)] text-sky-50 shadow-[0_18px_44px_-12px_rgba(2,132,199,.7),inset_0_1px_0_rgba(255,255,255,.45)]';
-const WHO_AM_I_GLASS_STRONG =
-  'border border-white/10 bg-[rgba(255,255,255,.12)] shadow-[0_16px_48px_rgba(0,0,0,.4)] backdrop-blur-[24px]';
-const WHO_AM_I_ACTION_BUTTON =
-  'min-h-[54px] rounded-full text-[17px] font-bold';
-const WHO_AM_I_PHONE_CARD: CSSProperties = {
-  borderRadius: '32px',
-};
 
 function rankTone(index: number) {
   if (index === 0) return 'border-amber-300/35 bg-amber-400/10 text-amber-300';
@@ -491,62 +486,33 @@ export default function WhoAmIPage() {
   };
 
   // -----------------------------------------------------------------------
-  // Scores for GameLayout
-  // -----------------------------------------------------------------------
-  const layoutScores = Object.entries(gs.scores).map(([id, score]) => ({
-    name: playerName(id),
-    score,
-  }));
-
-  // -----------------------------------------------------------------------
   // RENDER: Lobby
   // -----------------------------------------------------------------------
   const renderLobby = () => (
-    <div className="flex-1 flex flex-col items-center justify-center gap-6">
-      <GlassCard className="w-full max-w-md text-center px-6 py-7">
-        <div className={`mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[24px] ${WHO_AM_I_ACCENT_CARD}`}>
-          <WhoAmIIcon name="profile" className="h-11 w-11" />
-        </div>
-        <h2 className="mb-2 text-3xl font-black tracking-tight text-white">
-          {l('Кто я?', 'Who Am I?')}
-        </h2>
-        <p className="mx-auto mb-4 max-w-xs text-sm leading-relaxed text-white/60">
-          {l(
-            'Угадай своего персонажа, задавая вопросы «Да»/«Нет».',
-            'Guess your character by asking Yes/No questions.',
-          )}
-        </p>
-        <p className="mx-auto mb-4 inline-flex rounded-full border border-sky-300/30 bg-sky-400/10 px-4 py-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-sky-200">
-          {l(
-            `${players.length} игроков в комнате`,
-            `${players.length} players in room`,
-          )}
-        </p>
-        <div className="flex flex-wrap gap-2 justify-center mb-6">
-          {players.map((p) => (
-            <span key={p.id} className="glass-badge inline-flex items-center gap-1.5">
-              {p.nickname}
-              {p.isHost && <WhoAmIIcon name="star" className="h-3.5 w-3.5 text-amber-300" />}
-            </span>
-          ))}
-        </div>
+    <div className={clay.lobby}>
+      <span className={clay.kicker}>{l('КОМНАТА ГОТОВА', 'ROOM READY')}</span>
+      <h1 className={clay.title}>{l('Кто скрывается\nвнутри?', 'Who is hiding\ninside?')}</h1>
+      <p className={clay.subtitle}>{l('Угадай своего персонажа, задавая вопросы «Да» или «Нет».', 'Guess your character by asking Yes or No questions.')}</p>
+      <div className={clay.heroToy}><i /><i /><WhoAmIIcon name="profile" /><strong>?</strong></div>
+      <div className={clay.lobbyCount}>{l(`${players.length} игроков в комнате`, `${players.length} players in room`)}</div>
+      <div className={clay.lobbyGrid}>
+        {players.map((player) => (
+          <div key={player.id} className={clay.playerChip}>
+            <ClayBlob name={player.nickname} size="sm" />
+            <b>{player.nickname}</b>
+            {player.isHost && <WhoAmIIcon name="star" />}
+          </div>
+        ))}
+      </div>
+      <div className={clay.lobbyAction}>
         {isGameHost ? (
-          <GlassButton
-            variant="primary"
-            size="lg"
-            onClick={handleStart}
-            disabled={players.length < 2}
-            className="w-full"
-          >
-            {l('Начать игру', 'Start Game')}
-          </GlassButton>
+          <button type="button" className={clay.primaryButton} onClick={handleStart} disabled={players.length < 2}>
+            {l('НАЧАТЬ ИГРУ', 'START GAME')} <WhoAmIIcon name="pointer" />
+          </button>
         ) : (
-          <BreathingPlaceholder
-            text={l('Ожидание ведущего...', 'Waiting for host...')}
-            variant="breathing-text"
-          />
+          <div className={clay.waitPill}><i />{l('ВЕДУЩИЙ ЗАПУСКАЕТ ИГРУ', 'WAITING FOR THE HOST')}</div>
         )}
-      </GlassCard>
+      </div>
     </div>
   );
 
@@ -555,91 +521,31 @@ export default function WhoAmIPage() {
   // Each player sees everyone ELSE's character, but their own shows as "???"
   // -----------------------------------------------------------------------
   const renderPlayerCharacters = () => (
-    <div className="w-full max-w-md">
-      <div className="flex items-center gap-[9px] mx-1 mb-[10px] text-[14px] font-medium text-sky-200">
-        <WhoAmIIcon name="profile" className="h-[18px] w-[18px]" />
-        {l(
-          'Задай вопрос вслух с ответом «Да» или «Нет»',
-          'Ask a Yes/No question out loud',
-        )}
-      </div>
-      <div className="flex flex-col gap-2">
-        {gs.turnOrder.map((id) => {
-          const char = gs.characters[id];
-          const isMe = id === effectivePlayerId;
-          const isCurrent = id === currentPlayerId;
-
-          return (
-            <div
-              key={id}
-              className={`flex items-center gap-3 transition-all ${
-                isCurrent
-                  ? `${WHO_AM_I_ACCENT_CARD} rounded-[24px] border border-sky-200/35 px-[14px] py-3`
-                  : 'rounded-[24px] border border-white/10 bg-white/5 px-[14px] py-[9px]'
-              }`}
-            >
-              <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-sky-300/15 text-[18px] font-bold text-sky-100">
-                {playerName(id).charAt(0).toUpperCase()}
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-px">
-                <span
-                  className={`truncate font-bold tracking-[-.2px] ${
-                    isCurrent ? 'text-[17px] text-sky-50' : 'text-[16px] text-white/80'
-                  }`}
-                >
-                  {playerName(id)}
-                  {isMe ? ` (${l('Вы', 'You')})` : ''}
-                </span>
-                {isMe ? (
-                  <span className={isCurrent ? 'font-mono text-[10px] uppercase tracking-[2px] text-sky-50/75' : 'text-[13px] text-white/42'}>
-                    {isCurrent ? l('твой ход', 'your turn') : '???'}
-                  </span>
-                ) : (
-                  <span className="truncate text-[13px] text-white/42">
-                    <b className="font-semibold text-sky-200">{char?.[locale]}</b>
-                  </span>
-                )}
-              </div>
-              {isCurrent && (
-                <>
-                  <div className="ml-auto inline-flex items-center gap-[7px] rounded-full border border-dashed border-sky-50/40 bg-[#041825]/35 px-[13px] py-[7px] font-bold tracking-[2px] text-sky-50/90">
-                    <WhoAmIIcon name="profile" className="h-[15px] w-[15px] opacity-80" />
-                    ???
-                  </div>
-                  <WhoAmIIcon name="pointer" className="h-6 w-6 shrink-0 animate-pulse text-sky-50" />
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
+    <div className={clay.roster} aria-label={l('Игроки', 'Players')}>
+      {gs.turnOrder.map((id) => {
+        const isMe = id === effectivePlayerId;
+        const isCurrent = id === currentPlayerId;
+        const guessed = gs.guessedPlayers.includes(id);
+        const character = isMe ? '???' : gs.characters[id]?.[locale] ?? '???';
+        return (
+          <div key={id} className={`${clay.rosterItem} ${isCurrent ? clay.rosterItemCurrent : ''} ${guessed ? clay.rosterItemGuessed : ''}`}>
+            <ClayBlob name={playerName(id)} active={isCurrent} size="sm" />
+            <b>{playerName(id)}{isMe ? ` · ${l('вы', 'you')}` : ''}</b>
+            <small>{guessed ? l('УГАДАЛ', 'GUESSED') : isCurrent && isMe ? l('СЕЙЧАС ХОДИТ', 'CURRENT TURN') : character}</small>
+          </div>
+        );
+      })}
     </div>
   );
 
   const renderGuessInput = () => (
-    <div className="flex flex-1 flex-col gap-[18px]">
-      <div
-        className={`mt-[22px] flex flex-col gap-[18px] px-[22px] pb-6 pt-7 ${WHO_AM_I_GLASS_STRONG}`}
-        style={WHO_AM_I_PHONE_CARD}
-      >
-        <div className="flex items-center gap-[14px]">
-          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[17px] ${WHO_AM_I_ACCENT_CARD}`}>
-            <WhoAmIIcon name="profile" className="h-[30px] w-[30px]" />
-          </div>
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[2.5px] text-sky-200">
-              {l('попытка угадать', 'guess attempt')}
-            </p>
-            <h1 className="mt-0.5 text-[30px] font-black leading-none tracking-[-.6px] text-white">
-              {l('Так кто же ты?', 'So who are you?')}
-            </h1>
-          </div>
-        </div>
-
-        <label className="relative block rounded-[24px] border-[1.5px] border-sky-300/65 bg-[#041420]/50 px-5 py-[18px] shadow-[0_0_0_4px_rgba(56,189,248,.14),inset_0_1px_0_rgba(255,255,255,.06)]">
-          <span className="mb-[7px] block font-mono text-[10px] uppercase tracking-[2px] text-white/42">
-            {l('имя персонажа', 'character name')}
-          </span>
+    <div className={clay.focusState}>
+      <button type="button" className={clay.backButton} onClick={() => { setShowGuessInput(false); setGuessInput(''); }}>{l('ОТМЕНА', 'CANCEL')}</button>
+      <span className={clay.iconBlob}><WhoAmIIcon name="profile" /></span>
+      <small className={clay.kicker}>{l('ПОПЫТКА УГАДАТЬ', 'GUESS ATTEMPT')}</small>
+      <h1>{l('Кто ты?', 'Who are you?')}</h1>
+      <label className={clay.field}>
+        <span>{l('ИМЯ ПЕРСОНАЖА', 'CHARACTER NAME')}</span>
           <input
             value={guessInput}
             onChange={(e) => setGuessInput(e.target.value)}
@@ -647,98 +553,25 @@ export default function WhoAmIPage() {
               if (e.key === 'Enter') handleGuess();
             }}
             autoFocus
-            className="w-full bg-transparent text-[26px] font-bold tracking-[-.3px] text-white outline-none placeholder:text-white/25"
             placeholder={l('Чебурашка', 'Cheburashka')}
           />
-          {!guessInput && (
-            <span className="pointer-events-none absolute left-5 top-[50px] h-[30px] w-[2.5px] animate-pulse rounded-sm bg-sky-300" />
-          )}
-        </label>
-
-        <div className="flex items-start gap-2.5 px-1 text-[13.5px] leading-[1.45] text-white/42">
-          <WhoAmIIcon name="profile" className="mt-px h-[17px] w-[17px] shrink-0 text-sky-200" />
-          <span>
-            {l(
-              'Если написание не совпадёт точь-в-точь — попытка не сгорит: можно оспорить ответ, и решит другой игрок',
-              'If spelling does not match exactly, the attempt is not lost: you can dispute it and another player will decide',
-            )}
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-auto flex flex-col gap-[11px]">
-        <GlassButton
-          variant="primary"
-          size="lg"
-          className={`${WHO_AM_I_ACTION_BUTTON} w-full`}
-          onClick={handleGuess}
-          disabled={!guessInput.trim()}
-        >
-          {l('Угадать!', 'Guess!')}
-        </GlassButton>
-        <GlassButton
-          variant="default"
-          size="lg"
-          className={`${WHO_AM_I_ACTION_BUTTON} w-full`}
-          onClick={() => {
-            setShowGuessInput(false);
-            setGuessInput('');
-          }}
-        >
-          {l('Отмена', 'Cancel')}
-        </GlassButton>
+      </label>
+      <p>{l('Если написание отличается, попытку можно передать другому игроку на проверку.', 'If the spelling differs, another player can review the attempt.')}</p>
+      <div className={clay.focusActions}>
+        <button type="button" className={clay.primaryButton} onClick={handleGuess} disabled={!guessInput.trim()}>{l('УГАДАТЬ', 'GUESS')}</button>
       </div>
     </div>
   );
 
   const renderGuessConfirm = () => (
-    <div className="flex flex-1 flex-col">
-      <div
-        className="mt-[22px] flex flex-col items-center gap-4 rounded-[32px] border border-[#ff9f0a]/40 bg-[linear-gradient(165deg,rgba(255,159,10,.16),rgba(255,159,10,.05))] px-[22px] pb-[26px] pt-[30px] text-center shadow-[0_24px_60px_-22px_rgba(255,159,10,.45),inset_0_1px_0_rgba(255,255,255,.1)] backdrop-blur-[24px]"
-      >
-        <div className="flex h-[74px] w-[74px] items-center justify-center rounded-full border border-[#ff9f0a]/45 bg-[#ff9f0a]/15 text-[#ffc466]">
-          <WhoAmIIcon name="pointer" className="h-10 w-10" />
-        </div>
-        <p className="font-mono text-[11px] uppercase tracking-[2.5px] text-[#ffc466]">
-          {l('не совпало автоматически', 'no exact automatic match')}
-        </p>
-        <h1 className="text-[28px] font-black leading-[1.1] tracking-[-.6px] text-white">
-          {l('Настаиваешь, что это верно?', 'Insist this is correct?')}
-        </h1>
-        <p className="max-w-[300px] text-[15px] leading-[1.45] text-white/64">
-          {l(
-            'Написание не совпало с загаданным точь-в-точь. Опечатка — не приговор.',
-            'The spelling does not exactly match the secret character. A typo is not final.',
-          )}
-        </p>
-        <div className="w-full rounded-[24px] border border-white/15 bg-[#041420]/45 px-[18px] py-[15px] text-left">
-          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[2px] text-white/42">
-            {l('твой ответ', 'your answer')}
-          </p>
-          <p className="text-[24px] font-bold tracking-[-.3px] text-white">
-            &laquo;{gs.guessPendingText}&raquo;
-          </p>
-        </div>
-        <div className="flex items-start gap-2.5 px-0.5 text-left text-[13.5px] leading-[1.45] text-white/42">
-          <WhoAmIIcon name="profile" className="mt-px h-[17px] w-[17px] shrink-0 text-[#ffc466]" />
-          <span>
-            {l(
-              'После подтверждения случайный игрок сравнит твой ответ с персонажем и вынесет вердикт. Он окончательный.',
-              'After confirming, a random player will compare your answer with the character and make a final verdict.',
-            )}
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-auto">
-        <GlassButton
-          variant="default"
-          size="lg"
-          className={`${WHO_AM_I_ACTION_BUTTON} w-full border-[#ff9f0a]/40 bg-[#ff9f0a]/20 text-[#ffc466]`}
-          onClick={handleConfirmGuess}
-        >
-          {l('Подтвердить', 'Confirm')}
-        </GlassButton>
+    <div className={clay.focusState}>
+      <span className={`${clay.iconBlob} ${clay.iconBlobWarm}`}><WhoAmIIcon name="pointer" /></span>
+      <small className={clay.kicker}>{l('НЕ СОВПАЛО АВТОМАТИЧЕСКИ', 'NO EXACT MATCH')}</small>
+      <h1>{l('Это всё равно\nверный ответ?', 'Is it still\ncorrect?')}</h1>
+      <div className={`${clay.quote} ${clay.cardWarm}`}><small>{l('ТВОЙ ОТВЕТ', 'YOUR ANSWER')}</small><b>«{gs.guessPendingText}»</b></div>
+      <p>{l('Случайный игрок увидит ответ и настоящего персонажа. Его решение окончательное.', 'A random player will see the guess and the real character. Their decision is final.')}</p>
+      <div className={clay.focusActions}>
+        <button type="button" className={clay.primaryButton} onClick={handleConfirmGuess}>{l('ПОДТВЕРДИТЬ', 'CONFIRM')}</button>
       </div>
     </div>
   );
@@ -748,67 +581,19 @@ export default function WhoAmIPage() {
     const truth = gs.characters[gs.guessPendingPlayerId]?.[locale] ?? '';
 
     return (
-      <div className="flex flex-1 flex-col">
-        <div
-          className={`mt-[22px] flex flex-col items-center gap-4 px-5 pb-6 pt-7 text-center ${WHO_AM_I_GLASS_STRONG}`}
-          style={WHO_AM_I_PHONE_CARD}
-        >
-          <div className="flex h-[74px] w-[74px] items-center justify-center rounded-full border border-sky-300/35 bg-sky-300/10 text-sky-200">
-            <WhoAmIIcon name="profile" className="h-10 w-10" />
-          </div>
-          <p className="font-mono text-[11px] uppercase tracking-[2.5px] text-sky-200">
-            {l('ты — судья', 'you are the judge')}
-          </p>
-          <h1 className="text-[28px] font-black leading-[1.1] tracking-[-.6px] text-white">
-            {l(`Засчитать ответ ${pendingPlayerName}?`, `Accept ${pendingPlayerName}'s answer?`)}
-          </h1>
-          <p className="max-w-[300px] text-[14.5px] leading-[1.45] text-white/64">
-            {l(
-              `${pendingPlayerName} настаивает, что угадал(а) своего персонажа, но написание не совпало точь-в-точь`,
-              `${pendingPlayerName} insists the character was guessed, but the spelling did not match exactly`,
-            )}
-          </p>
-          <div className="grid w-full grid-cols-1 gap-2.5">
-            <div className="flex flex-col gap-[7px] rounded-[24px] border border-white/15 bg-white/5 px-3.5 py-4 text-left">
-              <span className="font-mono text-[10px] uppercase tracking-[1.8px] text-white/42">
-                {l(`ответ ${pendingPlayerName}`, `${pendingPlayerName}'s answer`)}
-              </span>
-              <span className="text-[21px] font-black leading-[1.15] tracking-[-.3px] text-white">
-                &laquo;{gs.guessPendingText}&raquo;
-              </span>
-            </div>
-            <div className="flex flex-col gap-[7px] rounded-[24px] border border-sky-300/40 bg-sky-300/10 px-3.5 py-4 text-left">
-              <span className="font-mono text-[10px] uppercase tracking-[1.8px] text-white/42">
-                {l('персонаж', 'character')}
-              </span>
-              <span className="text-[21px] font-black leading-[1.15] tracking-[-.3px] text-sky-200">
-                &laquo;{truth}&raquo;
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-[9px] text-[13px] text-white/42">
-            <WhoAmIIcon name="profile" className="h-4 w-4" />
-            {l('Твой вердикт — окончательный', 'Your verdict is final')}
-          </div>
+      <div className={clay.focusState}>
+        <span className={clay.iconBlob}><WhoAmIIcon name="profile" /></span>
+        <small className={clay.kicker}>{l('ТЫ — СУДЬЯ', 'YOU ARE THE JUDGE')}</small>
+        <h1>{l(`Засчитать\nответ ${pendingPlayerName}?`, `Accept\n${pendingPlayerName}'s guess?`)}</h1>
+        <div className={clay.compare}>
+          <article className={clay.cardSoft}><small>{l(`ОТВЕТ ${pendingPlayerName}`, `${pendingPlayerName}'S GUESS`)}</small><b>{gs.guessPendingText}</b></article>
+          <i>≈</i>
+          <article className={clay.cardSoft}><small>{l('ПЕРСОНАЖ', 'CHARACTER')}</small><b>{truth}</b></article>
         </div>
-
-        <div className="mt-auto grid grid-cols-2 gap-[11px]">
-          <GlassButton
-            variant="danger"
-            size="lg"
-            className={WHO_AM_I_ACTION_BUTTON}
-            onClick={() => handleGuessVerdict(false)}
-          >
-            {l('Отклонить', 'Reject')}
-          </GlassButton>
-          <GlassButton
-            variant="default"
-            size="lg"
-            className={`${WHO_AM_I_ACTION_BUTTON} border-green-400/35 bg-green-500/15 text-green-200`}
-            onClick={() => handleGuessVerdict(true)}
-          >
-            {l('Верно', 'Correct')}
-          </GlassButton>
+        <p>{l('Твой вердикт — окончательный.', 'Your verdict is final.')}</p>
+        <div className={clay.verdict}>
+          <button type="button" className={clay.dangerButton} onClick={() => handleGuessVerdict(false)}><WhoAmIIcon name="cross" />{l('ОТКЛОНИТЬ', 'REJECT')}</button>
+          <button type="button" className={clay.primaryButton} onClick={() => handleGuessVerdict(true)}><WhoAmIIcon name="check" />{l('ВЕРНО', 'CORRECT')}</button>
         </div>
       </div>
     );
@@ -822,6 +607,58 @@ export default function WhoAmIPage() {
       effectivePlayerId === gs.guessPendingPlayerId &&
       !haveIGuessed &&
       (gs.guessNeedsConfirm || gs.guessAwaitingJudge);
+
+    if (String(gs.phase) === 'playing') {
+      if (lastGuessResult) {
+        const correct = lastGuessResult.correct;
+        const revealedCharacter = gs.characters[lastGuessResult.playerId]?.[locale] ?? lastGuessResult.guess;
+        const points = calculateScore(gs.questionsAsked[lastGuessResult.playerId] || 0);
+        return (
+          <div className={clay.reveal}>
+            {correct && <div className={clay.revealBurst} aria-hidden="true"><i /><i /><i /><i /><i /></div>}
+            <span className={`${clay.iconBlob} ${correct ? '' : clay.iconBlobDanger}`}><WhoAmIIcon name={correct ? 'celebrate' : 'cross'} /></span>
+            <small className={clay.kicker}>{correct ? l('ЛИЧНОСТЬ РАСКРЫТА', 'IDENTITY REVEALED') : l('НЕВЕРНАЯ ПОПЫТКА', 'WRONG GUESS')}</small>
+            <h1>{correct ? l(`${playerName(lastGuessResult.playerId)} —\n${revealedCharacter}!`, `${playerName(lastGuessResult.playerId)} is\n${revealedCharacter}!`) : l(`${playerName(lastGuessResult.playerId)} пока\nне угадал(а)`, `${playerName(lastGuessResult.playerId)} has not\nguessed yet`)}</h1>
+            <div className={clay.scorePill}>{correct ? `+${points} ${l('ОЧКОВ', 'POINTS')}` : l('ХОД ПЕРЕХОДИТ ДАЛЬШЕ', 'TURN PASSES ON')}</div>
+            <p>{correct ? l(`Понадобилось ${gs.questionsAsked[lastGuessResult.playerId] || 0} вопросов`, `It took ${gs.questionsAsked[lastGuessResult.playerId] || 0} questions`) : l('Персонаж остаётся тайной. Новая попытка будет доступна в следующем круге.', 'The character remains secret. Try again on the next turn.')}</p>
+            <button type="button" className={clay.primaryButton} onClick={() => setLastGuessResult(null)}>{l('СМОТРЕТЬ ИГРУ', 'WATCH GAME')}</button>
+          </div>
+        );
+      }
+
+      if (isMyTurn && !haveIGuessed && !isMyPendingGuess) {
+        return (
+          <div className={clay.turn}>
+            {renderPlayerCharacters()}
+            <section className={`${clay.activeCard} ${clay.card}`}>
+              <ClayBlob name={playerName(currentPlayerId ?? '')} active />
+              <div><small>{l('ТВОЙ ХОД', 'YOUR TURN')}</small><h2>{playerName(currentPlayerId ?? '')}</h2><p>{gs.consecutiveYesAnswers >= 2 ? l('Ты почти раскрыла персонажа', 'You are close to revealing the character') : l('Задай вопрос о себе', 'Ask a question about yourself')}</p></div>
+            </section>
+            <div className={clay.mystery} data-streak={Math.min(gs.consecutiveYesAnswers, 2)}><i /><i /><i /><span><WhoAmIIcon name="profile" /><strong>?</strong></span><small>{l('ПЕРСОНАЖ СКРЫТ', 'CHARACTER HIDDEN')}</small></div>
+            <div className={clay.streak}><span>{l('«ДА» ПОДРЯД', 'YES STREAK')}</span><div>{[0,1,2].map((dot) => <i key={dot} data-filled={dot < gs.consecutiveYesAnswers} />)}</div><b>{gs.consecutiveYesAnswers}/3</b></div>
+            <div className={clay.answerDeck}>
+              <button type="button" className={clay.noButton} onClick={handleNoAnswer}><WhoAmIIcon name="cross" /><b>{l('НЕТ', 'NO')}</b><small>{l('передать ход', 'pass turn')}</small></button>
+              <button type="button" className={clay.primaryButton} onClick={() => setShowGuessInput(true)}><WhoAmIIcon name="profile" /><b>{l('Я ЗНАЮ!', 'I KNOW!')}</b><small>{l('назвать персонажа', 'name character')}</small></button>
+              <button type="button" className={clay.yesButton} onClick={handleYesAnswer}><WhoAmIIcon name="check" /><b>{l('ДА', 'YES')}</b><small>{l('ещё вопрос', 'one more')}</small></button>
+            </div>
+          </div>
+        );
+      }
+
+      const pendingJudge = isMyPendingGuess && !gs.guessNeedsConfirm;
+      return (
+        <div className={clay.observer}>
+          {renderPlayerCharacters()}
+          <div className={clay.observerStage}>
+            <ClayBlob name={haveIGuessed ? playerName(effectivePlayerId ?? '') : playerName(currentPlayerId ?? '')} active size="lg" />
+            <small className={clay.kicker}>{haveIGuessed ? l('ТЫ УЖЕ УГАДАЛ(А)', 'YOU ALREADY GUESSED') : pendingJudge ? l('ОЖИДАЕМ СУДЬЮ', 'WAITING FOR JUDGE') : l('СЕЙЧАС ХОДИТ', 'CURRENT TURN')}</small>
+            <h1>{haveIGuessed ? playerName(effectivePlayerId ?? '') : playerName(currentPlayerId ?? '')}</h1>
+            <p>{haveIGuessed ? l(`Твой персонаж — ${gs.characters[effectivePlayerId ?? '']?.[locale] ?? '???'}. Наблюдай за остальными.`, `Your character is ${gs.characters[effectivePlayerId ?? '']?.[locale] ?? '???'}. Watch the others.`) : pendingJudge ? l('Случайный игрок сравнивает твою догадку с настоящим персонажем.', 'A random player is comparing your guess with the real character.') : l(`Отвечай на вопросы ${playerName(currentPlayerId ?? '')} вслух: только «Да» или «Нет».`, `Answer ${playerName(currentPlayerId ?? '')}'s questions out loud: only Yes or No.`)}</p>
+          </div>
+          <div className={`${clay.softMessage} ${clay.cardSoft}`}><WhoAmIIcon name={haveIGuessed ? 'celebrate' : 'profile'} /><div><b>{haveIGuessed ? `+${gs.scores[effectivePlayerId ?? ''] || 0} ${l('ОЧКОВ', 'POINTS')}` : pendingJudge ? l('ВЕРДИКТ СКОРО', 'VERDICT SOON') : l('ЖДИ СВОЙ ХОД', 'WAIT FOR YOUR TURN')}</b><small>{haveIGuessed ? l('результат уже в рейтинге', 'your score is in the ranking') : l('чужие персонажи видны только игрокам', 'characters stay private to players')}</small></div></div>
+        </div>
+      );
+    }
 
     return (
       <div className="flex-1 flex flex-col items-center gap-4">
@@ -988,6 +825,31 @@ export default function WhoAmIPage() {
       return 0.2 + fromBottom * 0.12;
     };
 
+    if (gs.phase === 'finished') {
+      return (
+        <div className={clay.results}>
+          <span className={clay.iconBlob}><WhoAmIIcon name="trophy" /></span>
+          <small className={clay.kicker}>{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</small>
+          <h1>{l('Все личности\nраскрыты', 'Every identity\nrevealed')}</h1>
+          <div className={clay.ranking}>
+            {sorted.map((entry, index) => {
+              const guessed = gs.guessedPlayers.includes(entry.id);
+              const character = guessed ? gs.characters[entry.id]?.[locale] ?? '???' : l('не угадал', 'not guessed');
+              return (
+                <article key={entry.id} className={`${clay.resultRow} ${index === 0 ? clay.resultRowWinner : ''}`}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <ClayBlob name={entry.name} active={index === 0} size="sm" />
+                  <div><b>{entry.name}</b><small>{character} · {gs.questionsAsked[entry.id] ?? 0} {l('вопросов', 'questions')}</small></div>
+                  <strong>{entry.score}</strong>
+                </article>
+              );
+            })}
+          </div>
+          {isGameHost && <div className={clay.resultsAction}><button type="button" className={clay.primaryButton} onClick={handleStart}>{l('ИГРАТЬ СНОВА', 'PLAY AGAIN')}</button></div>}
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
         <GlassCard className="w-full max-w-md text-center animate-scale-in">
@@ -1072,29 +934,19 @@ export default function WhoAmIPage() {
     content = renderJudge();
   }
 
+  const visualPhaseKey = lastGuessResult
+    ? `result-${lastGuessResult.playerId}-${lastGuessResult.correct}`
+    : showGuessInput
+      ? 'guess-input'
+      : isMyConfirmScreen
+        ? 'guess-confirm'
+        : isGuessJudge && gs.guessAwaitingJudge
+          ? 'judge'
+          : `${gs.phase}-${currentPlayerId ?? 'none'}-${gs.consecutiveYesAnswers}`;
+
   return (
-    <GameLayout
-      title={l('Кто я?', 'Who Am I?')}
-      icon={<WhoAmIIcon name="profile" className="h-7 w-7 text-sky-300" />}
-      scores={gs.phase !== 'lobby' ? layoutScores : undefined}
-      onEnd={isGameHost ? handleEndGame : undefined}
-      showScoreboard={false}
-      phaseKey={gs.phase}
-      gradientClass={WHO_AM_I_GRADIENT_CLASS}
-    >
-      <style jsx global>{`
-        @keyframes whoamiMobileRowIn {
-          from {
-            opacity: 0;
-            transform: translateY(14px) scale(.96);
-          }
-          to {
-            opacity: 1;
-            transform: none;
-          }
-        }
-      `}</style>
+    <WhoAmIClayMobileLayout roomId={roomId} phaseKey={visualPhaseKey} onEnd={isGameHost ? handleEndGame : undefined} locale={locale}>
       {content}
-    </GameLayout>
+    </WhoAmIClayMobileLayout>
   );
 }

@@ -15,6 +15,11 @@ import { GameSurface } from '@/components/games/GameSurface';
 import { AliasIcon } from '@/components/games/AliasIcon';
 import { SpyIcon, type SpyIconName } from '@/components/games/SpyIcon';
 import { WhoAmIIcon } from '@/components/games/WhoAmIIcon';
+import {
+  ClayBlob,
+  WhoAmIClayTvLayout,
+  whoAmIClayStyles as whoClay,
+} from '@/components/games/who-am-i-clay/WhoAmIClay';
 import { HundredToOneIcon } from '@/components/games/HundredToOneIcon';
 import {
   MafiaClubTvLayout,
@@ -338,7 +343,7 @@ export default function TVGamePage() {
     playerOrderIdx: 0,
     guessAskerId: '',
     guessTargetId: '',
-    timerLeft: 300,
+    timerLeft: 180,
     timerRunning: false,
     readyPlayers: [],
     votes: {},
@@ -1895,7 +1900,7 @@ export default function TVGamePage() {
       `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
     const spyName = spyGetName(sp.spyId);
     const CIRC = 741.4;
-    const timerRatio = Math.max(0, Math.min(1, sp.timerLeft / 300));
+    const timerRatio = Math.max(0, Math.min(1, sp.timerLeft / 180));
     const timerOffset = CIRC * (1 - timerRatio);
     const timerColor = sp.timerLeft <= 30 ? '#ff453a' : sp.timerLeft <= 90 ? '#ffd60a' : '#64d2ff';
     const votedCount = Object.keys(sp.votes).length;
@@ -1925,14 +1930,14 @@ export default function TVGamePage() {
         {!sp.gameOver && sp.phase === 'dealing' && <div className="spy-live-tv-center spy-live-tv-brief"><span>{l('СЕКРЕТНЫЕ ДАННЫЕ ОТПРАВЛЕНЫ', 'CLASSIFIED DATA SENT')}</span><h1>{l('Проверьте свои телефоны', 'Check your phones')}</h1><p>{l('Один участник не получил слово. Не показывайте экран соседям.', 'One player did not receive the word. Keep your screen private.')}</p><div className="spy-live-tv-ready">{spyPlayerList.map((player) => { const ready = sp.readyPlayers.includes(player.id); return <div key={player.id} className={ready ? 'ready' : ''}><i>{player.nickname[0]}</i><b>{player.nickname}</b><span>{ready ? l('ГОТОВ', 'READY') : l('ОЖИДАЕМ', 'WAITING')}</span></div>; })}</div><div className="spy-live-tv-progress"><i><b style={{ width: spyPlayerList.length ? `${(sp.readyPlayers.length / spyPlayerList.length) * 100}%` : '0%' }} /></i><span>{sp.readyPlayers.length} / {spyPlayerList.length}</span></div></div>}
 
         {!sp.gameOver && sp.phase === 'playing' && sp.mode !== 'draw' && <div className="spy-live-tv-question">
-          <div className="spy-live-tv-timer"><svg viewBox="0 0 260 260"><circle cx="130" cy="130" r="118" /><circle className="progress" cx="130" cy="130" r="118" stroke={timerColor} strokeDasharray={CIRC} strokeDashoffset={timerOffset} /></svg><b>{formatSec(sp.timerLeft)}</b><span>{l('ДО ГОЛОСОВАНИЯ', 'UNTIL VOTING')}</span></div>
+          <div className="spy-live-tv-timer"><svg viewBox="0 0 260 260"><circle cx="130" cy="130" r="118" /><circle className="progress" cx="130" cy="130" r="118" stroke={timerColor} strokeDasharray={CIRC} strokeDashoffset={timerOffset} /></svg><b>{formatSec(sp.timerLeft)}</b><span>{l('ДО ОБСУЖДЕНИЯ', 'UNTIL DISCUSSION')}</span></div>
           <div className="spy-live-tv-interview"><span>{l('АКТИВНЫЙ ДОПРОС', 'ACTIVE INTERVIEW')}</span><div><i>{activePlayerName[0]}</i><p><small>{l('ЗАДАЁТ ВОПРОС', 'ASKING')}</small><b>{activePlayerName}</b></p></div><em>→</em><div className="target"><i>{targetPlayerName[0]}</i><p><small>{l('ОТВЕЧАЕТ', 'ANSWERING')}</small><b>{targetPlayerName}</b></p></div><small>{l('Опишите слово, не называя его', 'Describe the word without saying it')}</small></div>
           <aside>{sp.playerOrder.slice(0, 7).map((id, index) => <div key={id} className={id === activePlayerId ? 'active' : ''}><i>{index + 1}</i><b>{spyGetName(id)}</b><span>{id === activePlayerId ? l('ГОВОРИТ', 'SPEAKING') : l('ОЖИДАЕТ', 'WAITING')}</span></div>)}</aside>
         </div>}
 
         {!sp.gameOver && sp.phase === 'playing' && sp.mode === 'draw' && <div className="spy-live-tv-draw"><div className="spy-live-tv-draw-meta"><span><i /> LIVE CANVAS</span><b>{formatSec(sp.timerLeft)}</b></div><canvas ref={initSpyCanvas} /><div className="spy-live-tv-drawer"><span>{l('РИСУЕТ', 'DRAWING')}</span><b>{activePlayerName}</b><small>{l('СЛЕДУЮЩИЙ', 'NEXT')} · {spyGetName(sp.playerOrder[(sp.playerOrderIdx + 1) % Math.max(1, sp.playerOrder.length)] ?? '')}</small></div><div className="spy-live-tv-order">{sp.playerOrder.slice(0, 8).map((id) => <i key={id} className={id === activePlayerId ? 'active' : ''}>{spyGetName(id)[0]}</i>)}</div></div>}
 
-        {!sp.gameOver && sp.phase === 'discussion' && <div className="spy-live-tv-center spy-live-tv-discussion"><span>{l('ОБЩИЙ КАНАЛ ОТКРЫТ', 'OPEN CHANNEL')}</span><div>{formatSec(sp.discussionTimeLeft)}</div><h1>{l('Обсудите подозреваемых', 'Discuss the suspects')}</h1><p>{l('Сопоставьте ответы и рисунки. Голосование начнётся после сигнала ведущего.', 'Compare answers and drawings. Voting starts on the host’s signal.')}</p><section>{Array.from({ length: 36 }, (_, index) => <i key={index} style={{ height: `${18 + ((index * 17) % 66)}px` }} />)}</section></div>}
+        {!sp.gameOver && sp.phase === 'discussion' && <div className="spy-live-tv-center spy-live-tv-discussion"><span>{l('ОБЩИЙ КАНАЛ ОТКРЫТ', 'OPEN CHANNEL')}</span><div>{formatSec(sp.discussionTimeLeft)}</div><h1>{l('Обсудите подозреваемых', 'Discuss the suspects')}</h1><p>{l('После таймера начнётся голосование. Ведущий может запустить его раньше.', 'Voting starts when the timer ends. The host can start it earlier.')}</p><section>{Array.from({ length: 36 }, (_, index) => <i key={index} style={{ height: `${18 + ((index * 17) % 66)}px`, animationDelay: `${(index % 9) * -0.11}s` }} />)}</section></div>}
 
         {!sp.gameOver && sp.phase === 'voting' && <div className="spy-live-tv-voting"><div><span>{l('ГОЛОСОВАНИЕ ИДЁТ', 'VOTING IN PROGRESS')}</span><h1>{l('Кто здесь шпион?', 'Who is the spy?')}</h1><p>{l('Личный выбор каждого остаётся скрытым до завершения голосования.', 'Every choice stays private until voting ends.')}</p><div className="spy-live-tv-vote-progress"><i><b style={{ width: spyPlayerList.length ? `${(votedCount / spyPlayerList.length) * 100}%` : '0%' }} /></i><span>{votedCount} / {spyPlayerList.length}</span></div></div><div className="spy-live-tv-voters">{spyPlayerList.map((player) => { const done = Object.hasOwn(sp.votes, player.id); return <div key={player.id} className={done ? 'done' : ''}><i>{player.nickname[0]}</i><b>{player.nickname}</b><span>{done ? l('ГОЛОС ПРИНЯТ', 'VOTE ACCEPTED') : l('ОЖИДАЕМ', 'WAITING')}</span></div>; })}</div></div>}
 
@@ -2509,6 +2514,94 @@ export default function TVGamePage() {
 
     const revealStep = resultRows.length >= 10 ? 0.34 : 0.46;
     const winner = resultRows[0];
+
+    if (['lobby', 'playing', 'finished'].includes(ws.phase)) {
+      if (ws.phase === 'lobby') {
+        return (
+          <WhoAmIClayTvLayout>
+            <main className={whoClay.tvMain}>
+              <div className={whoClay.tvLobby}>
+                <section className={whoClay.tvLobbyHero}>
+                  <div className={whoClay.tvLogo}><WhoAmIIcon name="profile" /></div>
+                  <small>PARTY GAMES HUB</small>
+                  <h1>{l('Кто я?', 'Who Am I?')}</h1>
+                  <p>{l('Угадай, кем тебя назначили. Задавай вопросы, на которые можно ответить «Да» или «Нет».', 'Guess who you are. Ask questions that can be answered Yes or No.')}</p>
+                  <div className={whoClay.tvLobbyPlayers}>
+                    {players.map((player) => <div key={player.id} className={whoClay.tvPlayerChip}><ClayBlob name={player.nickname} size="sm" /><b>{player.nickname}</b>{player.isHost && <WhoAmIIcon name="star" />}</div>)}
+                  </div>
+                </section>
+                <aside className={whoClay.tvQrPanel}>
+                  <div className={whoClay.tvQrFrame}><QRCodeCanvas value={joinUrl} size={250} /></div>
+                  <small>{l('КОД КОМНАТЫ', 'ROOM CODE')}</small>
+                  <strong>{roomId}</strong>
+                  <span>{siteUrl}/join</span>
+                </aside>
+              </div>
+            </main>
+            {qrOverlay}
+          </WhoAmIClayTvLayout>
+        );
+      }
+
+      if (ws.phase === 'finished') {
+        return (
+          <WhoAmIClayTvLayout>
+            <header className={whoClay.tvHeader}>
+              <span className={whoClay.tvBrand}><i><WhoAmIIcon name="profile" /></i><b>{l('КТО Я?', 'WHO AM I?')}</b></span>
+              <em className={whoClay.tvPhase}>{l('ФИНАЛ', 'RESULTS')}</em>
+              <strong className={whoClay.tvMeta}>{ws.turnOrder.length} {l('ИГРОКОВ', 'PLAYERS')}</strong>
+            </header>
+            <main className={whoClay.tvMain}>
+              <div className={whoClay.tvResults}>
+                <div className={whoClay.tvResultsTitle}><span className={whoClay.iconBlob}><WhoAmIIcon name="trophy" /></span><div><small>{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</small><h1>{l('Все личности раскрыты', 'Every identity revealed')}</h1></div></div>
+                <section className={whoClay.tvResultsList}>
+                  {resultRows.map((row, index) => {
+                    const character = row.guessed ? row.character?.[locale] ?? '???' : l('не угадал', 'not guessed');
+                    return <article key={row.id} className={`${whoClay.tvResultRow} ${index === 0 ? whoClay.tvResultWinner : ''}`}><span>{String(index + 1).padStart(2, '0')}</span><ClayBlob name={row.name} active={index === 0} /><div><b>{row.name}</b><small>{character} · {ws.questionsAsked[row.id] ?? 0} {l('вопросов', 'questions')}</small></div><strong>{row.score}</strong></article>;
+                  })}
+                </section>
+              </div>
+            </main>
+            <footer className={whoClay.tvFooter}><span>{winner ? l(`У ${winner.name} на телефоне: играть снова`, `On ${winner.name}'s phone: play again`) : ''}</span><b>PARTY GAMES HUB · WHO AM I?</b></footer>
+            {qrOverlay}
+          </WhoAmIClayTvLayout>
+        );
+      }
+
+      const disputeActive = ws.guessNeedsConfirm || ws.guessAwaitingJudge;
+      return (
+        <WhoAmIClayTvLayout>
+          <header className={whoClay.tvHeader}>
+            <span className={whoClay.tvBrand}><i><WhoAmIIcon name="profile" /></i><b>{l('КТО Я?', 'WHO AM I?')}</b></span>
+            <em className={whoClay.tvPhase}>{l(`${currentPlayerName} ХОДИТ · «ДА» ${ws.consecutiveYesAnswers}/3`, `${currentPlayerName} · YES ${ws.consecutiveYesAnswers}/3`)}</em>
+            <strong className={whoClay.tvMeta}>{ws.guessedPlayers.length} / {ws.turnOrder.length} {l('УГАДАЛИ', 'GUESSED')}</strong>
+          </header>
+          <main className={whoClay.tvMain}>
+            <div className={whoClay.tvGame}>
+              <section className={`${whoClay.tvStage} ${disputeActive || lastWhoAmIGuessResult ? whoClay.tvDimmed : ''}`}>
+                <div className={whoClay.tvActive}><ClayBlob name={currentPlayerName} active size="lg" /><small>{l('СЕЙЧАС ХОДИТ', 'CURRENT TURN')}</small><h1>{currentPlayerName}</h1><p>{l('Задаёт вопрос о себе', 'Asking about themselves')}</p></div>
+                <div className={whoClay.tvMystery}><i /><i /><i /><span><WhoAmIIcon name="profile" /><strong>?</strong></span><small>{l('ПЕРСОНАЖ СКРЫТ', 'CHARACTER HIDDEN')}</small></div>
+                <div className={whoClay.tvStreak}><span>{l('«ДА» ПОДРЯД', 'YES STREAK')}</span>{[0,1,2].map((dot) => <i key={dot} data-filled={dot < ws.consecutiveYesAnswers} />)}<b>{ws.consecutiveYesAnswers}/3</b></div>
+              </section>
+              <aside className={`${whoClay.tvRanking} ${disputeActive || lastWhoAmIGuessResult ? whoClay.tvDimmed : ''}`}>
+                <small>{l('РЕЙТИНГ', 'RANKING')}</small>
+                {resultRows.map((row, index) => <article key={row.id} className={`${whoClay.tvRankRow} ${row.id === currentPlayerId ? whoClay.tvRankCurrent : ''}`}><span>{String(index + 1).padStart(2, '0')}</span><ClayBlob name={row.name} size="sm" /><b>{row.name}</b><strong>{row.score}</strong></article>)}
+              </aside>
+
+              {disputeActive && !lastWhoAmIGuessResult && (
+                <div className={`${whoClay.tvOverlay} ${whoClay.tvOverlayWarm}`}><span className={whoClay.iconBlob}><WhoAmIIcon name="profile" /></span><small>{l('ОСПАРИВАНИЕ ОТВЕТА', 'ANSWER DISPUTE')}</small><h1>{l(`${disputingPlayerName} передал(а) ответ судье`, `${disputingPlayerName} sent the answer to a judge`)}</h1><p>{l('Вердикт принимается на телефоне случайного игрока. Ответ и персонаж не показываются на TV.', 'A random player decides on their phone. The guess and character stay hidden from TV.')}</p></div>
+              )}
+
+              {lastWhoAmIGuessResult && (
+                <div className={`${whoClay.tvOverlay} ${lastWhoAmIGuessResult.correct ? '' : whoClay.tvOverlayDanger}`}><span className={whoClay.iconBlob}><WhoAmIIcon name={lastWhoAmIGuessResult.correct ? 'celebrate' : 'cross'} /></span><small>{lastWhoAmIGuessResult.correct ? l('ЛИЧНОСТЬ РАСКРЫТА', 'IDENTITY REVEALED') : l('НЕВЕРНАЯ ПОПЫТКА', 'WRONG GUESS')}</small><h1>{lastWhoAmIGuessResult.correct ? l(`${getPlayerName(lastWhoAmIGuessResult.playerId)} — ${whoAmIState.characters[lastWhoAmIGuessResult.playerId]?.[locale] ?? lastWhoAmIGuessResult.guess}!`, `${getPlayerName(lastWhoAmIGuessResult.playerId)} is ${whoAmIState.characters[lastWhoAmIGuessResult.playerId]?.[locale] ?? lastWhoAmIGuessResult.guess}!`) : l(`${getPlayerName(lastWhoAmIGuessResult.playerId)} пока не угадал(а)`, `${getPlayerName(lastWhoAmIGuessResult.playerId)} has not guessed yet`)}</h1><p>{lastWhoAmIGuessResult.correct ? `+${calculateWhoAmIScore(ws.questionsAsked[lastWhoAmIGuessResult.playerId] || 0)} ${l('очков', 'points')} · ${ws.questionsAsked[lastWhoAmIGuessResult.playerId] || 0} ${l('вопросов', 'questions')}` : l('Персонаж остаётся скрытым', 'The character remains hidden')}</p></div>
+              )}
+            </div>
+          </main>
+          <footer className={whoClay.tvFooter}><span>{disputeActive ? l('ОЖИДАЕМ РЕШЕНИЕ СУДЬИ', 'WAITING FOR THE JUDGE') : l(`НА ТЕЛЕФОНЕ ${currentPlayerName}`, `ON ${currentPlayerName}'S PHONE`)}</span><b>{disputeActive ? l('ОТВЕТ НЕ ПОКАЗЫВАЕТСЯ НА TV', 'THE ANSWER STAYS OFF TV') : l('НЕТ · Я ЗНАЮ! · ДА', 'NO · I KNOW! · YES')}</b></footer>
+          {qrOverlay}
+        </WhoAmIClayTvLayout>
+      );
+    }
 
     return (
       <GameSurface className={WHO_AM_I_TV_SURFACE}>
