@@ -8,7 +8,7 @@ export const GAMES: GameInfo[] = [
     descriptionRu: 'Отвечайте на вопросы быстрее всех! Кто наберёт больше очков — тот победитель.',
     descriptionEn: 'Answer questions faster than everyone! The one with the most points wins.',
     minPlayers: 2,
-    maxPlayers: 20,
+    maxPlayers: 10,
     icon: '🧠',
   },
   {
@@ -27,8 +27,8 @@ export const GAMES: GameInfo[] = [
     titleEn: 'Crocodile',
     descriptionRu: 'Объясняйте слова жестами или словами, не называя само слово!',
     descriptionEn: 'Explain words using gestures or descriptions without saying the word!',
-    minPlayers: 4,
-    maxPlayers: 16,
+    minPlayers: 2,
+    maxPlayers: 10,
     icon: '🐊',
   },
   {

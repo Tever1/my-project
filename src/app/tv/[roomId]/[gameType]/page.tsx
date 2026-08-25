@@ -12,6 +12,7 @@ import { useRoomState } from '@/lib/use-room-state';
 import { GameIcon } from '@/components/GameIcon';
 import { CrocIcon } from '@/components/games/CrocIcon';
 import { GameSurface } from '@/components/games/GameSurface';
+import { QuizPulseTvScreen } from '@/components/games/quiz-pulse/QuizPulse';
 import { AliasIcon } from '@/components/games/AliasIcon';
 import { SpyIcon, type SpyIconName } from '@/components/games/SpyIcon';
 import { WhoAmIIcon } from '@/components/games/WhoAmIIcon';
@@ -29,7 +30,7 @@ import {
 } from '@/components/games/mafia-club/MafiaClub';
 import { QRCodeCanvas } from '@/components/ui/QRCode';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
-import { QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
+import { QUIZ_TOPICS, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES, getQuizQuestions, getSpecialQuizQuestions } from '@/lib/quiz';
 import { ROUNDS as H2O_ROUNDS, ROUND_NAMES as H2O_ROUND_NAMES, BIG_Q as H2O_BIG_Q, TOPICS as H2O_TOPICS, getDisplayPts as h2oGetDisplayPts } from '@/lib/hundred-to-one/questions';
 import type { MafiaRole, QuizDifficulty, QuizTopic } from '@/types/game';
 
@@ -43,36 +44,6 @@ const TV_STATE_REQUEST: Partial<Record<string, string>> = {
   quiz: 'quiz:request-state',
   spy: 'spy:request-state',
 };
-
-function QuizIcon({ iconUrl, fallback, size = 20 }: { iconUrl?: string; fallback: string; size?: number }) {
-  if (iconUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={iconUrl}
-        alt=""
-        width={size}
-        height={size}
-        style={{ objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' }}
-        aria-hidden="true"
-      />
-    );
-  }
-
-  return <span aria-hidden="true">{fallback}</span>;
-}
-
-function DifficultyIcon({ difficulty, size = 16 }: { difficulty?: QuizDifficulty | string | null; size?: number }) {
-  const color = difficulty === 'easy' ? '#22c55e' : difficulty === 'hard' ? '#ef4444' : '#eab308';
-
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-block rounded-full border border-white/30 align-middle"
-      style={{ width: size, height: size, backgroundColor: color, boxShadow: `0 0 ${Math.round(size / 2)}px ${color}66` }}
-    />
-  );
-}
 
 function SpyImg({ name, className }: { name: string; className?: string }) {
   return <SpyIcon name={name as SpyIconName} className={className} style={{ color: '#5eead4' }} />;
@@ -366,8 +337,8 @@ export default function TVGamePage() {
   const [crocState, setCrocState] = useState<{
     phase: string; explainerId: string; currentWordIndex: number;
     timeLeft: number; scores: Record<string, number>; wordsGuessed: number; wordsSkipped: number;
-    playersOrder: string[]; turnNumber: number;
-  }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, wordsSkipped: 0, playersOrder: [], turnNumber: 1 });
+    playersOrder: string[]; turnNumber: number; winnerId: string | null; finishingRound: number | null;
+  }>({ phase: 'waiting', explainerId: '', currentWordIndex: -1, timeLeft: 60, scores: {}, wordsGuessed: 0, wordsSkipped: 0, playersOrder: [], turnNumber: 1, winnerId: null, finishingRound: null });
   const [aliasState, setAliasState] = useState<{
     phase: string; mode: string; teams: { id: string; name: string; playerIds: string[]; score: number }[];
     teamNameConfirmed?: boolean[];
@@ -1083,288 +1054,44 @@ export default function TVGamePage() {
 
   // ===================== QUIZ TV RENDER =====================
   if (gameType === 'quiz') {
-    const currentQuestion = quizState.currentQuestion;
-    const answeredCount = Object.keys(quizState.answers).length;
-    const totalPlayers = players.length;
+    const topicInfo = quizState.config.topic ? QUIZ_TOPICS.find((topic) => topic.id === quizState.config.topic) : null;
+    const specialQuizInfo = quizState.config.specialQuizId ? SPECIAL_QUIZZES.find((quiz) => quiz.id === quizState.config.specialQuizId) : null;
+    const specialThemeInfo = quizState.config.specialTheme ? SPECIAL_QUIZ_THEMES.find((theme) => theme.id === quizState.config.specialTheme) : null;
+    const backgroundUrl = specialQuizInfo?.backgroundUrl ?? specialThemeInfo?.backgroundUrl;
+    const topicLabel = specialQuizInfo
+      ? (locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn)
+      : specialThemeInfo
+        ? (locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn)
+        : topicInfo
+          ? (locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn)
+          : (locale === 'ru' ? 'Общий квиз' : 'General quiz');
     const timePerQuestion = quizState.config.difficulty === 'easy' ? 15
       : quizState.config.difficulty === 'hard' ? 25 : 20;
 
-    const topicInfo = quizState.config.topic ? QUIZ_TOPICS.find((t) => t.id === quizState.config.topic) : null;
-    const diffInfo = quizState.config.difficulty ? QUIZ_DIFFICULTIES.find((d) => d.id === quizState.config.difficulty) : null;
-    const specialQuizInfo = quizState.config.specialQuizId ? SPECIAL_QUIZZES.find((q) => q.id === quizState.config.specialQuizId) : null;
-    const specialThemeInfo = quizState.config.specialTheme ? SPECIAL_QUIZ_THEMES.find((t) => t.id === quizState.config.specialTheme) : null;
-    const backgroundUrl: string | undefined =
-      specialQuizInfo?.backgroundUrl ?? specialThemeInfo?.backgroundUrl ?? undefined;
-    const isSetup = quizState.phase.startsWith('setup-');
-
     return (
-      <GameSurface backgroundUrl={backgroundUrl} className="h-screen bg-gradient-main text-white flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="flex items-center justify-between gap-4 px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-4 min-w-0">
-            <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={36} className="flex-shrink-0" />
-            <h1 className="text-3xl font-bold">{gameTitle}</h1>
-          </div>
-          {/* Center: player scores in header */}
-          {scoreboard.length > 0 && (quizState.phase === 'question' || quizState.phase === 'countdown') && (
-            <div className="flex items-center justify-center gap-2 flex-wrap min-w-0">
-              {scoreboard.map((entry, i) => {
-                const guessedRight = quizState.showCorrect && quizState.correctPlayers.includes(entry.id);
-                const guessedWrong = quizState.showCorrect && !quizState.correctPlayers.includes(entry.id);
-                const chipClass = guessedRight
-                  ? 'bg-green-500/15 border-green-400/50'
-                  : guessedWrong
-                    ? 'bg-red-500/15 border-red-400/50'
-                    : 'bg-white/10 border-white/15';
-                return (
-                  <div key={entry.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition-colors duration-300 ${chipClass} ${entry.away ? 'opacity-40 grayscale' : ''}`}>
-                    <span className="text-xs text-white/50">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
-                    <span className="text-sm font-semibold text-white">{entry.name}</span>
-                    <span className="text-sm font-black text-purple-400">{entry.score}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {quizState.phase === 'question' && (
-            <div className="flex items-center gap-6">
-              <span className="text-lg text-white/50">
-                {locale === 'ru' ? 'Ответили' : 'Answered'}: {answeredCount}/{totalPlayers}
-              </span>
-              <span className="text-xl text-white/60">
-                {quizState.questionIndex + 1} / {quizState.totalQuestions}
-              </span>
-              <span className={`text-4xl font-black tabular-nums ${quizState.timeLeft <= 5 ? 'text-red-400' : 'text-white'}`}>
-                {quizState.timeLeft}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Main content */}
-        <div className="flex-1 flex flex-col justify-center px-8 py-4 min-h-0">
-          {/* SETUP / WAITING */}
-          {(isSetup || quizState.phase === 'waiting') && (
-            <div className="text-center animate-fade-in">
-              <div className="mb-6 flex justify-center">
-                <GameIcon gameId={gameType as import('@/lib/design/tokens').GameId} size={96} />
-              </div>
-              <h2 className="text-5xl font-bold mb-4">{gameTitle}</h2>
-              <p className="text-2xl text-white/50 animate-pulse">
-                {isSetup
-                  ? locale === 'ru' ? 'Настройка игры...' : 'Setting up...'
-                  : locale === 'ru' ? 'Ожидаем начала игры' : 'Waiting for the game to start'}
-              </p>
-              {specialQuizInfo ? (
-                <div className="mt-6 flex items-center justify-center gap-4">
-                  <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-12 py-8 text-5xl font-semibold inline-flex items-center">
-                    {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
-                  </span>
-                </div>
-              ) : specialThemeInfo ? (
-                <div className="mt-6 flex items-center justify-center gap-4">
-                  <span className="glass-badge px-4 py-2 text-lg inline-flex items-center gap-2">
-                    <QuizIcon iconUrl={specialThemeInfo.iconUrl} fallback={specialThemeInfo.icon} size={24} />
-                    {locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn}
-                  </span>
-                </div>
-              ) : (diffInfo || topicInfo) && (
-                <div className="mt-6 flex items-center justify-center gap-4">
-                  {diffInfo && (
-                    <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-4 py-2 text-lg font-semibold inline-flex items-center gap-2">
-                      <DifficultyIcon difficulty={diffInfo.id} size={16} />
-                      {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
-                    </span>
-                  )}
-                  {topicInfo && (
-                    <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-4 py-2 text-lg font-semibold inline-flex items-center">
-                      {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
-                    </span>
-                  )}
-                </div>
-              )}
-              {quizState.phase === 'waiting' && (
-                <div className="mt-8 space-y-2">
-                  <p className="text-2xl text-white/90">
-                    {locale === 'ru'
-                      ? `${quizState.totalQuestions} вопросов. 1 очко за правильный ответ!`
-                      : `${quizState.totalQuestions} questions. 1 point for each correct answer!`}
-                  </p>
-                  <p className="text-xl text-white/70">
-                    {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* COUNTDOWN */}
-          {quizState.phase === 'countdown' && (
-            <div className="text-center animate-fade-in">
-              <p className="text-2xl text-white/50 mb-4">
-                {locale === 'ru' ? 'Вопрос' : 'Question'} {quizState.questionIndex + 1}
-              </p>
-              <AnimatePresence mode="popLayout">
-                <motion.div
-                  key={quizState.countdownValue}
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: [0.5, 1.2, 1], opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
-                  className="text-[clamp(5rem,18vh,12rem)] font-black leading-none"
-                  style={{
-                    color: '#facc15',
-                    textShadow: '0 0 40px rgba(250, 204, 21, 0.6), 0 0 80px rgba(250, 204, 21, 0.3)',
-                  }}
-                >
-                  {quizState.countdownValue}
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          )}
-
-          {/* QUESTION */}
-          {quizState.phase === 'question' && currentQuestion && (
-            <div className="flex-1 w-full flex flex-col justify-end">
-              {/* BOTTOM: Question + timer + options + result */}
-              <div className="flex flex-col gap-3 flex-shrink-0">
-                {/* Question */}
-                <div className="glass-card p-6 flex-shrink-0">
-                  <h3 className="text-2xl xl:text-3xl font-bold text-center leading-snug line-clamp-3">
-                    {locale === 'ru' ? currentQuestion.questionRu : currentQuestion.questionEn}
-                  </h3>
-                </div>
-
-                {/* Timer bar */}
-                <div className="w-full h-3 rounded-full bg-white/10 overflow-hidden flex-shrink-0">
-                  <div
-                    className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-                      quizState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
-                    }`}
-                    style={{ width: `${(quizState.timeLeft / timePerQuestion) * 100}%` }}
-                  />
-                </div>
-
-                {/* Options grid */}
-                <div className="grid grid-cols-2 gap-3 flex-shrink-0">
-                  {currentQuestion.options.map((option, index) => {
-                    const isCorrectAnswer = index === currentQuestion.correctIndex;
-                    const isCorrectRevealed = quizState.showCorrect && isCorrectAnswer;
-                    const isWrongRevealed = quizState.showCorrect && !isCorrectAnswer;
-                    const stripColor = isCorrectRevealed ? '#4ade80' : isWrongRevealed ? '#f87171' : 'transparent';
-                    const bgClass = isCorrectRevealed
-                      ? 'bg-green-500/10 border-green-400/30'
-                      : isWrongRevealed
-                        ? 'bg-white/5 border-white/10 opacity-40'
-                        : 'bg-white/5 border-white/10';
-
-                    return (
-                      <div
-                        key={index}
-                        className={`relative overflow-hidden rounded-md border p-5 text-left backdrop-blur-xl transition-colors duration-300 ${bgClass}`}
-                      >
-                        <div
-                          className="absolute left-0 inset-y-0 w-1.5 transition-colors duration-300"
-                          style={{ backgroundColor: stripColor }}
-                        />
-                        <div className="flex items-center gap-4 pl-3">
-                          <span className={`
-                            flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black
-                            ${isCorrectRevealed ? 'bg-green-500/20 text-green-300' : 'bg-white/8 text-white/50'}
-                          `}>
-                            {isCorrectRevealed ? '✓' : index + 1}
-                          </span>
-                          <span className={`text-xl font-semibold line-clamp-2 leading-tight ${
-                            isCorrectRevealed ? 'text-green-100' : 'text-white'
-                          }`}>
-                            {locale === 'ru' ? option.ru : option.en}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {/* MID-LEADERBOARD */}
-          {quizState.phase === 'mid-leaderboard' && (
-            <div className="text-center animate-fade-in">
-              <h2 className="text-5xl font-bold mb-2">
-                {locale === 'ru' ? 'Промежуточные результаты' : 'Halftime Results'}
-              </h2>
-              <p className="text-white/60 mb-8 text-xl">
-                {locale === 'ru'
-                  ? `После ${quizState.questionIndex + 1} из ${quizState.totalQuestions} вопросов`
-                  : `After ${quizState.questionIndex + 1} of ${quizState.totalQuestions} questions`}
-              </p>
-              <div className="w-full max-w-3xl mx-auto space-y-3">
-                {scoreboard.map((entry, i) => (
-                  <div
-                    key={entry.id}
-                    className={`relative overflow-hidden flex items-center justify-between py-4 px-8 rounded-md border backdrop-blur-xl transition-all ${
-                      i === 0
-                        ? 'bg-yellow-500/20 border-yellow-400/40 scale-105'
-                      : i === 1
-                          ? 'bg-white/8 border-white/15'
-                          : i === 2
-                            ? 'bg-amber-700/10 border-amber-700/20'
-                            : 'bg-white/5 border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="text-3xl w-10 text-center flex-shrink-0">
-                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                      </span>
-                      <span className="text-2xl font-bold">{entry.name}</span>
-                    </div>
-                    <span className="text-3xl font-black text-purple-400">{entry.score}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* FINAL */}
-          {quizState.phase === 'final' && (
-            <div className="text-center animate-fade-in">
-              <div className="text-7xl mb-4">🏆</div>
-              <h2 className="text-5xl font-bold mb-8">
-                {locale === 'ru' ? 'Итоги' : 'Final Results'}
-              </h2>
-              <div className="w-full max-w-3xl mx-auto space-y-3">
-                {scoreboard.map((entry, i) => (
-                  <div
-                    key={entry.id}
-                    className={`relative overflow-hidden flex items-center justify-between py-4 px-8 rounded-md border backdrop-blur-xl transition-all ${
-                      i === 0
-                        ? 'bg-yellow-500/20 border-yellow-400/40 scale-105'
-                        : i === 1
-                          ? 'bg-white/8 border-white/15'
-                          : i === 2
-                            ? 'bg-amber-700/10 border-amber-700/20'
-                            : 'bg-white/5 border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="text-3xl w-10 text-center flex-shrink-0">
-                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                      </span>
-                      <span className="text-2xl font-bold">{entry.name}</span>
-                    </div>
-                    <span className="text-3xl font-black text-purple-400">{entry.score}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+      <>
+        <QuizPulseTvScreen
+          locale={locale}
+          phase={quizState.phase}
+          topic={topicLabel}
+          backgroundUrl={backgroundUrl}
+          question={quizState.currentQuestion}
+          questionIndex={quizState.questionIndex}
+          totalQuestions={quizState.totalQuestions}
+          timeLeft={quizState.timeLeft}
+          timePerQuestion={timePerQuestion}
+          countdownValue={quizState.countdownValue}
+          scores={scoreboard}
+          totalPlayers={players.length}
+          showCorrect={quizState.showCorrect}
+          answeredCount={Object.keys(quizState.answers).length}
+          isSetup={quizState.phase.startsWith('setup-')}
+        />
         {qrOverlay}
-      </GameSurface>
+      </>
     );
   }
+
 
   // ===================== 100 к 1 TV RENDER =====================
   if (gameType === 'hundred-to-one') {
@@ -1956,224 +1683,104 @@ export default function TVGamePage() {
   // ===================== CROCODILE TV RENDER =====================
   if (gameType === 'crocodile') {
     const explainerName = getPlayerName(crocState.explainerId);
-    const totalRounds = 3;
-    const playerCountForRound = crocState.playersOrder.length || players.length || 1;
-    const currentRound = crocState.phase === 'finished'
-      ? totalRounds
-      : Math.min(
-          totalRounds,
-          Math.max(1, Math.floor((crocState.turnNumber - 1) / playerCountForRound) + 1),
-        );
-    const sortedScores = Object.entries(crocState.scores)
-      .map(([id, score]) => ({ id, name: getPlayerName(id), score }))
+    const crocTargetScore = 20;
+    const crocRaceColors = ['#ff584d', '#ff8a52', '#ffd166', '#f2eee5', '#38d9a9', '#4dabf7', '#748ffc', '#b197fc', '#f783ac', '#ced4da'];
+    const scoreIds = new Set([...players.map((player) => player.id), ...Object.keys(crocState.scores)]);
+    const sortedScores = Array.from(scoreIds)
+      .map((id) => ({ id, name: getPlayerName(id), score: crocState.scores[id] ?? 0 }))
       .sort((a, b) => b.score - a.score);
-    const crocTimerRadius = 118;
-    const crocTimerCirc = 2 * Math.PI * crocTimerRadius;
-    const crocTimerRatio = Math.max(0, Math.min(1, crocState.timeLeft / 60));
-    const crocTimerOffset = crocTimerCirc * (1 - crocTimerRatio);
-    const medalColors = ['#ffd60a', '#c7cdd6', '#cd8e54'];
-    const crocCounterStats = [
-      {
-        label: locale === 'ru' ? 'Угадано' : 'Guessed',
-        value: crocState.wordsGuessed,
-        icon: '✓',
-        color: '#ef4444',
-      },
-      {
-        label: locale === 'ru' ? 'Пропущено' : 'Skipped',
-        value: crocState.wordsSkipped,
-        icon: '›',
-        color: '#ff9f0a',
-      },
-    ];
+    const winnerId = crocState.winnerId ?? (crocState.phase === 'finished' ? sortedScores[0]?.id : null);
+    const winner = sortedScores.find((player) => player.id === winnerId) ?? sortedScores[0];
+    const crocRound = Math.floor((crocState.turnNumber - 1) / Math.max(1, crocState.playersOrder.length)) + 1;
+    const crocTime = `00:${Math.max(0, crocState.timeLeft).toString().padStart(2, '0')}`;
+    const racePanel = (final = false) => (
+      <aside className={`rounded-[28px] border border-white/10 px-7 py-6 ${final ? 'bg-[#ef3340]' : 'bg-white/[0.055]'}`}>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <b className="text-xl">{final
+            ? l('Финальный результат', 'Final result')
+            : crocState.finishingRound !== null
+              ? l('Финальный круг', 'Final round')
+              : l('До финиша', 'To the finish')}</b>
+          <span className={`rounded-full px-3 py-1 font-mono text-sm font-bold ${final ? 'bg-white text-[#991b2f]' : 'bg-[#ef3340] text-white'}`}>
+            {l('ЦЕЛЬ 20', 'GOAL 20')}
+          </span>
+        </div>
+        <div className="flex flex-col gap-2">
+          {sortedScores.slice(0, 10).map((player, index) => (
+            <div key={player.id} className="grid min-w-0 grid-cols-[minmax(110px,160px)_1fr_62px] items-center gap-3 py-0.5">
+              <span className="truncate text-[15px] font-bold">{player.name}</span>
+              <div className="h-2.5 overflow-hidden rounded-full bg-white/15">
+                <i
+                  className="block h-full origin-left rounded-full transition-[width] duration-700 motion-reduce:transition-none"
+                  style={{ width: `${Math.min(100, (player.score / crocTargetScore) * 100)}%`, background: crocRaceColors[index] }}
+                />
+              </div>
+              <b className="text-right font-mono text-base tabular-nums">{player.score}<small className="text-white/45">/20</small></b>
+            </div>
+          ))}
+        </div>
+      </aside>
+    );
+
     return (
-      <GameSurface className="h-screen bg-gradient-crocodile text-white flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-8 px-8 py-4 bg-black/20 backdrop-blur-sm border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <CrocIcon name="croc" className="h-10 w-10" />
-            <h1 className="text-3xl font-bold">{locale === 'ru' ? 'Крокодил' : 'Crocodile'}</h1>
-            {(crocState.phase === 'ready' || crocState.phase === 'explaining') && (
-              <span className="rounded-full border border-red-300/30 bg-red-500/20 px-4 py-1.5 font-mono text-sm font-bold uppercase tracking-[0.18em] text-red-100">
-                {locale === 'ru' ? 'Раунд' : 'Round'} {currentRound} / {totalRounds}
-              </span>
-            )}
+      <GameSurface className="h-screen overflow-hidden bg-[#100d12] bg-[radial-gradient(circle_at_18%_45%,rgba(239,51,64,.19),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(255,106,77,.14),transparent_35%)] text-white">
+        <header className="relative flex h-20 items-center justify-between border-b border-white/10 px-8">
+          <div className="flex items-center gap-3">
+            <CrocIcon name="croc" className="h-10 w-10 text-[#ef3340]" />
+            <b className="text-xl">{l('КРОКОДИЛ', 'CROCODILE')}</b>
           </div>
-          {(crocState.phase === 'ready' || crocState.phase === 'explaining') && (
-            <div className="flex items-center gap-3">
-              {crocCounterStats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="flex min-w-[150px] items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_14px_38px_rgba(0,0,0,.22)]"
-                >
-                  <span
-                    className="flex h-11 w-11 items-center justify-center rounded-2xl text-2xl font-black"
-                    style={{
-                      backgroundColor: `${stat.color}22`,
-                      color: stat.color,
-                    }}
-                  >
-                    {stat.icon}
-                  </span>
-                  <span className="flex flex-col leading-none">
-                    <span
-                      className="font-mono text-[42px] font-black tabular-nums leading-none"
-                      style={{ color: stat.color }}
-                    >
-                      {stat.value}
-                    </span>
-                    <span className="mt-1 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
-                      {stat.label}
-                    </span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          <span className="font-mono text-xs uppercase tracking-[0.14em] text-[#ff8b78]">
+            {crocState.finishingRound !== null
+              ? l(`ФИНАЛЬНЫЙ КРУГ · РАУНД ${crocRound}`, `FINAL ROUND · ROUND ${crocRound}`)
+              : l(`РАУНД ${crocRound} · ЦЕЛЬ 20`, `ROUND ${crocRound} · GOAL 20`)}
+          </span>
+        </header>
 
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-4 overflow-hidden min-h-0">
-          {/* WAITING */}
+        <main className="relative h-[calc(100vh-5rem)] p-8">
           {crocState.phase === 'waiting' && (
-            <div className="text-center">
-              <div className="mb-6 flex justify-center">
-                <CrocIcon name="croc" className="h-24 w-24" />
-              </div>
-              <h2 className="text-4xl font-bold mb-4">{locale === 'ru' ? 'Ожидаем начала игры' : 'Waiting for the game to start'}</h2>
-              <div className="mt-6 flex items-center justify-center gap-4 flex-wrap">
-                {players.map(p => (
-                  <div key={p.id} className="glass-card flex items-center justify-center gap-2 px-6 py-3">
-                    <span aria-hidden className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-xl">{p.nickname}</span>
-                    <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center">
-                      {p.isHost && <CrocIcon name="crown" className="h-5 w-5" style={{ color: '#facc15' }} />}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            <div className="grid h-full grid-cols-[1fr_520px] items-center gap-12">
+              <section>
+                <small className="font-mono uppercase tracking-[0.25em] text-[#ff8b78]">{l('КОМНАТА ГОТОВА', 'ROOM READY')}</small>
+                <h2 className="mt-4 text-7xl font-black leading-[0.9] tracking-[-0.06em]">{l('Соберите\n20 слов', 'Collect\n20 words').split('\n').map((line) => <span key={line} className="block">{line}</span>)}</h2>
+                <p className="mt-6 max-w-2xl text-xl text-white/45">{l('Карточка вправо даёт +1, влево пропускает слово', 'Swipe right for +1 or left to skip a word')}</p>
+              </section>
+              <section>
+                {racePanel()}
+                <div className="mt-5 rounded-full bg-[#ef3340] px-5 py-3 text-center font-bold animate-pulse motion-reduce:animate-none">{l('ЖДЁМ СТАРТА', 'WAITING TO START')}</div>
+              </section>
             </div>
           )}
 
-          {/* READY / EXPLAINING */}
           {(crocState.phase === 'ready' || crocState.phase === 'explaining') && (
-            <>
-              <div className="flex flex-1 min-h-0 w-full items-center justify-center gap-[clamp(2rem,6vw,4rem)]">
-                <div className="relative h-[280px] w-[280px] flex-shrink-0">
-                  <svg viewBox="0 0 260 260" width="280" height="280">
-                    <circle cx="130" cy="130" r={crocTimerRadius} stroke="rgba(255,255,255,.08)" strokeWidth="14" fill="none" />
-                    <circle
-                      cx="130"
-                      cy="130"
-                      r={crocTimerRadius}
-                      stroke="#ef4444"
-                      strokeWidth="14"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeDasharray={crocTimerCirc}
-                      strokeDashoffset={crocTimerOffset}
-                      transform="rotate(-90 130 130)"
-                      style={{ filter: 'drop-shadow(0 0 12px #ef444488)', transition: 'stroke-dashoffset 1s linear' }}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className={`font-mono text-7xl font-black tabular-nums leading-none ${crocState.timeLeft <= 10 ? 'text-red-200 animate-pulse' : 'text-white'}`}>
-                      {crocState.timeLeft}
-                    </span>
-                    <span className="mt-2 font-mono text-sm font-bold uppercase tracking-[0.28em] text-white/40">
-                      {locale === 'ru' ? 'сек' : 'sec'}
-                    </span>
+            <div className="grid h-full grid-cols-[1fr_520px] items-center gap-12">
+              <section className="flex items-center gap-8">
+                <div className="rounded-full bg-[#ef3340]/10 p-3 shadow-[0_0_65px_rgba(239,51,64,.2)] motion-safe:animate-pulse">
+                  <PlayerAvatar nickname={explainerName} sizePx={130} ring="#ef3340" />
+                </div>
+                <div className="min-w-0">
+                  <small className="font-mono uppercase tracking-[0.2em] text-[#ff8b78]">{crocState.phase === 'ready' ? l('ГОТОВИТСЯ НАЧАТЬ', 'GETTING READY') : l('СЕЙЧАС ПОКАЗЫВАЕТ', 'NOW EXPLAINING')}</small>
+                  <h2 className="truncate text-8xl font-black tracking-[-0.07em]">{explainerName}</h2>
+                  <div className="mt-7 w-[300px] rounded-[18px] bg-[#211b24] p-3">
+                    <div className="flex items-center justify-between"><small className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">{l('ВРЕМЯ ХОДА', 'TURN TIME')}</small><b className="font-mono text-2xl tabular-nums">{crocTime}</b></div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><i className="block h-full rounded-full bg-[#ef3340] transition-[width] duration-1000 motion-reduce:transition-none" style={{ width: `${Math.max(0, Math.min(100, (crocState.timeLeft / 60) * 100))}%` }} /></div>
                   </div>
                 </div>
-
-                <div className="min-w-0 max-w-[48vw] flex-1">
-                  <p className="mb-4 font-mono text-lg font-bold uppercase tracking-[0.22em] text-white/45">
-                    {crocState.phase === 'ready'
-                      ? locale === 'ru' ? 'Готовится начать' : 'Getting ready'
-                      : locale === 'ru' ? 'Показывает слово' : 'Showing the word'}
-                  </p>
-                  <div className="flex min-w-0 items-center gap-6">
-                    <PlayerAvatar nickname={explainerName} sizePx={88} ring="#ef4444" />
-                    <p
-                      className="min-w-0 truncate text-[clamp(3rem,6vw,4.5rem)] font-black leading-none"
-                      style={{ letterSpacing: '-1.5px' }}
-                    >
-                      {explainerName}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="w-full flex-shrink-0 rounded-[24px] border border-white/10 bg-white/[0.05] p-4 shadow-[0_18px_54px_rgba(0,0,0,.25)]">
-                <div className="mb-3 flex items-center gap-2">
-                  <CrocIcon name="trophy" className="h-7 w-7" />
-                  <h2 className="text-xl font-black">{locale === 'ru' ? 'Таблица очков' : 'Scoreboard'}</h2>
-                </div>
-                <div
-                  className="grid gap-3"
-                  style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(sortedScores.length, 8))}, minmax(0, 1fr))` }}
-                >
-                  {sortedScores.slice(0, 8).map(({ id, name, score }, idx) => {
-                    const active = id === crocState.explainerId;
-                    const rankColor = medalColors[idx] ?? 'rgba(255,255,255,.42)';
-                    return (
-                      <div
-                        key={id}
-                        className="min-w-0 rounded-[20px] px-3 py-3 text-center"
-                        style={{
-                          background: active ? 'linear-gradient(180deg, #ef44442e, rgba(255,255,255,.04))' : 'rgba(255,255,255,.04)',
-                          border: active ? '1px solid #ef444466' : '1px solid rgba(255,255,255,.08)',
-                        }}
-                      >
-                        <p className="mb-2 font-mono text-xs font-black" style={{ color: rankColor }}>
-                          #{idx + 1}
-                        </p>
-                        <div className="mb-2 flex justify-center">
-                          <PlayerAvatar nickname={name} sizePx={48} ring={active ? '#ef4444' : undefined} />
-                        </div>
-                        <p className="truncate text-[15px] font-bold text-white">{name}</p>
-                        <p className="mt-1 font-mono text-[26px] font-black leading-none text-white tabular-nums">{score}</p>
-                      </div>
-                    );
-                  })}
-                  {sortedScores.length === 0 && (
-                    <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-6 text-center text-white/50">
-                      {locale === 'ru' ? 'Пока нет игроков' : 'No players yet'}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* FINISHED */}
-          {crocState.phase === 'finished' && (
-            <div className="text-center">
-              <div className="mb-4 flex justify-center">
-                <CrocIcon name="trophy" className="h-24 w-24" />
-              </div>
-              <h2 className="text-4xl font-bold text-amber-400 mb-6">{locale === 'ru' ? 'Игра окончена!' : 'Game Over!'}</h2>
-              <div className="w-full max-w-xl mx-auto space-y-3">
-                {sortedScores.map(({ id, name, score }, idx) => (
-                  <div key={id} className={`glass-card px-8 py-4 flex items-center justify-between ${idx === 0 ? 'outline outline-2 outline-amber-400 bg-amber-500/10' : ''}`}>
-                    <div className="flex items-center gap-3">
-                      {idx < 3 ? (
-                        <CrocIcon
-                          name="medal"
-                          className="h-9 w-9"
-                          style={{ color: medalColors[idx] ?? '#f5efe6' }}
-                        />
-                      ) : (
-                        <span className="text-3xl">{idx + 1}.</span>
-                      )}
-                      <span className="text-2xl font-bold">{name}</span>
-                    </div>
-                    <span className="text-3xl font-bold text-amber-400">{score}</span>
-                  </div>
-                ))}
-              </div>
+              </section>
+              {racePanel()}
             </div>
           )}
-        </div>
+
+          {crocState.phase === 'finished' && (
+            <div className="grid h-full grid-cols-[1fr_520px] items-center gap-12">
+              <section>
+                <small className="font-mono uppercase tracking-[0.25em] text-[#ff8b78]">{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</small>
+                <h2 className="mt-4 text-8xl font-black leading-[0.88] tracking-[-0.065em]">{winner?.name ?? l('Победитель', 'Winner')}<br />{winner?.score ?? 0}</h2>
+                <p className="mt-5 text-xl text-white/50">{l('Больше всех слов после полного круга', 'Most words after the full round')}</p>
+              </section>
+              {racePanel(true)}
+            </div>
+          )}
+        </main>
         {qrOverlay}
       </GameSurface>
     );

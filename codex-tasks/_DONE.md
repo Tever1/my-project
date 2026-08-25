@@ -395,3 +395,7 @@ bash codex-tasks/_regen-done.sh
 | 377 | `377-lobby-start-game-emit-show-qr.md` | `handleStartGame` не сообщает серверу о показе QR — рассинхрон с телефоном |
 | 378 | `378-mafia-line-icons-preview.md` | «Мафия» — превью плоских line-иконок на `/design-tokens` (по образцу остальных 5 игр) |
 | 379 | `379-admin-mafia-role-table-expand.md` | Расширить таблицу распределения ролей Мафии на /admin |
+| 380 | `380-admin-mafia-role-cards-images.md` | Большие карточки ролей Мафии с картинками на /admin |
+| 381 | `381-mafia-extended-roles-mechanics.md` | Реализовать роли Дон/Маньяк/Любовница в геймплее Мафии |
+| 381.1 | `381.1-mafia-maniac-win-don-tiebreak-vote-tiebreak.md` | Победа Маньяка, голос Дона только при разногласии, протокол ничьей на голосовании |
+| 381.2 | `381.2-mafia-role-thresholds-match-admin-table.md` | Пороги ролей в assignRoles() должны точно совпадать с таблицей /admin |

@@ -1,6 +1,5 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
@@ -9,9 +8,8 @@ import { useSocket } from '@/lib/use-socket';
 import { useGameAction } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useRoomState } from '@/lib/use-room-state';
-import { GameLayout } from '@/components/games/GameLayout';
 import { GlassButton } from '@/components/ui/GlassButton';
-import { AnimatedScore, BreathingPlaceholder } from '@/components/ingame';
+import { QuizPulsePlayerScreen } from '@/components/games/quiz-pulse/QuizPulse';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
 import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
@@ -78,42 +76,6 @@ const INITIAL_STATE: QuizGameState = {
   correctPlayers: [],
   currentQuestion: null,
 };
-
-const answerVariants = {
-  idle: { scale: 1, x: 0 },
-  correct: { scale: [1, 1.03, 1] },
-  wrong: { x: [-6, 6, -6, 0] },
-};
-
-function QuizIcon({ iconUrl, fallback, size = 32 }: { iconUrl?: string; fallback: string; size?: number }) {
-  if (iconUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={iconUrl}
-        alt=""
-        width={size}
-        height={size}
-        style={{ objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' }}
-        aria-hidden="true"
-      />
-    );
-  }
-
-  return <span aria-hidden="true">{fallback}</span>;
-}
-
-function DifficultyIcon({ difficulty, size = 24 }: { difficulty?: QuizDifficulty | null; size?: number }) {
-  const color = difficulty === 'easy' ? '#22c55e' : difficulty === 'hard' ? '#ef4444' : '#eab308';
-
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-block rounded-full border border-white/30 align-middle"
-      style={{ width: size, height: size, backgroundColor: color, boxShadow: `0 0 ${Math.round(size / 2)}px ${color}66` }}
-    />
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -640,371 +602,60 @@ export default function QuizPage() {
 
   // ------- Render -------
 
+  const pulseTopic = specialQuizInfo
+    ? (locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn)
+    : specialThemeInfo
+      ? (locale === 'ru' ? specialThemeInfo.titleRu : specialThemeInfo.titleEn)
+      : topicInfo
+        ? (locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn)
+        : (locale === 'ru' ? 'Общий квиз' : 'General quiz');
+  const pulseDifficulty = diffInfo ? (locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn) : undefined;
+  const pulseScores = [...scoreboard].sort((a, b) => b.score - a.score);
+
   return (
-    <GameLayout
-      title={locale === 'ru' ? 'Квиз' : 'Quiz'}
-      scores={scoreboard}
-      onEnd={isGameHost ? confirmEndGame : undefined}
-      showScoreboard={false}
-      backgroundUrl={backgroundUrl}
-      phaseKey={gameState.phase}
-    >
-      {/* ==================== WAITING (ready to start) ==================== */}
-      {gameState.phase === 'waiting' && (
-        <div className="text-center pt-2 pb-8 animate-fade-in">
-          <h2 className="text-5xl font-bold text-white mb-6">
-            {locale === 'ru' ? 'Квиз' : 'Quiz'}
-          </h2>
+    <>
+      <QuizPulsePlayerScreen
+        locale={locale}
+        phase={gameState.phase}
+        topic={pulseTopic}
+        difficulty={pulseDifficulty}
+        backgroundUrl={backgroundUrl}
+        question={currentQuestion}
+        questionIndex={gameState.questionIndex}
+        totalQuestions={gameState.totalQuestions}
+        timeLeft={gameState.timeLeft}
+        timePerQuestion={timePerQuestion}
+        countdownValue={gameState.countdownValue}
+        scores={pulseScores}
+        totalPlayers={totalPlayers}
+        myAnswer={myAnswer}
+        showCorrect={gameState.showCorrect}
+        myAnswerIsCorrect={myAnswer !== undefined && myAnswer === currentQuestion?.correctIndex}
+        isGameHost={isGameHost}
+        onAnswer={submitAnswer}
+        onStart={startGame}
+        onNext={startNextQuestion}
+        onContinue={() => startQuestionImmediate(5)}
+        onPlayAgain={playAgain}
+        onEnd={endGame}
+      />
 
-          {/* Config badges */}
-          <div className="flex items-center justify-center gap-4 mb-8 flex-wrap">
-            {specialQuizInfo ? (
-              <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-10 py-6 text-4xl font-semibold inline-flex items-center">
-                {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
-              </span>
-            ) : (
-              <>
-                {diffInfo && (
-                  <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-2.5 text-lg font-semibold inline-flex items-center gap-2">
-                    <DifficultyIcon difficulty={diffInfo.id} size={16} />
-                    {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
-                  </span>
-                )}
-                {topicInfo && (
-                  <span className="rounded-md border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-2.5 text-lg font-semibold inline-flex items-center">
-                    {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-
-          <p className="text-white mb-4 max-w-xl mx-auto text-xl">
-            {locale === 'ru'
-              ? `${gameState.totalQuestions} вопросов. 1 очко за правильный ответ!`
-              : `${gameState.totalQuestions} questions. 1 point for each correct answer!`}
-          </p>
-          <p className="text-white/80 text-lg mb-10">
-            {locale === 'ru' ? `Игроков: ${totalPlayers}` : `Players: ${totalPlayers}`}
-          </p>
-          {isGameHost ? (
-            <GlassButton variant="primary" size="lg" className="text-xl px-12 py-5" onClick={startGame}>
-              {locale === 'ru' ? 'Начать игру' : 'Start Game'}
-            </GlassButton>
-          ) : (
-            <BreathingPlaceholder
-              text={locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
-              variant="breathing-text"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ==================== COUNTDOWN ==================== */}
-      {gameState.phase === 'countdown' && (
-        <div className="flex items-center justify-center py-24 animate-fade-in">
-          <div className="text-center">
-            <p className="text-white/80 text-lg mb-4">
-              {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}
-            </p>
-            <AnimatePresence mode="popLayout">
-              <motion.div
-                key={gameState.countdownValue}
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: [0.5, 1.2, 1], opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
-                style={{
-                  fontSize: 120,
-                  fontWeight: 900,
-                  color: '#facc15',
-                  textShadow: '0 0 40px rgba(250, 204, 21, 0.6), 0 0 80px rgba(250, 204, 21, 0.3)',
-                  lineHeight: 1,
-                }}
-              >
-                {gameState.countdownValue}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
-      )}
-
-      {/* ==================== QUESTION ==================== */}
-      {gameState.phase === 'question' && currentQuestion && (
-        <div className="max-w-5xl mx-auto w-full relative">
-          {/* Timer bar - full width, matches TV style */}
-          <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden mb-4">
-            <div
-              className={`h-full rounded-full transition-all duration-1000 ease-linear ${
-                gameState.timeLeft <= 5 ? 'bg-red-500' : 'bg-purple-500'
-              }`}
-              style={{ width: `${(gameState.timeLeft / timePerQuestion) * 100}%` }}
-            />
-          </div>
-
-          {/* Timer */}
-          <div className="mb-6 flex items-center justify-between">
-            <span className="text-sm text-white/40">
-              {locale === 'ru' ? 'Вопрос' : 'Question'} {gameState.questionIndex + 1}/{gameState.totalQuestions}
-            </span>
-            <span className="text-sm text-white/40 tabular-nums">{answeredCount}/{totalPlayers}</span>
-          </div>
-
-          {/* Answer options */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {currentQuestion.options.map((option, index) => {
-              const isMyAnswer = myAnswer === index;
-              const isCorrectAnswer = index === currentQuestion.correctIndex;
-              const isCorrectRevealed = gameState.showCorrect && isCorrectAnswer;
-              const isWrongRevealed = gameState.showCorrect && isMyAnswer && !isCorrectAnswer;
-              const isDisabled = myAnswer !== undefined || gameState.showCorrect;
-
-              // Accent strip color (left border)
-              const stripColor = isCorrectRevealed
-                ? '#4ade80'
-                : isWrongRevealed
-                  ? '#f87171'
-                  : isMyAnswer
-                    ? '#facc15'
-                    : 'transparent';
-
-              // Button background
-              const bgClass = isCorrectRevealed
-                ? 'bg-green-500/10 border-green-400/30'
-                : isWrongRevealed
-                  ? 'bg-red-500/10 border-red-400/30'
-                  : isMyAnswer
-                    ? 'bg-yellow-500/10 border-yellow-400/40'
-                    : isDisabled
-                      ? 'bg-white/5 border-white/10 opacity-60'
-                      : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 cursor-pointer';
-
-              return (
-                <motion.button
-                  key={index}
-                  onClick={() => submitAnswer(index)}
-                  disabled={isDisabled}
-                  className={`relative overflow-hidden rounded-md border p-5 md:p-6 text-left backdrop-blur-xl transition-colors duration-200 ${bgClass}`}
-                  variants={answerVariants}
-                  animate={
-                    isCorrectRevealed
-                      ? 'correct'
-                      : isWrongRevealed
-                        ? 'wrong'
-                        : 'idle'
-                  }
-                  transition={
-                    isCorrectRevealed
-                      ? { duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }
-                      : isWrongRevealed
-                        ? { duration: 0.35, ease: 'easeInOut' }
-                        : { duration: 0.2 }
-                  }
-                  whileHover={!isDisabled ? { scale: 1.01 } : {}}
-                  whileTap={!isDisabled ? { scale: 0.98 } : {}}
-                >
-                  {/* Left accent strip */}
-                  <div
-                    className="absolute left-0 inset-y-0 w-1.5 transition-colors duration-200"
-                    style={{ backgroundColor: stripColor }}
-                  />
-
-                  <div className="flex items-center gap-4 pl-3">
-                    {/* Number badge */}
-                    <span className={`
-                      flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-sm font-black
-                      ${isCorrectRevealed
-                        ? 'bg-green-500/20 text-green-300'
-                        : isWrongRevealed
-                          ? 'bg-red-500/20 text-red-300'
-                          : isMyAnswer
-                            ? 'bg-yellow-500/20 text-yellow-300'
-                            : 'bg-white/8 text-white/50'
-                      }
-                    `}>
-                      {index + 1}
-                    </span>
-
-                    {/* Answer text */}
-                    <span className={`font-medium text-lg md:text-xl ${
-                      isCorrectRevealed ? 'text-green-100' : isWrongRevealed ? 'text-red-100' : 'text-white'
-                    }`}>
-                      {locale === 'ru' ? option.ru : option.en}
-                    </span>
-
-                    {/* Reveal icon — checkmark or X (Variant B) */}
-                    <AnimatePresence>
-                      {(isCorrectRevealed || isWrongRevealed) && (
-                        <motion.span
-                          className="ml-auto flex-shrink-0"
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={{ duration: 0.2, ease: [0.34, 1.56, 0.64, 1] }}
-                        >
-                          {isCorrectRevealed ? (
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M18 6L6 18M6 6l12 12" />
-                            </svg>
-                          )}
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-
-          {gameState.showCorrect && isGameHost && (
-            <div className="text-center mt-6 animate-fade-in">
-              <GlassButton variant="primary" size="lg" onClick={startNextQuestion}>
-                {gameState.questionIndex + 1 < gameState.totalQuestions
-                  ? locale === 'ru' ? 'Следующий вопрос' : 'Next Question'
-                  : locale === 'ru' ? 'Показать результаты' : 'Show Results'}
-              </GlassButton>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ==================== MID-GAME LEADERBOARD (after round 5) ==================== */}
-      {gameState.phase === 'mid-leaderboard' && (
-        <div className="max-w-2xl mx-auto text-center animate-fade-in py-6">
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Промежуточные результаты' : 'Halftime Results'}
-          </h2>
-          <p className="text-white/80 mb-6">
-            {locale === 'ru' ? `После ${gameState.questionIndex + 1} из ${gameState.totalQuestions} вопросов` : `After ${gameState.questionIndex + 1} of ${gameState.totalQuestions} questions`}
-          </p>
-
-          <div className="space-y-3 mb-8">
-            {scoreboard.map((entry, i) => (
-              <div
-                key={entry.name}
-                className={`relative overflow-hidden flex items-center justify-between p-4 rounded-md border backdrop-blur-xl transition-all ${
-                  i === 0
-                    ? 'bg-yellow-500/20 border-yellow-400/40'
-                    : i === 1
-                      ? 'bg-white/8 border-white/15'
-                      : i === 2
-                        ? 'bg-amber-700/10 border-amber-700/20'
-                        : 'bg-white/5 border-white/10'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl w-8 text-center">
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                  </span>
-                  <span className="text-white font-semibold text-lg">{entry.name}</span>
-                </div>
-                <AnimatedScore value={entry.score} variant="pop" size="sm" color="#a855f7" />
-              </div>
-            ))}
-          </div>
-
-          {isGameHost && (
-            <GlassButton variant="primary" size="lg" onClick={() => startQuestionImmediate(5)}>
-              {locale === 'ru' ? 'Продолжить' : 'Continue'}
-            </GlassButton>
-          )}
-          {!isGameHost && (
-            <BreathingPlaceholder
-              text={locale === 'ru' ? 'Ожидание ведущего...' : 'Waiting for the host...'}
-              variant="breathing-text"
-            />
-          )}
-        </div>
-      )}
-
-      {/* ==================== FINAL LEADERBOARD ==================== */}
-      {gameState.phase === 'final' && (
-        <div className="max-w-lg mx-auto text-center animate-fade-in py-6">
-          <div className="text-6xl mb-4">🏆</div>
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {locale === 'ru' ? 'Итоги' : 'Final Results'}
-          </h2>
-          {specialQuizInfo ? (
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="glass-badge text-xs inline-flex items-center gap-1.5">
-                <QuizIcon iconUrl={specialQuizInfo.iconUrl} fallback={specialQuizInfo.icon} size={16} />
-                {locale === 'ru' ? specialQuizInfo.titleRu : specialQuizInfo.titleEn}
-              </span>
-            </div>
-          ) : topicInfo && diffInfo ? (
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="glass-badge text-xs inline-flex items-center gap-1.5">
-                <DifficultyIcon difficulty={diffInfo.id} size={12} />
-                {locale === 'ru' ? diffInfo.titleRu : diffInfo.titleEn}
-              </span>
-              <span className="glass-badge text-xs inline-flex items-center gap-1.5">
-                <QuizIcon iconUrl={topicInfo.iconUrl} fallback={topicInfo.icon} size={16} />
-                {locale === 'ru' ? topicInfo.titleRu : topicInfo.titleEn}
-              </span>
-            </div>
-          ) : null}
-
-          <div className="space-y-3">
-            {scoreboard.map((entry, i) => (
-              <div
-                key={entry.name}
-                className={`relative overflow-hidden flex items-center justify-between p-4 rounded-md border backdrop-blur-xl transition-all ${
-                  i === 0
-                    ? 'bg-yellow-500/20 border-yellow-400/40'
-                    : i === 1
-                      ? 'bg-white/8 border-white/15'
-                      : i === 2
-                        ? 'bg-amber-700/10 border-amber-700/20'
-                        : 'bg-white/5 border-white/10'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl w-8 text-center">
-                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                  </span>
-                  <span className="text-white font-semibold text-lg">{entry.name}</span>
-                </div>
-                <AnimatedScore value={entry.score} variant="pop" size="sm" color="#a855f7" />
-              </div>
-            ))}
-          </div>
-
-          {isGameHost && (
-            <div className="mt-10 flex gap-3 justify-center">
-              <GlassButton onClick={endGame}>
-                {locale === 'ru' ? 'В лобби' : 'Back to Lobby'}
-              </GlassButton>
-              <GlassButton variant="primary" onClick={playAgain}>
-                {locale === 'ru' ? 'Играть снова' : 'Play Again'}
-              </GlassButton>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* End game confirmation modal */}
       {showEndConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
           onClick={() => setShowEndConfirm(false)}
         >
           <div
-            className="glass-card p-6 max-w-sm w-full animate-scale-in text-center"
-            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#07172d]/95 p-6 text-center text-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
           >
-            <p className="text-white text-lg font-semibold mb-2">
-              {locale === 'ru' ? 'Завершить игру?' : 'End game?'}
+            <h3 className="text-xl font-black">
+              {locale === 'ru' ? 'Завершить игру?' : 'End the game?'}
+            </h3>
+            <p className="mt-2 text-sm text-white/60">
+              {locale === 'ru' ? 'Все игроки вернутся в лобби' : 'All players will return to the lobby'}
             </p>
-            <p className="text-white/80 text-sm mb-6">
-              {locale === 'ru'
-                ? 'Все игроки вернутся в лобби'
-                : 'All players will return to the lobby'}
-            </p>
-            <div className="flex gap-3">
+            <div className="mt-6 flex gap-3">
               <GlassButton className="flex-1" onClick={() => setShowEndConfirm(false)}>
                 {locale === 'ru' ? 'Отмена' : 'Cancel'}
               </GlassButton>
@@ -1015,6 +666,6 @@ export default function QuizPage() {
           </div>
         </div>
       )}
-    </GameLayout>
+    </>
   );
 }

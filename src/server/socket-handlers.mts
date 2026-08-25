@@ -414,6 +414,20 @@ export function setupSocketHandlers(io: SocketIOServer) {
         });
         return;
       }
+      if (room.currentGame === 'crocodile' && (playerCount < 2 || playerCount > 10)) {
+        socket.emit('game:error', {
+          messageRu: 'Для Крокодила нужно от 2 до 10 игроков',
+          messageEn: 'Crocodile requires 2 to 10 players',
+        });
+        return;
+      }
+      if (room.currentGame === 'quiz' && (playerCount < 2 || playerCount > 10)) {
+        socket.emit('game:error', {
+          messageRu: 'Для Квиза нужно от 2 до 10 игроков',
+          messageEn: 'Quiz requires 2 to 10 players',
+        });
+        return;
+      }
       room.showQrCode = false;
       room.status = 'in-game';
       room.mafiaHostPlayerId = null;

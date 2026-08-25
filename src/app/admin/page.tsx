@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import { ProjectRoadmapTab } from '@/components/admin/ProjectRoadmapTab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ const GAME_LABELS: Record<string, string> = {
 
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 
-type Tab = 'backgrounds' | 'quizzes' | 'games' | 'rooms';
+type Tab = 'roadmap' | 'backgrounds' | 'quizzes' | 'games' | 'rooms';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // BACKGROUNDS TAB
@@ -1707,9 +1708,10 @@ function GamesTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function AdminPage() {
-  const [tab, setTab] = useState<Tab>('backgrounds');
+  const [tab, setTab] = useState<Tab>('roadmap');
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
+    { id: 'roadmap',     label: 'Этапы',   icon: 'A–M' },
     { id: 'backgrounds', label: 'Фоны',    icon: '🖼️' },
     { id: 'quizzes',     label: 'Квизы',   icon: '📊' },
     { id: 'games',       label: 'Игры',    icon: '🎲' },
@@ -1739,7 +1741,8 @@ export default function AdminPage() {
       </div>
 
       {/* Tab content */}
-      <div className={tab === 'quizzes' || tab === 'games' ? 'w-full' : 'max-w-3xl'}>
+      <div className={tab === 'roadmap' || tab === 'quizzes' || tab === 'games' ? 'w-full' : 'max-w-3xl'}>
+        {tab === 'roadmap'     && <ProjectRoadmapTab />}
         {tab === 'backgrounds' && <BackgroundsTab />}
         {tab === 'quizzes'     && <QuizzesTab />}
         {tab === 'games'       && <GamesTab />}
