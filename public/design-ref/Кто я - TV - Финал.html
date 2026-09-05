@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>КТО Я? · TV — Финал</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<link rel="stylesheet" href="whoami/whoami.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 44px 64px 40px; position: relative; z-index: 1; }
+  .hd { display: flex; justify-content: space-between; align-items: center; }
+
+  /* title appears first */
+  .over { display: flex; align-items: center; justify-content: center; gap: 24px; margin-top: 18px;
+    animation: rowIn .6s var(--ease-spring) both .1s; }
+  .over .tico { width: 92px; height: 92px; border-radius: 26px;
+    background:
+      radial-gradient(110% 70% at 50% -5%, rgba(255,255,255,.3), transparent 55%),
+      linear-gradient(165deg, #38bdf8 0%, #0369a1 100%);
+    display: flex; align-items: center; justify-content: center; color: #f0f9ff;
+    box-shadow: 0 22px 56px -14px rgba(2,132,199,.75), inset 0 1px 0 rgba(255,255,255,.5); }
+  .over h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 78px; letter-spacing: -2.2px; }
+  .over h1 em { font-style: normal; color: var(--wai-1); }
+
+  /* results table — reveal снизу вверх (шоу-формат) */
+  .board { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; width: 1180px; margin: 0 auto; }
+  .row-r {
+    display: grid; grid-template-columns: 72px 64px 1fr auto auto; align-items: center; gap: 22px;
+    padding: 14px 30px 14px 18px; border-radius: var(--r-xl);
+    animation: rowIn .55s var(--ease-spring) both;
+  }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(26px) scale(.94); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .row-r, .over { animation: none; } }
+  /* reveal order: последнее место — первым, победитель — последним */
+  .row-r.p6 { animation-delay: .5s; }
+  .row-r.p5 { animation-delay: 1.0s; }
+  .row-r.p4 { animation-delay: 1.5s; }
+  .row-r.p3 { animation-delay: 2.0s; }
+  .row-r.p2 { animation-delay: 2.6s; }
+  .row-r.p1 { animation-delay: 3.3s; }
+
+  .row-r .place { font-family: var(--font-mono); font-weight: 700; font-size: 26px; color: var(--text-quaternary); text-align: center; }
+  .row-r .medal { width: 58px; height: 58px; margin: 0 auto; }
+  .row-r .medal b { font-size: 19px; color: #0a1420; }
+  .row-r .medal.gold b, .row-r .medal.silver b, .row-r .medal.bronze b { color: currentColor; }
+  .row-r .av { width: 58px; height: 58px; font-size: 25px; }
+  .row-r .who { display: flex; flex-direction: column; gap: 3px; }
+  .row-r .nm { font-family: var(--font-display); font-weight: 800; font-size: 30px; letter-spacing: -.5px; }
+  .row-r .ch { font-size: 20px; color: var(--text-tertiary); }
+  .row-r .ch b { color: var(--wai-soft); font-weight: 600; }
+  .row-r .flag { display: inline-flex; align-items: center; gap: 8px; padding: 7px 15px; border-radius: var(--r-full);
+    background: rgba(255,59,107,.1); border: .5px solid rgba(255,59,107,.32); color: #ff8aa3;
+    font-family: var(--font-mono); font-size: 14px; letter-spacing: 1px; }
+  .row-r .pts { font-family: var(--font-mono); font-weight: 700; font-size: 34px; color: var(--text-secondary); min-width: 130px; text-align: right; }
+  .row-r .pts small { font-size: 17px; color: var(--text-quaternary); margin-left: 6px; }
+
+  /* топ-3 — приглушённые тёплые тона, победитель крупнее */
+  .row-r.p1 { padding: 24px 34px 24px 22px; }
+  .row-r.p1 .av { width: 76px; height: 76px; font-size: 33px; }
+  .row-r.p1 .nm { font-size: 42px; }
+  .row-r.p1 .ch { font-size: 23px; }
+  .row-r.p1 .pts { font-size: 44px; color: #f6c453; }
+  .row-r.p1 .medal { width: 72px; height: 72px; }
+  .row-r.p1 .medal b { font-size: 23px; }
+  .row-r.p2 .pts { color: #c8cfda; }
+  .row-r.p3 .pts { color: #d99a62; }
+
+  .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 26px;
+    animation: rowIn .5s var(--ease-out) both 3.9s; }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen wai" data-screen-label="TV · Финал">
+    <div class="wai-bg"><div class="blob b1"></div><div class="blob b2"></div></div>
+    <div class="screen">
+
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark"><span class="li" style="width:36px;height:36px;color:#052e46;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8.2" r="3.4"></circle><path d="M3.8 19.4c.8-3.3 3.1-5.2 5.7-5.2 1.6 0 3 .6 4.1 1.8"></path><path d="M16.2 9.4c0-1.4 1.1-2.3 2.4-2.2 1.2 0 2.2 1 2.1 2.3-.1 1.6-2.2 1.7-2.3 3.2"></path><path d="M18.4 16.3v.01"></path></svg></span></div>
+          <div class="name">Кто я?<small>Party Hub</small></div>
+        </div>
+        <div class="pill live"><span class="dot"></span> Раунд завершён</div>
+      </div>
+
+      <div class="over">
+        <div class="tico"><span class="li" style="width:52px;height:52px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5.4a4 4 0 11-8 0z"></path><path d="M8 5.5H5.1c-.1 2.7 1.1 4.3 2.9 4.7"></path><path d="M16 5.5h2.9c.1 2.7-1.1 4.3-2.9 4.7"></path><path d="M12 13.4V17"></path><path d="M9.5 20h5M10.4 17h3.2"></path></svg></span></div>
+        <h1>Игра <em>окончена!</em></h1>
+      </div>
+
+      <div class="board">
+        <div class="row-r p1 rank-gold" data-comment-anchor="wai-final-p1">
+          <span class="medal gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="15" r="4.6"></circle><path d="M9.6 11.1L6.8 3.8h3.4L12 8.2l1.8-4.4h3.4l-2.8 7.3"></path></svg><b>1</b></span>
+          <div class="av" data-seed="0">А</div>
+          <div class="who"><span class="nm">Аня</span><span class="ch">была <b>Гарри Поттером</b> · 5 вопросов</span></div>
+          <span></span>
+          <span class="pts">90<small>очков</small></span>
+        </div>
+        <div class="row-r p2 rank-silver">
+          <span class="medal silver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="15" r="4.6"></circle><path d="M9.6 11.1L6.8 3.8h3.4L12 8.2l1.8-4.4h3.4l-2.8 7.3"></path></svg><b>2</b></span>
+          <div class="av" data-seed="1">М</div>
+          <div class="who"><span class="nm">Макс</span><span class="ch">был <b>Билли Айлиш</b> · 8 вопросов</span></div>
+          <span></span>
+          <span class="pts">70<small>очков</small></span>
+        </div>
+        <div class="row-r p3 rank-bronze">
+          <span class="medal bronze"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="15" r="4.6"></circle><path d="M9.6 11.1L6.8 3.8h3.4L12 8.2l1.8-4.4h3.4l-2.8 7.3"></path></svg><b>3</b></span>
+          <div class="av" data-seed="5">С</div>
+          <div class="who"><span class="nm">Света</span><span class="ch">была <b>Юрием Гагариным</b> · 11 вопросов</span></div>
+          <span></span>
+          <span class="pts">55<small>очков</small></span>
+        </div>
+        <div class="row-r p4 glass">
+          <span class="place">4</span><span></span>
+          <div class="av" data-seed="2">Л</div>
+          <div class="who"><span class="nm">Лёша</span><span class="ch">был <b>Шерлоком Холмсом</b> · 14 вопросов</span></div>
+          <span></span>
+          <span class="pts">40<small>очков</small></span>
+        </div>
+        <div class="row-r p5 glass">
+          <span class="place">5</span><span></span>
+          <div class="av" data-seed="3">К</div>
+          <div class="who"><span class="nm">Катя</span><span class="ch">была <b>Чебурашкой</b> · 17 вопросов</span></div>
+          <span></span>
+          <span class="pts">25<small>очков</small></span>
+        </div>
+        <div class="row-r p6 glass">
+          <span class="place">6</span><span></span>
+          <div class="av" data-seed="4">Д</div>
+          <div class="who"><span class="nm">Дима</span><span class="ch">был <b>Клеопатрой</b></span></div>
+          <span class="flag">не угадал</span>
+          <span class="pts">0<small>очков</small></span>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="remote-hint glass"><span class="li" style="width:24px;height:24px;color:var(--wai-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.6"></rect><path d="M10.5 18.6h3"></path></svg></span> <span>У&nbsp;Ани на телефоне:</span> <b>Играть снова</b></div>
+        <div class="pill live"><span class="dot"></span> 6 в игре</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

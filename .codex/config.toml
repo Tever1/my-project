@@ -1,0 +1,15 @@
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+# tasks/ и reports/ перенесены в ./codex-tasks/ и ./codex-reports/ из-за
+# hard-protected статуса .codex/** в Codex CLI sandbox. Workspace-write
+# по умолчанию даёт доступ ко всему репо кроме .codex/, .git/.
+network_access = false
+
+[mcp_servers.ruflo]
+args = [
+    "ruflo@latest",
+    "mcp",
+    "start",
+]
+command = "npx"

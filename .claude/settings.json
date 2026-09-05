@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"ВАЖНО: Ты работаешь в проекте Party Games Hub. Перечитай ключевые договорённости из CLAUDE.md:\\n1. Отвечай только на русском.\\n2. Production-код (src/, server.mts и т.п.) — только через Codex, сам не пиши.\\n3. Никаких стандартных эмодзи в финальном UI — только inline SVG.\\n4. После каждой задачи — одна конкретная рекомендация.\\n5. QA в браузере только по явной просьбе пользователя.\\n6. Ошибки логировать в CLAUDE.md и gstack learnings.\\n7. Пользователь запускает Codex сам — Claude никогда не вызывает codex exec без явного разрешения.\\n8. Оспаривай плохие решения до начала работы, не после.\"}}",
+            "statusMessage": "Загрузка договорённостей проекта..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/anastasiaivanova/my-project/.claude/hooks/post-commit.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

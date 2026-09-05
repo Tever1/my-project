@@ -1,0 +1,69 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# image generation log
+.generation-log.jsonl
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# game overrides (local data, not committed)
+/data/game-overrides.json
+
+# Graphify
+graphify-out/
+
+# Claude Code hooks — pending marker (local only)
+.claude/pending-doc-update.md
+.gstack/
+
+# Local generated / tool files
+.claude-flow/
+.expo/
+.swarm/
+ruvector.db
+data/
+mobile/.expo/
+mobile/node_modules/
+mobile/package-lock.json
+*.html.tmp
+100_к_1_кино.html
+
+# Картинки-референсы (не для коммита)
+Картинки для игр/

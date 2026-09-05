@@ -1,0 +1,140 @@
+{
+  "app": {
+    "title": "Party Games Hub",
+    "subtitle": "Games for great company",
+    "description": "Gather with friends and play the best party games"
+  },
+  "auth": {
+    "title": "Sign In",
+    "phone": "Phone number",
+    "phonePlaceholder": "+1 (555) 123-4567",
+    "sendCode": "Get code",
+    "code": "SMS code",
+    "codePlaceholder": "Enter 4-digit code",
+    "verify": "Sign In",
+    "back": "Back",
+    "invalidPhone": "Enter a valid phone number",
+    "codeSent": "Code sent to your number",
+    "invalidCode": "Invalid code",
+    "welcome": "Welcome!"
+  },
+  "lobby": {
+    "title": "Lobby",
+    "createRoom": "Create Room",
+    "joinRoom": "Join Room",
+    "roomCode": "Room Code",
+    "scanQR": "Scan QR code",
+    "orEnterCode": "or enter code",
+    "players": "Players",
+    "host": "Host",
+    "waiting": "Waiting for players...",
+    "startGame": "Start Game",
+    "selectGame": "Select Game",
+    "leave": "Leave",
+    "kick": "Kick",
+    "minPlayers": "Min players",
+    "maxPlayers": "Max players",
+    "copyCode": "Copy code",
+    "codeCopied": "Code copied!",
+    "nickname": "Your nickname",
+    "nicknamePlaceholder": "Enter nickname",
+    "join": "Join",
+    "tvMode": "TV Mode",
+    "tvModalText": "Open this link in your TV or computer browser",
+    "shareLink": "Share link"
+  },
+  "game": {
+    "round": "Round",
+    "score": "Score",
+    "timeLeft": "Time left",
+    "next": "Next",
+    "finish": "Finish",
+    "end": "End Game",
+    "scoreboard": "Scoreboard",
+    "results": "Results",
+    "winner": "Winner",
+    "playAgain": "Play Again",
+    "backToLobby": "Back to Lobby",
+    "correct": "Correct!",
+    "wrong": "Wrong!",
+    "team": "Team",
+    "pass": "Pass",
+    "guess": "Guess"
+  },
+  "quiz": {
+    "title": "Quiz",
+    "category": "Category",
+    "question": "Question",
+    "answer": "Answer"
+  },
+  "hundredToOne": {
+    "title": "100 to 1",
+    "yourAnswer": "Your answer",
+    "reveal": "Reveal",
+    "strike": "Strike!",
+    "popularAnswers": "Popular answers"
+  },
+  "crocodile": {
+    "title": "Crocodile",
+    "explain": "Explaining",
+    "guessing": "Guessing",
+    "yourWord": "Your word",
+    "guessed": "Guessed!",
+    "nextWord": "Next word"
+  },
+  "truthOrDare": {
+    "title": "Truth or Dare",
+    "truth": "Truth",
+    "dare": "Dare",
+    "choose": "Choose",
+    "done": "Done",
+    "skip": "Skip"
+  },
+  "mafia": {
+    "title": "Mafia",
+    "night": "Night falls...",
+    "day": "Day breaks",
+    "vote": "Vote",
+    "eliminated": "Eliminated",
+    "mafiaWins": "Mafia wins!",
+    "citizensWin": "Citizens win!",
+    "yourRole": "Your role",
+    "citizen": "Citizen",
+    "mafiaRole": "Mafia",
+    "detective": "Detective",
+    "doctor": "Doctor"
+  },
+  "whoAmI": {
+    "title": "Who Am I?",
+    "yourCharacter": "Your character",
+    "askQuestion": "Ask a question",
+    "yes": "Yes",
+    "no": "No",
+    "iKnow": "I know!",
+    "guessCharacter": "Guess the character"
+  },
+  "createRoom": {
+    "title": "Create Room",
+    "chooseGame": "Choose a game (optional)",
+    "maxPlayers": "Max players",
+    "create": "Create",
+    "roomReady": "Room created!",
+    "shareWithFriends": "Share the code or QR with friends",
+    "goToLobby": "Go to Lobby"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "settings": "Settings",
+    "language": "Language",
+    "russian": "Russian",
+    "english": "English",
+    "stats": "Statistics",
+    "history": "Game History",
+    "noGames": "No games yet"
+  }
+}

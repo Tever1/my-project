@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lobby",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "server.mts"],
+      "port": 3000,
+      "autoPort": false
+    }
+  ]
+}

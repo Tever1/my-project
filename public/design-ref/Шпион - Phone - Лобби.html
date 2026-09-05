@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>ШПИОН · Phone — Лобби</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="mobile/phone.css"/>
+<style>
+  .lobby .code-card { padding: 22px 24px; border-radius: var(--r-xl); display: flex; align-items: center; justify-content: space-between; }
+  .lobby .code-card .lbl { font-family: var(--font-mono); font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-tertiary); }
+  .lobby .code-card .code { font-family: var(--font-mono); font-weight: 700; font-size: 42px; letter-spacing: 6px; line-height: 1; margin-top: 6px;
+    background: linear-gradient(180deg, #fff, rgba(255,255,255,.55)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .lobby .code-card .ready { text-align: right; }
+  .lobby .code-card .ready .n { font-family: var(--font-display); font-weight: 800; font-size: 30px; color: #54e57e; }
+  .lobby .code-card .ready .u { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary); }
+
+  .lobby .me { margin-top: 16px; padding: 18px; border-radius: var(--r-xl); display: flex; align-items: center; gap: 16px; }
+  .lobby .me .av { width: 64px; height: 64px; font-size: 28px; }
+  .lobby .me .nm { font-family: var(--font-display); font-weight: 800; font-size: 26px; letter-spacing: -.4px; }
+  .lobby .me .edit { margin-top: 4px; font-size: 14px; color: var(--spy-1); font-weight: 600; }
+  .lobby .me .you { margin-left: auto; font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary);
+    padding: 7px 12px; border-radius: var(--r-full); background: rgba(100,210,255,.12); color: var(--spy-1); }
+
+  .lobby .players-h { display: flex; align-items: baseline; justify-content: space-between; margin: 22px 4px 12px; }
+  .lobby .players-h .t { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+  .lobby .players-h .c { font-family: var(--font-mono); font-size: 13px; color: var(--text-tertiary); }
+  .lobby .plist { display: flex; flex-direction: column; gap: 9px; }
+  .lobby .prow { display: flex; align-items: center; gap: 13px; padding: 11px 14px; border-radius: var(--r-lg); }
+  .lobby .prow .av { width: 42px; height: 42px; font-size: 18px; position: relative; }
+  .lobby .prow .nm { font-family: var(--font-display); font-weight: 600; font-size: 17px; flex: 1; }
+  .lobby .prow .host { font-size: 12px; color: #ffd60a; }
+  .lobby .prow .st { font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
+  .lobby .prow.ok .st { color: #54e57e; }
+  .lobby .prow.wait .st { color: #ffb340; }
+
+  .lobby .foot-hint { text-align: center; font-size: 13px; color: var(--text-tertiary); margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="phone-stage">
+  <div class="phone">
+    <div class="island"></div>
+    <div class="phone-screen lobby" data-screen-label="Phone · Лобби">
+      <div class="status">
+        <span class="time">9:41</span>
+        <span class="ic">
+          <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx=".6" fill="#fff"/><rect x="4.5" y="4.5" width="3" height="7.5" rx=".6" fill="#fff"/><rect x="9" y="2" width="3" height="10" rx=".6" fill="#fff"/><rect x="13.5" y="0" width="3" height="12" rx=".6" fill="#fff" opacity=".4"/></svg>
+          <svg width="26" height="13" viewBox="0 0 26 13"><rect x="1" y="1" width="21" height="11" rx="3" stroke="#fff" stroke-opacity=".4" fill="none"/><rect x="2.5" y="2.5" width="16" height="8" rx="1.6" fill="#fff"/><path d="M24 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#fff" fill-opacity=".5"/></svg>
+        </span>
+      </div>
+
+      <div class="content">
+        <div class="appbar">
+          <div class="brand"><div class="m">🎭</div><div class="nm">Шпион<small>Лобби</small></div></div>
+          <div class="rcode">GM9K</div>
+        </div>
+
+        <div class="code-card glass-strong">
+          <div>
+            <div class="lbl">Код комнаты</div>
+            <div class="code">GM9K</div>
+          </div>
+          <div class="ready"><div class="n">5<span style="color:var(--text-quaternary)">/6</span></div><div class="u">готовы</div></div>
+        </div>
+
+        <div class="me glass">
+          <div class="av" data-seed="4">Д</div>
+          <div class="stack"><div class="nm">Дима</div><div class="edit">Сменить имя и аватар</div></div>
+          <div class="you">это ты</div>
+        </div>
+
+        <div class="players-h"><div class="t">Игроки</div><div class="c">в комнате 6</div></div>
+        <div class="plist">
+          <div class="prow glass ok"><div class="av" data-seed="0">А</div><div class="nm">Аня <span class="host">★</span></div><div class="st">✓ готова</div></div>
+          <div class="prow glass ok"><div class="av" data-seed="1">М</div><div class="nm">Макс</div><div class="st">✓ готов</div></div>
+          <div class="prow glass ok"><div class="av" data-seed="3">К</div><div class="nm">Катя</div><div class="st">✓ готова</div></div>
+          <div class="prow glass ok"><div class="av" data-seed="5">С</div><div class="nm">Света</div><div class="st">✓ готова</div></div>
+          <div class="prow glass wait"><div class="av" data-seed="2">Л</div><div class="nm">Лёша</div><div class="st">печатает имя…</div></div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <button class="btn success"><span class="ic">✓</span> Я готов</button>
+        <div class="foot-hint">Аня запустит игру, когда все будут готовы</div>
+      </div>
+
+      <div class="home-ind"></div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min((innerHeight-28)/874, (innerWidth-28)/402); document.querySelector('.phone').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

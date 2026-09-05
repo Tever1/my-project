@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>ШПИОН · Phone — Твоё слово</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="mobile/phone.css"/>
+<style>
+  .word .role { display: inline-flex; align-items: center; gap: 9px; padding: 10px 18px; border-radius: var(--r-full);
+    background: rgba(48,209,88,.14); border: .5px solid rgba(48,209,88,.42); color: #54e57e;
+    font-family: var(--font-display); font-weight: 700; font-size: 16px; align-self: center; }
+  .word .hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+  .word .kick { align-self: center; }
+
+  .word .card {
+    width: 100%; border-radius: var(--r-2xl); padding: 34px 26px 30px; text-align: center; position: relative; overflow: hidden;
+    background: linear-gradient(165deg, rgba(100,210,255,.18), rgba(10,132,255,.1));
+    border: 1px solid rgba(100,210,255,.45);
+    box-shadow: 0 30px 70px -24px rgba(10,132,255,.6), inset 0 1px 0 rgba(255,255,255,.16);
+  }
+  .word .card .cat { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: var(--r-full);
+    background: rgba(255,255,255,.1); font-family: var(--font-display); font-weight: 600; font-size: 15px; margin-bottom: 22px; }
+  .word .card .w { font-family: var(--font-display); font-weight: 800; font-size: 64px; line-height: .95; letter-spacing: -2px;
+    background: linear-gradient(180deg, #fff, rgba(255,255,255,.65)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 50px rgba(100,210,255,.3); }
+  .word .card .div { width: 54px; height: 4px; border-radius: 3px; background: rgba(100,210,255,.5); margin: 22px auto 0; }
+
+  .word .instr { text-align: center; font-size: 17px; line-height: 1.45; color: var(--text-secondary); max-width: 300px; }
+  .word .instr b { color: var(--text-primary); }
+
+  .word .secret { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 14px;
+    font-size: 13px; color: var(--text-tertiary); }
+</style>
+</head>
+<body>
+<div class="phone-stage">
+  <div class="phone">
+    <div class="island"></div>
+    <div class="phone-screen word" data-screen-label="Phone · Твоё слово (мирный)">
+      <div class="status">
+        <span class="time">9:41</span>
+        <span class="ic">
+          <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx=".6" fill="#fff"/><rect x="4.5" y="4.5" width="3" height="7.5" rx=".6" fill="#fff"/><rect x="9" y="2" width="3" height="10" rx=".6" fill="#fff"/><rect x="13.5" y="0" width="3" height="12" rx=".6" fill="#fff" opacity=".4"/></svg>
+          <svg width="26" height="13" viewBox="0 0 26 13"><rect x="1" y="1" width="21" height="11" rx="3" stroke="#fff" stroke-opacity=".4" fill="none"/><rect x="2.5" y="2.5" width="16" height="8" rx="1.6" fill="#fff"/><path d="M24 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#fff" fill-opacity=".5"/></svg>
+        </span>
+      </div>
+
+      <div class="content">
+        <div class="appbar">
+          <div class="brand"><div class="m">🎭</div><div class="nm">Шпион<small>Раунд 3 / 7</small></div></div>
+          <div class="rcode">GM9K</div>
+        </div>
+
+        <div class="hero">
+          <div class="role">🛡 Ты — мирный житель</div>
+          <div class="stack" style="align-items:center; gap:18px; width:100%;">
+            <div class="kick">твоё секретное слово</div>
+            <div class="card">
+              <div class="cat">📍 Места</div>
+              <div class="w">Аэропорт</div>
+              <div class="div"></div>
+            </div>
+          </div>
+          <div class="instr">Описывай слово, <b>не называя его</b>. Среди вас шпион — он слова не знает. Вычисли его.</div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <button class="btn cyan"><span class="ic">🙈</span> Понятно, спрятать</button>
+        <div class="secret">🔒 Не показывай экран соседям</div>
+      </div>
+
+      <div class="home-ind"></div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min((innerHeight-28)/874, (innerWidth-28)/402); document.querySelector('.phone').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>ШПИОН · Phone — Ты шпион</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="mobile/phone.css"/>
+<style>
+  .spy-screen { background:
+    radial-gradient(700px 460px at 80% -6%, rgba(255,59,107,.18), transparent 60%),
+    radial-gradient(640px 520px at 10% 108%, rgba(191,90,242,.16), transparent 60%),
+    #0c0510 !important; }
+  .spy .role { display: inline-flex; align-items: center; gap: 10px; padding: 11px 20px; border-radius: var(--r-full);
+    background: linear-gradient(180deg, rgba(255,59,107,.26), rgba(255,59,107,.14)); border: .5px solid rgba(255,59,107,.5); color: #ff8aa3;
+    font-family: var(--font-display); font-weight: 800; font-size: 17px; letter-spacing: .3px; align-self: center;
+    box-shadow: 0 10px 30px -10px rgba(255,59,107,.6); }
+  .spy .hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+
+  .spy .card {
+    width: 100%; border-radius: var(--r-2xl); padding: 38px 26px; text-align: center; position: relative; overflow: hidden;
+    background: linear-gradient(165deg, rgba(255,59,107,.12), rgba(20,8,18,.6));
+    border: 1px solid rgba(255,59,107,.4);
+    box-shadow: 0 30px 70px -24px rgba(255,59,107,.5), inset 0 1px 0 rgba(255,255,255,.1);
+  }
+  .spy .card .mask { font-size: 76px; line-height: 1; filter: drop-shadow(0 8px 24px rgba(255,59,107,.5)); }
+  .spy .card .q { font-family: var(--font-display); font-weight: 800; font-size: 40px; letter-spacing: -.6px; margin-top: 16px; }
+  .spy .card .sub { font-size: 16px; color: var(--text-secondary); margin-top: 8px; }
+  .spy .card .cat { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: var(--r-full);
+    background: rgba(255,255,255,.08); font-family: var(--font-display); font-weight: 600; font-size: 14px; margin-top: 20px; color: var(--text-secondary); }
+  .spy .card .cat b { color: #fff; }
+
+  .spy .mission { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+  .spy .m-row { display: flex; align-items: flex-start; gap: 13px; padding: 14px 16px; border-radius: var(--r-lg); }
+  .spy .m-row .n { width: 26px; height: 26px; border-radius: 8px; background: rgba(255,59,107,.2); color: #ff8aa3;
+    display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-weight: 700; font-size: 14px; flex-shrink: 0; }
+  .spy .m-row .t { font-size: 15px; line-height: 1.4; color: var(--text-secondary); }
+  .spy .m-row .t b { color: var(--text-primary); }
+
+  .spy .actions { display: flex; flex-direction: column; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="phone-stage">
+  <div class="phone">
+    <div class="island"></div>
+    <div class="phone-screen spy spy-screen" data-screen-label="Phone · Ты шпион">
+      <div class="status">
+        <span class="time">9:41</span>
+        <span class="ic">
+          <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx=".6" fill="#fff"/><rect x="4.5" y="4.5" width="3" height="7.5" rx=".6" fill="#fff"/><rect x="9" y="2" width="3" height="10" rx=".6" fill="#fff"/><rect x="13.5" y="0" width="3" height="12" rx=".6" fill="#fff" opacity=".4"/></svg>
+          <svg width="26" height="13" viewBox="0 0 26 13"><rect x="1" y="1" width="21" height="11" rx="3" stroke="#fff" stroke-opacity=".4" fill="none"/><rect x="2.5" y="2.5" width="16" height="8" rx="1.6" fill="#fff"/><path d="M24 4.5v4c.8-.3 1.3-1.1 1.3-2s-.5-1.7-1.3-2z" fill="#fff" fill-opacity=".5"/></svg>
+        </span>
+      </div>
+
+      <div class="content">
+        <div class="appbar">
+          <div class="brand"><div class="m">🎭</div><div class="nm">Шпион<small>Раунд 3 / 7</small></div></div>
+          <div class="rcode">GM9K</div>
+        </div>
+
+        <div class="hero">
+          <div class="role">🎭 Ты — ШПИОН</div>
+          <div class="card">
+            <div class="mask">🎭</div>
+            <div class="q">Слова у тебя нет</div>
+            <div class="sub">остальные знают его — ты нет</div>
+            <div class="cat">📍 Категория: <b>Места</b></div>
+          </div>
+
+          <div class="mission">
+            <div class="m-row glass"><div class="n">1</div><div class="t">Слушай ответы и <b>притворяйся своим</b> — отвечай размыто.</div></div>
+            <div class="m-row glass"><div class="n">2</div><div class="t"><b>Вычисли слово</b> по чужим описаниям.</div></div>
+            <div class="m-row glass"><div class="n">3</div><div class="t">Не дай себя раскрыть на голосовании.</div></div>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="actions">
+          <button class="btn primary"><span class="ic">💡</span> Назвать слово</button>
+          <button class="btn glass sm"><span class="ic">🙈</span> Понятно, спрятать</button>
+        </div>
+      </div>
+
+      <div class="home-ind"></div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min((innerHeight-28)/874, (innerWidth-28)/402); document.querySelector('.phone').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

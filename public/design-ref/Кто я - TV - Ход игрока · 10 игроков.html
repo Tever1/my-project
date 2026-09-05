@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>КТО Я? · TV — Ход игрока · 10 игроков</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<link rel="stylesheet" href="whoami/whoami.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 48px 64px 44px; position: relative; z-index: 1; }
+
+  /* HUD */
+  .hd { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .hd .right { display: flex; justify-content: flex-end; }
+  .now-pill {
+    display: inline-flex; align-items: center; gap: 16px;
+    padding: 14px 30px 14px 16px; border-radius: var(--r-full);
+  }
+  .now-pill .av { width: 46px; height: 46px; font-size: 20px; }
+  .now-pill .k { font-family: var(--font-mono); font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-tertiary); }
+  .now-pill .n { font-family: var(--font-display); font-weight: 800; font-size: 26px; letter-spacing: -.4px; color: var(--wai-soft); }
+  .prog {
+    display: inline-flex; align-items: center; gap: 14px;
+    padding: 14px 26px; border-radius: var(--r-full);
+    font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: -.2px;
+  }
+  .prog .li { width: 24px; height: 24px; color: #54e57e; }
+  .prog b { font-family: var(--font-mono); color: var(--wai-soft); }
+
+  /* hero card */
+  .main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px; }
+  .hero {
+    width: 980px; border-radius: var(--r-2xl); padding: 44px 56px;
+    display: flex; flex-direction: column; gap: 32px;
+  }
+  .hero .top { display: flex; align-items: center; gap: 36px; }
+  .hero .av { width: 156px; height: 156px; font-size: 66px;
+    box-shadow: 0 0 0 5px rgba(56,189,248,.65), 0 0 0 13px rgba(56,189,248,.12), 0 24px 60px -12px rgba(2,132,199,.7); }
+  .hero .kicker { color: var(--wai-1); }
+  .hero .nm { font-family: var(--font-display); font-weight: 800; font-size: 100px; line-height: .92; letter-spacing: -3.2px; margin-top: 8px; }
+  .hero .qn { margin-top: 16px; display: inline-flex; align-items: center; gap: 12px;
+    padding: 11px 20px; border-radius: var(--r-full); background: rgba(125,211,252,.1); border: .5px solid rgba(125,211,252,.3);
+    font-family: var(--font-mono); font-weight: 600; font-size: 18px; letter-spacing: 1px; color: var(--wai-soft); }
+  .hero .qn b { font-size: 22px; }
+
+  /* masked character */
+  .mask {
+    display: flex; align-items: center; gap: 26px;
+    padding: 24px 34px; border-radius: var(--r-xl);
+    background: rgba(4,16,26,.55); border: 1.5px dashed rgba(125,211,252,.28);
+    position: relative; overflow: hidden;
+  }
+  .mask::before { content: '?'; position: absolute; right: 26px; top: 50%; transform: translateY(-54%);
+    font-family: var(--font-display); font-weight: 800; font-size: 150px; color: rgba(125,211,252,.07); filter: blur(2px); }
+  .mask .ic { width: 72px; height: 72px; border-radius: 50%; background: rgba(125,211,252,.1);
+    display: flex; align-items: center; justify-content: center; color: var(--wai-soft); flex-shrink: 0; }
+  .mask .tx b { display: block; font-family: var(--font-display); font-weight: 700; font-size: 28px; letter-spacing: -.4px; }
+  .mask .tx span { display: block; margin-top: 6px; font-size: 19px; color: var(--text-tertiary); }
+
+  /* mini row of other players — 10-player stress test: tighter pills, smaller type,
+     тот же приём сжатия, что в Alias TV finished. Никакого скролла. */
+  .others { display: flex; justify-content: center; flex-wrap: nowrap; gap: 10px; max-width: 1792px; }
+  .op {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 7px 16px 7px 7px; border-radius: var(--r-full);
+    min-width: 0;
+  }
+  .op .av { width: 40px; height: 40px; font-size: 17px; flex-shrink: 0; }
+  .op .nm { font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: -.3px; color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .op .li { width: 19px; height: 19px; color: rgba(48,209,88,.85); flex-shrink: 0; }
+  .op.guessed { border-color: rgba(48,209,88,.3); }
+  .op.guessed .nm { color: var(--text-primary); }
+
+  .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen wai" data-screen-label="TV · Ход игрока · 10 игроков">
+    <div class="wai-bg"><div class="blob b1"></div><div class="blob b2"></div></div>
+    <div class="screen">
+
+      <!-- HUD -->
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark"><span class="li" style="width:36px;height:36px;color:#052e46;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8.2" r="3.4"></circle><path d="M3.8 19.4c.8-3.3 3.1-5.2 5.7-5.2 1.6 0 3 .6 4.1 1.8"></path><path d="M16.2 9.4c0-1.4 1.1-2.3 2.4-2.2 1.2 0 2.2 1 2.1 2.3-.1 1.6-2.2 1.7-2.3 3.2"></path><path d="M18.4 16.3v.01"></path></svg></span></div>
+          <div class="name">Кто я?<small>Party Hub</small></div>
+        </div>
+        <div class="now-pill glass"><div class="av" data-seed="3">К</div><div class="col"><span class="k">сейчас ходит</span><span class="n">Катя</span></div></div>
+        <div class="right">
+          <div class="prog glass"><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span> Угадали <b>4 из 10</b></div>
+        </div>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main">
+        <div class="hero glass-strong wai-pulse">
+          <div class="top">
+            <div class="av" data-seed="3">К</div>
+            <div class="col">
+              <div class="kicker">Сейчас ходит</div>
+              <div class="nm">Катя</div>
+              <div class="qn">Вопросов задано · <b>7</b></div>
+            </div>
+          </div>
+          <div class="mask">
+            <div class="ic"><span class="li" style="width:42px;height:42px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8.2" r="3.4"></circle><path d="M3.8 19.4c.8-3.3 3.1-5.2 5.7-5.2 1.6 0 3 .6 4.1 1.8"></path><path d="M16.2 9.4c0-1.4 1.1-2.3 2.4-2.2 1.2 0 2.2 1 2.1 2.3-.1 1.6-2.2 1.7-2.3 3.2"></path><path d="M18.4 16.3v.01"></path></svg></span></div>
+            <div class="tx">
+              <b>Персонаж скрыт</b>
+              <span>откроется, когда Катя угадает или передаст ход</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="others">
+          <div class="op glass guessed"><div class="av" data-seed="0">А</div><div class="nm">Аня</div><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span></div>
+          <div class="op glass guessed"><div class="av" data-seed="1">М</div><div class="nm">Макс</div><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span></div>
+          <div class="op glass"><div class="av" data-seed="2">Л</div><div class="nm">Лёша</div></div>
+          <div class="op glass"><div class="av" data-seed="4">Д</div><div class="nm">Дима</div></div>
+          <div class="op glass"><div class="av" data-seed="5">С</div><div class="nm">Света</div></div>
+          <div class="op glass guessed"><div class="av" data-seed="6">Н</div><div class="nm">Настя</div><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span></div>
+          <div class="op glass"><div class="av" data-seed="7">В</div><div class="nm">Вова</div></div>
+          <div class="op glass guessed"><div class="av" data-seed="8">П</div><div class="nm">Полина</div><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 6.5"></path></svg></span></div>
+          <div class="op glass"><div class="av" data-seed="9">Г</div><div class="nm">Гриша</div></div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="footer">
+        <div class="remote-hint glass"><span class="li" style="width:24px;height:24px;color:var(--wai-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.6"></rect><path d="M10.5 18.6h3"></path></svg></span> <span>У&nbsp;Кати на телефоне:</span> <b>Нет · Да · Я знаю!</b></div>
+        <div class="pill live"><span class="dot"></span> 10 в игре</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

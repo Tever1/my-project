@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>100 К 1 · TV — Подготовка</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<link rel="stylesheet" href="h2o/h2o.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 48px 64px 44px; position: relative; z-index: 1; }
+  .hd { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .hd .right { display: flex; justify-content: flex-end; }
+  .steps { display: inline-flex; align-items: center; gap: 22px; padding: 14px 28px; border-radius: var(--r-full); }
+  .steps .s { display: flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: 14px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-quaternary); }
+  .steps .s .d { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.14); }
+  .steps .s.done { color: var(--text-tertiary); } .steps .s.done .d { background: rgba(245,158,11,.55); }
+  .steps .s.now { color: var(--h2o-soft); font-weight: 700; } .steps .s.now .d { background: var(--h2o-1); box-shadow: 0 0 12px rgba(245,158,11,.8); animation: pulse 1.6s var(--ease-out) infinite; }
+  .main { flex: 1; display: grid; grid-template-columns: 1fr 460px 1fr; gap: 40px; align-items: stretch; margin-top: 34px; min-height: 0; }
+  .tcol { display: flex; flex-direction: column; gap: 14px; padding: 30px; border-radius: var(--r-2xl); }
+  .tcol .th { display: flex; align-items: center; gap: 14px; }
+  .tcol .th .nm { font-family: var(--font-display); font-weight: 800; font-size: 34px; letter-spacing: -.5px; }
+  .tcol .th .cnt { margin-left: auto; font-family: var(--font-mono); font-weight: 600; font-size: 15px; color: var(--text-tertiary); }
+  .tcol .tname { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 13.5px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary); margin: -4px 0 6px; }
+  .tcol .tname b { color: var(--h2o-soft); letter-spacing: 1px; }
+  .pl { display: flex; align-items: center; gap: 12px; padding: 9px 16px 9px 9px; border-radius: var(--r-full); background: var(--glass-bg); border: .5px solid var(--glass-border); }
+  .pl .av { width: 46px; height: 46px; font-size: 20px; }
+  .pl .nm { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: -.3px; }
+  .pl .li.star { margin-left: auto; width: 24px; height: 24px; color: var(--h2o-soft); }
+  .pl.captain { border-color: rgba(245,158,11,.5); background: rgba(245,158,11,.09); }
+  .mid { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 34px 30px; border-radius: var(--r-2xl); }
+  .qr { width: 220px; height: 220px; border-radius: var(--r-lg); background: #fffbeb; padding: 14px;
+    box-shadow: 0 18px 44px -14px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.2); }
+  .qr svg { width: 100%; height: 100%; display: block; }
+  .code { font-family: var(--font-mono); font-weight: 700; font-size: 42px; letter-spacing: 12px; color: var(--h2o-soft); }
+  .mid .k { font-family: var(--font-mono); font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-tertiary); text-align: center; }
+  .hostrow { display: flex; align-items: center; gap: 12px; padding: 10px 22px 10px 10px; border-radius: var(--r-full); margin-top: auto; }
+  .hostrow .av { width: 44px; height: 44px; font-size: 19px; }
+  .hostrow .li { width: 22px; height: 22px; color: var(--h2o-soft); }
+  .hostrow .nm { font-family: var(--font-display); font-weight: 700; font-size: 21px; }
+  .hostrow small { font-family: var(--font-mono); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary); }
+  .footer { display: flex; justify-content: center; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen h2o" data-screen-label="TV · Подготовка">
+    <div class="h2o-bg"><div class="beam l"></div><div class="beam r"></div><div class="glow"></div></div>
+    <div class="screen">
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark"><span class="li" style="width:36px;height:36px;color:#341f02;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14.2a6.5 6.5 0 0113 0"></path><path d="M4 14.2h16v2.4a1.6 1.6 0 01-1.6 1.6H5.6A1.6 1.6 0 014 16.6z"></path><path d="M12 5.2V3.4"></path><path d="M6.9 6.6L5.7 5.2"></path><path d="M17.1 6.6l1.2-1.4"></path></svg></span></div>
+          <div class="name">100 к 1<small>Party Hub</small></div>
+        </div>
+        <div class="steps glass">
+          <span class="s done"><span class="d"></span>Тема</span>
+          <span class="s done"><span class="d"></span>Роли</span>
+          <span class="s now"><span class="d"></span>Капитаны</span>
+          <span class="s"><span class="d"></span>Названия</span>
+          <span class="s"><span class="d"></span>Старт</span>
+        </div>
+        <div class="right"><div class="pill live"><span class="dot"></span> 9 в игре</div></div>
+      </div>
+
+      <div class="main">
+        <div class="tcol tm1-card">
+          <div class="th"><span class="tm-dot t1"></span><span class="nm">Команда 1</span><span class="cnt">4 игрока</span></div>
+          <div class="tname">Название — <b>выберут после капитана</b></div>
+          <div class="pl captain"><div class="av" data-seed="3">К</div><div class="nm">Катя</div><span class="li star"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 4l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.7z"></path></svg></span></div>
+          <div class="pl"><div class="av" data-seed="0">А</div><div class="nm">Аня</div></div>
+          <div class="pl"><div class="av" data-seed="2">Л</div><div class="nm">Лёша</div></div>
+          <div class="pl"><div class="av" data-seed="5">С</div><div class="nm">Света</div></div>
+        </div>
+
+        <div class="mid glass-strong">
+          <div class="k">Сканируй, чтобы присоединиться</div>
+          <div class="qr"><svg viewBox="0 0 29 29" shape-rendering="crispEdges"><rect width="29" height="29" fill="#fffbeb"></rect><path fill="#1f1206" d="M1 1h7v1H1zM10 1h2v1h-2zM14 1h1v1h-1zM17 1h3v1h-3zM21 1h7v1h-7zM1 2h1v1H1zM7 2h1v1H7zM9 2h1v1H9zM12 2h3v1h-3zM16 2h1v1h-1zM21 2h1v1h-1zM27 2h1v1h-1zM1 3h1v1H1zM3 3h3v1H3zM7 3h1v1H7zM10 3h1v1h-1zM13 3h1v1h-1zM15 3h3v1h-3zM21 3h1v1h-1zM23 3h3v1h-3zM27 3h1v1h-1zM1 4h1v1H1zM3 4h3v1H3zM7 4h1v1H7zM9 4h2v1H9zM14 4h2v1h-2zM18 4h1v1h-1zM21 4h1v1h-1zM23 4h3v1h-3zM27 4h1v1h-1zM1 5h1v1H1zM3 5h3v1H3zM7 5h1v1H7zM10 5h3v1h-3zM14 5h1v1h-1zM16 5h2v1h-2zM21 5h1v1h-1zM23 5h3v1h-3zM27 5h1v1h-1zM1 6h1v1H1zM7 6h1v1H7zM9 6h1v1H9zM11 6h2v1h-2zM15 6h1v1h-1zM17 6h2v1h-2zM21 6h1v1h-1zM27 6h1v1h-1zM1 7h7v1H1zM9 7h1v1H9zM11 7h1v1h-1zM13 7h1v1h-1zM15 7h1v1h-1zM17 7h1v1h-1zM19 7h1v1h-1zM21 7h7v1h-7zM10 8h2v1h-2zM13 8h2v1h-2zM16 8h3v1h-3zM1 9h2v1H1zM4 9h2v1H4zM7 9h1v1H7zM9 9h2v1H9zM13 9h1v1h-1zM16 9h1v1h-1zM19 9h3v1h-3zM24 9h2v1h-2zM27 9h1v1h-1zM2 10h1v1H2zM5 10h1v1H5zM8 10h2v1H8zM12 10h1v1h-1zM14 10h2v1h-2zM18 10h1v1h-1zM20 10h2v1h-2zM23 10h1v1h-1zM26 10h1v1h-1zM1 11h2v1H1zM4 11h1v1H4zM7 11h1v1H7zM10 11h2v1h-2zM13 11h2v1h-2zM17 11h2v1h-2zM21 11h2v1h-2zM25 11h2v1h-2zM3 12h2v1H3zM6 12h1v1H6zM9 12h1v1H9zM11 12h1v1h-1zM14 12h1v1h-1zM16 12h1v1h-1zM19 12h2v1h-2zM22 12h1v1h-1zM24 12h1v1h-1zM27 12h1v1h-1zM1 13h1v1H1zM5 13h2v1H5zM8 13h1v1H8zM10 13h1v1h-1zM12 13h3v1h-3zM16 13h2v1h-2zM20 13h1v1h-1zM23 13h2v1h-2zM26 13h2v1h-2zM2 14h2v1H2zM6 14h2v1H6zM9 14h2v1H9zM13 14h1v1h-1zM15 14h2v1h-2zM18 14h2v1h-2zM21 14h2v1h-2zM25 14h1v1h-1zM27 14h1v1h-1zM1 15h1v1H1zM4 15h1v1H4zM7 15h1v1H7zM11 15h2v1h-2zM14 15h1v1h-1zM17 15h1v1h-1zM19 15h1v1h-1zM22 15h2v1h-2zM26 15h1v1h-1zM2 16h2v1H2zM5 16h2v1H5zM8 16h2v1H8zM12 16h1v1h-1zM15 16h2v1h-2zM18 16h1v1h-1zM20 16h2v1h-2zM24 16h2v1h-2zM27 16h1v1h-1zM1 17h2v1H1zM6 17h1v1H6zM9 17h1v1H9zM11 17h1v1h-1zM13 17h2v1h-2zM16 17h1v1h-1zM19 17h2v1h-2zM23 17h1v1h-1zM25 17h2v1h-2zM3 18h1v1H3zM5 18h1v1H5zM7 18h2v1H7zM10 18h2v1h-2zM14 18h2v1h-2zM17 18h2v1h-2zM20 18h1v1h-1zM22 18h2v1h-2zM26 18h1v1h-1zM1 19h1v1H1zM4 19h2v1H4zM8 19h1v1H8zM12 19h2v1h-2zM15 19h1v1h-1zM18 19h1v1h-1zM21 19h2v1h-2zM24 19h1v1h-1zM27 19h1v1h-1zM9 20h2v1H9zM13 20h1v1h-1zM16 20h2v1h-2zM19 20h2v1h-2zM23 20h3v1h-3zM1 21h7v1H1zM9 21h1v1H9zM11 21h2v1h-2zM14 21h2v1h-2zM18 21h1v1h-1zM21 21h1v1h-1zM23 21h1v1h-1zM25 21h2v1h-2zM1 22h1v1H1zM7 22h1v1H7zM10 22h1v1h-1zM12 22h1v1h-1zM15 22h2v1h-2zM19 22h3v1h-3zM23 22h2v1h-2zM26 22h2v1h-2zM1 23h1v1H1zM3 23h3v1H3zM7 23h1v1H7zM9 23h2v1H9zM13 23h2v1h-2zM16 23h1v1h-1zM19 23h1v1h-1zM21 23h2v1h-2zM25 23h1v1h-1zM1 24h1v1H1zM3 24h3v1H3zM7 24h1v1H7zM10 24h2v1h-2zM14 24h1v1h-1zM17 24h2v1h-2zM20 24h2v1h-2zM24 24h2v1h-2zM27 24h1v1h-1zM1 25h1v1H1zM3 25h3v1H3zM7 25h1v1H7zM9 25h1v1H9zM12 25h2v1h-2zM15 25h1v1h-1zM18 25h1v1h-1zM21 25h1v1h-1zM23 25h2v1h-2zM26 25h1v1h-1zM1 26h1v1H1zM7 26h1v1H7zM10 26h2v1h-2zM13 26h1v1h-1zM16 26h2v1h-2zM19 26h1v1h-1zM22 26h2v1h-2zM25 26h1v1h-1zM1 27h7v1H1zM9 27h2v1H9zM12 27h1v1h-1zM14 27h2v1h-2zM17 27h1v1h-1zM19 27h2v1h-2zM23 27h2v1h-2zM26 27h2v1h-2z"></path></svg></div>
+          <div class="code">A7QX</div>
+          <div class="hostrow glass"><div class="av" data-seed="1">О</div><div class="col" style="display:flex;flex-direction:column;gap:2px;"><span class="nm">Оля</span><small>Ведущий</small></div><span class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9.2" y="3" width="5.6" height="10.4" rx="2.8"></rect><path d="M6.5 11.8a5.5 5.5 0 0011 0"></path><path d="M12 17.3v3.2"></path><path d="M9.5 20.5h5"></path></svg></span></div>
+        </div>
+
+        <div class="tcol tm2-card">
+          <div class="th"><span class="tm-dot t2"></span><span class="nm">Команда 2</span><span class="cnt">4 игрока</span></div>
+          <div class="tname">Капитан — <b>голосование идёт</b></div>
+          <div class="pl"><div class="av" data-seed="6">Р</div><div class="nm">Рома</div></div>
+          <div class="pl"><div class="av" data-seed="4">Д</div><div class="nm">Дима</div></div>
+          <div class="pl"><div class="av" data-seed="7">В</div><div class="nm">Вика</div></div>
+          <div class="pl"><div class="av" data-seed="0">М</div><div class="nm">Маша</div></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="remote-hint glass"><span class="li" style="width:24px;height:24px;color:var(--h2o-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.6"></rect><path d="M10.5 18.6h3"></path></svg></span> <span>Выбор капитанов —</span> <b>на телефонах команд</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

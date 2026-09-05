@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>100 К 1 · TV — Буззер</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<link rel="stylesheet" href="h2o/h2o.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 48px 64px 44px; position: relative; z-index: 1; }
+  .hd { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .hd .right { display: flex; justify-content: flex-end; }
+  .round-k { display: inline-flex; align-items: center; gap: 14px; padding: 14px 30px; border-radius: var(--r-full); }
+  .round-k b { font-family: var(--font-display); font-weight: 800; font-size: 26px; letter-spacing: 2px; color: var(--h2o-soft); }
+  .main { flex: 1; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 60px; }
+  .cap { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 40px 30px; border-radius: var(--r-2xl); }
+  .cap .av { width: 118px; height: 118px; font-size: 50px; }
+  .cap .nm { font-family: var(--font-display); font-weight: 800; font-size: 40px; letter-spacing: -.6px; }
+  .cap .tn { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-weight: 600; font-size: 15px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-tertiary); }
+  .cap .st { font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--text-tertiary); }
+  .cnt { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .cnt .num { width: 320px; height: 320px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 800; font-size: 190px; color: #fffbeb;
+    background: radial-gradient(90% 60% at 50% 10%, rgba(255,255,255,.25), transparent 55%), rgba(245,158,11,.14);
+    border: 2px solid rgba(245,158,11,.5); text-shadow: 0 0 60px rgba(245,158,11,.6);
+    animation: cntPop .9s cubic-bezier(.2,.9,.3,1.3) both; }
+  @keyframes cntPop { from { transform: scale(.55); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .cnt .num { animation: none; } }
+  .cnt .k { font-family: var(--font-mono); font-weight: 600; font-size: 17px; letter-spacing: 5px; text-transform: uppercase; color: var(--h2o-1); }
+  .footer { display: flex; justify-content: center; }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen h2o" data-screen-label="TV · Буззер">
+    <div class="h2o-bg"><div class="beam l"></div><div class="beam r"></div><div class="glow"></div></div>
+    <div class="screen">
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark"><span class="li" style="width:36px;height:36px;color:#341f02;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14.2a6.5 6.5 0 0113 0"></path><path d="M4 14.2h16v2.4a1.6 1.6 0 01-1.6 1.6H5.6A1.6 1.6 0 014 16.6z"></path><path d="M12 5.2V3.4"></path><path d="M6.9 6.6L5.7 5.2"></path><path d="M17.1 6.6l1.2-1.4"></path></svg></span></div>
+          <div class="name">100 к 1<small>Party Hub</small></div>
+        </div>
+        <div class="round-k glass"><b>РАУНД 2 · КТО НАЧИНАЕТ?</b></div>
+        <div class="right"><div class="pill live"><span class="dot"></span> 9 в игре</div></div>
+      </div>
+
+      <div class="main">
+        <div class="cap tm1-card glass-strong">
+          <div class="av" data-seed="3">К</div>
+          <div class="nm">Катя</div>
+          <div class="tn"><span class="tm-dot t1"></span>Капитан · АКУЛЫ</div>
+          <div class="st">рука на кнопке…</div>
+        </div>
+        <div class="cnt">
+          <div class="num h2o-pulse">2</div>
+          <div class="k">Жмите по нулю</div>
+        </div>
+        <div class="cap tm2-card glass-strong">
+          <div class="av" data-seed="6">Р</div>
+          <div class="nm">Рома</div>
+          <div class="tn"><span class="tm-dot t2"></span>Капитан · ЗУБРЫ</div>
+          <div class="st">рука на кнопке…</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="remote-hint glass"><span class="li" style="width:24px;height:24px;color:var(--h2o-soft);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.6"></rect><path d="M10.5 18.6h3"></path></svg></span> <span>Кто первым нажмёт буззер —</span> <b>та команда атакует раунд</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

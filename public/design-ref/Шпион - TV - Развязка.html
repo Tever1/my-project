@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<title>ШПИОН · TV — Развязка</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="foundation/tokens.css"/>
+<link rel="stylesheet" href="tv/tv.css"/>
+<style>
+  .screen { display: flex; flex-direction: column; height: 100%; padding: 46px 64px 44px; position: relative; z-index: 1; }
+  .win-bg::before { content:''; position:absolute; inset:0; z-index:0;
+    background: radial-gradient(1000px 640px at 50% 12%, rgba(48,209,88,.20), transparent 60%); }
+
+  .hd { display: flex; justify-content: space-between; align-items: center; }
+
+  /* outcome banner */
+  .banner {
+    margin: 26px auto 0; display: flex; align-items: center; gap: 18px;
+    padding: 20px 38px; border-radius: var(--r-full);
+    background: linear-gradient(180deg, rgba(48,209,88,.22), rgba(48,209,88,.1));
+    border: 1px solid rgba(48,209,88,.45);
+    box-shadow: 0 20px 60px -22px rgba(48,209,88,.6);
+  }
+  .banner .ic { width: 46px; height: 46px; border-radius: 50%; background: #30d158; display:flex; align-items:center; justify-content:center; }
+  .banner .tx { font-family: var(--font-display); font-weight: 800; font-size: 34px; letter-spacing: -.5px; }
+  .banner .pts { font-family: var(--font-mono); font-weight: 700; font-size: 20px; color: #54e57e; padding-left: 18px; margin-left: 4px; border-left: 1px solid rgba(255,255,255,.2); }
+
+  .reveal { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: stretch; margin-top: 36px; }
+
+  /* spy card */
+  .card { border-radius: var(--r-2xl); padding: 44px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .card .k { font-family: var(--font-mono); font-size: 15px; letter-spacing: 4px; text-transform: uppercase; }
+  .spy-card { background: linear-gradient(160deg, rgba(255,59,107,.18), rgba(191,90,242,.12)); border: 1px solid rgba(255,59,107,.4); }
+  .spy-card .k { color: #ff7a98; }
+  .spy-card .body { flex: 1; display: flex; align-items: center; gap: 36px; margin-top: 14px; }
+  .spy-card .av { width: 220px; height: 220px; font-size: 96px; position: relative;
+    box-shadow: 0 0 0 6px rgba(255,59,107,.6), 0 0 0 16px rgba(255,59,107,.12), 0 30px 70px -16px rgba(255,59,107,.6); }
+  .spy-card .mask { position: absolute; bottom: -8px; right: -8px; width: 78px; height: 78px; border-radius: 50%;
+    background: var(--bg-0); border: 3px solid rgba(255,59,107,.6); display:flex; align-items:center; justify-content:center; font-size: 40px; }
+  .spy-card .nm { font-family: var(--font-display); font-weight: 800; font-size: 100px; line-height: .9; letter-spacing: -3px; }
+  .spy-card .role { color: var(--text-secondary); font-size: 24px; font-weight: 500; margin-top: 12px; }
+  .spy-card .guess { margin-top: 22px; display: inline-flex; align-items: center; gap: 12px; padding: 14px 22px; border-radius: var(--r-lg);
+    background: rgba(0,0,0,.28); font-size: 20px; }
+  .spy-card .guess b { color: #ff7a98; }
+  .spy-card .guess .x { color: #ff5f7a; font-weight: 800; }
+
+  /* word card */
+  .word-card { background: linear-gradient(160deg, rgba(100,210,255,.18), rgba(10,132,255,.12)); border: 1px solid rgba(100,210,255,.42);
+    align-items: flex-start; justify-content: center; text-align: left; }
+  .word-card .k { color: var(--spy-1); }
+  .word-card .cat { display:inline-flex; align-items:center; gap:10px; margin-top: 18px; padding: 10px 18px; border-radius: var(--r-full);
+    background: rgba(255,255,255,.08); font-family: var(--font-display); font-weight:600; font-size: 19px; }
+  .word-card .word { font-family: var(--font-display); font-weight: 800; font-size: 168px; line-height: .9; letter-spacing: -6px;
+    margin: 28px 0 8px; background: linear-gradient(180deg, #fff, rgba(255,255,255,.6)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 60px rgba(100,210,255,.3); }
+  .word-card .note { color: var(--text-secondary); font-size: 22px; font-weight: 500; }
+  .word-card .note b { color: var(--spy-1); }
+
+  .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 34px; }
+  .scores { display: flex; gap: 10px; }
+  .sc { display: flex; align-items: center; gap: 10px; padding: 10px 16px 10px 10px; border-radius: var(--r-full); }
+  .sc .av { width: 38px; height: 38px; font-size: 16px; }
+  .sc .d { font-family: var(--font-mono); font-weight: 700; font-size: 17px; }
+  .sc .d.up { color: #54e57e; }
+  .sc .d.zero { color: var(--text-tertiary); }
+  .cta { display:inline-flex; align-items:center; gap:12px; padding: 16px 30px; border-radius: var(--r-full);
+    background: linear-gradient(180deg, #ff5c85, #ff3b6b); color:#fff; font-family: var(--font-display); font-weight: 700; font-size: 22px;
+    box-shadow: 0 12px 30px -8px rgba(255,59,107,.6); }
+</style>
+</head>
+<body>
+<div class="tv-stage">
+  <div class="tv-screen win-bg" data-screen-label="Развязка">
+    <div class="spy-bg"></div>
+    <div class="screen">
+
+      <div class="hd">
+        <div class="tv-brand">
+          <div class="mark">🎭</div>
+          <div class="name">Шпион<small>Раунд 2 раскрыт</small></div>
+        </div>
+        <div class="pill live"><span class="dot"></span> 6 в игре</div>
+      </div>
+
+      <div class="banner">
+        <div class="ic">
+          <svg width="24" height="24" viewBox="0 0 20 20" fill="none"><path d="M4 10.5l4 4 8-9" stroke="#05210f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="tx">Мирные вычислили шпиона!</div>
+        <div class="pts">+1 очко каждому</div>
+      </div>
+
+      <div class="reveal">
+        <div class="card spy-card">
+          <div class="k">Шпионом была</div>
+          <div class="body">
+            <div class="av" data-seed="3">К<div class="mask">🎭</div></div>
+            <div class="col">
+              <div class="nm">Катя</div>
+              <div class="role">набрала 3 из 6 голосов — раскрыта</div>
+              <div class="guess">Последняя догадка: <b>«вокзал»</b> <span class="x">— мимо</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card word-card">
+          <div class="k">Загаданное слово</div>
+          <div class="cat">📍 Категория · Места</div>
+          <div class="word">Аэропорт</div>
+          <div class="note">Шпион так и <b>не угадал</b> — слово остаётся за мирными</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="scores">
+          <div class="sc glass"><div class="av" data-seed="0">А</div><span class="d up">+1</span></div>
+          <div class="sc glass"><div class="av" data-seed="1">М</div><span class="d up">+1</span></div>
+          <div class="sc glass"><div class="av" data-seed="3">К</div><span class="d zero">0</span></div>
+          <div class="sc glass"><div class="av" data-seed="4">Д</div><span class="d up">+1</span></div>
+          <div class="sc glass"><div class="av" data-seed="5">С</div><span class="d up">+1</span></div>
+          <div class="sc glass"><div class="av" data-seed="2">Л</div><span class="d up">+1</span></div>
+        </div>
+        <div class="cta">📱 Ведущий: запустить раунд 3 →</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script>
+  function fit(){ const s = Math.min(innerWidth/1920, innerHeight/1080); document.querySelector('.tv-screen').style.transform = 'scale('+s+')'; }
+  addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>
