@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/lib/use-socket';
 import { useRoomState } from '@/lib/use-room-state';
 import { useGameBroadcast } from '@/lib/use-game-action';
+import { getWhoAmIActivePlayerId, getWhoAmINextTurnIndex, getWhoAmIPhoneFocus } from '@/lib/who-am-i-flow';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
@@ -28,13 +29,13 @@ interface WhoAmIGameState {
   phase: 'lobby' | 'playing' | 'finished';
   /** Mapping of playerId -> character assigned to them */
   characters: Record<string, { ru: string; en: string }>;
-  /** Index into the alive (not-yet-guessed) player order */
+  /** Cursor into the original turn order; guessed players are skipped. */
   currentTurnIndex: number;
   /** Ordered list of player IDs for turn rotation */
   turnOrder: string[];
   /** Players who have successfully guessed their character */
   guessedPlayers: string[];
-  /** How many questions each player has asked (for scoring) */
+  /** How many questions each player has asked */
   questionsAsked: Record<string, number>;
   /** Consecutive "Yes" answers for the current turn */
   consecutiveYesAnswers: number;
@@ -44,8 +45,6 @@ interface WhoAmIGameState {
   guessJudgeId: string;
   guessPendingPlayerId: string;
   guessPendingText: string;
-  /** Scores awarded on correct guess */
-  scores: Record<string, number>;
 }
 
 type GameAction =
@@ -55,7 +54,7 @@ type GameAction =
   | { type: 'next-turn' }
   | { type: 'ask-question'; answer?: 'yes' | 'no'; playerId: string; questionsAsked: number; consecutiveYesAnswers: number }
   | { type: 'guess-try'; playerId: string; guess: string }
-  | { type: 'guess-confirm'; playerId: string; judgeId: string }
+  | { type: 'guess-confirm'; playerId: string; judgeId?: string }
   | { type: 'guess'; playerId: string; guess: string; correct: boolean }
   | { type: 'end-game' };
 
@@ -77,26 +76,9 @@ function assignCharacters(
   return result;
 }
 
-function calculateScore(questionsAsked: number): number {
-  // Fewer questions = more points. Minimum 10 points for guessing at all.
-  if (questionsAsked <= 1) return 100;
-  if (questionsAsked <= 3) return 80;
-  if (questionsAsked <= 5) return 60;
-  if (questionsAsked <= 8) return 40;
-  if (questionsAsked <= 12) return 20;
-  return 10;
-}
-
 const QUESTION_ANSWER_GUARD_MS = 700;
 const WHO_AM_I_ACCENT_CARD =
   'bg-[radial-gradient(110%_70%_at_50%_-5%,rgba(255,255,255,.22),transparent_55%),linear-gradient(165deg,#38bdf8_0%,#0369a1_100%)] text-sky-50 shadow-[0_18px_44px_-12px_rgba(2,132,199,.7),inset_0_1px_0_rgba(255,255,255,.45)]';
-
-function rankTone(index: number) {
-  if (index === 0) return 'border-amber-300/35 bg-amber-400/10 text-amber-300';
-  if (index === 1) return 'border-slate-200/30 bg-slate-200/10 text-slate-200';
-  if (index === 2) return 'border-orange-300/30 bg-orange-400/10 text-orange-300';
-  return 'border-white/10 bg-white/5 text-white/55';
-}
 
 function getClearedGuessDisputeState() {
   return {
@@ -118,7 +100,6 @@ function getInitialState(): WhoAmIGameState {
     questionsAsked: {},
     consecutiveYesAnswers: 0,
     ...getClearedGuessDisputeState(),
-    scores: {},
   };
 }
 
@@ -158,22 +139,13 @@ export default function WhoAmIPage() {
   );
 
   // Current player whose turn it is (only among non-guessed players)
-  const activeTurnOrder = gs.turnOrder.filter(
-    (id) => !gs.guessedPlayers.includes(id),
-  );
-  const currentPlayerId =
-    activeTurnOrder.length > 0
-      ? activeTurnOrder[gs.currentTurnIndex % activeTurnOrder.length]
-      : null;
+  const currentPlayerId = getWhoAmIActivePlayerId(gs);
   const isMyTurn = currentPlayerId === effectivePlayerId;
   const isGuessJudge = effectivePlayerId === gs.guessJudgeId;
   const haveIGuessed = effectivePlayerId
     ? gs.guessedPlayers.includes(effectivePlayerId)
     : false;
-  const isMyConfirmScreen =
-    effectivePlayerId === gs.guessPendingPlayerId &&
-    !haveIGuessed &&
-    gs.guessNeedsConfirm;
+  const phoneFocus = getWhoAmIPhoneFocus(gs, effectivePlayerId, showGuessInput);
 
   // -----------------------------------------------------------------------
   // Broadcast helper
@@ -238,15 +210,22 @@ export default function WhoAmIPage() {
             ),
             consecutiveYesAnswers: 0,
             ...getClearedGuessDisputeState(),
-            scores: Object.fromEntries(
-              payload.turnOrder.map((id) => [id, 0]),
-            ),
           });
           setLastGuessResult(null);
           break;
 
         case 'sync-state':
           setGs(payload.state);
+          if (payload.state.phase !== 'playing'
+            || payload.state.guessNeedsConfirm || payload.state.guessAwaitingJudge
+            || getWhoAmIActivePlayerId(payload.state) !== effectivePlayerId) {
+            setShowGuessInput(false);
+            setGuessInput('');
+          }
+          if (payload.state.guessNeedsConfirm || payload.state.guessAwaitingJudge
+            || payload.state.phase !== gsRef.current.phase) {
+            setLastGuessResult(null);
+          }
           break;
 
         case 'request-state':
@@ -258,7 +237,7 @@ export default function WhoAmIPage() {
         case 'next-turn':
           setGs((prev) => ({
             ...prev,
-            currentTurnIndex: prev.currentTurnIndex + 1,
+            currentTurnIndex: getWhoAmINextTurnIndex(prev),
             consecutiveYesAnswers: 0,
             ...getClearedGuessDisputeState(),
           }));
@@ -296,7 +275,7 @@ export default function WhoAmIPage() {
             ...prev,
             guessNeedsConfirm: false,
             guessAwaitingJudge: true,
-            guessJudgeId: payload.judgeId,
+            guessJudgeId: payload.judgeId ?? '',
             guessPendingPlayerId: payload.playerId,
           }));
           break;
@@ -304,22 +283,14 @@ export default function WhoAmIPage() {
         case 'guess':
           if (payload.correct) {
             setGs((prev) => {
-              const score = calculateScore(
-                prev.questionsAsked[payload.playerId] || 0,
-              );
               const newGuessed = [...prev.guessedPlayers, payload.playerId];
               const allGuessed =
                 newGuessed.length >= prev.turnOrder.length;
               return {
                 ...prev,
                 guessedPlayers: newGuessed,
-                scores: {
-                  ...prev.scores,
-                  [payload.playerId]:
-                    (prev.scores[payload.playerId] || 0) + score,
-                },
                 phase: allGuessed ? 'finished' : prev.phase,
-                currentTurnIndex: prev.currentTurnIndex + 1,
+                currentTurnIndex: getWhoAmINextTurnIndex(prev),
                 consecutiveYesAnswers: 0,
                 ...getClearedGuessDisputeState(),
               };
@@ -349,7 +320,7 @@ export default function WhoAmIPage() {
       }
     });
     return cleanup;
-  }, [broadcast, isGameHost, on]);
+  }, [broadcast, effectivePlayerId, isGameHost, on]);
 
   // -----------------------------------------------------------------------
   // Host: start game
@@ -423,25 +394,10 @@ export default function WhoAmIPage() {
   // -----------------------------------------------------------------------
   const handleGuess = () => {
     if (!effectivePlayerId || !guessInput.trim()) return;
-    const myChar = gs.characters[effectivePlayerId];
-    if (!myChar) return;
-
-    const normalise = (s: string) => s.trim().toLowerCase();
-    const correct =
-      normalise(guessInput) === normalise(myChar.ru) ||
-      normalise(guessInput) === normalise(myChar.en);
-
     const guess = guessInput.trim();
-    if (correct) {
-      broadcast({
-        type: 'guess',
-        playerId: effectivePlayerId,
-        guess,
-        correct: true,
-      });
-      return;
-    }
-
+    // The current player never receives their own character. The server checks
+    // exact matches against the canonical private snapshot and only opens the
+    // judge flow when the guess is not an exact match.
     broadcast({ type: 'guess-try', playerId: effectivePlayerId, guess });
   };
 
@@ -449,21 +405,7 @@ export default function WhoAmIPage() {
     if (!effectivePlayerId || gs.guessPendingPlayerId !== effectivePlayerId) {
       return;
     }
-    const candidates = players.filter((p) => p.id !== effectivePlayerId);
-    const judgeId =
-      candidates[Math.floor(Math.random() * candidates.length)]?.id ?? '';
-
-    if (!judgeId) {
-      broadcast({
-        type: 'guess',
-        playerId: effectivePlayerId,
-        guess: gs.guessPendingText,
-        correct: false,
-      });
-      return;
-    }
-
-    broadcast({ type: 'guess-confirm', playerId: effectivePlayerId, judgeId });
+    broadcast({ type: 'guess-confirm', playerId: effectivePlayerId });
   };
 
   const handleGuessVerdict = (accept: boolean) => {
@@ -612,16 +554,19 @@ export default function WhoAmIPage() {
       if (lastGuessResult) {
         const correct = lastGuessResult.correct;
         const revealedCharacter = gs.characters[lastGuessResult.playerId]?.[locale] ?? lastGuessResult.guess;
-        const points = calculateScore(gs.questionsAsked[lastGuessResult.playerId] || 0);
         return (
           <div className={clay.reveal}>
             {correct && <div className={clay.revealBurst} aria-hidden="true"><i /><i /><i /><i /><i /></div>}
             <span className={`${clay.iconBlob} ${correct ? '' : clay.iconBlobDanger}`}><WhoAmIIcon name={correct ? 'celebrate' : 'cross'} /></span>
             <small className={clay.kicker}>{correct ? l('ЛИЧНОСТЬ РАСКРЫТА', 'IDENTITY REVEALED') : l('НЕВЕРНАЯ ПОПЫТКА', 'WRONG GUESS')}</small>
             <h1>{correct ? l(`${playerName(lastGuessResult.playerId)} —\n${revealedCharacter}!`, `${playerName(lastGuessResult.playerId)} is\n${revealedCharacter}!`) : l(`${playerName(lastGuessResult.playerId)} пока\nне угадал(а)`, `${playerName(lastGuessResult.playerId)} has not\nguessed yet`)}</h1>
-            <div className={clay.scorePill}>{correct ? `+${points} ${l('ОЧКОВ', 'POINTS')}` : l('ХОД ПЕРЕХОДИТ ДАЛЬШЕ', 'TURN PASSES ON')}</div>
+            <div className={clay.scorePill}>{correct ? l('ПЕРСОНАЖ УГАДАН', 'CHARACTER GUESSED') : l('ХОД ПЕРЕХОДИТ ДАЛЬШЕ', 'TURN PASSES ON')}</div>
             <p>{correct ? l(`Понадобилось ${gs.questionsAsked[lastGuessResult.playerId] || 0} вопросов`, `It took ${gs.questionsAsked[lastGuessResult.playerId] || 0} questions`) : l('Персонаж остаётся тайной. Новая попытка будет доступна в следующем круге.', 'The character remains secret. Try again on the next turn.')}</p>
-            <button type="button" className={clay.primaryButton} onClick={() => setLastGuessResult(null)}>{l('СМОТРЕТЬ ИГРУ', 'WATCH GAME')}</button>
+            <button type="button" className={clay.primaryButton} onClick={() => setLastGuessResult(null)}>
+              {haveIGuessed
+                ? l('СМОТРЕТЬ ИГРУ', 'WATCH GAME')
+                : l('ПРОДОЛЖИТЬ ИГРУ', 'CONTINUE GAME')}
+            </button>
           </div>
         );
       }
@@ -655,7 +600,7 @@ export default function WhoAmIPage() {
             <h1>{haveIGuessed ? playerName(effectivePlayerId ?? '') : playerName(currentPlayerId ?? '')}</h1>
             <p>{haveIGuessed ? l(`Твой персонаж — ${gs.characters[effectivePlayerId ?? '']?.[locale] ?? '???'}. Наблюдай за остальными.`, `Your character is ${gs.characters[effectivePlayerId ?? '']?.[locale] ?? '???'}. Watch the others.`) : pendingJudge ? l('Случайный игрок сравнивает твою догадку с настоящим персонажем.', 'A random player is comparing your guess with the real character.') : l(`Отвечай на вопросы ${playerName(currentPlayerId ?? '')} вслух: только «Да» или «Нет».`, `Answer ${playerName(currentPlayerId ?? '')}'s questions out loud: only Yes or No.`)}</p>
           </div>
-          <div className={`${clay.softMessage} ${clay.cardSoft}`}><WhoAmIIcon name={haveIGuessed ? 'celebrate' : 'profile'} /><div><b>{haveIGuessed ? `+${gs.scores[effectivePlayerId ?? ''] || 0} ${l('ОЧКОВ', 'POINTS')}` : pendingJudge ? l('ВЕРДИКТ СКОРО', 'VERDICT SOON') : l('ЖДИ СВОЙ ХОД', 'WAIT FOR YOUR TURN')}</b><small>{haveIGuessed ? l('результат уже в рейтинге', 'your score is in the ranking') : l('чужие персонажи видны только игрокам', 'characters stay private to players')}</small></div></div>
+          <div className={`${clay.softMessage} ${clay.cardSoft}`}><WhoAmIIcon name={haveIGuessed ? 'celebrate' : 'profile'} /><div><b>{haveIGuessed ? l('ТЫ УГАДАЛ(А)', 'YOU GUESSED') : pendingJudge ? l('ВЕРДИКТ СКОРО', 'VERDICT SOON') : l('ЖДИ СВОЙ ХОД', 'WAIT FOR YOUR TURN')}</b><small>{haveIGuessed ? l('отвечай на вопросы остальных', 'answer the other players’ questions') : l('чужие персонажи видны только игрокам', 'characters stay private to players')}</small></div></div>
         </div>
       );
     }
@@ -811,111 +756,26 @@ export default function WhoAmIPage() {
   // -----------------------------------------------------------------------
   // RENDER: Finished
   // -----------------------------------------------------------------------
-  const renderFinished = () => {
-    const sorted = Object.entries(gs.scores)
-      .map(([id, score]) => ({ id, name: playerName(id), score }))
-      .sort((a, b) => b.score - a.score);
-    const rowCount = Math.max(sorted.length, 1);
-    const getMobileRevealDelay = (index: number) => {
-      const fromBottom = rowCount - 1 - index;
-      if (rowCount <= 6) {
-        const delays = [1.4, 1.1, 0.85, 0.65, 0.45, 0.25];
-        return delays[index] ?? Math.max(0.18, 1.4 - index * 0.16);
-      }
-      return 0.2 + fromBottom * 0.12;
-    };
-
-    if (gs.phase === 'finished') {
-      return (
-        <div className={clay.results}>
-          <span className={clay.iconBlob}><WhoAmIIcon name="trophy" /></span>
-          <small className={clay.kicker}>{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</small>
-          <h1>{l('Все личности\nраскрыты', 'Every identity\nrevealed')}</h1>
-          <div className={clay.ranking}>
-            {sorted.map((entry, index) => {
-              const guessed = gs.guessedPlayers.includes(entry.id);
-              const character = guessed ? gs.characters[entry.id]?.[locale] ?? '???' : l('не угадал', 'not guessed');
-              return (
-                <article key={entry.id} className={`${clay.resultRow} ${index === 0 ? clay.resultRowWinner : ''}`}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <ClayBlob name={entry.name} active={index === 0} size="sm" />
-                  <div><b>{entry.name}</b><small>{character} · {gs.questionsAsked[entry.id] ?? 0} {l('вопросов', 'questions')}</small></div>
-                  <strong>{entry.score}</strong>
-                </article>
-              );
-            })}
-          </div>
-          {isGameHost && <div className={clay.resultsAction}><button type="button" className={clay.primaryButton} onClick={handleStart}>{l('ИГРАТЬ СНОВА', 'PLAY AGAIN')}</button></div>}
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-6">
-        <GlassCard className="w-full max-w-md text-center animate-scale-in">
-          <div className={`mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl ${WHO_AM_I_ACCENT_CARD}`}>
-            <WhoAmIIcon name="trophy" className="h-9 w-9" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-4">
-            {l('Игра окончена!', 'Game Over!')}
-          </h2>
-
-          {/* Scoreboard */}
-          <div className="space-y-2 mb-6">
-            {sorted.map((entry, i) => {
-              const char = gs.characters[entry.id];
-              const guessed = gs.guessedPlayers.includes(entry.id);
-              return (
-                <div
-                  key={entry.id}
-                  style={{
-                    animation: `whoamiMobileRowIn .5s cubic-bezier(.2,.9,.3,1.15) ${getMobileRevealDelay(i)}s both`,
-                  }}
-                  className={`flex items-center justify-between p-3 rounded-xl border ${rankTone(i)}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
-                      {i < 3 ? (
-                        <>
-                          <WhoAmIIcon name="medal" className="h-8 w-8" />
-                          <span className="absolute mt-1 text-[10px] font-black">{i + 1}</span>
-                        </>
-                      ) : (
-                        <span className="font-mono text-sm font-bold text-white/50">{i + 1}</span>
-                      )}
-                    </span>
-                    <div className="text-left">
-                      <p className="font-medium text-white text-sm">
-                        {entry.name}
-                      </p>
-                      <p className="text-white/40 text-xs">
-                        {char?.[locale]}
-                        {!guessed && ` (${l('не угадал', 'not guessed')})`}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="glass-badge border-sky-300/25 bg-sky-400/10 font-bold text-sky-100">
-                    {entry.score}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {isGameHost && (
-            <GlassButton
-              variant="primary"
-              size="lg"
-              className="w-full mt-6"
-              onClick={handleStart}
-            >
-              {l('Играть снова', 'Play Again')}
-            </GlassButton>
-          )}
-        </GlassCard>
+  const renderFinished = () => (
+    <div className={clay.results}>
+      <span className={clay.iconBlob}><WhoAmIIcon name="celebrate" /></span>
+      <small className={clay.kicker}>{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</small>
+      <h1>{l('Спасибо\nза игру!', 'Thanks\nfor playing!')}</h1>
+      <div className={clay.ranking}>
+        {gs.turnOrder.map((id) => {
+          const guessed = gs.guessedPlayers.includes(id);
+          const character = guessed ? gs.characters[id]?.[locale] ?? '???' : l('не угадал', 'not guessed');
+          return (
+            <article key={id} className={`${clay.resultRow} ${clay.participantRow}`}>
+              <ClayBlob name={playerName(id)} size="sm" />
+              <div><b>{playerName(id)}</b><small>{character}</small></div>
+            </article>
+          );
+        })}
       </div>
-    );
-  };
+      {isGameHost && <div className={clay.resultsAction}><button type="button" className={clay.primaryButton} onClick={handleStart}>{l('ИГРАТЬ СНОВА', 'PLAY AGAIN')}</button></div>}
+    </div>
+  );
 
   // -----------------------------------------------------------------------
   // Main render
@@ -926,23 +786,24 @@ export default function WhoAmIPage() {
     finished: renderFinished,
   };
   let content = (phaseRenderers[gs.phase] ?? renderLobby)();
-  if (gs.phase === 'playing' && showGuessInput) {
+  if (phoneFocus === 'input') {
     content = renderGuessInput();
-  } else if (gs.phase === 'playing' && isMyConfirmScreen) {
+  } else if (phoneFocus === 'confirm') {
     content = renderGuessConfirm();
-  } else if (gs.phase === 'playing' && isGuessJudge && gs.guessAwaitingJudge) {
+  } else if (phoneFocus === 'judge') {
     content = renderJudge();
   }
 
+  // Frequent turn/counter updates keep the screen mounted; only actual screens enter.
   const visualPhaseKey = lastGuessResult
     ? `result-${lastGuessResult.playerId}-${lastGuessResult.correct}`
-    : showGuessInput
+    : phoneFocus === 'input'
       ? 'guess-input'
-      : isMyConfirmScreen
+      : phoneFocus === 'confirm'
         ? 'guess-confirm'
-        : isGuessJudge && gs.guessAwaitingJudge
+        : phoneFocus === 'judge'
           ? 'judge'
-          : `${gs.phase}-${currentPlayerId ?? 'none'}-${gs.consecutiveYesAnswers}`;
+          : gs.phase;
 
   return (
     <WhoAmIClayMobileLayout roomId={roomId} phaseKey={visualPhaseKey} onEnd={isGameHost ? handleEndGame : undefined} locale={locale}>

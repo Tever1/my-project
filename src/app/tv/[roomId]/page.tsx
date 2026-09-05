@@ -16,12 +16,13 @@ interface RoomState {
   status: string;
   currentGame: string | null;
   gameState: Record<string, unknown> | null;
+  locale: 'ru' | 'en';
 }
 
 export default function TVPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { emit, on, isConnected } = useSocket();
-  const { locale } = useTranslation();
+  const { locale, setLocale } = useTranslation();
   const [room, setRoom] = useState<RoomState | null>(null);
   const [networkIP, setNetworkIP] = useState<string | null>(null);
 
@@ -41,9 +42,11 @@ export default function TVPage() {
 
   useEffect(() => {
     return on('room:state', (data: unknown) => {
-      setRoom(data as RoomState);
+      const nextRoom = data as RoomState;
+      setRoom(nextRoom);
+      if (nextRoom.locale === 'ru' || nextRoom.locale === 'en') setLocale(nextRoom.locale);
     });
-  }, [on]);
+  }, [on, setLocale]);
 
   useNavigateOnGameStart(
     ({ roomCode, gameType }) => `/tv/${roomCode}/${gameType}`,

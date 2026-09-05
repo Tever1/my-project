@@ -8,6 +8,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
+import { limitPlayerName, normalizePlayerName } from '@/lib/player-name';
 
 export default function ProfilePage() {
   const { t, locale } = useTranslation();
@@ -23,8 +24,9 @@ export default function ProfilePage() {
   }
 
   const handleSave = () => {
-    if (nickname.trim().length >= 2) {
-      updateNickname(nickname.trim());
+    const normalizedNickname = normalizePlayerName(nickname);
+    if (normalizedNickname.length >= 2) {
+      updateNickname(normalizedNickname);
       setEditing(false);
     }
   };
@@ -74,8 +76,7 @@ export default function ProfilePage() {
               <div className="flex gap-2 items-end">
                 <GlassInput
                   value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  maxLength={20}
+                  onChange={(e) => setNickname(limitPlayerName(e.target.value))}
                   autoFocus
                 />
                 <GlassButton variant="primary" size="sm" onClick={handleSave}>

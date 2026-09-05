@@ -236,6 +236,7 @@ python scripts/tailwind_config_gen.py --colors brand:blue --fonts display:Inter
 8. **TypeScript**: Use full type safety for better DX
 9. **Visual Hierarchy**: Let composition guide attention, use spacing and color intentionally
 10. **Expert Craftsmanship**: Every detail matters - treat UI as a craft
+11. **Exact-Viewport Preflight**: Before presenting UI work, render every changed state at each required target size. For Party Games Hub, use 390×844 for phone and 1920×1080 for TV unless the task specifies another size. Inspect the full frame for clipping, overflow, hidden controls, unreadable text, and collisions; fix every defect and repeat the check.
 
 ## Reference Navigation
 

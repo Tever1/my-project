@@ -14,6 +14,8 @@ import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
 import { CROCODILE_WORDS } from '@/lib/game-data';
+import { formatGameTime } from '@/lib/format-game-time';
+import { mergeCrocodileStateSync } from '@/lib/crocodile-state-sync';
 import { Player } from '@/types/room';
 
 // ---------------------------------------------------------------------------
@@ -116,7 +118,7 @@ function SwipeWordCard({
           }}
       transition={{ duration: reduceMotion ? 0 : transitionDuration, ease: [0.22, 1, 0.36, 1] }}
       style={{ zIndex: 3 - stackIndex }}
-      className={`absolute inset-0 flex touch-pan-y flex-col justify-between overflow-hidden rounded-[34px] bg-[linear-gradient(145deg,#ff6a4d_0%,#ef3340_48%,#a90f2b_100%)] p-6 text-white shadow-[0_26px_65px_rgba(0,0,0,.52)] ${active ? 'cursor-grab active:cursor-grabbing' : 'pointer-events-none'} ${className}`}
+      className={`absolute inset-0 flex flex-col justify-between overflow-hidden rounded-[34px] bg-[linear-gradient(145deg,#ff6a4d_0%,#ef3340_48%,#a90f2b_100%)] p-6 text-white shadow-[0_26px_65px_rgba(0,0,0,.52)] ${active ? 'touch-none cursor-grab select-none active:cursor-grabbing' : 'pointer-events-none touch-pan-y'} ${className}`}
       aria-label={active ? (locale === 'ru' ? 'Карточка слова. Смахните влево, чтобы пропустить, или вправо, если слово угадано' : 'Word card. Swipe left to skip or right when guessed') : undefined}
     >
       <div className="flex items-center justify-between gap-3 font-mono text-[10px] font-black uppercase tracking-[0.14em]">
@@ -247,8 +249,11 @@ export default function CrocodilePage() {
 
         switch (action) {
           case 'croc:state':
-            setGameState(payload);
-            gameStateRef.current = payload;
+            setGameState((prev) => {
+              const next = mergeCrocodileStateSync(prev, payload);
+              gameStateRef.current = next;
+              return next;
+            });
             break;
           case 'croc:tick':
             setGameState((prev) => {
@@ -308,9 +313,13 @@ export default function CrocodilePage() {
         if (newTime <= 0) {
           if (timerRef.current) clearInterval(timerRef.current);
           setTimeout(() => advanceToNextExplainer(prev), 0);
-          return { ...prev, timeLeft: 0 };
+          const next = { ...prev, timeLeft: 0 };
+          gameStateRef.current = next;
+          return next;
         }
-        return { ...prev, timeLeft: newTime };
+        const next = { ...prev, timeLeft: newTime };
+        gameStateRef.current = next;
+        return next;
       });
     }, 1000);
 
@@ -566,13 +575,6 @@ export default function CrocodilePage() {
   const winner = players.find((player) => player.id === winnerId);
   const winnerScore = winnerId ? gameState?.scores[winnerId] ?? 0 : 0;
   const roundNumber = gameState ? getRoundNumber(gameState) : 1;
-  const formatTurnTime = (seconds: number) => {
-    const safeSeconds = Math.max(0, seconds);
-    const minutes = Math.floor(safeSeconds / 60);
-    const rest = safeSeconds % 60;
-    return `${minutes}:${rest.toString().padStart(2, '0')}`;
-  };
-
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
@@ -584,7 +586,7 @@ export default function CrocodilePage() {
       onEnd={isGameHost ? endGame : undefined}
       showScoreboard={false}
       phaseKey={`${gameState?.phase ?? 'waiting'}-${gameState?.turnNumber ?? 0}`}
-      gradientClass="bg-[#100d12] bg-[radial-gradient(circle_at_85%_0%,rgba(239,51,64,.28),transparent_40%)]"
+      gradientClass={`bg-[#100d12] bg-[radial-gradient(circle_at_85%_0%,rgba(239,51,64,.28),transparent_40%)] ${gameState?.phase === 'explaining' && isExplainer ? 'h-[100dvh] overflow-hidden overscroll-none' : ''}`}
     >
       <div className="mx-auto mb-3 flex w-full max-w-md items-center justify-between">
         <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
@@ -682,7 +684,7 @@ export default function CrocodilePage() {
           <div className="rounded-[18px] bg-[#211b24] p-3 text-white">
             <div className="flex items-center justify-between">
               <small className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">{locale === 'ru' ? 'Время хода' : 'Turn time'}</small>
-              <b className={`font-mono text-2xl tabular-nums ${gameState.timeLeft <= 10 ? 'text-red-200 animate-pulse motion-reduce:animate-none' : ''}`}>{formatTurnTime(gameState.timeLeft)}</b>
+              <b className={`font-mono text-2xl tabular-nums ${gameState.timeLeft <= 10 ? 'text-red-200 animate-pulse motion-reduce:animate-none' : ''}`}>{formatGameTime(gameState.timeLeft)}</b>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
               <i className="block h-full rounded-full bg-[#ef3340] transition-[width] duration-1000 motion-reduce:transition-none" style={{ width: `${(gameState.timeLeft / TURN_DURATION) * 100}%` }} />
@@ -730,7 +732,7 @@ export default function CrocodilePage() {
               : `${currentExplainer?.nickname ?? 'Player'} is showing a word`}
           </p>
           <div className="mt-10 w-full rounded-[18px] bg-[#211b24] p-3 text-left">
-            <div className="flex items-center justify-between"><small className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">{locale === 'ru' ? 'Время хода' : 'Turn time'}</small><b className="font-mono text-2xl tabular-nums">{formatTurnTime(gameState.timeLeft)}</b></div>
+            <div className="flex items-center justify-between"><small className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">{locale === 'ru' ? 'Время хода' : 'Turn time'}</small><b className="font-mono text-2xl tabular-nums">{formatGameTime(gameState.timeLeft)}</b></div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><i className="block h-full rounded-full bg-[#ef3340] transition-[width] duration-1000 motion-reduce:transition-none" style={{ width: `${(gameState.timeLeft / TURN_DURATION) * 100}%` }} /></div>
           </div>
         </div>

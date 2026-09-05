@@ -8,6 +8,8 @@ import { gameColors, type GameId } from "@/lib/design/tokens";
 import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
 import { useSocket } from "@/lib/use-socket";
 import { getGuestPlayerId } from "@/lib/guest-player-id";
+import { getRoomReconnectToken, saveRoomReconnectToken } from "@/lib/room-reconnect-token";
+import { limitPlayerName, normalizePlayerName } from "@/lib/player-name";
 
 type JoinRoomPlayer = {
   id: string;
@@ -22,6 +24,7 @@ type JoinRoomState = {
   gameHostPlayerId: string | null;
   status: string;
   showQrCode: boolean;
+  locale: Locale;
 };
 
 type Locale = "ru" | "en";
@@ -92,7 +95,9 @@ export default function JoinPage() {
         gameHostPlayerId: typeof payload.gameHostPlayerId === "string" ? payload.gameHostPlayerId : null,
         status: typeof payload.status === "string" ? payload.status : "lobby",
         showQrCode: typeof payload.showQrCode === "boolean" ? payload.showQrCode : false,
+        locale: payload.locale === "en" ? "en" : "ru",
       });
+      if (payload.locale === "ru" || payload.locale === "en") setLocale(payload.locale);
     });
   }, [on]);
 
@@ -156,12 +161,16 @@ export default function JoinPage() {
         nickname: existingPlayer.nickname,
         isReconnect: true,
         role: "player",
+        reconnectToken: getRoomReconnectToken(code, playerId),
+      }, (res: unknown) => {
+        const result = res as { success?: boolean; reconnectToken?: string };
+        if (result.success) saveRoomReconnectToken(code, playerId, result.reconnectToken);
       });
     });
   }, [roomState, playerId, joined, nickname, emit, code]);
 
   const handleJoin = useCallback(() => {
-    const trimmedNickname = nickname.trim();
+    const trimmedNickname = normalizePlayerName(nickname);
     if (!trimmedNickname || !code || !isConnected || !playerId) return;
 
     setError(null);
@@ -186,11 +195,13 @@ export default function JoinPage() {
         nickname: trimmedNickname,
         isReconnect: false,
         role: "player",
+        reconnectToken: getRoomReconnectToken(code, playerId),
       },
       (res: unknown) => {
-        const result = res as { success: boolean; error?: string };
+        const result = res as { success: boolean; error?: string; reconnectToken?: string };
         setIsJoining(false);
         if (result.success) {
+          saveRoomReconnectToken(code, playerId, result.reconnectToken);
           setJoined(true);
         } else {
           setError(result.error === "name-taken" ? t.nameTaken[locale] : result.error ?? t.couldNotConnect[locale]);
@@ -294,14 +305,13 @@ export default function JoinPage() {
               autoFocus
               value={nickname}
               onChange={(event) => {
-                setNickname(event.target.value.slice(0, 20));
+                setNickname(limitPlayerName(event.target.value));
                 setError(null);
               }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && nickname.trim()) handleJoin();
               }}
               placeholder={t.yourName[locale]}
-              maxLength={20}
               style={{
                 width: "100%",
                 fontSize: 20,

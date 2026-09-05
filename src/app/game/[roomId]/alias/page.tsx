@@ -602,7 +602,7 @@ export default function AliasPage() {
   // Host: word guessed (+1)
   // ------------------------------------------------------------------
 
-  const handleGuessed = useCallback(() => {
+  const handleGuessed = useCallback((resolvedWordIndex?: number) => {
     if (!isHost || !gameState || gameState.phase !== 'explaining') return;
 
     const isLetter = gameState.mode === 'letter';
@@ -623,7 +623,7 @@ export default function AliasPage() {
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
       turnHistory: [
         ...gameState.turnHistory,
-        { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: true },
+        { word: ALIAS_WORDS[resolvedWordIndex ?? gameState.currentWordIndex], guessed: true },
       ],
       currentLetter: gameState.currentLetter,
     };
@@ -635,7 +635,7 @@ export default function AliasPage() {
   // Host: word skipped (-1)
   // ------------------------------------------------------------------
 
-  const handleSkip = useCallback(() => {
+  const handleSkip = useCallback((resolvedWordIndex?: number) => {
     if (!isHost || !gameState || gameState.phase !== 'explaining') return;
 
     const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
@@ -646,7 +646,7 @@ export default function AliasPage() {
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
       turnHistory: [
         ...gameState.turnHistory,
-        { word: ALIAS_WORDS[gameState.currentWordIndex], guessed: false },
+        { word: ALIAS_WORDS[resolvedWordIndex ?? gameState.currentWordIndex], guessed: false },
       ],
       currentLetter: gameState.currentLetter,
     };
@@ -688,8 +688,8 @@ export default function AliasPage() {
     if (!isHost) return;
     const cleanup = on('game:action', (data: unknown) => {
       const { action, payload, from } = data as { action: string; payload: Record<string, unknown>; from: string };
-      if (action === 'alias:guessed') handleGuessed();
-      if (action === 'alias:skip') handleSkip();
+      if (action === 'alias:guessed') handleGuessed(payload.resolvedWordIndex as number | undefined);
+      if (action === 'alias:skip') handleSkip(payload.resolvedWordIndex as number | undefined);
       if (action === 'alias:begin-turn') beginTurn();
       if (action === 'alias:next-turn') nextTurn();
       if (action === 'alias:join-team') {

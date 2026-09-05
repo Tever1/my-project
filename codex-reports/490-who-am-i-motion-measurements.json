@@ -1,0 +1,342 @@
+[
+  {
+    "tab": 2,
+    "results": [
+      {
+        "label": "НАЧАТЬ ИГРУ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "НЕТпередать ход",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ВЕРНО",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ПРОДОЛЖИТЬ ИГРУ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ПРОДОЛЖИТЬ ИГРУ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "Я ЗНАЮ!назвать персонажа",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "УГАДАТЬ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ИГРАТЬ СНОВА",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ВЫЙТИ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ОСТАТЬСЯ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ВЫЙТИ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ОСТАТЬСЯ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      }
+    ]
+  },
+  {
+    "tab": 3,
+    "results": [
+      {
+        "label": "ДАещё вопрос",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ДАещё вопрос",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ДАещё вопрос",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ПРОДОЛЖИТЬ ИГРУ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "Я ЗНАЮ!назвать персонажа",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "УГАДАТЬ",
+        "frames": 57,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      }
+    ]
+  },
+  {
+    "tab": 4,
+    "results": [
+      {
+        "label": "Я ЗНАЮ!назвать персонажа",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ОТМЕНА",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "Я ЗНАЮ!назвать персонажа",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "УГАДАТЬ",
+        "frames": 60,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ПОДТВЕРДИТЬ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ПРОДОЛЖИТЬ ИГРУ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "Я ЗНАЮ!назвать персонажа",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ПОДТВЕРДИТЬ",
+        "frames": 62,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "СМОТРЕТЬ ИГРУ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      }
+    ]
+  },
+  {
+    "tab": 5,
+    "results": [
+      {
+        "label": "ОТКЛОНИТЬ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ПРОДОЛЖИТЬ ИГРУ",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "ДАещё вопрос",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": true,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "Я ЗНАЮ!назвать персонажа",
+        "frames": 61,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      },
+      {
+        "label": "УГАДАТЬ",
+        "frames": 60,
+        "missing": 0,
+        "minOpacity": 1,
+        "blurred": false,
+        "rootRetained": false,
+        "navigation": false,
+        "clippedButtons": []
+      }
+    ]
+  }
+]

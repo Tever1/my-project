@@ -295,6 +295,7 @@ export default function HundredToOnePage() {
   const [bgDupMsg, setBgDupMsg] = useState(false);
   const r4Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const buzzerWinnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isHost = s.players.find(p => p.id === effectivePlayerId)?.isHost ?? false;
   const myRole: PlayerRole | null = effectivePlayerId ? s.roles[effectivePlayerId] || null : null;
@@ -668,9 +669,8 @@ export default function HundredToOnePage() {
   };
 
   // ── Round 4 timer (1 min discussion) ──
-  const r4Start = () => {
+  const startR4Interval = useCallback(() => {
     if (r4Ref.current) return;
-    update({ r4Running: true });
     r4Ref.current = setInterval(() => {
       setS(prev => {
         const t = prev.r4Time - 1;
@@ -685,7 +685,8 @@ export default function HundredToOnePage() {
         return { ...prev, r4Time: t };
       });
     }, 1000);
-  };
+  }, [broadcast]);
+  const r4Start = () => { update({ r4Running: true }); startR4Interval(); };
   const r4Pause = () => { if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; } update({ r4Running: false }); };
   const r4Stop = () => { if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; } };
   const r4Reset = () => { r4Stop(); update({ r4Time: 60, r4Running: false }); };
@@ -729,6 +730,85 @@ export default function HundredToOnePage() {
       });
     }, 1000);
   };
+
+  useEffect(() => {
+    if (isGameHost && s.phase === 'playing' && s.r4Running && s.r4Time > 0) {
+      startR4Interval();
+    }
+  }, [isGameHost, s.phase, s.r4Running, s.r4Time, startR4Interval]);
+
+  useEffect(() => {
+    const current = sRef.current;
+    if (!isGameHost || current.phase !== 'buzzer' || current.buzzerCountdown <= 0 || buzzerCountdownRef.current) return;
+    buzzerCountdownRef.current = setInterval(() => {
+      const countdown = sRef.current.buzzerCountdown - 1;
+      if (countdown <= 0) {
+        if (buzzerCountdownRef.current) clearInterval(buzzerCountdownRef.current);
+        buzzerCountdownRef.current = null;
+        update({ buzzerCountdown: 0, buzzerActive: true });
+      } else {
+        update({ buzzerCountdown: countdown });
+      }
+    }, 1000);
+    return () => {
+      if (buzzerCountdownRef.current) {
+        clearInterval(buzzerCountdownRef.current);
+        buzzerCountdownRef.current = null;
+      }
+    };
+  }, [isGameHost, s.phase, update]);
+
+  useEffect(() => {
+    const current = sRef.current;
+    if (!isGameHost || current.phase !== 'bigGame' || !isBgAnsweringPhase(current.bgPhase)
+      || current.bgTimerPaused || current.bgTimeLeft <= 0 || bgTimerRef.current) return;
+    bgTimerRef.current = setInterval(() => {
+      setS((prev) => {
+        if (prev.bgTimerPaused || prev.bgTimeLeft <= 0) return prev;
+        const t = prev.bgTimeLeft - 1;
+        if (t <= 5 && t > 0) sndTick();
+        if (t <= 0) {
+          if (bgTimerRef.current) clearInterval(bgTimerRef.current);
+          bgTimerRef.current = null;
+          sndBuzz();
+          const ans = prev.bgPhase === 1 ? [...prev.bgP1Ans] : [...prev.bgP2Ans];
+          while (ans.length < 5) ans.push('—');
+          const timerPatch = { bgTimeLeft: 0, bgCurQ: 5, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
+          sRef.current = { ...sRef.current, ...timerPatch };
+          broadcast(timerPatch);
+          return { ...prev, ...timerPatch };
+        }
+        sRef.current = { ...sRef.current, bgTimeLeft: t };
+        broadcast({ bgTimeLeft: t });
+        return { ...prev, bgTimeLeft: t };
+      });
+    }, 1000);
+    return () => {
+      if (bgTimerRef.current) {
+        clearInterval(bgTimerRef.current);
+        bgTimerRef.current = null;
+      }
+    };
+  }, [broadcast, isGameHost, s.bgPhase, s.bgTimerPaused, s.phase]);
+
+  useEffect(() => {
+    if (!isGameHost || s.phase !== 'buzzer' || s.buzzerWinner <= 0 || s.buzzerActive) return;
+    if (buzzerWinnerTimerRef.current) return;
+    buzzerWinnerTimerRef.current = setTimeout(() => {
+      const cur = sRef.current;
+      const team = cur.buzzerWinner;
+      if (cur.phase !== 'buzzer' || team <= 0) return;
+      const newActive = cur.roundActiveTeam.map((value, index) => index === cur.curQ ? team : value);
+      update({ phase: 'playing', roundActiveTeam: newActive });
+      buzzerWinnerTimerRef.current = null;
+    }, 3000);
+    return () => {
+      if (buzzerWinnerTimerRef.current) {
+        clearTimeout(buzzerWinnerTimerRef.current);
+        buzzerWinnerTimerRef.current = null;
+      }
+    };
+  }, [isGameHost, s.buzzerActive, s.buzzerWinner, s.phase, update]);
 
   const bgSubmitAnswer = () => {
     const v = bgInput.trim();

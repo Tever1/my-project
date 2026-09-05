@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useTranslation } from '@/lib/i18n';
 import { useSocket } from '@/lib/use-socket';
 
 /**
@@ -11,7 +12,8 @@ import { useSocket } from '@/lib/use-socket';
  * @param onState  Called with raw event payload each time room state updates.
  */
 export function useRoomState(roomId: string, onState: (data: unknown) => void) {
-  const { on, emit } = useSocket();
+  const { on, emit, isConnected } = useSocket();
+  const { setLocale } = useTranslation();
 
   const onStateRef = useRef(onState);
   useEffect(() => {
@@ -20,9 +22,11 @@ export function useRoomState(roomId: string, onState: (data: unknown) => void) {
 
   useEffect(() => {
     const unsub = on('room:state', (data: unknown) => {
+      const roomLocale = (data as { locale?: unknown } | null)?.locale;
+      if (roomLocale === 'ru' || roomLocale === 'en') setLocale(roomLocale);
       onStateRef.current(data);
     });
-    emit('room:get-state', { code: roomId });
+    if (isConnected) emit('room:get-state', { code: roomId });
     return unsub;
-  }, [on, emit, roomId]);
+  }, [on, emit, isConnected, roomId, setLocale]);
 }

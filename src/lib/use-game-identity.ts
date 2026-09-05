@@ -7,6 +7,7 @@ import type { User } from '@/lib/auth-context';
 import { useRoomState } from '@/lib/use-room-state';
 import { useSocket } from '@/lib/use-socket';
 import { getGuestPlayerId } from '@/lib/guest-player-id';
+import { getRoomReconnectToken, saveRoomReconnectToken } from '@/lib/room-reconnect-token';
 
 export interface GameIdentity {
   user: User | null;
@@ -46,12 +47,20 @@ export function useGameIdentity(roomId: string): GameIdentity {
     if (!user || !isConnected || !roomId) return;
     emit(
       'room:join',
-      { code: roomId, playerId: user.id, nickname: user.nickname, isReconnect: true },
+      {
+        code: roomId,
+        playerId: user.id,
+        nickname: user.nickname,
+        isReconnect: true,
+        reconnectToken: getRoomReconnectToken(roomId, user.id),
+      },
       (res: unknown) => {
         const response = res as { success: boolean; error?: string };
         if (!response.success) {
           // Kicked (grace expired) or room gone - send to home
           router.push('/');
+        } else {
+          saveRoomReconnectToken(roomId, user.id, (response as { reconnectToken?: string }).reconnectToken);
         }
       }
     );
@@ -61,11 +70,19 @@ export function useGameIdentity(roomId: string): GameIdentity {
     if (user || !isConnected || !roomId || !guestPlayerId || !guestNickname) return;
     emit(
       'room:join',
-      { code: roomId, playerId: guestPlayerId, nickname: guestNickname, isReconnect: true },
+      {
+        code: roomId,
+        playerId: guestPlayerId,
+        nickname: guestNickname,
+        isReconnect: true,
+        reconnectToken: getRoomReconnectToken(roomId, guestPlayerId),
+      },
       (res: unknown) => {
         const response = res as { success: boolean; error?: string };
         if (!response.success) {
           router.push('/');
+        } else {
+          saveRoomReconnectToken(roomId, guestPlayerId, (response as { reconnectToken?: string }).reconnectToken);
         }
       }
     );

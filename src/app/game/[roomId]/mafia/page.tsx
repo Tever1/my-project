@@ -78,6 +78,7 @@ type GameAction =
   | { type: 'doctor-save'; doctorId: string; targetId: string }
   | { type: 'resolve-night' }
   | { type: 'night-result'; killedId: string | null; killedIds?: string[]; saved: boolean; savedIds?: string[]; lastDoctorSave: string | null; lastLoverVisit: string | null }
+  | { type: 'day-timer'; value: number }
   | { type: 'start-voting' }
   | { type: 'cast-vote'; voterId: string; targetId: string }
   | { type: 'vote-alibi'; playerId: string }
@@ -334,6 +335,7 @@ export default function MafiaPage() {
       switch (payload.type) {
         case 'sync-state':
           setGs(payload.state);
+          setDayTimerValue(payload.state.dayTimer);
           setNightActionDone(false);
           break;
 
@@ -495,6 +497,11 @@ export default function MafiaPage() {
           break;
         }
 
+        case 'day-timer':
+          setGs((prev) => ({ ...prev, dayTimer: payload.value }));
+          setDayTimerValue(payload.value);
+          break;
+
         case 'start-voting':
           setGs((prev) => ({
             ...prev,
@@ -592,23 +599,24 @@ export default function MafiaPage() {
   // -----------------------------------------------------------------------
   // Day timer
   // -----------------------------------------------------------------------
-  const isDayTimerActive = dayTimerValue > 0;
   useEffect(() => {
-    if (gs.phase === 'day' && isDayTimerActive) {
+    const isModerator = Boolean(effectivePlayerId && effectivePlayerId === gs.hostPlayerId);
+    if (gs.phase === 'day' && dayTimerValue > 0 && isModerator) {
       timerRef.current = setInterval(() => {
         setDayTimerValue((v) => {
-          if (v <= 1) {
+          const next = Math.max(0, v - 1);
+          broadcast({ type: 'day-timer', value: next });
+          if (next === 0) {
             clearInterval(timerRef.current!);
-            return 0;
           }
-          return v - 1;
+          return next;
         });
       }, 1000);
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [gs.phase, isDayTimerActive]);
+  }, [broadcast, dayTimerValue, effectivePlayerId, gs.hostPlayerId, gs.phase]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -1903,7 +1911,7 @@ export default function MafiaPage() {
   };
 
   const renderResultsClub = () => {
-    const lastEliminated = gs.lastVoteTargetIds.filter((id) => !gs.alive.includes(id)).map((id) => ({ id, role: gs.roles[id] })).filter((item): item is { id: string; role: MafiaRole } => Boolean(item.role));
+    const lastEliminatedIds = gs.lastVoteTargetIds.filter((id) => !gs.alive.includes(id));
     if (gs.winner) {
       const winnerTitle = gs.winner === 'mafia' ? l('Мафия победила', 'The mafia wins') : gs.winner === 'maniac' ? l('Маньяк победил', 'The maniac wins') : l('Мирные жители победили', 'The citizens win');
       return (
@@ -1911,10 +1919,10 @@ export default function MafiaPage() {
       );
     }
 
-    const eliminated = gs.lastVoteResult === 'eliminated' && lastEliminated.length > 0;
+    const eliminated = gs.lastVoteResult === 'eliminated' && lastEliminatedIds.length > 0;
     const pardoned = gs.lastVoteResult === 'pardoned';
     return (
-        <div className="flex flex-1 flex-col items-center justify-center text-center"><span className={club.kicker}>{eliminated ? l('ПРИГОВОР ГОРОДА', 'THE CITY VERDICT') : pardoned ? l('РЕШЕНИЕ ГОРОДА', 'THE CITY DECISION') : l('АЛИБИ ПОДТВЕРЖДЕНО', 'ALIBI CONFIRMED')}</span><div className="my-7 flex gap-3">{eliminated ? lastEliminated.map((item) => <MafiaPlayerToken key={item.id} name={playerName(item.id)} />) : <div className={club.statusSeal}><strong>—</strong><span>{l('никто не выбыл', 'nobody left')}</span></div>}</div><h2 className={`${club.title} !text-[38px]`}>{eliminated ? (lastEliminated.length === 1 ? l(`${playerName(lastEliminated[0].id)} покидает клуб`, `${playerName(lastEliminated[0].id)} leaves the club`) : l('Кандидаты покидают клуб', 'The candidates leave the club')) : pardoned ? l('Кандидаты помилованы', 'The candidates are pardoned') : l('Алиби изменило решение', 'The alibi changed the verdict')}</h2>{eliminated && <div className={`${club.cardDanger} ${club.card} w-full p-4`}>{lastEliminated.map((item) => <p key={item.id} className="text-sm font-semibold">{playerName(item.id)}</p>)}</div>} {!eliminated && <p className={club.subtitle}>{pardoned && gs.lastVoteTargetIds.length > 0 ? l(`${gs.lastVoteTargetIds.map(playerName).join(', ')} остаются в игре.`, `${gs.lastVoteTargetIds.map(playerName).join(', ')} remain in the game.`) : gs.lastVoteTargetIds[0] ? l(`${playerName(gs.lastVoteTargetIds[0])} остаётся в игре.`, `${playerName(gs.lastVoteTargetIds[0])} stays in the game.`) : l('Никто не покидает город.', 'Nobody leaves the city.')}</p>}{isMafiaHost && <button type="button" className={`${club.primaryButton} mt-7 w-full`} onClick={handleNextNight}>{l('Начать следующую ночь', 'Begin the next night')}</button>}</div>
+        <div className="flex flex-1 flex-col items-center justify-center text-center"><span className={club.kicker}>{eliminated ? l('ПРИГОВОР ГОРОДА', 'THE CITY VERDICT') : pardoned ? l('РЕШЕНИЕ ГОРОДА', 'THE CITY DECISION') : l('АЛИБИ ПОДТВЕРЖДЕНО', 'ALIBI CONFIRMED')}</span><div className="my-7 flex gap-3">{eliminated ? lastEliminatedIds.map((id) => <MafiaPlayerToken key={id} name={playerName(id)} />) : <div className={club.statusSeal}><strong>—</strong><span>{l('никто не выбыл', 'nobody left')}</span></div>}</div><h2 className={`${club.title} !text-[38px]`}>{eliminated ? (lastEliminatedIds.length === 1 ? l(`${playerName(lastEliminatedIds[0])} покидает клуб`, `${playerName(lastEliminatedIds[0])} leaves the club`) : l('Кандидаты покидают клуб', 'The candidates leave the club')) : pardoned ? l('Кандидаты помилованы', 'The candidates are pardoned') : l('Алиби изменило решение', 'The alibi changed the verdict')}</h2>{eliminated && <div className={`${club.cardDanger} ${club.card} w-full p-4`}>{lastEliminatedIds.map((id) => <p key={id} className="text-sm font-semibold">{playerName(id)}</p>)}</div>} {!eliminated && <p className={club.subtitle}>{pardoned && gs.lastVoteTargetIds.length > 0 ? l(`${gs.lastVoteTargetIds.map(playerName).join(', ')} остаются в игре.`, `${gs.lastVoteTargetIds.map(playerName).join(', ')} remain in the game.`) : gs.lastVoteTargetIds[0] ? l(`${playerName(gs.lastVoteTargetIds[0])} остаётся в игре.`, `${playerName(gs.lastVoteTargetIds[0])} stays in the game.`) : l('Никто не покидает город.', 'Nobody leaves the city.')}</p>}{isMafiaHost && <button type="button" className={`${club.primaryButton} mt-7 w-full`} onClick={handleNextNight}>{l('Начать следующую ночь', 'Begin the next night')}</button>}</div>
     );
   };
 

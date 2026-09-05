@@ -25,6 +25,9 @@ import { gameColors, radius, spring, type GameId } from "@/lib/design/tokens";
 import { useNavigateOnGameStart } from "@/lib/use-navigate-on-game-start";
 import { useIsMobile } from "@/lib/use-is-mobile";
 import { usePlayMode } from "@/lib/use-play-mode";
+import { getRoomReconnectToken, saveRoomReconnectToken } from "@/lib/room-reconnect-token";
+import { useTranslation } from "@/lib/i18n";
+import { limitPlayerName, normalizePlayerName } from "@/lib/player-name";
 import { useSocket } from "@/lib/use-socket";
 import { SPECIAL_QUIZZES } from "@/lib/quiz";
 import { QRCode } from "react-qrcode-logo";
@@ -68,6 +71,7 @@ interface RoomCreateResponse {
   success: boolean;
   code?: string;
   roomId?: string;
+  reconnectToken?: string;
   error?: string;
 }
 
@@ -75,6 +79,7 @@ interface RoomJoinResponse {
   success: boolean;
   code?: string;
   roomId?: string;
+  reconnectToken?: string;
   error?: string;
 }
 
@@ -95,6 +100,7 @@ interface RoomState {
   currentGame?: string | null;
   gameHostPlayerId?: string | null;
   showQrCode?: boolean;
+  locale?: 'ru' | 'en';
 }
 
 type PendingQuizConfig = {
@@ -359,6 +365,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { user, isLoading, logout } = useAuth();
+  const { setLocale } = useTranslation();
   const { emit, on, isConnected } = useSocket();
   const { mode } = usePlayMode();
   const myRole: "tv" | "player" = mode === "desktop" ? "tv" : "player";
@@ -463,11 +470,13 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         currentGame: typeof payload.currentGame === "string" ? payload.currentGame : null,
         gameHostPlayerId: typeof payload.gameHostPlayerId === "string" ? payload.gameHostPlayerId : null,
         showQrCode: typeof payload.showQrCode === "boolean" ? payload.showQrCode : false,
+        locale: payload.locale === 'en' ? 'en' : 'ru',
       });
+      if (payload.locale === 'ru' || payload.locale === 'en') setLocale(payload.locale);
     });
 
     return unsubscribe;
-  }, [on]);
+  }, [on, setLocale]);
 
   useEffect(() => {
     if (roomCode && isConnected) {
@@ -478,8 +487,15 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   useEffect(() => {
     const code = initialCode || roomCode;
     if (!code || !user || !user.nickname || !isConnected) return;
-    emit('room:join', { code, playerId: user.id, nickname: user.nickname, isReconnect: true, role: myRole }, (res: unknown) => {
-      const response = res as { success: boolean };
+    emit('room:join', {
+      code,
+      playerId: user.id,
+      nickname: user.nickname,
+      isReconnect: true,
+      role: myRole,
+      reconnectToken: getRoomReconnectToken(code, user.id),
+    }, (res: unknown) => {
+      const response = res as { success: boolean; reconnectToken?: string };
       if (!response.success) {
         setRoomCode(null);
         setRoomState(null);
@@ -567,7 +583,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       return null;
     }
 
-    return { playerId: user.id, nickname: user.nickname };
+    return { playerId: user.id, nickname: normalizePlayerName(user.nickname) };
   }, [user]);
 
   const createRoom = useCallback(() => {
@@ -595,6 +611,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
         setIsCreatingRoom(false);
         const res = response as RoomCreateResponse;
         if (res.success && res.code) {
+          saveRoomReconnectToken(res.code, player.playerId, res.reconnectToken);
           setRoomCode(res.code);
           setRoomMenuOpen(true);
           window.history.pushState({}, "", `/lobby/${res.code}`);
@@ -633,11 +650,18 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       toast.error("Сервер не отвечает. Попробуйте ещё раз");
     }, 5000);
 
-    const sent = emit('room:join', { code, ...player, isReconnect: false, role: myRole }, (response: unknown) => {
+    const sent = emit('room:join', {
+      code,
+      ...player,
+      isReconnect: false,
+      role: myRole,
+      reconnectToken: getRoomReconnectToken(code, player.playerId),
+    }, (response: unknown) => {
       clearTimeout(timeout);
       setIsJoiningRoom(false);
       const res = response as RoomJoinResponse;
       if (res.success && res.code) {
+        saveRoomReconnectToken(res.code, player.playerId, res.reconnectToken);
         setRoomCode(res.code);
         setJoinCode("");
       } else {
@@ -882,7 +906,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
       : (typeof window !== "undefined" ? window.location.origin : "");
     const joinUrl = `${siteUrl}/join/${roomCode}`;
     const gamePlayers = (roomState?.players ?? []).filter((player) => player.role !== "tv" && player.nickname);
-    const specialQuizBgUrl = pendingQuizConfig?.specialQuizId
+    const specialQuizBgUrl = activeGame === 'quiz' && pendingQuizConfig?.specialQuizId
       ? SPECIAL_QUIZZES.find(q => q.id === pendingQuizConfig.specialQuizId)?.backgroundUrl
       : undefined;
 
@@ -1778,11 +1802,12 @@ function AuthDropdown({
   };
 
   const handleSetNickname = () => {
-    if (nickname.trim().length < 2) {
+    const normalizedNickname = normalizePlayerName(nickname);
+    if (normalizedNickname.length < 2) {
       setError('Минимум 2 символа');
       return;
     }
-    updateNickname(nickname.trim());
+    updateNickname(normalizedNickname);
     onClose();
   };
 
@@ -1939,8 +1964,7 @@ function AuthDropdown({
                 type="text"
                 placeholder="Введите никнейм"
                 value={nickname}
-                maxLength={20}
-                onChange={(e) => { setNickname(e.target.value); setError(''); }}
+                onChange={(e) => { setNickname(limitPlayerName(e.target.value)); setError(''); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSetNickname(); }}
                 autoFocus
               />

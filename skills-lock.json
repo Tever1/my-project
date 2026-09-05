@@ -36,6 +36,12 @@
       "sourceType": "github",
       "computedHash": "2367a68c9de4b850a8bb191033ad5009d0ab0da4243178127971301e601f7f02"
     },
+    "skill-doctor": {
+      "source": "warpdotdev/common-skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/skill-doctor/SKILL.md",
+      "computedHash": "cc6638936adfb396b248cf422422b419f90da91cf3ee781f9c360b9f6c2975dd"
+    },
     "ui-ux-pro-max": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",

@@ -43,6 +43,8 @@ interface QuizGameState {
   gameHostPlayerId: string | null;
   countdownValue: number;
   correctPlayers: string[];
+  /** Host-only queue retained in the canonical server snapshot for reload recovery. */
+  questionQueue: QuizQuestion[];
   // Synced question data (so non-host players see the question)
   currentQuestion: {
     questionRu: string;
@@ -74,6 +76,7 @@ const INITIAL_STATE: QuizGameState = {
   gameHostPlayerId: null,
   countdownValue: 3,
   correctPlayers: [],
+  questionQueue: [],
   currentQuestion: null,
 };
 
@@ -93,6 +96,7 @@ export default function QuizPage() {
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef(3);
   const gameStateRef = useRef<QuizGameState>(INITIAL_STATE);
   const isHostRef = useRef(false);
@@ -118,6 +122,10 @@ export default function QuizPage() {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
       stopTimerSound();
       window.sessionStorage.setItem(ROOM_CLOSED_NOTICE_KEY, '1');
       router.push('/');
@@ -134,6 +142,15 @@ export default function QuizPage() {
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
+
+  useEffect(() => {
+    if (!isGameHost || gameState.questionQueue.length === 0) return;
+    questionsRef.current = gameState.questionQueue;
+    const shownCount = gameState.phase === 'waiting' ? 0 : gameState.questionIndex + 1;
+    shownIdsRef.current = new Set(
+      gameState.questionQueue.slice(0, shownCount).map((question) => question.id),
+    );
+  }, [gameState.phase, gameState.questionIndex, gameState.questionQueue, isGameHost]);
 
   const timePerQuestion = gameState.config.difficulty === 'easy' ? 15
     : gameState.config.difficulty === 'hard' ? 25 : 20;
@@ -160,8 +177,9 @@ export default function QuizPage() {
         config: newConfig,
         phase: 'waiting',
         totalQuestions: total,
+        questionQueue: questionsRef.current,
       }));
-      sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
+      sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total, questionQueue: questionsRef.current });
     } else if (config.mode === 'special' && config.specialQuizId) {
       const specialQuiz = SPECIAL_QUIZZES.find((quiz) => quiz.id === config.specialQuizId);
       const newConfig: QuizConfig = {
@@ -180,8 +198,9 @@ export default function QuizPage() {
         config: newConfig,
         phase: 'waiting',
         totalQuestions: total,
+        questionQueue: questionsRef.current,
       }));
-      sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total });
+      sendAction('quiz:config', { config: newConfig, phase: 'waiting', totalQuestions: total, questionQueue: questionsRef.current });
     }
   }, [sendAction]);
 
@@ -300,6 +319,9 @@ export default function QuizPage() {
           setGameState((prev) => ({
             ...prev,
             phase: 'countdown',
+            questionIndex: typeof payload.questionIndex === 'number'
+              ? payload.questionIndex
+              : prev.questionIndex,
             countdownValue: payload.value as number,
           }));
           break;
@@ -383,6 +405,60 @@ export default function QuizPage() {
     };
   }, [isGameHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, sendAction]);
 
+  useEffect(() => {
+    if (!isGameHost || gameState.phase !== 'countdown') return;
+    if (countdownTimerRef.current) return;
+
+    countdownRef.current = gameStateRef.current.countdownValue;
+    const questionIdx = gameState.questionIndex;
+    countdownTimerRef.current = setInterval(() => {
+      countdownRef.current -= 1;
+      if (countdownRef.current <= 0) {
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
+        }
+        const q = questionsRef.current[questionIdx];
+        if (!q) return;
+
+        shownIdsRef.current.add(q.id);
+        const questionData = {
+          questionRu: q.questionRu,
+          questionEn: q.questionEn,
+          options: q.options,
+          correctIndex: q.correctIndex,
+        };
+
+        setGameState((prev) => ({
+          ...prev,
+          phase: 'question',
+          questionIndex: questionIdx,
+          timeLeft: q.timeLimit,
+          currentQuestion: questionData,
+          answers: {},
+          showCorrect: false,
+          correctPlayers: [],
+        }));
+        sendAction('quiz:start-question', {
+          questionIndex: questionIdx,
+          timeLeft: q.timeLimit,
+          question: questionData,
+        });
+        return;
+      }
+
+      setGameState((prev) => ({ ...prev, countdownValue: countdownRef.current }));
+      sendAction('quiz:countdown', { value: countdownRef.current, questionIndex: questionIdx });
+    }, 1000);
+
+    return () => {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+    };
+  }, [gameState.phase, gameState.questionIndex, isGameHost, sendAction]);
+
   // ------- Timer sound effect -------
 
   useEffect(() => {
@@ -432,49 +508,13 @@ export default function QuizPage() {
 
   const runCountdown = (questionIdx: number) => {
     countdownRef.current = 3;
-    setGameState((prev) => ({ ...prev, phase: 'countdown', countdownValue: countdownRef.current }));
-    sendAction('quiz:countdown', { value: countdownRef.current });
-
-    const interval = setInterval(() => {
-      countdownRef.current -= 1;
-      if (countdownRef.current <= 0) {
-        clearInterval(interval);
-        const q = questionsRef.current[questionIdx];
-        if (!q) return;
-
-        // Track shown question
-        shownIdsRef.current.add(q.id);
-
-        const questionData = {
-          questionRu: q.questionRu,
-          questionEn: q.questionEn,
-          options: q.options,
-          correctIndex: q.correctIndex,
-        };
-
-        const startPayload = {
-          questionIndex: questionIdx,
-          timeLeft: q.timeLimit,
-          question: questionData,
-        };
-
-        setGameState((prev) => ({
-          ...prev,
-          phase: 'question',
-          questionIndex: questionIdx,
-          timeLeft: q.timeLimit,
-          currentQuestion: questionData,
-          answers: {},
-          showCorrect: false,
-          correctPlayers: [],
-        }));
-
-        sendAction('quiz:start-question', startPayload);
-      } else {
-        setGameState((prev) => ({ ...prev, countdownValue: countdownRef.current }));
-        sendAction('quiz:countdown', { value: countdownRef.current });
-      }
-    }, 1000);
+    setGameState((prev) => ({
+      ...prev,
+      phase: 'countdown',
+      questionIndex: questionIdx,
+      countdownValue: countdownRef.current,
+    }));
+    sendAction('quiz:countdown', { value: countdownRef.current, questionIndex: questionIdx });
   };
 
   const startGame = () => {
@@ -547,7 +587,7 @@ export default function QuizPage() {
 
   const submitAnswer = (answerIndex: number) => {
     warmupSound();
-    if (myAnswer !== undefined || gameState.showCorrect || !effectivePlayerId) return;
+    if (gameState.phase !== 'question' || gameState.showCorrect || !effectivePlayerId) return;
 
     sendAction('quiz:answer', { playerId: effectivePlayerId, answerIndex });
     setGameState((prev) => ({
@@ -562,12 +602,14 @@ export default function QuizPage() {
       const questions = getSpecialQuizQuestions(gameState.config.specialQuizId, shownIdsRef.current);
       const total = Math.min(QUESTIONS_PER_GAME, questions.length);
       questionsRef.current = questions.slice(0, total);
-      setGameState((prev) => ({ ...prev, totalQuestions: total }));
+      setGameState((prev) => ({ ...prev, totalQuestions: total, questionQueue: questionsRef.current }));
+      sendAction('quiz:sync', { totalQuestions: total, questionQueue: questionsRef.current });
     } else if (gameState.config.topic && gameState.config.difficulty) {
       const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
       const total = Math.min(QUESTIONS_PER_GAME, questions.length);
       questionsRef.current = questions.slice(0, total);
-      setGameState((prev) => ({ ...prev, totalQuestions: total }));
+      setGameState((prev) => ({ ...prev, totalQuestions: total, questionQueue: questionsRef.current }));
+      sendAction('quiz:sync', { totalQuestions: total, questionQueue: questionsRef.current });
     }
     startGame();
   };

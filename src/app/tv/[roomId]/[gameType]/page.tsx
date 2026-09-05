@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket } from '@/lib/use-socket';
 import { useGameAction } from '@/lib/use-game-action';
 import { useTranslation } from '@/lib/i18n';
+import { formatGameTime } from '@/lib/format-game-time';
+import { getWhoAmIActivePlayerId, getWhoAmINextTurnIndex } from '@/lib/who-am-i-flow';
 import { GAMES } from '@/lib/games-config';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useRoomState } from '@/lib/use-room-state';
@@ -133,7 +135,6 @@ interface WhoAmIState {
   guessJudgeId: string;
   guessPendingPlayerId: string;
   guessPendingText: string;
-  scores: Record<string, number>;
 }
 
 type WhoAmIAction =
@@ -164,7 +165,6 @@ const mkWhoAmIInitial = (): WhoAmIState => ({
   questionsAsked: {},
   consecutiveYesAnswers: 0,
   ...clearWhoAmIGuessDispute(),
-  scores: {},
 });
 
 const mkH2OInitial = (): H2OState => ({
@@ -185,26 +185,10 @@ const mkH2OInitial = (): H2OState => ({
 
 const QUESTIONS_PER_GAME = 10;
 
-function calculateWhoAmIScore(questionsAsked: number): number {
-  if (questionsAsked <= 1) return 100;
-  if (questionsAsked <= 3) return 80;
-  if (questionsAsked <= 5) return 60;
-  if (questionsAsked <= 8) return 40;
-  if (questionsAsked <= 12) return 20;
-  return 10;
-}
-
 const WHO_AM_I_TV_SURFACE =
   "h-screen bg-[linear-gradient(135deg,#071825_0%,#0a2d3f_30%,#0c2530_60%,#071825_100%)] text-white flex flex-col overflow-hidden before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,.28),transparent_34%),radial-gradient(circle_at_82%_12%,rgba(2,132,199,.24),transparent_32%)] before:animate-pulse";
 const WHO_AM_I_ACCENT_MARK =
   'bg-[radial-gradient(110%_70%_at_50%_-5%,rgba(255,255,255,.28),transparent_55%),linear-gradient(165deg,#38bdf8_0%,#0369a1_100%)] text-sky-50 shadow-[0_24px_60px_-14px_rgba(2,132,199,.8),inset_0_1px_0_rgba(255,255,255,.5)]';
-
-function whoAmIRankStyle(index: number) {
-  if (index === 0) return 'border-amber-300/35 bg-amber-400/10 text-amber-300';
-  if (index === 1) return 'border-slate-200/30 bg-slate-200/10 text-slate-200';
-  if (index === 2) return 'border-orange-300/30 bg-orange-400/10 text-orange-300';
-  return 'border-white/10 bg-white/5 text-white/55';
-}
 
 const H2O_TV_SURFACE =
   "h-screen overflow-hidden text-white bg-[radial-gradient(1200px_760px_at_18%_6%,rgba(245,158,11,.18),transparent_58%),radial-gradient(980px_620px_at_86%_10%,rgba(251,191,36,.11),transparent_56%),linear-gradient(145deg,#170f08_0%,#2b1807_36%,#120c08_70%,#080606_100%)] before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(78deg,transparent_0_24%,rgba(245,158,11,.13)_25%,transparent_35%),linear-gradient(104deg,transparent_0_61%,rgba(245,158,11,.11)_62%,transparent_72%)] after:absolute after:left-1/2 after:top-[10%] after:-z-10 after:h-[580px] after:w-[580px] after:-translate-x-1/2 after:rounded-full after:bg-[radial-gradient(circle,rgba(245,158,11,.20),transparent_68%)] after:blur-[44px]";
@@ -289,6 +273,7 @@ export default function TVGamePage() {
       spyCaught: boolean;
       exposedId: string;
       voteCount: number;
+      totalVotes?: number;
       viaGuess?: boolean;
       guessedRight?: boolean;
     } | null;
@@ -302,6 +287,7 @@ export default function TVGamePage() {
     totalRounds: number;
     gameOver: boolean;
     drawerId: string;
+    drawStrokes: { x1: number; y1: number; x2: number; y2: number }[];
   }>({
     phase: 'modeSelect',
     mode: 'guess',
@@ -331,6 +317,7 @@ export default function TVGamePage() {
     totalRounds: 3,
     gameOver: false,
     drawerId: '',
+    drawStrokes: [],
   });
   const spyCanvasRef = useRef<HTMLCanvasElement>(null);
   const spyCanvasSizeRef = useRef({ w: 0, h: 0 });
@@ -379,7 +366,7 @@ export default function TVGamePage() {
     guess: string;
   } | null>(null);
   const whoAmIGuessTimeoutRef = useRef<number | null>(null);
-  const [localIp, setLocalIp] = useState('');
+  const [siteUrl, setSiteUrl] = useState('');
   const [showQrOverlay, setShowQrOverlay] = useState(false);
   const [roomShowQrCode, setRoomShowQrCode] = useState<boolean | null>(null);
 
@@ -399,15 +386,41 @@ export default function TVGamePage() {
     spyCanvasSizeRef.current = { w: rect.width, h: rect.height };
   }, []);
 
+  useEffect(() => {
+    const canvas = spyCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const { w, h } = spyCanvasSizeRef.current;
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    spyState.drawStrokes.forEach(({ x1, y1, x2, y2 }) => {
+      ctx.beginPath();
+      ctx.moveTo(x1 * w, y1 * h);
+      ctx.lineTo(x2 * w, y2 * h);
+      ctx.stroke();
+    });
+  }, [spyState.drawStrokes]);
+
   const gameInfo = GAMES.find((g) => g.id === gameType);
   const gameTitle = gameInfo
     ? locale === 'ru' ? gameInfo.titleRu : gameInfo.titleEn
     : gameType;
-  const port = typeof window !== 'undefined' ? window.location.port : '3000';
-  const siteUrl = localIp
-    ? `http://${localIp}${port ? `:${port}` : ''}`
-    : (typeof window !== 'undefined' ? window.location.origin : '');
   const joinUrl = `${siteUrl}/join/${roomId}`;
+
+  const requestCurrentGameState = useCallback(() => {
+    const requestAction = TV_STATE_REQUEST[gameType];
+    if (gameType === 'who-am-i') {
+      sendAction('who-am-i', { type: 'request-state' });
+    } else if (gameType === 'mafia') {
+      sendAction('mafia', { type: 'request-state' });
+    } else if (requestAction) {
+      sendAction(requestAction);
+    }
+  }, [gameType, sendAction]);
 
   // Join TV room
   useEffect(() => {
@@ -415,24 +428,27 @@ export default function TVGamePage() {
     emit('tv:join', { code: roomId }, () => {
       // Request full game state only after the socket has joined the room,
       // otherwise the h2o:sync response won't be delivered to this socket yet.
-      const requestAction = TV_STATE_REQUEST[gameType];
-      if (gameType === 'who-am-i') {
-        sendAction('who-am-i', { type: 'request-state' });
-      } else if (gameType === 'mafia') {
-        sendAction('mafia', { type: 'request-state' });
-      } else if (requestAction) {
-        sendAction(requestAction);
-      }
+      requestCurrentGameState();
     });
-  }, [isConnected, roomId, emit, gameType, sendAction]);
+  }, [isConnected, roomId, emit, requestCurrentGameState]);
 
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isConnected) requestCurrentGameState();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isConnected, requestCurrentGameState]);
+
+  useEffect(() => {
+    // Resolve browser-only values after hydration so the initial markup matches SSR.
+    const { origin, port } = window.location;
     fetch('/api/local-ip')
       .then((response) => response.json())
       .then((data: { ip?: string }) => {
-        if (data.ip) setLocalIp(data.ip);
+        setSiteUrl(data.ip ? `http://${data.ip}${port ? `:${port}` : ''}` : origin);
       })
-      .catch(() => {});
+      .catch(() => setSiteUrl(origin));
   }, []);
 
   // Socket listeners
@@ -830,7 +846,6 @@ export default function TVGamePage() {
               questionsAsked: Object.fromEntries(wp.turnOrder.map((id) => [id, 0])),
               consecutiveYesAnswers: 0,
               ...clearWhoAmIGuessDispute(),
-              scores: Object.fromEntries(wp.turnOrder.map((id) => [id, 0])),
             });
             setLastWhoAmIGuessResult(null);
             if (whoAmIGuessTimeoutRef.current !== null) {
@@ -841,12 +856,15 @@ export default function TVGamePage() {
 
           case 'sync-state':
             setWhoAmIState(wp.state);
+            if (wp.state.guessNeedsConfirm || wp.state.guessAwaitingJudge) {
+              setLastWhoAmIGuessResult(null);
+            }
             break;
 
           case 'next-turn':
             setWhoAmIState((prev) => ({
               ...prev,
-              currentTurnIndex: prev.currentTurnIndex + 1,
+              currentTurnIndex: getWhoAmINextTurnIndex(prev),
               consecutiveYesAnswers: 0,
               ...clearWhoAmIGuessDispute(),
             }));
@@ -889,7 +907,6 @@ export default function TVGamePage() {
           case 'guess':
             if (wp.correct) {
               setWhoAmIState((prev) => {
-                const score = calculateWhoAmIScore(prev.questionsAsked[wp.playerId] || 0);
                 const guessedPlayers = prev.guessedPlayers.includes(wp.playerId)
                   ? prev.guessedPlayers
                   : [...prev.guessedPlayers, wp.playerId];
@@ -898,12 +915,8 @@ export default function TVGamePage() {
                 return {
                   ...prev,
                   guessedPlayers,
-                  scores: {
-                    ...prev.scores,
-                    [wp.playerId]: (prev.scores[wp.playerId] || 0) + score,
-                  },
                   phase: allGuessed ? 'finished' : prev.phase,
-                  currentTurnIndex: prev.currentTurnIndex + 1,
+                  currentTurnIndex: getWhoAmINextTurnIndex(prev),
                   consecutiveYesAnswers: 0,
                   ...clearWhoAmIGuessDispute(),
                 };
@@ -1022,15 +1035,16 @@ export default function TVGamePage() {
     [players],
   );
 
-  const scoreboard = players
-    .map((p) => ({
-      id: p.id,
-      name: p.nickname,
-      score: quizState.scores[p.id] || 0,
-      away: !p.isConnected || Boolean(p.isAway),
-    }))
-    .sort((a, b) => b.score - a.score);
-  const qrOverlay = showQrOverlay ? (
+  const quizPlayers = players.map((p) => ({
+    id: p.id,
+    name: p.nickname,
+    score: quizState.scores[p.id] || 0,
+    away: !p.isConnected || Boolean(p.isAway),
+    hasAnswered: Object.hasOwn(quizState.answers, p.id),
+    isCorrect: quizState.showCorrect && quizState.correctPlayers.includes(p.id),
+  }));
+  const scoreboard = [...quizPlayers].sort((a, b) => b.score - a.score);
+  const qrOverlay = showQrOverlay && gameType !== 'who-am-i' ? (
     <button
       type="button"
       onClick={() => setShowQrOverlay(false)}
@@ -1082,6 +1096,7 @@ export default function TVGamePage() {
           timePerQuestion={timePerQuestion}
           countdownValue={quizState.countdownValue}
           scores={scoreboard}
+          players={quizPlayers}
           totalPlayers={players.length}
           showCorrect={quizState.showCorrect}
           answeredCount={Object.keys(quizState.answers).length}
@@ -1668,11 +1683,11 @@ export default function TVGamePage() {
 
         {!sp.gameOver && sp.phase === 'voting' && <div className="spy-live-tv-voting"><div><span>{l('ГОЛОСОВАНИЕ ИДЁТ', 'VOTING IN PROGRESS')}</span><h1>{l('Кто здесь шпион?', 'Who is the spy?')}</h1><p>{l('Личный выбор каждого остаётся скрытым до завершения голосования.', 'Every choice stays private until voting ends.')}</p><div className="spy-live-tv-vote-progress"><i><b style={{ width: spyPlayerList.length ? `${(votedCount / spyPlayerList.length) * 100}%` : '0%' }} /></i><span>{votedCount} / {spyPlayerList.length}</span></div></div><div className="spy-live-tv-voters">{spyPlayerList.map((player) => { const done = Object.hasOwn(sp.votes, player.id); return <div key={player.id} className={done ? 'done' : ''}><i>{player.nickname[0]}</i><b>{player.nickname}</b><span>{done ? l('ГОЛОС ПРИНЯТ', 'VOTE ACCEPTED') : l('ОЖИДАЕМ', 'WAITING')}</span></div>; })}</div></div>}
 
-        {!sp.gameOver && sp.phase === 'spyGuess' && !sp.spyGuessAwaitingJudge && <div className="spy-live-tv-center spy-live-tv-spy"><div><SpyImg name="mask" className="h-24 w-24" /></div><span>{l('ЛИЧНОСТЬ УСТАНОВЛЕНА', 'IDENTITY CONFIRMED')}</span><h1>{l(`${spyName} оказался шпионом`, `${spyName} is the spy`)}</h1><p>{l('У него остался последний шанс угадать секретное слово.', 'One final chance remains to guess the secret word.')}</p><section><span>{l('КАТЕГОРИЯ', 'CATEGORY')}</span><b>{sp.category}</b><small>{l('ОТВЕТ ВВОДИТСЯ НА ТЕЛЕФОНЕ', 'ANSWER ENTERED ON PHONE')}</small></section></div>}
+        {!sp.gameOver && sp.phase === 'spyGuess' && !sp.spyGuessAwaitingJudge && <div className="spy-live-tv-center spy-live-tv-spy"><div><SpyImg name="mask" className="h-24 w-24" /></div><span>{l('ПОСЛЕДНЯЯ ПОПЫТКА', 'FINAL ATTEMPT')}</span><h1>{l('Шпион угадывает слово', 'The spy is guessing the word')}</h1><p>{l('Остался последний шанс угадать секретное слово.', 'One final chance remains to guess the secret word.')}</p><section><span>{l('КАТЕГОРИЯ', 'CATEGORY')}</span><b>{sp.category}</b><small>{l('ОТВЕТ ВВОДИТСЯ НА ТЕЛЕФОНЕ', 'ANSWER ENTERED ON PHONE')}</small></section></div>}
 
         {!sp.gameOver && sp.phase === 'spyGuess' && sp.spyGuessAwaitingJudge && <div className="spy-live-tv-center spy-live-tv-verdict"><span>{l('ОТВЕТ ПЕРЕДАН НА ПРОВЕРКУ', 'ANSWER SENT FOR REVIEW')}</span><h1>{l(`Ожидаем решение ${spyGetName(sp.spyGuessJudgeId)}`, `Waiting for ${spyGetName(sp.spyGuessJudgeId)}`)}</h1><p>{l('Автоматическая проверка не нашла точного совпадения.', 'Automatic review found no exact match.')}</p><div><section><span>{l('ВЕРСИЯ ШПИОНА', 'SPY GUESS')}</span><b>{sp.spyGuessText}</b></section><i>?</i><section><span>{l('СЕКРЕТНОЕ СЛОВО', 'SECRET WORD')}</span><b>{l('СКРЫТО', 'HIDDEN')}</b></section></div><small>{l('ТОЛЬКО ПРОВЕРЯЮЩИЙ ВИДИТ ОБА СЛОВА', 'ONLY THE JUDGE SEES BOTH WORDS')}</small></div>}
 
-        {!sp.gameOver && sp.phase === 'roundResult' && sp.roundResult && <div className="spy-live-tv-result"><div className={sp.roundResult.spyCaught ? '' : 'danger'}><SpyImg name={sp.roundResult.spyCaught ? 'shield' : 'mask'} className="h-14 w-14" /><span><small>{sp.roundResult.spyCaught ? l('ОПЕРАЦИЯ УСПЕШНА', 'OPERATION SUCCESSFUL') : l('ОПЕРАЦИЯ ПРОВАЛЕНА', 'OPERATION FAILED')}</small><b>{sp.roundResult.spyCaught ? l('ШПИОН РАСКРЫТ', 'SPY EXPOSED') : l('ШПИОН ПОБЕДИЛ', 'SPY WINS')}</b></span></div><section><div><span>{l('ШПИОНОМ БЫЛ', 'THE SPY WAS')}</span><i>{spyName[0]}</i><b>{spyName}</b><small>{sp.roundResult.viaGuess ? l('ПОСЛЕДНЯЯ ПОПЫТКА', 'FINAL ATTEMPT') : `${sp.roundResult.voteCount} ${l('ИЗ', 'OF')} ${spyPlayerList.length} ${l('ГОЛОСОВ', 'VOTES')}`}</small></div><div><span>{l('СЕКРЕТНОЕ СЛОВО', 'SECRET WORD')}</span><small>{sp.category}</small><b>{sp.word}</b><em>{sp.roundResult.spyCaught ? l('ДЕЛО ЗАКРЫТО', 'CASE CLOSED') : l('ШПИОН СКРЫЛСЯ', 'SPY ESCAPED')}</em></div></section></div>}
+        {!sp.gameOver && sp.phase === 'roundResult' && sp.roundResult && <div className="spy-live-tv-result"><div className={sp.roundResult.spyCaught ? '' : 'danger'}><SpyImg name={sp.roundResult.spyCaught ? 'shield' : 'mask'} className="h-14 w-14" /><span><small>{sp.roundResult.spyCaught ? l('ОПЕРАЦИЯ УСПЕШНА', 'OPERATION SUCCESSFUL') : l('ОПЕРАЦИЯ ПРОВАЛЕНА', 'OPERATION FAILED')}</small><b>{sp.roundResult.spyCaught ? l('ШПИОН РАСКРЫТ', 'SPY EXPOSED') : l('ШПИОН ПОБЕДИЛ', 'SPY WINS')}</b></span></div><section><div><span>{l('ШПИОНОМ БЫЛ', 'THE SPY WAS')}</span><i>{spyName[0]}</i><b>{spyName}</b><small>{sp.roundResult.viaGuess ? l('ПОСЛЕДНЯЯ ПОПЫТКА', 'FINAL ATTEMPT') : `${sp.roundResult.voteCount} ${l('ИЗ', 'OF')} ${sp.roundResult.totalVotes ?? votedCount} ${l('ГОЛОСОВ', 'VOTES')}`}</small></div><div><span>{l('СЕКРЕТНОЕ СЛОВО', 'SECRET WORD')}</span><small>{sp.category}</small><b>{sp.word}</b><em>{sp.roundResult.spyCaught ? l('ДЕЛО ЗАКРЫТО', 'CASE CLOSED') : l('ШПИОН СКРЫЛСЯ', 'SPY ESCAPED')}</em></div></section></div>}
 
         <footer className="spy-live-tv-footer"><span>{l('ДЕЛО', 'CASE')} 01 · {l('РАУНД', 'ROUND')} {sp.currentRound}</span><b>{sp.gameOver ? l('АРХИВ СОХРАНЁН', 'ARCHIVE SAVED') : sp.phase === 'roundResult' ? l('ДЕЛО ЗАКРЫТО', 'CASE CLOSED') : l('КТО-ТО ЗА СТОЛОМ ЛЖЁТ', 'SOMEONE IS LYING')}</b><span>{l('СИГНАЛ СТАБИЛЕН', 'SIGNAL STABLE')}</span></footer>
         {qrOverlay}
@@ -1692,30 +1707,31 @@ export default function TVGamePage() {
     const winnerId = crocState.winnerId ?? (crocState.phase === 'finished' ? sortedScores[0]?.id : null);
     const winner = sortedScores.find((player) => player.id === winnerId) ?? sortedScores[0];
     const crocRound = Math.floor((crocState.turnNumber - 1) / Math.max(1, crocState.playersOrder.length)) + 1;
-    const crocTime = `00:${Math.max(0, crocState.timeLeft).toString().padStart(2, '0')}`;
+    const crocTime = formatGameTime(crocState.timeLeft);
+    const crocTvGridClass = 'grid h-full grid-cols-[minmax(0,1fr)_minmax(480px,560px)] items-center gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(520px,580px)] xl:gap-10 2xl:grid-cols-[minmax(0,1fr)_minmax(680px,760px)] 2xl:gap-20';
     const racePanel = (final = false) => (
-      <aside className={`rounded-[28px] border border-white/10 px-7 py-6 ${final ? 'bg-[#ef3340]' : 'bg-white/[0.055]'}`}>
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <b className="text-xl">{final
+      <aside className={`rounded-[36px] border border-white/10 px-8 py-8 2xl:px-10 2xl:py-9 ${final ? 'bg-[#ef3340]' : 'bg-white/[0.055]'}`}>
+        <div className="mb-6 flex items-center justify-between gap-5">
+          <b className="text-2xl 2xl:text-3xl">{final
             ? l('Финальный результат', 'Final result')
             : crocState.finishingRound !== null
               ? l('Финальный круг', 'Final round')
               : l('До финиша', 'To the finish')}</b>
-          <span className={`rounded-full px-3 py-1 font-mono text-sm font-bold ${final ? 'bg-white text-[#991b2f]' : 'bg-[#ef3340] text-white'}`}>
+          <span className={`rounded-full px-4 py-2 font-mono text-base font-bold 2xl:text-lg ${final ? 'bg-white text-[#991b2f]' : 'bg-[#ef3340] text-white'}`}>
             {l('ЦЕЛЬ 20', 'GOAL 20')}
           </span>
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-[max-content_minmax(0,1fr)_76px] items-center gap-x-3 gap-y-3 2xl:grid-cols-[max-content_minmax(0,1fr)_90px] 2xl:gap-x-4">
           {sortedScores.slice(0, 10).map((player, index) => (
-            <div key={player.id} className="grid min-w-0 grid-cols-[minmax(110px,160px)_1fr_62px] items-center gap-3 py-0.5">
-              <span className="truncate text-[15px] font-bold">{player.name}</span>
-              <div className="h-2.5 overflow-hidden rounded-full bg-white/15">
+            <div key={player.id} className="contents">
+              <span className="max-w-[150px] truncate text-[17px] font-bold 2xl:max-w-[190px] 2xl:text-xl">{player.name}</span>
+              <div className="h-3 overflow-hidden rounded-full bg-white/15 2xl:h-3.5">
                 <i
                   className="block h-full origin-left rounded-full transition-[width] duration-700 motion-reduce:transition-none"
                   style={{ width: `${Math.min(100, (player.score / crocTargetScore) * 100)}%`, background: crocRaceColors[index] }}
                 />
               </div>
-              <b className="text-right font-mono text-base tabular-nums">{player.score}<small className="text-white/45">/20</small></b>
+              <b className="text-right font-mono text-lg tabular-nums 2xl:text-xl">{player.score}<small className="text-white/45">/20</small></b>
             </div>
           ))}
         </div>
@@ -1736,9 +1752,9 @@ export default function TVGamePage() {
           </span>
         </header>
 
-        <main className="relative h-[calc(100vh-5rem)] p-8">
+        <main className="relative h-[calc(100vh-5rem)] px-10 py-8 2xl:px-14 2xl:py-10">
           {crocState.phase === 'waiting' && (
-            <div className="grid h-full grid-cols-[1fr_520px] items-center gap-12">
+            <div className={crocTvGridClass}>
               <section>
                 <small className="font-mono uppercase tracking-[0.25em] text-[#ff8b78]">{l('КОМНАТА ГОТОВА', 'ROOM READY')}</small>
                 <h2 className="mt-4 text-7xl font-black leading-[0.9] tracking-[-0.06em]">{l('Соберите\n20 слов', 'Collect\n20 words').split('\n').map((line) => <span key={line} className="block">{line}</span>)}</h2>
@@ -1752,17 +1768,17 @@ export default function TVGamePage() {
           )}
 
           {(crocState.phase === 'ready' || crocState.phase === 'explaining') && (
-            <div className="grid h-full grid-cols-[1fr_520px] items-center gap-12">
-              <section className="flex items-center gap-8">
+            <div className={crocTvGridClass}>
+              <section className="flex min-w-0 items-center justify-center gap-8 xl:gap-10 2xl:gap-14">
                 <div className="rounded-full bg-[#ef3340]/10 p-3 shadow-[0_0_65px_rgba(239,51,64,.2)] motion-safe:animate-pulse">
-                  <PlayerAvatar nickname={explainerName} sizePx={130} ring="#ef3340" />
+                  <PlayerAvatar nickname={explainerName} sizePx={180} ring="#ef3340" />
                 </div>
                 <div className="min-w-0">
-                  <small className="font-mono uppercase tracking-[0.2em] text-[#ff8b78]">{crocState.phase === 'ready' ? l('ГОТОВИТСЯ НАЧАТЬ', 'GETTING READY') : l('СЕЙЧАС ПОКАЗЫВАЕТ', 'NOW EXPLAINING')}</small>
-                  <h2 className="truncate text-8xl font-black tracking-[-0.07em]">{explainerName}</h2>
-                  <div className="mt-7 w-[300px] rounded-[18px] bg-[#211b24] p-3">
-                    <div className="flex items-center justify-between"><small className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">{l('ВРЕМЯ ХОДА', 'TURN TIME')}</small><b className="font-mono text-2xl tabular-nums">{crocTime}</b></div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><i className="block h-full rounded-full bg-[#ef3340] transition-[width] duration-1000 motion-reduce:transition-none" style={{ width: `${Math.max(0, Math.min(100, (crocState.timeLeft / 60) * 100))}%` }} /></div>
+                  <small className="font-mono text-sm uppercase tracking-[0.2em] text-[#ff8b78] 2xl:text-base">{crocState.phase === 'ready' ? l('ГОТОВИТСЯ НАЧАТЬ', 'GETTING READY') : l('СЕЙЧАС ПОКАЗЫВАЕТ', 'NOW EXPLAINING')}</small>
+                  <h2 className="max-w-[620px] truncate text-7xl font-black leading-[0.9] tracking-[-0.07em] xl:text-8xl 2xl:text-[9rem]">{explainerName}</h2>
+                  <div className="mt-8 w-[340px] rounded-[24px] bg-[#211b24] p-5 xl:w-[380px] 2xl:w-[480px] 2xl:p-6">
+                    <div className="flex items-center justify-between"><small className="font-mono text-xs uppercase tracking-[0.2em] text-white/45 2xl:text-sm">{l('ВРЕМЯ ХОДА', 'TURN TIME')}</small><b className="font-mono text-4xl tabular-nums 2xl:text-5xl">{crocTime}</b></div>
+                    <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/10 2xl:h-3"><i className="block h-full rounded-full bg-[#ef3340] transition-[width] duration-1000 motion-reduce:transition-none" style={{ width: `${Math.max(0, Math.min(100, (crocState.timeLeft / 60) * 100))}%` }} /></div>
                   </div>
                 </div>
               </section>
@@ -1771,7 +1787,7 @@ export default function TVGamePage() {
           )}
 
           {crocState.phase === 'finished' && (
-            <div className="grid h-full grid-cols-[1fr_520px] items-center gap-12">
+            <div className={crocTvGridClass}>
               <section>
                 <small className="font-mono uppercase tracking-[0.25em] text-[#ff8b78]">{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</small>
                 <h2 className="mt-4 text-8xl font-black leading-[0.88] tracking-[-0.065em]">{winner?.name ?? l('Победитель', 'Winner')}<br />{winner?.score ?? 0}</h2>
@@ -2102,10 +2118,7 @@ export default function TVGamePage() {
   // ===================== WHO AM I TV RENDER =====================
   if (gameType === 'who-am-i') {
     const ws = whoAmIState;
-    const activeOrder = ws.turnOrder.filter((id) => !ws.guessedPlayers.includes(id));
-    const currentPlayerId = activeOrder.length > 0
-      ? activeOrder[ws.currentTurnIndex % activeOrder.length]
-      : null;
+    const currentPlayerId = getWhoAmIActivePlayerId(ws);
     const currentPlayerName = currentPlayerId ? getPlayerName(currentPlayerId) : l('ожидание', 'waiting');
     const disputingPlayerName = ws.guessPendingPlayerId ? getPlayerName(ws.guessPendingPlayerId) : l('Игрок', 'Player');
     const otherPlayerIds = ws.turnOrder.filter((id) => id !== currentPlayerId);
@@ -2113,21 +2126,16 @@ export default function TVGamePage() {
       .map((id) => ({
         id,
         name: getPlayerName(id),
-        score: ws.scores[id] || 0,
         character: ws.characters[id],
         guessed: ws.guessedPlayers.includes(id),
-      }))
-      .sort((a, b) => b.score - a.score);
-
-    const revealStep = resultRows.length >= 10 ? 0.34 : 0.46;
-    const winner = resultRows[0];
+      }));
 
     if (['lobby', 'playing', 'finished'].includes(ws.phase)) {
       if (ws.phase === 'lobby') {
         return (
           <WhoAmIClayTvLayout>
             <main className={whoClay.tvMain}>
-              <div className={whoClay.tvLobby}>
+              <div className={`${whoClay.tvLobby} ${whoClay.tvLobbyClosed}`}>
                 <section className={whoClay.tvLobbyHero}>
                   <div className={whoClay.tvLogo}><WhoAmIIcon name="profile" /></div>
                   <small>PARTY GAMES HUB</small>
@@ -2137,12 +2145,6 @@ export default function TVGamePage() {
                     {players.map((player) => <div key={player.id} className={whoClay.tvPlayerChip}><ClayBlob name={player.nickname} size="sm" /><b>{player.nickname}</b>{player.isHost && <WhoAmIIcon name="star" />}</div>)}
                   </div>
                 </section>
-                <aside className={whoClay.tvQrPanel}>
-                  <div className={whoClay.tvQrFrame}><QRCodeCanvas value={joinUrl} size={250} /></div>
-                  <small>{l('КОД КОМНАТЫ', 'ROOM CODE')}</small>
-                  <strong>{roomId}</strong>
-                  <span>{siteUrl}/join</span>
-                </aside>
               </div>
             </main>
             {qrOverlay}
@@ -2160,16 +2162,16 @@ export default function TVGamePage() {
             </header>
             <main className={whoClay.tvMain}>
               <div className={whoClay.tvResults}>
-                <div className={whoClay.tvResultsTitle}><span className={whoClay.iconBlob}><WhoAmIIcon name="trophy" /></span><div><small>{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</small><h1>{l('Все личности раскрыты', 'Every identity revealed')}</h1></div></div>
+                <div className={whoClay.tvResultsTitle}><span className={whoClay.iconBlob}><WhoAmIIcon name="celebrate" /></span><div><small>{l('ИГРА ОКОНЧЕНА', 'GAME OVER')}</small><h1>{l('Спасибо за игру!', 'Thanks for playing!')}</h1></div></div>
                 <section className={whoClay.tvResultsList}>
-                  {resultRows.map((row, index) => {
+                  {resultRows.map((row) => {
                     const character = row.guessed ? row.character?.[locale] ?? '???' : l('не угадал', 'not guessed');
-                    return <article key={row.id} className={`${whoClay.tvResultRow} ${index === 0 ? whoClay.tvResultWinner : ''}`}><span>{String(index + 1).padStart(2, '0')}</span><ClayBlob name={row.name} active={index === 0} /><div><b>{row.name}</b><small>{character} · {ws.questionsAsked[row.id] ?? 0} {l('вопросов', 'questions')}</small></div><strong>{row.score}</strong></article>;
+                    return <article key={row.id} className={`${whoClay.tvResultRow} ${whoClay.tvParticipantRow}`}><ClayBlob name={row.name} /><div><b>{row.name}</b><small>{character}</small></div></article>;
                   })}
                 </section>
               </div>
             </main>
-            <footer className={whoClay.tvFooter}><span>{winner ? l(`У ${winner.name} на телефоне: играть снова`, `On ${winner.name}'s phone: play again`) : ''}</span><b>PARTY GAMES HUB · WHO AM I?</b></footer>
+            <footer className={whoClay.tvFooter}><span>{l('Ведущий может начать новую игру', 'The host can start a new game')}</span><b>PARTY GAMES HUB · WHO AM I?</b></footer>
             {qrOverlay}
           </WhoAmIClayTvLayout>
         );
@@ -2191,20 +2193,20 @@ export default function TVGamePage() {
                 <div className={whoClay.tvStreak}><span>{l('«ДА» ПОДРЯД', 'YES STREAK')}</span>{[0,1,2].map((dot) => <i key={dot} data-filled={dot < ws.consecutiveYesAnswers} />)}<b>{ws.consecutiveYesAnswers}/3</b></div>
               </section>
               <aside className={`${whoClay.tvRanking} ${disputeActive || lastWhoAmIGuessResult ? whoClay.tvDimmed : ''}`}>
-                <small>{l('РЕЙТИНГ', 'RANKING')}</small>
-                {resultRows.map((row, index) => <article key={row.id} className={`${whoClay.tvRankRow} ${row.id === currentPlayerId ? whoClay.tvRankCurrent : ''}`}><span>{String(index + 1).padStart(2, '0')}</span><ClayBlob name={row.name} size="sm" /><b>{row.name}</b><strong>{row.score}</strong></article>)}
+                <small>{l('УЧАСТНИКИ', 'PLAYERS')}</small>
+                {resultRows.map((row) => <article key={row.id} className={`${whoClay.tvRankRow} ${whoClay.tvParticipantStatus} ${row.id === currentPlayerId ? whoClay.tvRankCurrent : ''}`}><ClayBlob name={row.name} size="sm" /><b>{row.name}</b><span aria-label={row.guessed ? l('Угадал', 'Guessed') : row.id === currentPlayerId ? l('Сейчас ходит', 'Current turn') : l('Ждёт хода', 'Waiting for turn')}>{row.guessed ? <WhoAmIIcon name="check" /> : row.id === currentPlayerId ? <WhoAmIIcon name="profile" /> : null}</span></article>)}
               </aside>
 
               {disputeActive && !lastWhoAmIGuessResult && (
-                <div className={`${whoClay.tvOverlay} ${whoClay.tvOverlayWarm}`}><span className={whoClay.iconBlob}><WhoAmIIcon name="profile" /></span><small>{l('ОСПАРИВАНИЕ ОТВЕТА', 'ANSWER DISPUTE')}</small><h1>{l(`${disputingPlayerName} передал(а) ответ судье`, `${disputingPlayerName} sent the answer to a judge`)}</h1><p>{l('Вердикт принимается на телефоне случайного игрока. Ответ и персонаж не показываются на TV.', 'A random player decides on their phone. The guess and character stay hidden from TV.')}</p></div>
+                <div className={`${whoClay.tvOverlay} ${whoClay.tvOverlayWarm}`}><span className={whoClay.iconBlob}><WhoAmIIcon name="profile" /></span><small>{l('ОСПАРИВАНИЕ ОТВЕТА', 'ANSWER DISPUTE')}</small><h1>{ws.guessAwaitingJudge ? l(`${disputingPlayerName} передал(а) ответ судье`, `${disputingPlayerName} sent the answer to a judge`) : l(`${disputingPlayerName} подтверждает отправку ответа`, `${disputingPlayerName} is confirming the review request`)}</h1><p>{ws.guessAwaitingJudge ? l('Вердикт принимается на телефоне случайного игрока. Ответ и персонаж не показываются на TV.', 'A random player decides on their phone. The guess and character stay hidden from TV.') : l('Нет точного совпадения. Игрок может передать ответ на проверку со своего телефона.', 'No exact match. The player can submit the answer for review on their phone.')}</p></div>
               )}
 
               {lastWhoAmIGuessResult && (
-                <div className={`${whoClay.tvOverlay} ${lastWhoAmIGuessResult.correct ? '' : whoClay.tvOverlayDanger}`}><span className={whoClay.iconBlob}><WhoAmIIcon name={lastWhoAmIGuessResult.correct ? 'celebrate' : 'cross'} /></span><small>{lastWhoAmIGuessResult.correct ? l('ЛИЧНОСТЬ РАСКРЫТА', 'IDENTITY REVEALED') : l('НЕВЕРНАЯ ПОПЫТКА', 'WRONG GUESS')}</small><h1>{lastWhoAmIGuessResult.correct ? l(`${getPlayerName(lastWhoAmIGuessResult.playerId)} — ${whoAmIState.characters[lastWhoAmIGuessResult.playerId]?.[locale] ?? lastWhoAmIGuessResult.guess}!`, `${getPlayerName(lastWhoAmIGuessResult.playerId)} is ${whoAmIState.characters[lastWhoAmIGuessResult.playerId]?.[locale] ?? lastWhoAmIGuessResult.guess}!`) : l(`${getPlayerName(lastWhoAmIGuessResult.playerId)} пока не угадал(а)`, `${getPlayerName(lastWhoAmIGuessResult.playerId)} has not guessed yet`)}</h1><p>{lastWhoAmIGuessResult.correct ? `+${calculateWhoAmIScore(ws.questionsAsked[lastWhoAmIGuessResult.playerId] || 0)} ${l('очков', 'points')} · ${ws.questionsAsked[lastWhoAmIGuessResult.playerId] || 0} ${l('вопросов', 'questions')}` : l('Персонаж остаётся скрытым', 'The character remains hidden')}</p></div>
+                <div className={`${whoClay.tvOverlay} ${lastWhoAmIGuessResult.correct ? '' : whoClay.tvOverlayDanger}`}><span className={whoClay.iconBlob}><WhoAmIIcon name={lastWhoAmIGuessResult.correct ? 'celebrate' : 'cross'} /></span><small>{lastWhoAmIGuessResult.correct ? l('ЛИЧНОСТЬ РАСКРЫТА', 'IDENTITY REVEALED') : l('НЕВЕРНАЯ ПОПЫТКА', 'WRONG GUESS')}</small><h1>{lastWhoAmIGuessResult.correct ? l(`${getPlayerName(lastWhoAmIGuessResult.playerId)} — ${whoAmIState.characters[lastWhoAmIGuessResult.playerId]?.[locale] ?? lastWhoAmIGuessResult.guess}!`, `${getPlayerName(lastWhoAmIGuessResult.playerId)} is ${whoAmIState.characters[lastWhoAmIGuessResult.playerId]?.[locale] ?? lastWhoAmIGuessResult.guess}!`) : l(`${getPlayerName(lastWhoAmIGuessResult.playerId)} пока не угадал(а)`, `${getPlayerName(lastWhoAmIGuessResult.playerId)} has not guessed yet`)}</h1><p>{lastWhoAmIGuessResult.correct ? l('Продолжаем угадывать по очереди', 'Keep guessing in turn') : l('Персонаж остаётся скрытым', 'The character remains hidden')}</p></div>
               )}
             </div>
           </main>
-          <footer className={whoClay.tvFooter}><span>{disputeActive ? l('ОЖИДАЕМ РЕШЕНИЕ СУДЬИ', 'WAITING FOR THE JUDGE') : l(`НА ТЕЛЕФОНЕ ${currentPlayerName}`, `ON ${currentPlayerName}'S PHONE`)}</span><b>{disputeActive ? l('ОТВЕТ НЕ ПОКАЗЫВАЕТСЯ НА TV', 'THE ANSWER STAYS OFF TV') : l('НЕТ · Я ЗНАЮ! · ДА', 'NO · I KNOW! · YES')}</b></footer>
+          <footer className={whoClay.tvFooter}><span>{ws.guessAwaitingJudge ? l('ОЖИДАЕМ РЕШЕНИЕ СУДЬИ', 'WAITING FOR THE JUDGE') : ws.guessNeedsConfirm ? l('ОЖИДАЕМ ПОДТВЕРЖДЕНИЕ ИГРОКА', 'WAITING FOR PLAYER CONFIRMATION') : l(`НА ТЕЛЕФОНЕ ${currentPlayerName}`, `ON ${currentPlayerName}'S PHONE`)}</span><b>{disputeActive ? l('ОТВЕТ НЕ ПОКАЗЫВАЕТСЯ НА TV', 'THE ANSWER STAYS OFF TV') : l('НЕТ · Я ЗНАЮ! · ДА', 'NO · I KNOW! · YES')}</b></footer>
           {qrOverlay}
         </WhoAmIClayTvLayout>
       );
@@ -2312,7 +2314,7 @@ export default function TVGamePage() {
                   </div>
                 ) : (
                   <div className="glass-card px-10 py-8 text-center">
-                    <WhoAmIIcon name="trophy" className="mx-auto mb-3 h-14 w-14 text-sky-200" />
+                    <WhoAmIIcon name="celebrate" className="mx-auto mb-3 h-14 w-14 text-sky-200" />
                     <p className="text-3xl font-bold">{l('Все игроки угадали', 'Everyone guessed')}</p>
                   </div>
                 )}
@@ -2406,7 +2408,7 @@ export default function TVGamePage() {
                         </span>
                         {lastWhoAmIGuessResult.correct && (
                           <span className="inline-flex rounded-full border border-green-400/40 bg-green-500/15 px-7 py-[15px] font-mono text-[26px] font-bold text-green-300">
-                            +{calculateWhoAmIScore(ws.questionsAsked[lastWhoAmIGuessResult.playerId] || 0)} {l('очков', 'points')}
+                            {l('Угадано', 'Guessed')}
                           </span>
                         )}
                       </div>
@@ -2446,79 +2448,16 @@ export default function TVGamePage() {
         )}
 
         {ws.phase === 'finished' && (
-          <div className="flex flex-1 flex-col px-12 py-8">
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.2, 0.9, 0.3, 1.2] }}
-              className="flex items-center justify-center gap-5"
-            >
-              <div className={`flex h-20 w-20 items-center justify-center rounded-[24px] ${WHO_AM_I_ACCENT_MARK}`}>
-                <WhoAmIIcon name="trophy" className="h-12 w-12" />
+          <div className="flex flex-1 flex-col items-center gap-6 overflow-auto px-12 py-8">
+            <WhoAmIIcon name="celebrate" className="h-20 w-20 text-sky-200" />
+            <h1 className="text-6xl font-black">{l('Спасибо за игру!', 'Thanks for playing!')}</h1>
+            {resultRows.map((row) => (
+              <div key={row.id} className="glass-card flex w-full max-w-4xl items-center gap-4 rounded-2xl px-5 py-3">
+                <PlayerAvatar nickname={row.name} size="sm" />
+                <div><b>{row.name}</b><p>{row.guessed ? row.character?.[locale] ?? '???' : l('не угадал', 'not guessed')}</p></div>
               </div>
-              <h1 className="text-6xl font-black tracking-tight">{l('Игра окончена!', 'Game over!')}</h1>
-            </motion.div>
-
-            <div className="mx-auto mt-8 flex w-full max-w-6xl flex-1 flex-col justify-center gap-2">
-              {resultRows.map((row, index) => {
-                const character = row.guessed
-                  ? row.character?.[locale] ?? '???'
-                  : l('не угадал', 'not guessed');
-                const delay = 0.35 + (resultRows.length - 1 - index) * revealStep;
-
-                return (
-                  <motion.div
-                    key={row.id}
-                    initial={{ opacity: 0, y: 24, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ delay, duration: 0.42, ease: [0.2, 0.9, 0.3, 1.15] }}
-                    className={`glass-card grid grid-cols-[64px_56px_1fr_auto] items-center gap-4 rounded-2xl border px-5 py-3 text-left ${whoAmIRankStyle(index)} ${
-                      index === 0 ? 'py-4' : ''
-                    }`}
-                  >
-                    <div className="relative flex h-12 w-12 items-center justify-center">
-                      {index < 3 ? (
-                        <>
-                          <WhoAmIIcon name="medal" className={index === 0 ? 'h-14 w-14' : 'h-12 w-12'} />
-                          <span className="absolute mt-1 font-mono text-sm font-black">{index + 1}</span>
-                        </>
-                      ) : (
-                        <span className="font-mono text-2xl font-black text-white/45">{index + 1}</span>
-                      )}
-                    </div>
-                    <PlayerAvatar nickname={row.name} size={index === 0 ? 'md' : 'sm'} />
-                    <div className="min-w-0">
-                      <p className={`truncate font-black ${index === 0 ? 'text-4xl' : 'text-2xl'}`}>{row.name}</p>
-                      <p className="truncate text-lg text-white/55">
-                        <span className="text-sky-100/85">{character}</span>
-                        {row.guessed && (
-                          <span className="text-white/35"> · {ws.questionsAsked[row.id] ?? 0} {l('вопросов', 'questions')}</span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`font-mono font-black ${index === 0 ? 'text-4xl' : 'text-3xl'}`}>{row.score}</p>
-                      <p className="font-mono text-xs uppercase tracking-widest text-white/35">{l('очков', 'points')}</p>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-            <div className="mt-8 flex items-center justify-between px-4">
-              {winner ? (
-                <div className="glass-card inline-flex items-center gap-3 rounded-full px-6 py-3 text-xl text-white/65">
-                  <WhoAmIIcon name="profile" className="h-6 w-6 text-sky-200" />
-                  <span>{l(`У ${winner.name} на телефоне:`, `On ${winner.name}'s phone:`)}</span>
-                  <b className="text-white">{l('Играть снова', 'Play again')}</b>
-                </div>
-              ) : (
-                <span />
-              )}
-              <div className="glass-card inline-flex items-center gap-2 rounded-full px-5 py-3 text-lg text-white/70">
-                <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
-                {l(`${ws.turnOrder.length} в игре`, `${ws.turnOrder.length} playing`)}
-              </div>
-            </div>
+            ))}
+            <p>{l('Ведущий может начать новую игру', 'The host can start a new game')}</p>
           </div>
         )}
 

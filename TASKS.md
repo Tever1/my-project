@@ -3,17 +3,50 @@
 Этот файл описывает только актуальную работу. Выполненные мелкие задачи и
 история находятся в Git/codex-reports, а не здесь.
 
-Следующий свободный номер Codex-отчёта: **TASK-477**.
+Следующий свободный номер Codex-отчёта: **TASK-485**.
 
 ## Now
 
 - [ ] **Фаза J — Audit & Consolidation:** определить ограниченный scope общего
   UI/motion-аудита, проверки согласованности phone/TV и финальной документации
   дизайн-системы. Не переосмысливать утверждённые игровые дизайны.
-- [ ] При следующем `/context-save` из рабочего чата подтвердить первый
-  end-to-end перенос сводки в `Party Games Hub — Общий прогресс`.
-- [ ] Активной production-реализации сейчас нет; ожидать следующую конкретную
-  задачу пользователя.
+- [x] **TASK-477 — P1 realtime security & recovery:** серверные permissions,
+  канонические in-memory snapshots, recipient-specific privacy, восстановление
+  всех семи игр, защищённый reconnect-token, серверная проверка Mafia/Who Am I
+  и сохранение рисунка Spy реализованы; 11 unit- и 8 socket integration-тестов
+  пройдены. Матрица включает game host, обычного игрока, TV, active timers и
+  отказ при попытке захватить чужой player ID.
+- [x] Первый отдельный review TASK-477 проведён; найденные утечки game-host / Big
+  Game, потеря рисунка Spy и пробелы phase validation исправлены.
+- [x] Финальный независимый post-fix review TASK-477 пройден по двум осям:
+  Standards и Spec; все actionable findings исправлены и повторно проверены.
+- [x] **TASK-478 — Quiz responsive pulse polish:** production и design preview
+  синхронизированы; motion, таймер, phone/TV-композиция и рейтинги 2–10 игроков
+  доработаны, статические проверки пройдены.
+- [x] **TASK-479 — Crocodile mobile runtime fixes:** исправлены фон после Quiz,
+  монотонность таймера, единый `MM:SS` и touch-scroll активной карточки;
+  автоматические проверки пройдены.
+- [x] **TASK-480 — Spy pass turn and guess result:** передача хода и финальная
+  попытка перенесены в server-authoritative flow, privacy результата сохранена;
+  автоматические проверки пройдены.
+- [x] **TASK-481 — единый язык комнаты:** язык создателя хранится на сервере и
+  синхронизируется через `room:state` для лобби, всех семи phone-маршрутов и TV.
+  Standards и Spec review пройдены без замечаний.
+- [x] **TASK-482 — русский язык phone + TV:** правило TASK-481 скорректировано:
+  новые комнаты всегда используют server-owned русский независимо от языка
+  браузера создателя. Красный regression-тест воспроизвёл дефект и стал зелёным
+  после исправления; полная server/Socket.io-матрица прошла.
+- [x] **TASK-483 — Quiz delayed answer reveal design:** в design preview
+  подготовлены нейтральное ожидание ответа и синхронный reveal phone/TV;
+  production-логика не менялась и ждёт утверждения Анастасии.
+- [x] **TASK-484 — имя игрока до 10 символов:** общий helper, все production-
+  поля имени и server-authoritative `room:create` / `room:join` ограничивают
+  имя до 10 символов до duplicate-check. Автоматические проверки прошли.
+- [ ] Провести ручной multiplayer/browser regression на phone + TV.
+  Автоматический reconnect через новый socket подтверждён для всех семи игр;
+  отдельно проверить русский язык на phone и TV в новой комнате.
+- [x] End-to-end перенос сводки после `/context-save` в
+  `Party Games Hub — Общий прогресс` подтверждён.
 
 ## Next
 
@@ -53,8 +86,8 @@
   и admin в один источник истины.
 - [ ] Разделить монолитный общий TV page и крупные game pages без изменения
   протокола событий.
-- [ ] Добавить автоматические тесты room permissions, reconnect/full-state sync
-  и критических игровых фаз.
+- [ ] Расширить существующие автоматические тесты room permissions и
+  критических фаз дополнительными adversarial/protocol-кейсами.
 - [ ] Определить production security для auth и `/api/admin/*`.
 - [ ] Спроектировать persistent/scalable room state, только если это станет
   продуктовой целью.

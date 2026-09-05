@@ -15,23 +15,25 @@ import { SPY_LOCATIONS, SpyLocation, SPY_WORDS } from '@/lib/game-data';
 
 interface DrawStroke {
   x1: number; y1: number; x2: number; y2: number;
+  gestureId?: string;
 }
 
 interface DrawCanvasProps {
   canDraw: boolean;
+  strokes: DrawStroke[];
   onStroke: (stroke: DrawStroke) => void;
   onClear: () => void;
-  onUndo: (remainingStrokes: DrawStroke[]) => void;
+  onUndo: (gestureId: string | undefined, strokeCount: number) => void;
 }
 
-function DrawCanvas({ canDraw, onStroke, onClear, onUndo }: DrawCanvasProps) {
+function DrawCanvas({ canDraw, strokes, onStroke, onClear, onUndo }: DrawCanvasProps) {
   const { locale } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const groupsRef = useRef<DrawStroke[][]>([]);
-  const currentGroupRef = useRef<DrawStroke[]>([]);
+  const gestureIdRef = useRef('');
   const suppressNextClearRef = useRef(false);
   const [hasHistory, setHasHistory] = useState(false);
 
@@ -69,7 +71,7 @@ function DrawCanvas({ canDraw, onStroke, onClear, onUndo }: DrawCanvasProps) {
   const clearAll = useCallback(() => {
     clearCanvas();
     groupsRef.current = [];
-    currentGroupRef.current = [];
+    gestureIdRef.current = '';
     setHasHistory(false);
   }, [clearCanvas]);
 
@@ -85,7 +87,8 @@ function DrawCanvas({ canDraw, onStroke, onClear, onUndo }: DrawCanvasProps) {
     if (!canDraw) return;
     e.preventDefault();
     drawing.current = true;
-    currentGroupRef.current = [];
+    // This identifier groups one pointer gesture; it is not a security token.
+    gestureIdRef.current = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     lastPos.current = getNormPos(e);
   };
 
@@ -94,8 +97,7 @@ function DrawCanvas({ canDraw, onStroke, onClear, onUndo }: DrawCanvasProps) {
     e.preventDefault();
     if (!drawing.current || !lastPos.current) return;
     const pos = getNormPos(e);
-    const stroke = { x1: lastPos.current.x, y1: lastPos.current.y, x2: pos.x, y2: pos.y };
-    currentGroupRef.current.push(stroke);
+    const stroke = { x1: lastPos.current.x, y1: lastPos.current.y, x2: pos.x, y2: pos.y, gestureId: gestureIdRef.current };
     onStroke(stroke);
     drawLine(stroke.x1, stroke.y1, stroke.x2, stroke.y2);
     lastPos.current = pos;
@@ -104,21 +106,18 @@ function DrawCanvas({ canDraw, onStroke, onClear, onUndo }: DrawCanvasProps) {
   const endDraw = () => {
     drawing.current = false;
     lastPos.current = null;
-    if (currentGroupRef.current.length > 0) {
-      groupsRef.current = [...groupsRef.current, currentGroupRef.current];
-      currentGroupRef.current = [];
-      setHasHistory(true);
-    }
+    gestureIdRef.current = '';
   };
 
   const undoLast = () => {
+    const gestureId = groupsRef.current.at(-1)?.[0].gestureId;
+    const strokeCount = groupsRef.current.reduce((count, group) => count + group.length, 0);
     groupsRef.current = groupsRef.current.slice(0, -1);
     clearCanvas();
     groupsRef.current.forEach(group => {
       group.forEach(seg => drawLine(seg.x1, seg.y1, seg.x2, seg.y2));
     });
-    suppressNextClearRef.current = true;
-    onUndo(groupsRef.current.flat());
+    onUndo(gestureId, strokeCount);
     setHasHistory(groupsRef.current.length > 0);
   };
 
@@ -139,6 +138,23 @@ function DrawCanvas({ canDraw, onStroke, onClear, onUndo }: DrawCanvasProps) {
     (canvas as unknown as { _drawLine: typeof drawLine; _clearAll: typeof receiveClear })._drawLine = drawLine;
     (canvas as unknown as { _clearAll: typeof receiveClear })._clearAll = receiveClear;
   }, [drawLine, receiveClear]);
+
+  useEffect(() => {
+    clearCanvas();
+    strokes.forEach((stroke) => drawLine(stroke.x1, stroke.y1, stroke.x2, stroke.y2));
+    // Rebuild whole gestures, including after echoes, timer snapshots, and reconnect.
+    const groups: DrawStroke[][] = [];
+    strokes.forEach((stroke) => {
+      const lastGroup = groups[groups.length - 1];
+      if (stroke.gestureId && lastGroup?.[0].gestureId === stroke.gestureId) {
+        lastGroup.push(stroke);
+      } else {
+        groups.push([stroke]);
+      }
+    });
+    groupsRef.current = groups;
+    queueMicrotask(() => setHasHistory(strokes.length > 0));
+  }, [clearCanvas, drawLine, strokes]);
 
   return (
     <div className="relative">
@@ -206,6 +222,7 @@ interface SpyGameState {
   locationIdx: number;
   usedLocationIndices: number[];
   drawerId: string;
+  drawStrokes: DrawStroke[];
   usedWordIndices: number[];
   spyId: string;
   spyStreakCount: number;
@@ -227,6 +244,7 @@ interface SpyGameState {
     spyCaught: boolean;
     exposedId: string;
     voteCount: number;
+    totalVotes?: number;
     viaGuess?: boolean;
     guessedRight?: boolean;
   } | null;
@@ -254,6 +272,7 @@ const mkInitial = (): SpyGameState => ({
   locationIdx: -1,
   usedLocationIndices: [],
   drawerId: '',
+  drawStrokes: [],
   usedWordIndices: [],
   spyId: '',
   spyStreakCount: 0,
@@ -360,30 +379,6 @@ const pickWord = (used: number[]): { word: string; idx: number } => {
   return { word: pick.w, idx: pick.i };
 };
 
-function resolveVoting(votes: Record<string, string>, s: SpyGameState): Partial<SpyGameState> {
-  const tally: Record<string, number> = {};
-  for (const suspectId of Object.values(votes)) {
-    tally[suspectId] = (tally[suspectId] ?? 0) + 1;
-  }
-
-  let exposedId = '';
-  let maxVotes = 0;
-  for (const [id, count] of Object.entries(tally)) {
-    if (count > maxVotes) {
-      maxVotes = count;
-      exposedId = id;
-    }
-  }
-
-  const spyCaught = exposedId === s.spyId;
-
-  return {
-    phase: 'roundResult',
-    voteTimerRunning: false,
-    roundResult: { spyCaught, exposedId, voteCount: maxVotes },
-  };
-}
-
 function resolveSpyGuess(correct: boolean, s: SpyGameState): Partial<SpyGameState> {
   return {
     phase: 'roundResult',
@@ -447,10 +442,9 @@ export default function SpyGamePage() {
     sendAction('spy:clear');
   }, [sendAction]);
 
-  const handleUndo = useCallback((remainingStrokes: DrawStroke[]) => {
-    sendClear();
-    remainingStrokes.forEach((stroke) => sendAction('spy:stroke', stroke));
-  }, [sendClear, sendAction]);
+  const handleUndo = useCallback((gestureId: string | undefined, strokeCount: number) => {
+    sendAction('spy:undo', { gestureId, strokeCount });
+  }, [sendAction]);
 
   useRoomState(roomId, (data) => {
     const room = data as { players: GamePlayer[] };
@@ -476,7 +470,11 @@ export default function SpyGamePage() {
 
       if (action === 'spy:sync') {
         const patch = payload as Partial<SpyGameState>;
-        if (patch.phase === 'voting') {
+        const startsVoting = patch.phase === 'voting' && (
+          sRef.current.phase !== 'voting'
+          || (patch.currentRound !== undefined && patch.currentRound !== sRef.current.currentRound)
+        );
+        if (startsVoting) {
           setLocalVote(null);
           setHasVoted(false);
         }
@@ -509,19 +507,6 @@ export default function SpyGamePage() {
               patch.guessTargetId = targetId;
               patch.guessCycleAnswered = cycleAnswered;
             }
-          }
-          broadcast(patch);
-          return { ...prev, ...patch };
-        });
-      }
-
-      if (action === 'spy:vote' && isGameHost) {
-        const { voterId, suspectId } = payload as { voterId: string; suspectId: string };
-        setS(prev => {
-          const newVotes = { ...prev.votes, [voterId]: suspectId };
-          const patch: Partial<SpyGameState> = { votes: newVotes };
-          if (Object.keys(newVotes).length >= prev.players.length) {
-            Object.assign(patch, resolveVoting(newVotes, prev));
           }
           broadcast(patch);
           return { ...prev, ...patch };
@@ -575,12 +560,14 @@ export default function SpyGamePage() {
       }
 
       if (action === 'spy:stroke') {
-        const { x1, y1, x2, y2 } = payload as unknown as DrawStroke;
+        const { x1, y1, x2, y2, gestureId } = payload as unknown as DrawStroke;
+        setS((prev) => ({ ...prev, drawStrokes: [...prev.drawStrokes, { x1, y1, x2, y2, gestureId }] }));
         const canvas = document.getElementById('spy-canvas') as HTMLCanvasElement | null;
         if (canvas) (canvas as unknown as { _drawLine?: (x1: number, y1: number, x2: number, y2: number) => void })._drawLine?.(x1, y1, x2, y2);
       }
 
       if (action === 'spy:clear') {
+        setS((prev) => ({ ...prev, drawStrokes: [] }));
         const canvas = document.getElementById('spy-canvas') as HTMLCanvasElement | null;
         if (canvas) (canvas as unknown as { _clearAll?: () => void })._clearAll?.();
       }
@@ -647,8 +634,7 @@ export default function SpyGamePage() {
 
       const newLeft = cur.voteTimerLeft - 1;
       if (newLeft <= 0) {
-        // The timer cannot expose the spy. Voting resolves only after every
-        // player has submitted a private vote in the action handler above.
+        // The server resolves only the votes received before this deadline.
         const patch = { voteTimerLeft: 0, voteTimerRunning: false };
         setS(prev => ({ ...prev, ...patch }));
         broadcast(patch);
@@ -718,6 +704,7 @@ export default function SpyGamePage() {
         usedWordIndices: [idx],
         ...spyAssignment,
         drawerId: '',
+        drawStrokes: [],
         playerOrder,
         playerOrderIdx: 0,
         guessAskerId: '',
@@ -757,6 +744,7 @@ export default function SpyGamePage() {
       usedWordIndices: [],
       ...spyAssignment,
       drawerId: '',
+      drawStrokes: [],
       playerOrder: shufflePlayers(s.players),
       playerOrderIdx: 0,
       guessAskerId: '',
@@ -817,18 +805,7 @@ export default function SpyGamePage() {
 
   const passTurn = () => {
     if (!isActivePlayer) return;
-    if (s.mode === 'guess') {
-      const newAsker = s.guessTargetId || s.playerOrder[(s.playerOrderIdx + 1) % Math.max(s.playerOrder.length, 1)] || '';
-      const { targetId, cycleAnswered } = pickNextTarget(s.players, newAsker, s.guessCycleAnswered);
-      update({ guessAskerId: newAsker, guessTargetId: targetId, guessCycleAnswered: cycleAnswered });
-      return;
-    }
-    const nextIdx = (s.playerOrderIdx + 1) % Math.max(s.playerOrder.length, 1);
-    const nextPlayerId = s.playerOrder[nextIdx] ?? '';
-    update({
-      playerOrderIdx: nextIdx,
-      drawerId: nextPlayerId,
-    });
+    sendAction('spy:pass-turn');
   };
 
   const replaceWord = () => {
@@ -848,6 +825,7 @@ export default function SpyGamePage() {
       usedWordIndices: [],
       ...spyAssignment,
       drawerId: '',
+      drawStrokes: [],
       playerOrder: shufflePlayers(s.players),
       playerOrderIdx: 0,
       guessAskerId: '',
@@ -895,7 +873,7 @@ export default function SpyGamePage() {
   };
 
   const handleSubmitVote = () => {
-    if (!localVote || hasVoted) return;
+    if (!localVote || hasVoted || s.phase !== 'voting' || s.voteTimerLeft <= 0) return;
     submitVote(localVote);
     setHasVoted(true);
   };
@@ -919,6 +897,7 @@ export default function SpyGamePage() {
         usedWordIndices: newUsed,
         ...spyAssignment,
         drawerId: '',
+        drawStrokes: [],
         playerOrder,
         playerOrderIdx: 0,
         guessAskerId: '',
@@ -958,6 +937,7 @@ export default function SpyGamePage() {
       usedWordIndices: [],
       ...spyAssignment,
       drawerId: '',
+      drawStrokes: [],
       playerOrder: shufflePlayers(s.players),
       playerOrderIdx: 0,
       guessAskerId: '',
@@ -1272,7 +1252,7 @@ export default function SpyGamePage() {
                 <span className="spy-live-kicker">{isActivePlayer ? l('ВАШ ХОД', 'YOUR TURN') : l('ОБЩИЙ ХОЛСТ', 'SHARED CANVAS')}</span>
                 <h1>{isActivePlayer ? l('Нарисуйте улику', 'Draw a clue') : l(`${activePlayerName} рисует`, `${activePlayerName} is drawing`)}</h1>
                 <p>{l('Не используйте буквы и цифры.', 'Do not use letters or numbers.')}</p>
-                <div className="spy-live-canvas"><DrawCanvas canDraw={isDrawer} onStroke={sendStroke} onClear={sendClear} onUndo={handleUndo} /><span>{l('ХОЛСТ СИНХРОНИЗИРУЕТСЯ С TV', 'CANVAS SYNCED WITH TV')}</span></div>
+                <div className="spy-live-canvas"><DrawCanvas canDraw={isDrawer} strokes={s.drawStrokes} onStroke={sendStroke} onClear={sendClear} onUndo={handleUndo} /><span>{l('ХОЛСТ СИНХРОНИЗИРУЕТСЯ С TV', 'CANVAS SYNCED WITH TV')}</span></div>
               </>
             )}
 
@@ -1316,15 +1296,15 @@ export default function SpyGamePage() {
               <span className="spy-live-kicker">{l('ТРЕБУЕТСЯ ПРОВЕРКА', 'REVIEW REQUIRED')}</span><h1>{l('Ответ можно засчитать?', 'Can this answer count?')}</h1><p>{l('Сравните версию шпиона с секретным словом.', 'Compare the spy guess with the secret word.')}</p>
               <div className="spy-live-compare"><div><span>{l('ОТВЕТ ШПИОНА', 'SPY ANSWER')}</span><b>{s.spyGuessText}</b></div><i>≠</i><div><span>{l('СЕКРЕТНОЕ СЛОВО', 'SECRET WORD')}</span><b>{s.word}</b></div></div>
               <button type="button" className="spy-live-primary" onClick={() => sendAction('spy:guess-verdict', { accept: true })}>{l('ДА, ЭТО ВЕРНЫЙ ОТВЕТ', 'YES, ACCEPT')}</button><button type="button" className="spy-live-danger" onClick={() => sendAction('spy:guess-verdict', { accept: false })}>{l('НЕТ, ОТКЛОНИТЬ', 'NO, REJECT')}</button>
-            </> : <div className="spy-live-wait"><div className="spy-live-alert"><SpyIcon name="mask" className="h-16 w-16" /></div><h1>{l(`${spyPlayerName} угадывает слово`, `${spyPlayerName} is guessing`)}</h1><BreathingPlaceholder text={l('Ответ вводится на личном экране', 'The answer is entered privately')} variant="breathing-text" /></div>}
+            </> : <div className="spy-live-wait"><div className="spy-live-alert"><SpyIcon name="mask" className="h-16 w-16" /></div><h1>{l('Шпион угадывает слово', 'The spy is guessing the word')}</h1><BreathingPlaceholder text={l('Ответ вводится на личном экране', 'The answer is entered privately')} variant="breathing-text" /></div>}
           </section>
         )}
 
         {!s.gameOver && s.phase === 'roundResult' && s.roundResult && (
           <section className="spy-live-screen spy-live-result">
-            {renderBackButton()}<span className="spy-live-kicker">{l('ДЕЛО ЗАКРЫТО', 'CASE CLOSED')}</span><div className={`spy-live-success ${s.roundResult.spyCaught ? '' : 'is-danger'}`}><SpyIcon name={s.roundResult.spyCaught ? 'shield' : 'mask'} className="h-16 w-16" /></div><h1>{s.roundResult.spyCaught ? l('Шпион раскрыт', 'Spy exposed') : l('Шпион победил', 'Spy wins')}</h1><p>{s.roundResult.viaGuess ? l('Результат определила последняя попытка шпиона.', 'The spy’s final attempt decided the round.') : l('Большинство завершило расследование.', 'The majority closed the investigation.')}</p>
+            {renderBackButton()}<span className="spy-live-kicker">{l('ДЕЛО ЗАКРЫТО', 'CASE CLOSED')}</span><div className={`spy-live-success ${s.roundResult.spyCaught ? '' : 'is-danger'}`}><SpyIcon name={s.roundResult.spyCaught ? 'shield' : 'mask'} className="h-16 w-16" /></div><h1>{s.roundResult.spyCaught ? l('Шпион раскрыт', 'Spy exposed') : l('Шпион победил', 'Spy wins')}</h1><p>{s.roundResult.viaGuess ? l('Результат определила последняя попытка шпиона.', 'The spy’s final attempt decided the round.') : l('Голосование завершено. Учтены только принятые голоса.', 'Voting is over. Only submitted votes count.')}</p>
             <div className="spy-live-result-grid"><div><span>{l('ШПИОН', 'SPY')}</span><b>{spyPlayerName}</b></div><div><span>{l('СЛОВО', 'WORD')}</span><b>{s.word}</b></div></div>
-            {!s.roundResult.viaGuess && <div className="spy-live-progress"><i style={{ width: `${Math.min(100, (s.roundResult.voteCount / Math.max(1, s.players.length)) * 100)}%` }} /><span>{s.roundResult.voteCount} {l('ИЗ', 'OF')} {s.players.length} {l('ГОЛОСОВ', 'VOTES')}</span></div>}
+            {!s.roundResult.viaGuess && <div className="spy-live-progress"><i style={{ width: `${Math.min(100, (s.roundResult.voteCount / Math.max(1, s.roundResult.totalVotes ?? Object.keys(s.votes).length)) * 100)}%` }} /><span>{s.roundResult.voteCount} {l('ИЗ', 'OF')} {s.roundResult.totalVotes ?? Object.keys(s.votes).length} {l('ГОЛОСОВ', 'VOTES')}</span></div>}
             {isGameHost ? <button type="button" className="spy-live-primary" onClick={nextRound}>{l('НОВОЕ СЛОВО', 'NEW WORD')}</button> : <BreathingPlaceholder text={l('Ведущий запустит следующий раунд', 'The host starts the next round')} variant="breathing-text" />}
           </section>
         )}

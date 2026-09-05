@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import { normalizePlayerName } from './player-name';
 
 export interface User {
   id: string;
@@ -62,7 +63,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queueMicrotask(() => {
       if (savedUser) {
         try {
-          setUser(JSON.parse(savedUser));
+          const parsed = JSON.parse(savedUser) as User;
+          const normalized = { ...parsed, nickname: normalizePlayerName(parsed.nickname ?? '') };
+          setUser(normalized);
+          if (normalized.nickname !== parsed.nickname) {
+            localStorage.setItem('party-hub-user', JSON.stringify(normalized));
+            if (normalized.phone) {
+              localStorage.setItem(`party-hub-user-${normalized.phone}`, JSON.stringify(normalized));
+            }
+          }
         } catch {}
       }
       setIsLoading(false);
@@ -114,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateNickname = useCallback((nickname: string) => {
     if (user) {
-      const updated = { ...user, nickname };
+      const updated = { ...user, nickname: normalizePlayerName(nickname) };
       saveUser(updated);
       if (user.phone) {
         localStorage.setItem(`party-hub-user-${user.phone}`, JSON.stringify(updated));

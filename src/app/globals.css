@@ -203,6 +203,63 @@ body {
   }
 }
 
+/* Quiz · approved Pulse Broadcast production motion */
+@keyframes quiz-pulse-sweep {
+  from { transform: translate3d(-180%, 0, 0) skewX(-12deg); }
+  to { transform: translate3d(1480%, 0, 0) skewX(-12deg); }
+}
+
+@keyframes quiz-pulse-glow-drift {
+  0%, 100% { opacity: .32; transform: translate3d(-5%, 3%, 0) scale(.94); }
+  50% { opacity: .62; transform: translate3d(10%, -7%, 0) scale(1.08); }
+}
+
+@keyframes quiz-pulse-answer-glint {
+  from { transform: translate3d(-160%, 0, 0) skewX(-18deg); }
+  to { transform: translate3d(700%, 0, 0) skewX(-18deg); }
+}
+
+.quiz-pulse-sweep {
+  transform: translate3d(-180%, 0, 0) skewX(-12deg);
+}
+
+.quiz-pulse-glow {
+  transform: translate3d(-5%, 3%, 0) scale(.94);
+}
+
+.quiz-pulse-answer::after {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 20%;
+  content: '';
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / .16), transparent);
+}
+
+.quiz-pulse-answer[data-selected='true']::after,
+.quiz-pulse-answer[data-correct='true']::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .quiz-pulse-sweep {
+    animation: quiz-pulse-sweep 7.5s linear infinite;
+    will-change: transform;
+  }
+
+  .quiz-pulse-glow {
+    animation: quiz-pulse-glow-drift 9s cubic-bezier(.45, 0, .55, 1) infinite;
+    will-change: transform, opacity;
+  }
+
+  .quiz-pulse-answer[data-selected='true']::after,
+  .quiz-pulse-answer[data-correct='true']::after {
+    animation: quiz-pulse-answer-glint .72s cubic-bezier(.22, 1, .36, 1) both;
+  }
+}
+
 /* ========================================
    Force-dark utility (.dark class on <html>)
    Used by lobby/TV pages for "always premium dark" mode
