@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CrocIcon } from "@/components/games/CrocIcon";
 import { useAuth } from "@/lib/auth-context";
 import { gameColors, type GameId } from "@/lib/design/tokens";
@@ -72,6 +72,7 @@ export default function JoinPage() {
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [qrShown, setQrShown] = useState(false);
   const [roomState, setRoomState] = useState<JoinRoomState | null>(null);
+  const autoRejoinAttemptRef = useRef("");
 
   const playerId = user?.id ?? guestPlayerId;
   const roomStateShowQrCode = roomState?.showQrCode;
@@ -148,8 +149,10 @@ export default function JoinPage() {
     if (!roomState || !playerId || joined) return;
     const existingPlayer = roomState.players.find((player) => player.id === playerId);
     if (!existingPlayer) return;
+    const attemptKey = `${code}:${playerId}`;
+    if (autoRejoinAttemptRef.current === attemptKey) return;
+    autoRejoinAttemptRef.current = attemptKey;
     queueMicrotask(() => {
-      setJoined(true);
       if (!nickname && existingPlayer.nickname) {
         setNickname(existingPlayer.nickname);
       }
@@ -163,11 +166,16 @@ export default function JoinPage() {
         role: "player",
         reconnectToken: getRoomReconnectToken(code, playerId),
       }, (res: unknown) => {
-        const result = res as { success?: boolean; reconnectToken?: string };
-        if (result.success) saveRoomReconnectToken(code, playerId, result.reconnectToken);
+        const result = res as { success?: boolean; error?: string; reconnectToken?: string };
+        if (result.success) {
+          saveRoomReconnectToken(code, playerId, result.reconnectToken);
+          setJoined(true);
+        } else {
+          setError(result.error ?? t.couldNotConnect[locale]);
+        }
       });
     });
-  }, [roomState, playerId, joined, nickname, emit, code]);
+  }, [roomState, playerId, joined, nickname, emit, code, locale]);
 
   const handleJoin = useCallback(() => {
     const trimmedNickname = normalizePlayerName(nickname);

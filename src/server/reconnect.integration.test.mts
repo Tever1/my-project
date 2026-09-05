@@ -351,6 +351,61 @@ test('every production game restores an existing player after a full socket reco
   }
 });
 
+test('quiz rejects an answer that arrives after server time has expired', async (t) => {
+  const httpServer = createServer();
+  const io = new SocketIOServer(httpServer, { path: '/api/socketio' });
+  setupSocketHandlers(io);
+  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  const address = httpServer.address();
+  assert(address && typeof address === 'object');
+  const url = `http://127.0.0.1:${address.port}`;
+  const owner = await connect(url);
+  const host = await connect(url);
+  const peer = await connect(url);
+
+  t.after(async () => {
+    [owner, host, peer].forEach((socket) => socket.disconnect());
+    await io.close();
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+  });
+
+  const created = await emitAck(owner, 'room:create', { playerId: 'quiz-owner', nickname: 'TV', role: 'tv' });
+  const code = String(created.code);
+  assert.equal((await emitAck(host, 'room:join', { code, playerId: 'host', nickname: 'Host', role: 'player' })).success, true);
+  assert.equal((await emitAck(peer, 'room:join', { code, playerId: 'peer', nickname: 'Peer', role: 'player' })).success, true);
+  host.emit('game:select', { code, gameType: 'quiz' });
+  const started = waitForEvent(peer, 'game:started', (value) => value.gameType === 'quiz');
+  host.emit('game:start', { code });
+  await started;
+
+  let observed = waitForEvent(peer, 'game:action', (value) => value.action === 'quiz:sync');
+  host.emit('game:action', { code, action: 'quiz:config', payload: { phase: 'waiting', scores: {}, answers: {}, showCorrect: false } });
+  await observed;
+  observed = waitForEvent(peer, 'game:action', (value) => value.action === 'quiz:sync');
+  host.emit('game:action', { code, action: 'quiz:countdown', payload: { value: 1, questionIndex: 0 } });
+  await observed;
+  observed = waitForEvent(peer, 'game:action', (value) => value.action === 'quiz:sync');
+  host.emit('game:action', {
+    code,
+    action: 'quiz:start-question',
+    payload: {
+      questionIndex: 0,
+      timeLeft: 1,
+      question: { questionRu: 'Q', questionEn: 'Q', options: [{ ru: 'A', en: 'A' }], correctIndex: 0 },
+    },
+  });
+  await observed;
+
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
+  peer.emit('game:action', { code, action: 'quiz:answer', payload: { playerId: 'peer', answerIndex: 0 } });
+  const snapshot = waitForEvent(peer, 'game:action', (value) => value.action === 'quiz:sync');
+  peer.emit('game:action', { code, action: 'quiz:request-state', payload: {} });
+  const restored = (await snapshot).payload as EventPayload;
+  assert.equal(restored.showCorrect, true);
+  assert.deepEqual(restored.answers, {});
+  assert.deepEqual(restored.correctPlayers, []);
+});
+
 test('room locale is Russian for phones and TV even when the creator browser sends English', async (t) => {
   const httpServer = createServer();
   const io = new SocketIOServer(httpServer, { path: '/api/socketio' });

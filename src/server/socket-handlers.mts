@@ -996,10 +996,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Game action (generic handler for all games)
     socket.on('game:action', (data: { code: string; action: string; payload: Record<string, unknown> }) => {
       const room = getRoomByCode(data.code);
-      if (room?.currentGame === 'spy' && socketBelongsToRoom(room, socket.id)) {
+      if (room && socketBelongsToRoom(room, socket.id)) {
         const previousPhase = room.gameState?.phase;
         materializeRoomSnapshot(room);
-        if (previousPhase === 'voting' && room.gameState?.phase === 'roundResult') {
+        if (room.currentGame === 'spy' && previousPhase === 'voting' && room.gameState?.phase === 'roundResult') {
           broadcastSnapshot(io, room, 'server:timer');
         }
       }
