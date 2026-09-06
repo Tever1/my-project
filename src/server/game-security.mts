@@ -112,7 +112,7 @@ export function isRequestStateAction(action: string, payload: unknown): boolean 
 }
 
 export function isStateSyncAction(action: string, payload: unknown): boolean {
-  if (['croc:state', 'croc:tick', 'alias:state', 'quiz:sync', 'spy:sync', 'h2o:sync'].includes(action)) {
+  if (['croc:state', 'croc:tick', 'alias:state', 'alias:tick', 'quiz:sync', 'spy:sync', 'h2o:sync'].includes(action)) {
     return true;
   }
   if (action !== 'mafia' && action !== 'who-am-i') return false;
@@ -418,7 +418,13 @@ export function reduceGameSnapshot(
       && next.phase === 'explaining'
       && numberValue(current.turnNumber) === numberValue(next.turnNumber)
       && stringValue(current.explainerId) === stringValue(next.explainerId);
-    if (isSameCrocodileTurn) {
+    const isSameAliasTurn = action === 'alias:state'
+      && current?.phase === 'explaining'
+      && next.phase === 'explaining'
+      && numberValue(current.round) === numberValue(next.round)
+      && numberValue(current.activeTeamIndex) === numberValue(next.activeTeamIndex)
+      && activeAliasExplainer(record(current)) === activeAliasExplainer(next);
+    if (isSameCrocodileTurn || isSameAliasTurn) {
       next.timeLeft = Math.min(numberValue(current?.timeLeft), numberValue(next.timeLeft));
     }
     return next;
@@ -456,12 +462,31 @@ export function reduceGameSnapshot(
       if (next.phase === 'voting' && numberValue(next.voteTimerLeft) <= 0) finishSpyVoting(next);
     }
     if (action === 'h2o:sync') {
-      if (previous.r4Running && typeof payload.r4Time === 'number' && numberValue(payload.r4Time) > numberValue(previous.r4Time)) {
+      const sameAnsweringTurn = previous.phase === 'bigGame' && next.phase === 'bigGame'
+        && (previous.bgPhase === 1 || previous.bgPhase === 3)
+        && next.bgPhase === previous.bgPhase;
+      if (sameAnsweringTurn) {
+        const answerKey = previous.bgPhase === 1 ? 'bgP1Ans' : 'bgP2Ans';
+        const answers = Array.isArray(previous[answerKey]) ? previous[answerKey] : [];
+        const incoming = payload[answerKey];
+        // A delayed submission must not undo accepted answers, cursor or pause state.
+        if ((typeof payload.bgCurQ === 'number' && payload.bgCurQ < numberValue(previous.bgCurQ))
+          || (Array.isArray(incoming) && (incoming.length < answers.length
+            || answers.some((answer, index) => incoming[index] !== answer)))) return previous;
+      }
+      if (typeof previous.r4Time === 'number' && typeof payload.r4Time === 'number'
+        && next.phase === previous.phase) {
         next.r4Time = previous.r4Time;
       }
-      if ((previous.bgPhase === 1 || previous.bgPhase === 3) && !previous.bgTimerPaused
-        && numberValue(previous.bgTimeLeft) > 0 && typeof payload.bgTimeLeft === 'number'
-        && numberValue(payload.bgTimeLeft) > numberValue(previous.bgTimeLeft)) {
+      if (payload.r4Reset === true) {
+        next.r4Time = 60;
+        next.r4Running = false;
+      }
+      delete next.r4Reset;
+      if (numberValue(next.r4Time) <= 0) next.r4Running = false;
+      if ((previous.bgPhase === 1 || previous.bgPhase === 3)
+        && (payload.bgPhase === undefined || payload.bgPhase === previous.bgPhase)
+        && typeof payload.bgTimeLeft === 'number' && payload.bgTimeLeft !== 0) {
         next.bgTimeLeft = previous.bgTimeLeft;
       }
       if (numberValue(previous.buzzerCountdown) > 0 && typeof payload.buzzerCountdown === 'number'
@@ -651,16 +676,23 @@ export function advanceTimedSnapshot(
   }
 
   if (gameType === 'hundred-to-one') {
-    if (next.buzzerCountdown && numberValue(next.buzzerCountdown) > 0) {
+    if (next.phase === 'buzzer' && numberValue(next.buzzerCountdown) > 0) {
       next.buzzerCountdown = Math.max(0, numberValue(next.buzzerCountdown) - elapsedSeconds);
       if (next.buzzerCountdown === 0) next.buzzerActive = true;
     }
-    if (next.r4Running) {
+    if (next.phase === 'playing' && next.r4Running) {
       subtract('r4Time', elapsedSeconds);
       if (next.r4Time === 0) next.r4Running = false;
     }
-    if ((next.bgPhase === 1 || next.bgPhase === 3) && !next.bgTimerPaused) {
+    if (next.phase === 'bigGame' && (next.bgPhase === 1 || next.bgPhase === 3) && !next.bgTimerPaused && !next.bgAwaitingReady) {
       subtract('bgTimeLeft', elapsedSeconds);
+      if (next.bgTimeLeft === 0) {
+        const key = next.bgPhase === 1 ? 'bgP1Ans' : 'bgP2Ans';
+        const answers = Array.isArray(next[key]) ? [...next[key]] : [];
+        while (answers.length < 5) answers.push('—');
+        next[key] = answers;
+        next.bgCurQ = 5;
+      }
     }
     return next;
   }
@@ -681,6 +713,9 @@ function activeAliasExplainer(snapshot: UnknownRecord): string | null {
 
 function sanitizeMafia(snapshotValue: GameSnapshot, recipient: GameRecipient): GameSnapshot {
   const snapshot = cloneRecord(snapshotValue);
+  snapshot.abilityBlocked = Boolean(recipient.playerId && snapshot.phase === 'night'
+    && strings(snapshot.alive).includes(recipient.playerId)
+    && snapshot.loverVisit === recipient.playerId);
   if (recipient.isMafiaHost || recipient.isGameHost && snapshot.phase === 'lobby') return snapshot;
   const roles = record(snapshot.roles) as Record<string, string>;
   const myRole = recipient.playerId ? roles[recipient.playerId] : undefined;
@@ -861,8 +896,8 @@ export function validateMafiaActorAction(snapshotValue: GameSnapshot | null, sen
   if (type === 'maniac-kill') return payload.maniacId === senderId && stage === 'maniac' && role === 'maniac' && (!targetId || targetAlive && targetId !== senderId);
   if (type === 'don-check-sheriff') return payload.donId === senderId && stage === 'don' && role === 'don' && Boolean(roles[targetId]) && targetId !== senderId;
   if (type === 'lover-visit') return payload.loverId === senderId && stage === 'lover' && role === 'lover' && targetAlive && targetId !== senderId && targetId !== snapshot.lastLoverVisit;
-  if (type === 'detective-check') return payload.detectiveId === senderId && stage === 'detective' && role === 'detective' && targetAlive && targetId !== senderId;
-  if (type === 'doctor-save') return payload.doctorId === senderId && stage === 'doctor' && role === 'doctor' && targetAlive && targetId !== senderId && targetId !== snapshot.lastDoctorSave;
+  if (type === 'detective-check') return !snapshot.detectiveCheck && payload.detectiveId === senderId && stage === 'detective' && role === 'detective' && targetAlive && targetId !== senderId;
+  if (type === 'doctor-save') return !snapshot.doctorSave && payload.doctorId === senderId && stage === 'doctor' && role === 'doctor' && targetAlive && targetId !== senderId && targetId !== snapshot.lastDoctorSave;
   return false;
 }
 

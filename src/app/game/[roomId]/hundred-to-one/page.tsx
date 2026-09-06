@@ -46,6 +46,7 @@ interface GState {
   r4Running: boolean;
   // Big game
   bgPhase: number; // 0=intro,1=p1,2=check1,3=p2,4=check2,5=result
+  bgAwaitingReady?: boolean;
   bgP1Ans: string[];
   bgP2Ans: string[];
   bgP1Matched: (string | null)[];
@@ -98,44 +99,8 @@ const mkInitial = (): GState => ({
 
 const isBgAnsweringPhase = (phase: number | undefined) => phase === 1 || phase === 3;
 
-const mergeH2OSyncState = (prev: GState, payload: Partial<GState>): GState => {
-  const next = { ...prev, ...payload };
-  const sameActiveBigGame =
-    prev.phase === 'bigGame' &&
-    payload.phase !== 'final' &&
-    isBgAnsweringPhase(prev.bgPhase) &&
-    payload.bgPhase === prev.bgPhase;
-
-  if (!sameActiveBigGame) return next;
-
-  const incomingCurQ = typeof payload.bgCurQ === 'number' ? payload.bgCurQ : prev.bgCurQ;
-  if (incomingCurQ < prev.bgCurQ) {
-    next.bgCurQ = prev.bgCurQ;
-    next.bgTimeLeft = prev.bgTimeLeft;
-    next.bgTimerPaused = prev.bgTimerPaused;
-    next.bgP1Ans = prev.bgP1Ans;
-    next.bgP2Ans = prev.bgP2Ans;
-    return next;
-  }
-
-  if (incomingCurQ === prev.bgCurQ) {
-    if (typeof payload.bgTimeLeft === 'number' && payload.bgTimeLeft > prev.bgTimeLeft) {
-      next.bgTimeLeft = prev.bgTimeLeft;
-    }
-    if (payload.bgTimerPaused === true && prev.bgTimerPaused === false) {
-      next.bgTimerPaused = false;
-    }
-    if (payload.bgP1Ans && payload.bgP1Ans.length < prev.bgP1Ans.length) {
-      next.bgP1Ans = prev.bgP1Ans;
-    }
-    if (payload.bgP2Ans && payload.bgP2Ans.length < prev.bgP2Ans.length) {
-      next.bgP2Ans = prev.bgP2Ans;
-    }
-  }
-
-  return next;
-};
-
+// Every received snapshot is canonical and already sanitized for this player.
+const mergeH2OSyncState = (prev: GState, payload: Partial<GState>): GState => ({ ...prev, ...payload });
 const H2O_SURFACE =
   "bg-[radial-gradient(900px_580px_at_18%_8%,rgba(245,158,11,.18),transparent_58%),radial-gradient(800px_520px_at_86%_10%,rgba(251,191,36,.11),transparent_56%),linear-gradient(145deg,#170f08_0%,#2b1807_36%,#120c08_70%,#080606_100%)] before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(78deg,transparent_0_24%,rgba(245,158,11,.13)_25%,transparent_35%),linear-gradient(104deg,transparent_0_61%,rgba(245,158,11,.11)_62%,transparent_72%)] after:absolute after:left-1/2 after:top-[12%] after:-z-10 after:h-[360px] after:w-[360px] after:-translate-x-1/2 after:rounded-full after:bg-[radial-gradient(circle,rgba(245,158,11,.20),transparent_68%)] after:blur-[34px]";
 const H2O_GLASS =
@@ -364,6 +329,15 @@ export default function HundredToOnePage() {
     const unsub = on('game:action', (data: unknown) => {
       const { action, payload } = data as { action: string; payload: Partial<GState> };
       if (action === 'h2o:sync') {
+        const previous = sRef.current;
+        if (previous.roles[effectivePlayerId ?? ''] === 'host') {
+          const oldTime = previous.phase === 'bigGame' ? previous.bgTimeLeft : previous.r4Time;
+          const newTime = previous.phase === 'bigGame' ? payload.bgTimeLeft : payload.r4Time;
+          if (typeof newTime === 'number' && newTime < oldTime) {
+            if (newTime === 0) sndBuzz();
+            else if (newTime <= (previous.phase === 'bigGame' ? 5 : 10)) sndTick();
+          }
+        }
         setS(prev => {
           const next = mergeH2OSyncState(prev, payload);
           sRef.current = next;
@@ -448,21 +422,8 @@ export default function HundredToOnePage() {
     broadcast(patch);
   };
 
-  const buzzerCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startBuzzer = () => {
     update({ buzzerCountdown: 3, buzzerActive: false, buzzerWinner: 0 });
-    if (buzzerCountdownRef.current) clearInterval(buzzerCountdownRef.current);
-    let count = 3;
-    buzzerCountdownRef.current = setInterval(() => {
-      count--;
-      if (count <= 0) {
-        if (buzzerCountdownRef.current) clearInterval(buzzerCountdownRef.current);
-        buzzerCountdownRef.current = null;
-        update({ buzzerCountdown: 0, buzzerActive: true });
-      } else {
-        update({ buzzerCountdown: count });
-      }
-    }, 1000);
   };
 
   const buzzerPressed = (team: number) => {
@@ -669,27 +630,10 @@ export default function HundredToOnePage() {
   };
 
   // ── Round 4 timer (1 min discussion) ──
-  const startR4Interval = useCallback(() => {
-    if (r4Ref.current) return;
-    r4Ref.current = setInterval(() => {
-      setS(prev => {
-        const t = prev.r4Time - 1;
-        if (t <= 10 && t > 0) sndTick();
-        if (t <= 0) {
-          if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; }
-          sndBuzz();
-          broadcast({ r4Time: 0, r4Running: false });
-          return { ...prev, r4Time: 0, r4Running: false };
-        }
-        broadcast({ r4Time: t, r4Running: true });
-        return { ...prev, r4Time: t };
-      });
-    }, 1000);
-  }, [broadcast]);
-  const r4Start = () => { update({ r4Running: true }); startR4Interval(); };
+  const r4Start = () => { update({ r4Running: true }); };
   const r4Pause = () => { if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; } update({ r4Running: false }); };
   const r4Stop = () => { if (r4Ref.current) { clearInterval(r4Ref.current); r4Ref.current = null; } };
-  const r4Reset = () => { r4Stop(); update({ r4Time: 60, r4Running: false }); };
+  const r4Reset = () => { r4Stop(); broadcast({ r4Reset: true } as Partial<GState>); };
 
   // ── Big Game ──
   const bgSelectPlayer = (slot: 1 | 2, playerId: string) => {
@@ -705,91 +649,8 @@ export default function HundredToOnePage() {
 
   const bgStartPlayer = (player: 1 | 2) => {
     const time = player === 1 ? 30 : 40;
-    update({ bgPhase: player === 1 ? 1 : 3, bgCurQ: 0, bgTimeLeft: time, bgTimerTotal: time, bgTimerPaused: false, ...(player === 1 ? { bgP1Ans: [] } : { bgP2Ans: [] }) });
-    // Start timer
-    if (bgTimerRef.current) clearInterval(bgTimerRef.current);
-    bgTimerRef.current = setInterval(() => {
-      setS(prev => {
-        if (prev.bgTimerPaused) return prev;
-        const t = prev.bgTimeLeft - 1;
-        if (t <= 5 && t > 0) sndTick();
-        if (t <= 0) {
-          if (bgTimerRef.current) { clearInterval(bgTimerRef.current); bgTimerRef.current = null; }
-          sndBuzz();
-          // Fill remaining with '—' but don't auto-transition — wait for manual button
-          const ans = prev.bgPhase === 1 ? [...prev.bgP1Ans] : [...prev.bgP2Ans];
-          while (ans.length < 5) ans.push('—');
-          const patch = { bgTimeLeft: 0, bgCurQ: 5, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
-          sRef.current = { ...sRef.current, ...patch };
-          broadcast(patch);
-          return { ...prev, ...patch };
-        }
-        sRef.current = { ...sRef.current, bgTimeLeft: t };
-        broadcast({ bgTimeLeft: t });
-        return { ...prev, bgTimeLeft: t };
-      });
-    }, 1000);
+    broadcast({ bgPhase: player === 1 ? 1 : 3, bgCurQ: 0, bgTimeLeft: time, bgTimerTotal: time, bgTimerPaused: false, ...(player === 1 ? { bgP1Ans: [] } : { bgP2Ans: [] }) });
   };
-
-  useEffect(() => {
-    if (isGameHost && s.phase === 'playing' && s.r4Running && s.r4Time > 0) {
-      startR4Interval();
-    }
-  }, [isGameHost, s.phase, s.r4Running, s.r4Time, startR4Interval]);
-
-  useEffect(() => {
-    const current = sRef.current;
-    if (!isGameHost || current.phase !== 'buzzer' || current.buzzerCountdown <= 0 || buzzerCountdownRef.current) return;
-    buzzerCountdownRef.current = setInterval(() => {
-      const countdown = sRef.current.buzzerCountdown - 1;
-      if (countdown <= 0) {
-        if (buzzerCountdownRef.current) clearInterval(buzzerCountdownRef.current);
-        buzzerCountdownRef.current = null;
-        update({ buzzerCountdown: 0, buzzerActive: true });
-      } else {
-        update({ buzzerCountdown: countdown });
-      }
-    }, 1000);
-    return () => {
-      if (buzzerCountdownRef.current) {
-        clearInterval(buzzerCountdownRef.current);
-        buzzerCountdownRef.current = null;
-      }
-    };
-  }, [isGameHost, s.phase, update]);
-
-  useEffect(() => {
-    const current = sRef.current;
-    if (!isGameHost || current.phase !== 'bigGame' || !isBgAnsweringPhase(current.bgPhase)
-      || current.bgTimerPaused || current.bgTimeLeft <= 0 || bgTimerRef.current) return;
-    bgTimerRef.current = setInterval(() => {
-      setS((prev) => {
-        if (prev.bgTimerPaused || prev.bgTimeLeft <= 0) return prev;
-        const t = prev.bgTimeLeft - 1;
-        if (t <= 5 && t > 0) sndTick();
-        if (t <= 0) {
-          if (bgTimerRef.current) clearInterval(bgTimerRef.current);
-          bgTimerRef.current = null;
-          sndBuzz();
-          const ans = prev.bgPhase === 1 ? [...prev.bgP1Ans] : [...prev.bgP2Ans];
-          while (ans.length < 5) ans.push('—');
-          const timerPatch = { bgTimeLeft: 0, bgCurQ: 5, ...(prev.bgPhase === 1 ? { bgP1Ans: ans } : { bgP2Ans: ans }) };
-          sRef.current = { ...sRef.current, ...timerPatch };
-          broadcast(timerPatch);
-          return { ...prev, ...timerPatch };
-        }
-        sRef.current = { ...sRef.current, bgTimeLeft: t };
-        broadcast({ bgTimeLeft: t });
-        return { ...prev, bgTimeLeft: t };
-      });
-    }, 1000);
-    return () => {
-      if (bgTimerRef.current) {
-        clearInterval(bgTimerRef.current);
-        bgTimerRef.current = null;
-      }
-    };
-  }, [broadcast, isGameHost, s.bgPhase, s.bgTimerPaused, s.phase]);
 
   useEffect(() => {
     if (!isGameHost || s.phase !== 'buzzer' || s.buzzerWinner <= 0 || s.buzzerActive) return;
@@ -910,7 +771,10 @@ export default function HundredToOnePage() {
   // ── Derived ──
   const scores = [{ name: s.t1n, score: s.t1s }, { name: s.t2n, score: s.t2s }];
   const allRevealed = q ? s.qState[s.curQ]?.every(a => a.rev) : false;
-  const canNext = allRevealed || s.roundPhase[s.curQ] === 'won' || s.roundPhase[s.curQ] === 'showonly' || s.roundPhase[s.curQ] === 'switched';
+  const canNext = s.roundPhase[s.curQ] !== 'switched' && (allRevealed || s.roundPhase[s.curQ] === 'won' || s.roundPhase[s.curQ] === 'showonly');
+  const awaitingMyStart = s.bgAwaitingReady && effectivePlayerId === (s.bgPhase === 1 ? s.bgP1Id : s.bgP2Id);
+  const awaitingMyTurn = effectivePlayerId === s.bgP2Id && s.bgPhase <= 2;
+  const hideBigQuestions = s.bgAwaitingReady || awaitingMyTurn;
 
   // ── RENDER ──
   return (
@@ -1136,7 +1000,8 @@ export default function HundredToOnePage() {
                 </div>
               </div>
               {/* Host can skip if needed */}
-              <button onClick={() => update({ phase: 'teamNames' })} className="mt-4 text-xs text-white/25 hover:text-white/50">
+              <button disabled={!s.captains.team1 || !s.captains.team2}
+                onClick={() => update({ phase: 'teamNames' })} className="mt-4 text-xs text-white/25 hover:text-white/50 disabled:cursor-not-allowed disabled:opacity-30">
                 {l('Пропустить', 'Skip')} →
               </button>
             </div>
@@ -1299,7 +1164,7 @@ export default function HundredToOnePage() {
           </div>
           <div className="my-[12px] flex items-center justify-center gap-[10px]">
             <span className="font-mono text-[12.5px] font-bold uppercase tracking-[2.5px] text-amber-200">{l(`Раунд ${s.curQ + 1}`, `Round ${s.curQ + 1}`)} · {roundNames[s.curQ]}</span>
-            <span className="rounded-full border border-amber-300/40 bg-amber-500/[.13] px-[9px] py-0.5 font-mono text-[12px] font-bold text-amber-400">×{s.curQ + 1}</span>
+            {s.curQ < 3 && <span className="rounded-full border border-amber-300/40 bg-amber-500/[.13] px-[9px] py-0.5 font-mono text-[12px] font-bold text-amber-400">×{s.curQ + 1}</span>}
           </div>
           {s.curQ <= 2 && (
             <div className={`${H2O_GLASS_STRONG} grid grid-cols-[auto_1fr_auto] items-center gap-[14px] rounded-[var(--radius-xl)] px-4 py-[10px]`}>
@@ -1423,7 +1288,7 @@ export default function HundredToOnePage() {
           </div>
 
           <div className="my-[10px] flex items-center justify-center gap-[10px]">
-            <span className="font-mono text-[12px] font-bold uppercase tracking-[2px] text-amber-200">{l(`Раунд ${s.curQ + 1}`, `Round ${s.curQ + 1}`)} · ×{s.curQ + 1}</span>
+            <span className="font-mono text-[12px] font-bold uppercase tracking-[2px] text-amber-200">{l(`Раунд ${s.curQ + 1}`, `Round ${s.curQ + 1}`)}{s.curQ < 3 ? ` · ×${s.curQ + 1}` : ` · ${l('ИГРА НАОБОРОТ', 'REVERSE GAME')}`}</span>
             {isGameHost && s.curQ <= 2 && s.roundPhase[s.curQ] === 'start' && s.roundActiveTeam[s.curQ] > 0 && (
               <button type="button" onClick={() => setTeamChooser(true)} className={`${H2O_GLASS} inline-flex items-center gap-1.5 rounded-full px-[11px] py-[5px] font-mono text-[11px] uppercase tracking-[1px] text-white/65 hover:bg-white/[.10]`}>
                 <HundredToOneIcon name="shuffle" className="h-[13px] w-[13px] text-amber-200" />
@@ -1633,7 +1498,13 @@ export default function HundredToOnePage() {
           )}
 
           {/* Active player input: show only current question + timer */}
-          {(s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 &&
+          {(awaitingMyStart || awaitingMyTurn) && s.bgPhase >= 1 && (
+            <div className={`${H2O_GLASS_STRONG} rounded-[var(--radius-xl)] p-6 text-center`}>
+              <p className="mb-4">{awaitingMyStart ? l('Готовы отвечать? Таймер начнётся после подтверждения.', 'Ready to answer? The timer starts after you confirm.') : l('Ожидайте своего хода', 'Wait for your turn')}</p>
+              {awaitingMyStart && <button type="button" className={H2O_PRIMARY_BUTTON} onClick={() => sendAction('h2o:sync', { bgReady: true })}>{l('ГОТОВ — НАЧАТЬ', 'READY — START')}</button>}
+            </div>
+          )}
+          {!hideBigQuestions && (s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 &&
             (s.bgPhase === 1 ? effectivePlayerId === s.bgP1Id : effectivePlayerId === s.bgP2Id) && (
             <div className="mb-3">
               <div className="mb-3 flex items-start justify-between gap-3">
@@ -1645,8 +1516,8 @@ export default function HundredToOnePage() {
                     {s.players.find(p => p.id === (s.bgPhase === 1 ? s.bgP1Id : s.bgP2Id))?.nickname || '—'}, {l('отвечай быстро — первое, что придёт в голову', 'answer fast — first thing that comes to mind')}
                   </div>
                 </div>
-                <div className={`${H2O_GLASS} inline-flex items-center gap-2 rounded-full px-4 py-[9px] text-[22px] font-extrabold text-amber-100`}>
-                  <HundredToOneIcon name="timer" className="h-[19px] w-[19px] text-amber-400" />
+                <div className={`${H2O_GLASS} inline-flex w-[116px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-[9px] text-[22px] font-extrabold tabular-nums text-amber-100`}>
+                  <HundredToOneIcon name="timer" className="h-[19px] w-[19px] shrink-0 text-amber-400" />
                   {Math.floor(s.bgTimeLeft / 60)}:{(s.bgTimeLeft % 60).toString().padStart(2, '0')}
                 </div>
               </div>
@@ -1675,7 +1546,7 @@ export default function HundredToOnePage() {
           {!(
             (s.bgPhase === 1 || s.bgPhase === 3) && s.bgTimeLeft > 0 && s.bgCurQ < 5 &&
             (s.bgPhase === 1 ? effectivePlayerId === s.bgP1Id : effectivePlayerId === s.bgP2Id)
-          ) && s.bgPhase >= 1 && (
+          ) && s.bgPhase >= 1 && !hideBigQuestions && (
             <>
               <div className="mb-3 space-y-[7px]">
                 {BIG_Q.map((qq, i) => {

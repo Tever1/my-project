@@ -7,6 +7,7 @@ import { useSocket } from '@/lib/use-socket';
 import { useGameAction } from '@/lib/use-game-action';
 import { useTranslation } from '@/lib/i18n';
 import { formatGameTime } from '@/lib/format-game-time';
+import { ALIAS_CLASSIC_TARGET_SCORE, ALIAS_LETTER_TARGET_SCORE } from '@/lib/alias-classic.mts';
 import { getWhoAmIActivePlayerId, getWhoAmINextTurnIndex } from '@/lib/who-am-i-flow';
 import { GAMES } from '@/lib/games-config';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
@@ -110,6 +111,7 @@ interface H2OState {
   roundPhase: string[];
   r4Time: number;
   bgPhase: number;
+  bgAwaitingReady?: boolean;
   bgP1Ans: string[]; bgP2Ans: string[];
   bgP1Matched: (string | null)[]; bgP2Matched: (string | null)[];
   bgFund: number; bgCurQ: number; bgTimeLeft: number;
@@ -334,13 +336,19 @@ export default function TVGamePage() {
     round: number; totalRounds: number;
     turnHistory: { word: { ru: string; en: string }; guessed: boolean }[];
     currentLetter: string;
+    finalWordPending?: boolean;
+    finalWordAwardTeamIndex?: number | null;
+    finishingRound?: number | null;
+    lastTurnDeltas?: Record<string, number>;
   }>({
     phase: 'waiting', mode: 'classic', teams: [], activeTeamIndex: 0, explainerIndex: 0,
     explainerIndices: [],
     currentWordIndex: -1, timeLeft: 60, wordsGuessed: 0, wordsSkipped: 0,
     round: 1, totalRounds: 4, turnHistory: [], currentLetter: '',
+    finalWordPending: false, finalWordAwardTeamIndex: null, finishingRound: null, lastTurnDeltas: {},
   });
   const [mafiaState, setMafiaState] = useState<{
+    dayTimer?: number;
     phase: string;
     hostPlayerId: string | null;
     nightStage: 'mafia' | 'lover' | 'maniac' | 'doctor' | 'detective' | 'don' | null;
@@ -611,6 +619,9 @@ export default function TVGamePage() {
       if (action === 'mafia') {
         const mp = payload as { type: string; roles?: Record<string, string>; role?: string; hostPlayerId?: string; stage?: 'mafia' | 'lover' | 'maniac' | 'doctor' | 'detective' | 'don'; killedId?: string | null; killedIds?: string[]; saved?: boolean; playerId?: string; playerIds?: string[]; voterId?: string; winner?: string; round?: number; candidates?: string[]; state?: unknown };
         switch (mp.type) {
+          case 'day-timer':
+            setMafiaState(prev => ({ ...prev, dayTimer: (payload as unknown as { value: number }).value }));
+            break;
           case 'select-host':
             setMafiaState(prev => ({
               ...prev,
@@ -620,6 +631,7 @@ export default function TVGamePage() {
             break;
           case 'sync-state': {
             const state = mp.state as {
+              dayTimer?: number;
               phase: string;
               hostPlayerId?: string | null;
               nightStage?: 'mafia' | 'lover' | 'maniac' | 'doctor' | 'detective' | 'don' | null;
@@ -634,6 +646,7 @@ export default function TVGamePage() {
               lastVoteTargetIds?: string[];
             };
             setMafiaState({
+              dayTimer: state.dayTimer,
               phase: state.phase,
               hostPlayerId: state.hostPlayerId ?? null,
               nightStage: state.nightStage ?? null,
@@ -1378,6 +1391,24 @@ export default function TVGamePage() {
           )}
 
           {/* Playing phase */}
+          {h.phase === 'r4rules' && (
+            <>
+              <div className="flex items-center justify-between"><H2OTVBrand />{h2oLivePill}</div>
+              <div className="flex flex-1 items-center justify-center">
+                <section className={`${H2O_TV_GLASS_STRONG} w-full max-w-[1100px] rounded-[var(--radius-2xl)] p-12`}>
+                  <h2 className="mb-8 text-center text-[52px] font-extrabold text-amber-200">{l('ИГРА НАОБОРОТ', 'REVERSE GAME')}</h2>
+                  <ol className="list-decimal space-y-5 pl-10 text-[28px] leading-snug">
+                    <li>{l('Обе команды отвечают на один и тот же вопрос', 'Both teams answer the same question')}</li>
+                    <li>{l('Команды обсуждают ответ 60 секунд', 'Teams discuss their answer for 60 seconds')}</li>
+                    <li>{l('Нужно найти самый редкий ответ', 'Find the rarest answer')}</li>
+                    <li>{l('Чем ниже ответ в списке — тем больше очков!', 'The lower the answer is on the list, the more points it gives!')}</li>
+                    <li>{l('Очки: 15, 30, 60, 120, 180, 240', 'Points: 15, 30, 60, 120, 180, 240')}</li>
+                  </ol>
+                  <p className="mt-8 text-center text-[24px] text-white/60">{l('Ведущий начнёт раунд…', 'Waiting for the host to start…')}</p>
+                </section>
+              </div>
+            </>
+          )}
           {h.phase === 'playing' && q && (
             <>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center">
@@ -1385,7 +1416,7 @@ export default function TVGamePage() {
                 <div className={`${H2O_TV_GLASS} inline-flex items-center gap-[14px] rounded-full px-[30px] py-[14px]`}>
                   <HundredToOneIcon name="board" className="h-[26px] w-[26px] text-amber-400" />
                   <b className="text-[26px] font-extrabold uppercase tracking-[2px] text-amber-200">РАУНД {h.curQ + 1} · {H2O_ROUND_NAMES[h.curQ]}</b>
-                  <span className="rounded-full border border-amber-300/40 bg-amber-500/[.13] px-3 py-1 font-mono text-[20px] font-bold text-amber-400">×{h.curQ + 1}</span>
+                  {h.curQ < 3 && <span className="rounded-full border border-amber-300/40 bg-amber-500/[.13] px-3 py-1 font-mono text-[20px] font-bold text-amber-400">×{h.curQ + 1}</span>}
                 </div>
                 <div className="flex justify-end">{h2oLivePill}</div>
               </div>
@@ -1500,7 +1531,16 @@ export default function TVGamePage() {
 
           {/* Big Game phase */}
           {h.phase === 'bigGame' && (
-            h.bgPhase === 0 ? (
+            h.bgAwaitingReady ? (
+              <>
+                <div className="flex items-center justify-between"><H2OTVBrand />{h2oLivePill}</div>
+                <div className="flex flex-1 flex-col items-center justify-center gap-8 text-center">
+                  <h2 className="text-[52px] font-extrabold text-amber-200">{l('БОЛЬШАЯ ИГРА', 'BIG GAME')}</h2>
+                  <p className="text-[34px]">{h2oPlayerName(h.bgPhase === 1 ? h.bgP1Id : h.bgP2Id)}</p>
+                  <p className="text-[28px] text-white/60">{l('Ждём подтверждения готовности на телефоне игрока', 'Waiting for the player to confirm readiness on their phone')}</p>
+                </div>
+              </>
+            ) : h.bgPhase === 0 ? (
               <>
                 <div className="flex items-center justify-between">
                   <H2OTVBrand />
@@ -1550,7 +1590,7 @@ export default function TVGamePage() {
                         const match2 = h.bgP2Matched[i];
                         const current = i === h.bgCurQ && (h.bgPhase === 1 || h.bgPhase === 3);
                         const chip = (ans?: string, match?: string | null) => {
-                          if (!ans) return <span className="rounded-full border border-dashed border-white/16 bg-white/[.04] px-4 py-2 font-bold tracking-[3px] text-white/25">···</span>;
+                          if (!ans) return null;
                           if (match) return <span className="inline-flex items-center gap-2 rounded-full border border-green-300/40 bg-green-500/[.13] px-4 py-2 text-[19px] font-bold text-green-300"><HundredToOneIcon name="check" className="h-[19px] w-[19px]" strokeWidth={2.2} />{ans} +{qq.answers.find(a => a.t === match)?.p || 0}</span>;
                           return <span className="inline-flex items-center gap-2 rounded-full border border-red-300/35 bg-red-500/[.11] px-4 py-2 text-[19px] font-bold text-red-200"><HundredToOneIcon name="cross" className="h-[19px] w-[19px]" strokeWidth={2.2} />{ans}</span>;
                         };
@@ -1568,7 +1608,7 @@ export default function TVGamePage() {
                   <div className="flex flex-col gap-[22px]">
                     <div className={`${H2O_TV_GLASS_STRONG} flex flex-1 flex-col items-center justify-center gap-[10px] rounded-[var(--radius-2xl)]`}>
                       <span className="font-mono text-[15px] uppercase tracking-[4px] text-white/40">Осталось</span>
-                      <span className="text-[128px] font-extrabold leading-none tracking-[-4px] text-[#fffbeb] drop-shadow-[0_0_44px_rgba(245,158,11,.4)]">
+                      <span className="text-[128px] font-extrabold tabular-nums leading-none tracking-[-4px] text-[#fffbeb] drop-shadow-[0_0_44px_rgba(245,158,11,.4)]">
                         {Math.floor(h.bgTimeLeft / 60)}:{(h.bgTimeLeft % 60).toString().padStart(2, '0')}
                       </span>
                       <div className="mt-1 flex items-center gap-3">
@@ -1813,19 +1853,26 @@ export default function TVGamePage() {
       : '';
     const explainerName = getPlayerName(explainerId);
     const aliasDuration = aliasState.mode === 'letter' ? 90 : 60;
+    const aliasTargetScore = aliasState.mode === 'letter' ? ALIAS_LETTER_TARGET_SCORE : ALIAS_CLASSIC_TARGET_SCORE;
     const aliasTimerRadius = 118;
     const aliasTimerCirc = 2 * Math.PI * aliasTimerRadius;
     const aliasTimerRatio = Math.max(0, Math.min(1, aliasState.timeLeft / aliasDuration));
     const aliasTimerOffset = aliasTimerCirc * (1 - aliasTimerRatio);
     const aliasSortedTeams = [...aliasState.teams].sort((a, b) => b.score - a.score);
     const aliasWinner = aliasSortedTeams[0];
-    const aliasTurnPoints = aliasState.mode === 'letter' ? aliasState.wordsGuessed : aliasState.wordsGuessed - aliasState.wordsSkipped;
+    const aliasTurnPoints = aliasState.mode === 'letter'
+      ? aliasState.wordsGuessed
+      : aliasState.lastTurnDeltas?.[activeTeam?.id ?? ''] ?? aliasState.wordsGuessed - aliasState.wordsSkipped;
+    const aliasFinalWordTeam = aliasState.finalWordAwardTeamIndex !== null
+      && aliasState.finalWordAwardTeamIndex !== undefined
+      ? aliasState.teams[aliasState.finalWordAwardTeamIndex]
+      : null;
     const aliasGuessedWords = aliasState.turnHistory.filter((item) => item.guessed);
     const aliasSkippedWords = aliasState.turnHistory.filter((item) => !item.guessed);
     return (
       <GameSurface className="alias-live-tv">
         <div className="alias-live-tv-decor" aria-hidden="true">{Array.from({ length: 22 }, (_, index) => <i key={index} />)}</div>
-        <header><div><AliasIcon name="speech" className="h-11 w-11" /><span><b>{l('УГАДАЙ СЛОВО', 'GUESS THE WORD')}</b><small>{aliasState.mode === 'classic' ? l('КЛАССИКА', 'CLASSIC') : l('НА БУКВУ', 'LETTER MODE')}</small></span></div></header>
+        <header><div><AliasIcon name="speech" className="h-11 w-11" /><span><b>{l('УГАДАЙ СЛОВО', 'GUESS THE WORD')}</b><small>{aliasState.mode === 'classic' ? l('КЛАССИКА', 'CLASSIC') : l('НА БУКВУ', 'LETTER MODE')}{aliasState.teams.length > 0 ? ` · ${l('РАУНД', 'ROUND')} ${aliasState.round}` : ''}</small></span></div></header>
         <main>
           {/* WAITING / MODE SELECT — no game yet */}
           {(aliasState.phase === 'modeSelect' || (aliasState.phase === 'waiting' && aliasState.teams.length === 0)) && (
@@ -1847,7 +1894,7 @@ export default function TVGamePage() {
           )}
 
           {aliasState.phase === 'letterRule' && (
-            <section className="alias-live-tv-setup"><small>{l('ПРАВИЛО ЛИЧНОГО РАУНДА', 'INDIVIDUAL ROUND RULE')}</small><h1>{l('Объясняйте только на букву', 'Explain only using the letter')}</h1><div className="alias-live-tv-bigletter"><span>{l('БУКВА ПЕРВОГО ХОДА', 'FIRST TURN LETTER')}</span><b>{aliasState.currentLetter}</b><small>{l('90 СЕКУНД · ПРОПУСК БЕЗ ШТРАФА', '90 SECONDS · NO SKIP PENALTY')}</small></div></section>
+            <section className="alias-live-tv-setup"><small>{l('ПРАВИЛО ЛИЧНОГО РАУНДА', 'INDIVIDUAL ROUND RULE')}</small><h1>{l('Объясняйте только на букву', 'Explain only using the letter')}</h1><div className="alias-live-tv-bigletter"><span>{l('БУКВА МЕНЯЕТСЯ ПОСЛЕ КАЖДОГО УГАДАННОГО СЛОВА', 'LETTER CHANGES AFTER EVERY GUESSED WORD')}</span><b>{aliasState.currentLetter}</b><small>{l('90 СЕКУНД · ЦЕЛЬ 15 · ПРОПУСК БЕЗ ШТРАФА', '90 SECONDS · FIRST TO 15 · NO SKIP PENALTY')}</small></div></section>
           )}
 
           {/* WAITING for explainer to start turn */}
@@ -1858,15 +1905,15 @@ export default function TVGamePage() {
           {/* EXPLAINING */}
           {aliasState.phase === 'explaining' && (
             <section className="alias-live-tv-playing">
-              <div className="alias-live-tv-timer"><svg viewBox="0 0 260 260"><circle cx="130" cy="130" r={aliasTimerRadius} /><circle className={aliasState.timeLeft <= 10 ? 'danger' : ''} cx="130" cy="130" r={aliasTimerRadius} strokeDasharray={aliasTimerCirc} strokeDashoffset={aliasTimerOffset} transform="rotate(-90 130 130)" /></svg><b>{aliasState.timeLeft}</b><small>{l('СЕКУНД', 'SECONDS')}</small></div>
-              <div className="alias-live-tv-focus"><small>{l('СЕЙЧАС ОБЪЯСНЯЕТ', 'NOW EXPLAINING')}</small><h1>{explainerName}</h1>{aliasState.mode === 'letter' ? <div className="alias-live-tv-letter"><span>{l('ОБЪЯСНЯЙТЕ НА БУКВУ', 'EXPLAIN USING LETTER')}</span><b>{aliasState.currentLetter}</b></div> : <div className="alias-live-tv-team"><div>{(activeTeam?.playerIds ?? []).slice(0, 4).map((id) => <i key={id}>{getPlayerName(id).slice(0, 1).toUpperCase()}</i>)}</div><span>{l(`КОМАНДА «${activeTeam?.name ?? ''}» УГАДЫВАЕТ`, `TEAM “${activeTeam?.name ?? ''}” IS GUESSING`)}</span></div>}<div className="alias-live-tv-counters"><span><AliasIcon name="check" className="h-7 w-7" /><b>{aliasState.wordsGuessed}</b><small>{l('УГАДАНО', 'GUESSED')}</small></span><span><AliasIcon name="cross" className="h-7 w-7" /><b>{aliasState.wordsSkipped}</b><small>{l('ПРОПУЩЕНО', 'SKIPPED')}</small></span></div></div>
-              <aside><small>{l('ТАБЛИЦА ОЧКОВ', 'SCOREBOARD')}</small>{aliasSortedTeams.slice(0, 8).map((team, index) => <article className={team.id === activeTeam?.id ? 'active' : ''} key={team.id}><span>0{index + 1}</span><b>{team.name}</b><strong>{team.score}</strong></article>)}</aside>
+              <div className="alias-live-tv-timer"><svg viewBox="0 0 260 260"><circle cx="130" cy="130" r={aliasTimerRadius} /><circle className={aliasState.timeLeft <= 10 ? 'danger' : ''} cx="130" cy="130" r={aliasTimerRadius} strokeDasharray={aliasTimerCirc} strokeDashoffset={aliasTimerOffset} transform="rotate(-90 130 130)" /></svg><b>{aliasState.timeLeft}</b><small>{aliasState.mode === 'classic' && aliasState.timeLeft <= 0 ? l('ПОСЛЕДНЕЕ СЛОВО', 'FINAL WORD') : l('СЕКУНД', 'SECONDS')}</small></div>
+              <div className="alias-live-tv-focus"><small>{aliasState.finalWordPending ? l('ОБЪЯСНЯЮЩИЙ ВЫБИРАЕТ КОМАНДУ', 'EXPLAINER IS CHOOSING A TEAM') : aliasState.mode === 'classic' && aliasState.timeLeft <= 0 ? l('ВРЕМЯ ВЫШЛО · ДОИГРЫВАЕМ СЛОВО', 'TIME IS UP · FINISH THE WORD') : l('СЕЙЧАС ОБЪЯСНЯЕТ', 'NOW EXPLAINING')}</small><h1>{explainerName}</h1>{aliasState.mode === 'letter' ? <div className="alias-live-tv-letter"><span>{l('ОБЪЯСНЯЙТЕ НА БУКВУ', 'EXPLAIN USING LETTER')}</span><b>{aliasState.currentLetter}</b></div> : <div className="alias-live-tv-team"><div>{(activeTeam?.playerIds ?? []).slice(0, 4).map((id) => <i key={id}>{getPlayerName(id).slice(0, 1).toUpperCase()}</i>)}</div><span>{aliasState.finalWordPending ? l('КОМУ ЗАСЧИТАТЬ ПОСЛЕДНЕЕ СЛОВО?', 'WHO GETS THE FINAL WORD?') : l(`КОМАНДА «${activeTeam?.name ?? ''}» УГАДЫВАЕТ`, `TEAM “${activeTeam?.name ?? ''}” IS GUESSING`)}</span></div>}<div className="alias-live-tv-counters"><span><AliasIcon name="check" className="h-7 w-7" /><b>{aliasState.wordsGuessed}</b><small>{l('УГАДАНО', 'GUESSED')}</small></span><span><AliasIcon name="cross" className="h-7 w-7" /><b>{aliasState.wordsSkipped}</b><small>{l('ПРОПУЩЕНО', 'SKIPPED')}</small></span></div></div>
+              <aside><small>{l('ТАБЛИЦА ОЧКОВ', 'SCOREBOARD')}</small>{aliasSortedTeams.slice(0, 8).map((team, index) => <article className={team.id === activeTeam?.id ? 'active' : ''} key={team.id}><span>0{index + 1}</span><b>{team.name}</b><strong>{team.score}/{aliasTargetScore}</strong></article>)}</aside>
             </section>
           )}
 
           {/* TURN RESULT */}
           {aliasState.phase === 'turnResult' && (
-            <section className="alias-live-tv-result"><small>{l('ВРЕМЯ ВЫШЛО', 'TIME IS UP')}</small><h1>{aliasTurnPoints > 0 ? '+' : ''}{aliasTurnPoints}</h1><p>{aliasState.mode === 'classic' ? activeTeam?.name : explainerName} · {l('ОЧКОВ ЗА ХОД', 'POINTS THIS TURN')}</p><div className="alias-live-tv-result-stats"><span><i>✓</i><b>{aliasState.wordsGuessed}</b><small>{l('УГАДАНО', 'GUESSED')}</small></span><span><i>×</i><b>{aliasState.wordsSkipped}</b><small>{l('ПРОПУЩЕНО', 'SKIPPED')}</small></span></div>{aliasState.turnHistory.length > 0 && <div className="alias-live-tv-ledger"><article><b><i>✓</i>{l('УГАДАНЫ', 'GUESSED')} · {aliasGuessedWords.length}</b><div>{aliasGuessedWords.map((item, index) => <span key={`${item.word.ru}-${index}`}>{locale === 'ru' ? item.word.ru : item.word.en}</span>)}</div></article><article className="skipped"><b><i>×</i>{l('ПРОПУЩЕНЫ', 'SKIPPED')} · {aliasSkippedWords.length}</b><div>{aliasSkippedWords.map((item, index) => <span key={`${item.word.ru}-${index}`}>{locale === 'ru' ? item.word.ru : item.word.en}</span>)}</div></article></div>}<aside>{aliasSortedTeams.slice(0, 8).map((team, index) => <article className={index === 0 ? 'active' : ''} key={team.id}><span>0{index + 1}</span><b>{team.name}</b><strong>{team.score}</strong></article>)}</aside></section>
+            <section className="alias-live-tv-result"><small>{aliasState.finishingRound !== null && aliasState.finishingRound !== undefined ? l('ФИНАЛЬНЫЙ РАУНД', 'FINAL ROUND') : l('ВРЕМЯ ВЫШЛО', 'TIME IS UP')}</small><h1>{aliasTurnPoints > 0 ? '+' : ''}{aliasTurnPoints}</h1><p>{aliasState.mode === 'classic' ? activeTeam?.name : explainerName} · {l('ОЧКОВ ЗА ХОД', 'POINTS THIS TURN')}{aliasFinalWordTeam ? ` · ${l('последнее слово', 'final word')} → ${aliasFinalWordTeam.name}` : ''}</p><div className="alias-live-tv-result-stats"><span><i>✓</i><b>{aliasState.wordsGuessed}</b><small>{l('УГАДАНО', 'GUESSED')}</small></span><span><i>×</i><b>{aliasState.wordsSkipped}</b><small>{l('ПРОПУЩЕНО', 'SKIPPED')}</small></span></div>{aliasState.turnHistory.length > 0 && <div className="alias-live-tv-ledger"><article><b><i>✓</i>{l('УГАДАНЫ', 'GUESSED')} · {aliasGuessedWords.length}</b><div>{aliasGuessedWords.map((item, index) => <span key={`${item.word.ru}-${index}`}>{locale === 'ru' ? item.word.ru : item.word.en}</span>)}</div></article><article className="skipped"><b><i>×</i>{l('ПРОПУЩЕНЫ', 'SKIPPED')} · {aliasSkippedWords.length}</b><div>{aliasSkippedWords.map((item, index) => <span key={`${item.word.ru}-${index}`}>{locale === 'ru' ? item.word.ru : item.word.en}</span>)}</div></article></div>}<aside>{aliasSortedTeams.slice(0, 8).map((team, index) => <article className={index === 0 ? 'active' : ''} key={team.id}><span>0{index + 1}</span><b>{team.name}</b><strong>{team.score}/{aliasTargetScore}</strong></article>)}</aside></section>
           )}
 
           {/* FINISHED */}
@@ -1874,7 +1921,7 @@ export default function TVGamePage() {
             <section className="alias-live-tv-finished"><div><AliasIcon name="trophy" className="h-28 w-28" /></div><small>{l('ИГРА ОКОНЧЕНА · ПОБЕДИТЕЛЬ', 'GAME OVER · WINNER')}</small><h1>{aliasWinner?.name ?? '—'}</h1><strong>{aliasWinner?.score ?? 0} <span>{l('ОЧКОВ', 'POINTS')}</span></strong><section>{aliasSortedTeams.slice(0, 4).map((team, index) => <article key={team.id}><span>{index + 1}</span><b>{team.name}</b><strong>{team.score}</strong></article>)}</section></section>
           )}
         </main>
-        <footer><span>{aliasState.phase === 'turnResult' ? l('РЕЗУЛЬТАТЫ ХОДА ОТКРЫТЫ', 'TURN RESULTS REVEALED') : l('СЕКРЕТНЫЕ СЛОВА ВИДИТ ТОЛЬКО ОБЪЯСНЯЮЩИЙ', 'ONLY THE EXPLAINER SEES SECRET WORDS')}</span><b>{aliasState.phase === 'finished' ? l('СПАСИБО ЗА ИГРУ', 'THANKS FOR PLAYING') : aliasSortedTeams.slice(0, 2).map((team) => `${team.name} ${team.score}`).join(' · ')}</b></footer>
+        <footer><span>{aliasState.phase === 'turnResult' ? l('РЕЗУЛЬТАТЫ ХОДА ОТКРЫТЫ', 'TURN RESULTS REVEALED') : l('СЕКРЕТНЫЕ СЛОВА ВИДИТ ТОЛЬКО ОБЪЯСНЯЮЩИЙ', 'ONLY THE EXPLAINER SEES SECRET WORDS')}</span><b>{aliasState.phase === 'finished' ? l('СПАСИБО ЗА ИГРУ', 'THANKS FOR PLAYING') : aliasSortedTeams.slice(0, 2).map((team) => `${team.name} ${team.score}/${aliasTargetScore}`).join(' · ')}</b></footer>
         {qrOverlay}
       </GameSurface>
     );
@@ -2015,6 +2062,9 @@ export default function TVGamePage() {
 
         {ms.phase === 'day' && (
           <div className="flex flex-1 flex-col justify-center">
+            <div className="text-center font-mono text-4xl tabular-nums text-[#d6b46a]" aria-label={l('До голосования', 'Until voting')}>
+              {Math.floor((ms.dayTimer ?? 60) / 60)}:{String((ms.dayTimer ?? 60) % 60).padStart(2, '0')}
+            </div>
             <span className="text-center font-mono text-sm font-bold uppercase tracking-[0.24em] text-[#d6b46a]">{locale === 'ru' ? `Утро · День ${ms.round}` : `Morning · Day ${ms.round}`}</span>
             <div className={`${club.tvEvent} mt-7`}>
               <h2>

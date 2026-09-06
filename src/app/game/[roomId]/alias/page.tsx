@@ -11,6 +11,14 @@ import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import { useTranslation } from '@/lib/i18n';
 import { ALIAS_WORDS } from '@/lib/game-data';
+import {
+  ALIAS_CLASSIC_TARGET_SCORE,
+  ALIAS_LETTER_TARGET_SCORE,
+  getAliasFinishingRound,
+  pickNextAliasLetter,
+  scoreClassicTurn,
+  shouldFinishAliasRound,
+} from '@/lib/alias-classic.mts';
 import { Player } from '@/types/room';
 
 // ---------------------------------------------------------------------------
@@ -43,11 +51,15 @@ interface AliasGameState {
   usedWordIndices: number[];
   turnHistory: { word: { ru: string; en: string }; guessed: boolean }[];
   currentLetter: string;          // letter mode: the letter to use for explanations
+  finalWordPending?: boolean;     // classic mode: choose which team gets the word after time expires
+  finalWordAwardTeamIndex?: number | null;
+  finishingRound?: number | null; // complete the current round after the mode target is reached
+  lastTurnDeltas?: Record<string, number>;
 }
 
 const TURN_DURATION_CLASSIC = 60;
 const TURN_DURATION_LETTER = 90;
-const DEFAULT_ROUNDS = 4; // each team plays this many turns
+const LEGACY_DEFAULT_ROUNDS = 4; // retained in synchronized state for backward compatibility
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,9 +78,9 @@ function pickRandomWordIndex(usedIndices: number[]): number {
 const RU_LETTERS = 'АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЭЮЯ'.split('');
 const EN_LETTERS = 'ABCDEFGHIJKLMNOPRSTUVW'.split('');
 
-function pickRandomLetter(locale: string): string {
+function pickRandomLetter(locale: string, previousLetter = ''): string {
   const letters = locale === 'ru' ? RU_LETTERS : EN_LETTERS;
-  return letters[Math.floor(Math.random() * letters.length)];
+  return pickNextAliasLetter(letters, previousLetter);
 }
 
 function getAliasWordSizeClass(word: string): string {
@@ -297,14 +309,16 @@ export default function AliasPage() {
       setGameState((prev) => {
         if (!prev || prev.phase !== 'explaining') return prev;
         const newTime = prev.timeLeft - 1;
-        broadcast('alias:tick', { timeLeft: Math.max(newTime, 0) });
+        const next = { ...prev, timeLeft: Math.max(newTime, 0) };
+        gameStateRef.current = next;
+        broadcast('alias:tick', { timeLeft: next.timeLeft });
 
         if (newTime <= 0) {
           if (timerRef.current) clearInterval(timerRef.current);
-          setTimeout(() => finishTurn(prev), 0);
-          return { ...prev, timeLeft: 0 };
+          if (prev.mode === 'letter') setTimeout(() => finishTurn(next), 0);
+          return next;
         }
-        return { ...prev, timeLeft: newTime };
+        return next;
       });
     }, 1000);
 
@@ -453,10 +467,14 @@ export default function AliasPage() {
         wordsGuessed: 0,
         wordsSkipped: 0,
         round: 1,
-        totalRounds: DEFAULT_ROUNDS,
+        totalRounds: LEGACY_DEFAULT_ROUNDS,
         usedWordIndices: [firstWord],
         turnHistory: [],
         currentLetter: pickRandomLetter(locale),
+        finalWordPending: false,
+        finalWordAwardTeamIndex: null,
+        finishingRound: null,
+        lastTurnDeltas: {},
       };
 
       setGameState(initial);
@@ -480,10 +498,14 @@ export default function AliasPage() {
         wordsGuessed: 0,
         wordsSkipped: 0,
         round: 1,
-        totalRounds: DEFAULT_ROUNDS,
+        totalRounds: LEGACY_DEFAULT_ROUNDS,
         usedWordIndices: [firstWord],
         turnHistory: [],
         currentLetter: '',
+        finalWordPending: false,
+        finalWordAwardTeamIndex: null,
+        finishingRound: null,
+        lastTurnDeltas: {},
       };
 
       setGameState(teamSelectState);
@@ -505,7 +527,11 @@ export default function AliasPage() {
       wordsSkipped: 0,
       turnHistory: [],
       currentLetter: gameState.currentLetter,
+      finalWordPending: false,
+      finalWordAwardTeamIndex: null,
+      lastTurnDeltas: {},
     };
+    gameStateRef.current = updated;
     setGameState(updated);
     broadcast('alias:state', updated);
   }, [gameState, broadcast]);
@@ -516,28 +542,59 @@ export default function AliasPage() {
 
   const finishTurn = useCallback(
     (prev: AliasGameState) => {
-      // Letter mode: the explainer's individual score is awarded live.
-      // Classic mode: apply wordsGuessed - wordsSkipped to the active team.
-      const updatedTeams =
-        prev.mode === 'letter'
-          ? prev.teams
-          : prev.teams.map((t, i) =>
-              i === prev.activeTeamIndex
-                ? { ...t, score: t.score + (prev.wordsGuessed - prev.wordsSkipped) }
-                : t,
-            );
-
       const result: AliasGameState = {
         ...prev,
         phase: 'turnResult',
-        teams: updatedTeams,
         timeLeft: 0,
+        finalWordPending: false,
       };
+      gameStateRef.current = result;
       setGameState(result);
       broadcast('alias:state', result);
     },
     [broadcast],
   );
+
+  const awardFinalWord = useCallback((teamIndex: number, resolvedWordIndex?: number) => {
+    const current = gameStateRef.current ?? gameState;
+    if (!isHost || !current || current.mode !== 'classic' || current.phase !== 'explaining'
+      || current.timeLeft > 0 || !current.finalWordPending || !current.teams[teamIndex]) return;
+
+    const wordIndex = resolvedWordIndex ?? current.currentWordIndex;
+    if (wordIndex < 0 || !ALIAS_WORDS[wordIndex]) return;
+
+    const scored = scoreClassicTurn({
+      teams: current.teams,
+      activeTeamIndex: current.activeTeamIndex,
+      wordsGuessedBeforeFinal: current.wordsGuessed,
+      wordsSkipped: current.wordsSkipped,
+      finalWordTeamIndex: teamIndex,
+    });
+    const finishingRound = getAliasFinishingRound(
+      current.finishingRound ?? null,
+      current.round,
+      scored.teams,
+      ALIAS_CLASSIC_TARGET_SCORE,
+    );
+    const result: AliasGameState = {
+      ...current,
+      phase: 'turnResult',
+      teams: scored.teams,
+      timeLeft: 0,
+      wordsGuessed: current.wordsGuessed + 1,
+      turnHistory: [
+        ...current.turnHistory,
+        { word: ALIAS_WORDS[wordIndex], guessed: true },
+      ],
+      finalWordPending: false,
+      finalWordAwardTeamIndex: teamIndex,
+      finishingRound,
+      lastTurnDeltas: scored.deltas,
+    };
+    gameStateRef.current = result;
+    setGameState(result);
+    broadcast('alias:state', result);
+  }, [broadcast, gameState, isHost]);
 
   // ------------------------------------------------------------------
   // Host: next turn
@@ -551,9 +608,16 @@ export default function AliasPage() {
     const nextTeamIndex = (gameState.activeTeamIndex + 1) % teamCount;
     const newRound = nextTeamIndex === 0 ? gameState.round + 1 : gameState.round;
 
-    // Check if game is over
-    if (newRound > gameState.totalRounds) {
+    const finishingRoundComplete = shouldFinishAliasRound(
+      gameState.activeTeamIndex,
+      teamCount,
+      gameState.round,
+      gameState.finishingRound ?? null,
+    );
+
+    if (finishingRoundComplete) {
       const finished: AliasGameState = { ...gameState, phase: 'finished' };
+      gameStateRef.current = finished;
       setGameState(finished);
       broadcast('alias:state', finished);
       return;
@@ -585,8 +649,12 @@ export default function AliasPage() {
       wordsSkipped: 0,
       usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
       turnHistory: [],
-      currentLetter: gameState.mode === 'letter' ? pickRandomLetter(locale) : gameState.currentLetter,
+      currentLetter: gameState.mode === 'letter' ? pickRandomLetter(locale, gameState.currentLetter) : gameState.currentLetter,
+      finalWordPending: false,
+      finalWordAwardTeamIndex: null,
+      lastTurnDeltas: {},
     };
+    gameStateRef.current = next;
     setGameState(next);
     broadcast('alias:state', next);
   }, [gameState, broadcast, locale]);
@@ -603,53 +671,79 @@ export default function AliasPage() {
   // ------------------------------------------------------------------
 
   const handleGuessed = useCallback((resolvedWordIndex?: number) => {
-    if (!isHost || !gameState || gameState.phase !== 'explaining') return;
+    const current = gameStateRef.current ?? gameState;
+    if (!isHost || !current || current.phase !== 'explaining' || current.finalWordPending) return;
 
-    const isLetter = gameState.mode === 'letter';
-    const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
+    const isLetter = current.mode === 'letter';
+    if (!isLetter && current.timeLeft <= 0) {
+      const pending: AliasGameState = { ...current, timeLeft: 0, finalWordPending: true };
+      gameStateRef.current = pending;
+      setGameState(pending);
+      broadcast('alias:state', pending);
+      return;
+    }
+
+    const wordIndex = resolvedWordIndex ?? current.currentWordIndex;
+    if (wordIndex < 0 || !ALIAS_WORDS[wordIndex]) return;
+    const nextWordIdx = pickRandomWordIndex(current.usedWordIndices);
 
     // Letter mode: award +1 to the active explainer's team live
     const updatedTeams = isLetter
-      ? gameState.teams.map((t, i) =>
-          i === gameState.activeTeamIndex ? { ...t, score: t.score + 1 } : t,
+      ? current.teams.map((t, i) =>
+          i === current.activeTeamIndex ? { ...t, score: t.score + 1 } : t,
         )
-      : gameState.teams;
+      : current.teams;
+    const finishingRound = isLetter
+      ? getAliasFinishingRound(
+          current.finishingRound ?? null,
+          current.round,
+          updatedTeams,
+          ALIAS_LETTER_TARGET_SCORE,
+        )
+      : current.finishingRound;
 
     const updated: AliasGameState = {
-      ...gameState,
+      ...current,
       currentWordIndex: nextWordIdx,
-      wordsGuessed: gameState.wordsGuessed + 1,
+      wordsGuessed: current.wordsGuessed + 1,
       teams: updatedTeams,
-      usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
+      finishingRound,
+      usedWordIndices: [...current.usedWordIndices, nextWordIdx],
       turnHistory: [
-        ...gameState.turnHistory,
-        { word: ALIAS_WORDS[resolvedWordIndex ?? gameState.currentWordIndex], guessed: true },
+        ...current.turnHistory,
+        { word: ALIAS_WORDS[wordIndex], guessed: true },
       ],
-      currentLetter: gameState.currentLetter,
+      currentLetter: isLetter ? pickRandomLetter(locale, current.currentLetter) : current.currentLetter,
     };
+    gameStateRef.current = updated;
     setGameState(updated);
     broadcast('alias:state', updated);
-  }, [isHost, gameState, broadcast]);
+  }, [isHost, gameState, broadcast, locale]);
 
   // ------------------------------------------------------------------
   // Host: word skipped (-1)
   // ------------------------------------------------------------------
 
   const handleSkip = useCallback((resolvedWordIndex?: number) => {
-    if (!isHost || !gameState || gameState.phase !== 'explaining') return;
+    const current = gameStateRef.current ?? gameState;
+    if (!isHost || !current || current.phase !== 'explaining' || current.finalWordPending
+      || (current.mode === 'classic' && current.timeLeft <= 0)) return;
 
-    const nextWordIdx = pickRandomWordIndex(gameState.usedWordIndices);
+    const wordIndex = resolvedWordIndex ?? current.currentWordIndex;
+    if (wordIndex < 0 || !ALIAS_WORDS[wordIndex]) return;
+    const nextWordIdx = pickRandomWordIndex(current.usedWordIndices);
     const updated: AliasGameState = {
-      ...gameState,
+      ...current,
       currentWordIndex: nextWordIdx,
-      wordsSkipped: gameState.wordsSkipped + 1,
-      usedWordIndices: [...gameState.usedWordIndices, nextWordIdx],
+      wordsSkipped: current.wordsSkipped + 1,
+      usedWordIndices: [...current.usedWordIndices, nextWordIdx],
       turnHistory: [
-        ...gameState.turnHistory,
-        { word: ALIAS_WORDS[resolvedWordIndex ?? gameState.currentWordIndex], guessed: false },
+        ...current.turnHistory,
+        { word: ALIAS_WORDS[wordIndex], guessed: false },
       ],
-      currentLetter: gameState.currentLetter,
+      currentLetter: current.currentLetter,
     };
+    gameStateRef.current = updated;
     setGameState(updated);
     broadcast('alias:state', updated);
   }, [isHost, gameState, broadcast]);
@@ -667,6 +761,13 @@ export default function AliasPage() {
 
   const runWordAction = useCallback((direction: 'left' | 'right') => {
     if (cardExitDirection || gameState?.phase !== 'explaining') return;
+    if (gameState.mode === 'classic' && gameState.timeLeft <= 0) {
+      if (direction === 'right') {
+        if (isHost) handleGuessed();
+        else emitAction('alias:guessed');
+      }
+      return;
+    }
     setCardExitDirection(direction);
     if (direction === 'left') {
       if (isHost) handleSkip();
@@ -682,7 +783,12 @@ export default function AliasPage() {
       setCardExitDirection(null);
       cardMotionTimerRef.current = null;
     }, reducedMotion ? 20 : 360);
-  }, [cardExitDirection, gameState?.phase, isHost, handleSkip, handleGuessed, emitAction]);
+  }, [cardExitDirection, gameState?.mode, gameState?.phase, gameState?.timeLeft, isHost, handleSkip, handleGuessed, emitAction]);
+
+  const chooseFinalWordTeam = useCallback((teamIndex: number) => {
+    if (isHost) awardFinalWord(teamIndex);
+    else broadcast('alias:award-final-word', { teamIndex });
+  }, [awardFinalWord, broadcast, isHost]);
 
   useEffect(() => {
     if (!isHost) return;
@@ -690,6 +796,9 @@ export default function AliasPage() {
       const { action, payload, from } = data as { action: string; payload: Record<string, unknown>; from: string };
       if (action === 'alias:guessed') handleGuessed(payload.resolvedWordIndex as number | undefined);
       if (action === 'alias:skip') handleSkip(payload.resolvedWordIndex as number | undefined);
+      if (action === 'alias:award-final-word') {
+        awardFinalWord(payload.teamIndex as number, payload.resolvedWordIndex as number | undefined);
+      }
       if (action === 'alias:begin-turn') beginTurn();
       if (action === 'alias:next-turn') nextTurn();
       if (action === 'alias:join-team') {
@@ -717,7 +826,7 @@ export default function AliasPage() {
       }
     });
     return cleanup;
-  }, [isHost, on, handleGuessed, handleSkip, beginTurn, nextTurn, broadcast, handleJoinTeam, handleRandomizeTeams, finalizeTeams, setTeamName, continueFromTeamNames, continueIndividualSetup, continueLetterRule]);
+  }, [isHost, on, handleGuessed, handleSkip, awardFinalWord, beginTurn, nextTurn, broadcast, handleJoinTeam, handleRandomizeTeams, finalizeTeams, setTeamName, continueFromTeamNames, continueIndividualSetup, continueLetterRule]);
 
   // ------------------------------------------------------------------
   // End game
@@ -737,8 +846,18 @@ export default function AliasPage() {
   const turnPoints = gameState
     ? gameState.mode === 'letter'
       ? gameState.wordsGuessed
-      : gameState.wordsGuessed - gameState.wordsSkipped
+      : gameState.lastTurnDeltas?.[activeTeam?.id ?? ''] ?? gameState.wordsGuessed - gameState.wordsSkipped
     : 0;
+  const finalWordAwardTeam = gameState?.finalWordAwardTeamIndex !== null
+    && gameState?.finalWordAwardTeamIndex !== undefined
+    ? gameState.teams[gameState.finalWordAwardTeamIndex]
+    : null;
+  const finishesAfterCurrentResult = gameState && shouldFinishAliasRound(
+    gameState.activeTeamIndex,
+    gameState.teams.length,
+    gameState.round,
+    gameState.finishingRound ?? null,
+  );
   const guessedWords = gameState?.turnHistory.filter((item) => item.guessed) ?? [];
   const skippedWords = gameState?.turnHistory.filter((item) => !item.guessed) ?? [];
   const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -764,10 +883,10 @@ export default function AliasPage() {
           <h1>{locale === 'ru' ? <>Выберите<br/>правила</> : <>Choose the<br/>rules</>}</h1>
           <div className="alias-live-mode-list">
             <button type="button" disabled={!isHost} className={selectedMode === 'classic' ? 'selected' : ''} onClick={() => { selectedModeRef.current = 'classic'; setSelectedMode('classic'); broadcast('alias:select-mode', { mode: 'classic' }); }}>
-              <AliasIcon name="book" className="h-[30px] w-[30px]" /><span><b>{locale === 'ru' ? 'Классика' : 'Classic'}<em>{locale === 'ru' ? '4–10 игроков' : '4–10 players'}</em></b><small>{locale === 'ru' ? 'Две команды · 60 секунд' : 'Two teams · 60 seconds'}</small></span><i>{selectedMode === 'classic' ? '✓' : ''}</i>
+              <AliasIcon name="book" className="h-[30px] w-[30px]" /><span><b>{locale === 'ru' ? 'Классика' : 'Classic'}<em>{locale === 'ru' ? '4–10 игроков' : '4–10 players'}</em></b><small>{locale === 'ru' ? 'Две команды · 60 секунд · цель 30' : 'Two teams · 60 seconds · first to 30'}</small></span><i>{selectedMode === 'classic' ? '✓' : ''}</i>
             </button>
             <button type="button" disabled={!isHost} className={selectedMode === 'letter' ? 'selected' : ''} onClick={() => { selectedModeRef.current = 'letter'; setSelectedMode('letter'); broadcast('alias:select-mode', { mode: 'letter' }); }}>
-              <AliasIcon name="letters" className="h-[30px] w-[30px]" /><span><b>{locale === 'ru' ? 'На букву' : 'Letter mode'}<em>{locale === 'ru' ? '2–10 игроков' : '2–10 players'}</em></b><small>{locale === 'ru' ? 'Каждый сам за себя · 90 секунд' : 'Every player for themselves · 90 seconds'}</small></span><i>{selectedMode === 'letter' ? '✓' : ''}</i>
+              <AliasIcon name="letters" className="h-[30px] w-[30px]" /><span><b>{locale === 'ru' ? 'На букву' : 'Letter mode'}<em>{locale === 'ru' ? '2–10 игроков' : '2–10 players'}</em></b><small>{locale === 'ru' ? 'Каждый сам за себя · 90 секунд · цель 15' : 'Every player for themselves · 90 seconds · first to 15'}</small></span><i>{selectedMode === 'letter' ? '✓' : ''}</i>
             </button>
           </div>
           <div className="alias-live-avatars">{players.map((player) => <span key={player.id} title={player.nickname}>{player.nickname.slice(0, 1).toUpperCase()}</span>)}</div>
@@ -856,8 +975,8 @@ export default function AliasPage() {
       {gameState?.phase === 'letterRule' && (
         <section className="alias-live-screen alias-live-letter-rule-screen">
           <span className="alias-live-kicker">{locale === 'ru' ? 'ПРАВИЛО РАУНДА' : 'ROUND RULE'}</span><h1>{locale === 'ru' ? <>Только<br/>на букву</> : <>Only words<br/>with the letter</>}</h1>
-          <div className="alias-live-letter-rule"><small>{locale === 'ru' ? 'ОБЪЯСНЯЙТЕ СЛОВА, ИСПОЛЬЗУЯ СЛОВА НА' : 'EXPLAIN USING WORDS THAT START WITH'}</small><b>{gameState.currentLetter}</b><span>{locale === 'ru' ? 'Буква меняется каждый ход' : 'The letter changes every turn'}</span></div>
-          <article className="alias-live-rule-note"><AliasIcon name="hourglass" className="h-7 w-7" /><span><b>90 {locale === 'ru' ? 'секунд' : 'seconds'}</b><small>{locale === 'ru' ? 'Пропуск без штрафа' : 'Skip without penalty'}</small></span></article>
+          <div className="alias-live-letter-rule"><small>{locale === 'ru' ? 'ОБЪЯСНЯЙТЕ СЛОВА, ИСПОЛЬЗУЯ СЛОВА НА' : 'EXPLAIN USING WORDS THAT START WITH'}</small><b>{gameState.currentLetter}</b><span>{locale === 'ru' ? 'Буква меняется после каждого угаданного слова' : 'The letter changes after every guessed word'}</span></div>
+          <article className="alias-live-rule-note"><AliasIcon name="hourglass" className="h-7 w-7" /><span><b>{locale === 'ru' ? '90 секунд · цель 15' : '90 seconds · first to 15'}</b><small>{locale === 'ru' ? 'Пропуск без штрафа' : 'Skip without penalty'}</small></span></article>
           {isHost ? <button type="button" className="alias-live-primary" onClick={continueLetterRule}>{locale === 'ru' ? 'ПОНЯТНО' : 'GOT IT'} <span>→</span></button> : <div className="alias-live-wait"><i />{locale === 'ru' ? 'ОЖИДАЕМ ХОСТА' : 'WAITING FOR HOST'}</div>}
         </section>
       )}
@@ -879,7 +998,7 @@ export default function AliasPage() {
       {/* ---- EXPLAINING PHASE ---- */}
       {gameState?.phase === 'explaining' && (
         <section className="alias-live-screen alias-live-playing">
-          <div className="alias-live-roundline"><span>{locale === 'ru' ? `РАУНД ${gameState.round} · ${gameState.mode === 'classic' ? activeTeam?.name ?? '' : explainer?.nickname ?? ''}` : `ROUND ${gameState.round} · ${gameState.mode === 'classic' ? activeTeam?.name ?? '' : explainer?.nickname ?? ''}`}</span><b>{isExplainer ? (locale === 'ru' ? 'ОБЪЯСНЯЕТЕ ВЫ' : 'YOU EXPLAIN') : (locale === 'ru' ? 'ХОД ИДЁТ' : 'TURN IN PROGRESS')}</b></div>
+          <div className="alias-live-roundline"><span>{locale === 'ru' ? `РАУНД ${gameState.round} · ${gameState.mode === 'classic' ? activeTeam?.name ?? '' : explainer?.nickname ?? ''}` : `ROUND ${gameState.round} · ${gameState.mode === 'classic' ? activeTeam?.name ?? '' : explainer?.nickname ?? ''}`}</span><b>{gameState.finalWordPending ? (locale === 'ru' ? 'ВЫБОР КОМАНДЫ' : 'CHOOSE A TEAM') : gameState.mode === 'classic' && gameState.timeLeft <= 0 ? (locale === 'ru' ? 'ПОСЛЕДНЕЕ СЛОВО' : 'FINAL WORD') : isExplainer ? (locale === 'ru' ? 'ОБЪЯСНЯЕТЕ ВЫ' : 'YOU EXPLAIN') : (locale === 'ru' ? 'ХОД ИДЁТ' : 'TURN IN PROGRESS')}</b></div>
 
           {/* Word / guess card */}
           {isExplainer && visualWord ? (
@@ -900,8 +1019,8 @@ export default function AliasPage() {
           <div className="alias-live-action-slot">
             {isExplainer ? (
               <div className="alias-live-action-row">
-                <button type="button" disabled={cardExitDirection !== null} onClick={() => runWordAction('left')}><AliasIcon name="cross" className="h-6 w-6" /><span><b>{locale === 'ru' ? 'ПРОПУСТИТЬ' : 'SKIP'}</b><small>{gameState.mode === 'letter' ? (locale === 'ru' ? 'БЕЗ ШТРАФА' : 'NO PENALTY') : (locale === 'ru' ? '−1 ОЧКО' : '−1 POINT')}</small></span></button>
-                <button type="button" disabled={cardExitDirection !== null} onClick={() => runWordAction('right')}><AliasIcon name="check" className="h-6 w-6" /><span><b>{locale === 'ru' ? 'УГАДАЛИ' : 'GUESSED'}</b><small>{locale === 'ru' ? '+1 ОЧКО' : '+1 POINT'}</small></span></button>
+                <button type="button" disabled={cardExitDirection !== null || gameState.finalWordPending || (gameState.mode === 'classic' && gameState.timeLeft <= 0)} onClick={() => runWordAction('left')}><AliasIcon name="cross" className="h-6 w-6" /><span><b>{locale === 'ru' ? 'ПРОПУСТИТЬ' : 'SKIP'}</b><small>{gameState.mode === 'letter' ? (locale === 'ru' ? 'БЕЗ ШТРАФА' : 'NO PENALTY') : (locale === 'ru' ? '−1 ОЧКО' : '−1 POINT')}</small></span></button>
+                <button type="button" disabled={cardExitDirection !== null || gameState.finalWordPending} onClick={() => runWordAction('right')}><AliasIcon name="check" className="h-6 w-6" /><span><b>{gameState.mode === 'classic' && gameState.timeLeft <= 0 ? (locale === 'ru' ? 'СЛОВО УГАДАНО' : 'WORD GUESSED') : (locale === 'ru' ? 'УГАДАЛИ' : 'GUESSED')}</b><small>{gameState.mode === 'classic' && gameState.timeLeft <= 0 ? (locale === 'ru' ? 'ВЫБРАТЬ КОМАНДУ' : 'CHOOSE A TEAM') : (locale === 'ru' ? '+1 ОЧКО' : '+1 POINT')}</small></span></button>
               </div>
             ) : (
               <div className="alias-live-counters"><span><AliasIcon name="check" className="h-5 w-5" />{locale === 'ru' ? 'УГАДАНО' : 'GUESSED'} <b>{gameState.wordsGuessed}</b></span><span><AliasIcon name="cross" className="h-5 w-5" />{locale === 'ru' ? 'ПРОПУЩЕНО' : 'SKIPPED'} <b>{gameState.wordsSkipped}</b></span></div>
@@ -913,11 +1032,12 @@ export default function AliasPage() {
       {/* ---- TURN RESULT ---- */}
       {gameState?.phase === 'turnResult' && (
         <section className="alias-live-screen alias-live-result">
-          <span className="alias-live-kicker">{locale === 'ru' ? 'ХОД ЗАВЕРШЁН' : 'TURN COMPLETE'}</span><h1>{locale === 'ru' ? <>Отличная<br/>работа!</> : <>Great<br/>work!</>}</h1>
+          <span className="alias-live-kicker">{gameState.finishingRound !== null && gameState.finishingRound !== undefined ? (locale === 'ru' ? 'ФИНАЛЬНЫЙ РАУНД' : 'FINAL ROUND') : (locale === 'ru' ? 'ХОД ЗАВЕРШЁН' : 'TURN COMPLETE')}</span><h1>{locale === 'ru' ? <>Отличная<br/>работа!</> : <>Great<br/>work!</>}</h1>
           <div className="alias-live-result-score"><small>{gameState.mode === 'classic' ? activeTeam?.name : explainer?.nickname}</small><b>{turnPoints > 0 ? '+' : ''}{turnPoints}</b><span>{locale === 'ru' ? 'ОЧКОВ ЗА ХОД' : 'POINTS THIS TURN'}</span></div>
+          {finalWordAwardTeam && <p className="alias-live-note">{locale === 'ru' ? `Последнее слово: +1 команде «${finalWordAwardTeam.name}»` : `Final word: +1 to “${finalWordAwardTeam.name}”`}</p>}
           <div className="alias-live-result-stats"><span><i>✓</i><b>{gameState.wordsGuessed}</b><small>{locale === 'ru' ? 'УГАДАНО' : 'GUESSED'}</small></span><span><i>×</i><b>{gameState.wordsSkipped}</b><small>{locale === 'ru' ? 'ПРОПУЩЕНО' : 'SKIPPED'}</small></span></div>
           {gameState.turnHistory.length > 0 && <div className="alias-live-word-ledger"><article><b><i>✓</i>{locale === 'ru' ? 'УГАДАНЫ' : 'GUESSED'} · {guessedWords.length}</b><div>{guessedWords.map((item, index) => <span key={`${item.word.ru}-${index}`}>{locale === 'ru' ? item.word.ru : item.word.en}</span>)}</div></article><article className="skipped"><b><i>×</i>{locale === 'ru' ? 'ПРОПУЩЕНЫ' : 'SKIPPED'} · {skippedWords.length}</b><div>{skippedWords.map((item, index) => <span key={`${item.word.ru}-${index}`}>{locale === 'ru' ? item.word.ru : item.word.en}</span>)}</div></article></div>}
-          {isHost ? <button type="button" className="alias-live-primary" onClick={nextTurn}>{locale === 'ru' ? 'СЛЕДУЮЩИЙ ХОД' : 'NEXT TURN'} <span>→</span></button> : <div className="alias-live-wait"><i />{locale === 'ru' ? 'ВЕДУЩИЙ ПРОДОЛЖИТ ИГРУ' : 'HOST WILL CONTINUE'}</div>}
+          {isHost ? <button type="button" className="alias-live-primary" onClick={nextTurn}>{finishesAfterCurrentResult ? (locale === 'ru' ? 'ПОДВЕСТИ ИТОГ' : 'SHOW RESULTS') : (locale === 'ru' ? 'СЛЕДУЮЩИЙ ХОД' : 'NEXT TURN')} <span>→</span></button> : <div className="alias-live-wait"><i />{locale === 'ru' ? 'ВЕДУЩИЙ ПРОДОЛЖИТ ИГРУ' : 'HOST WILL CONTINUE'}</div>}
         </section>
       )}
 
@@ -933,7 +1053,21 @@ export default function AliasPage() {
         </section>
       )}
       </main>
-      <footer className="alias-live-footer"><b>{gameState?.teams.length ? (gameState.mode === 'letter' ? sortedTeams : sortedTeams.slice(0, 2)).map((team) => `${team.name} ${team.score}`).join(' · ') : ''}</b></footer>
+      <footer className="alias-live-footer"><b>{gameState?.teams.length ? (gameState.mode === 'letter' ? sortedTeams : sortedTeams.slice(0, 2)).map((team) => `${team.name} ${team.score}/${gameState.mode === 'classic' ? ALIAS_CLASSIC_TARGET_SCORE : ALIAS_LETTER_TARGET_SCORE}`).join(' · ') : ''}</b></footer>
+      {gameState?.phase === 'explaining' && gameState.finalWordPending && (
+        <div className="alias-live-modal" role="dialog" aria-modal="true">
+          <div>
+            <span className="alias-live-kicker">{locale === 'ru' ? 'ПОСЛЕДНЕЕ СЛОВО УГАДАНО' : 'FINAL WORD GUESSED'}</span>
+            <h2>{locale === 'ru' ? 'Кому засчитать?' : 'Which team gets it?'}</h2>
+            <p>{isExplainer ? (locale === 'ru' ? 'Выберите команду, которая первой назвала правильный ответ.' : 'Choose the team that said the correct answer first.') : (locale === 'ru' ? `${explainer?.nickname ?? 'Игрок'} выбирает команду.` : `${explainer?.nickname ?? 'The explainer'} is choosing a team.`)}</p>
+            {isExplainer ? (
+              <div className="alias-live-stack-actions">
+                {gameState.teams.map((team, teamIndex) => <button type="button" className="alias-live-primary" key={team.id} onClick={() => chooseFinalWordTeam(teamIndex)}>{team.name}</button>)}
+              </div>
+            ) : <div className="alias-live-wait"><i />{locale === 'ru' ? 'ОЖИДАЕМ ВЫБОР' : 'WAITING FOR THE CHOICE'}</div>}
+          </div>
+        </div>
+      )}
       {endConfirmOpen && <div className="alias-live-modal" role="dialog" aria-modal="true"><div><span className="alias-live-kicker">{locale === 'ru' ? 'ЗАВЕРШИТЬ ПАРТИЮ?' : 'END THE GAME?'}</span><h2>{locale === 'ru' ? 'Закрыть мастерскую' : 'Close the workshop'}</h2><p>{locale === 'ru' ? 'Все игроки вернутся в лобби, а прогресс будет потерян.' : 'Everyone will return to the lobby and progress will be lost.'}</p><button type="button" className="alias-live-danger" onClick={endGame}>{locale === 'ru' ? 'ДА, ЗАВЕРШИТЬ' : 'YES, END'}</button><button type="button" className="alias-live-secondary" onClick={() => setEndConfirmOpen(false)}>{locale === 'ru' ? 'ОТМЕНА' : 'CANCEL'}</button></div></div>}
     </GameSurface>
   );

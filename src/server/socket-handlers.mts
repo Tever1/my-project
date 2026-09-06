@@ -44,6 +44,7 @@ interface Room {
   gameStateUpdatedAt: number;
   spyVotingTimeout?: ReturnType<typeof setTimeout>;
   spyVotingDeadline?: number;
+  gameClockTimeout?: ReturnType<typeof setTimeout>;
   tvSocketId: string | null;
   createdAt: number;
   kickedPlayerIds: Set<string>;
@@ -155,6 +156,37 @@ function materializeRoomSnapshot(room: Room): void {
   room.gameStateUpdatedAt += elapsedSeconds * 1000;
 }
 
+function syncRoomClock(io: SocketIOServer, room: Room): void {
+  const state = room.gameState;
+  const active = room.currentGame === 'mafia'
+    ? state?.phase === 'day' && finiteNumber(state.dayTimer) > 0
+    : room.currentGame === 'hundred-to-one' && (
+      (state?.phase === 'buzzer' && finiteNumber(state.buzzerCountdown) > 0)
+      || (state?.phase === 'playing' && state.r4Running && finiteNumber(state.r4Time) > 0)
+      || (state?.phase === 'bigGame' && [1, 3].includes(finiteNumber(state.bgPhase)) && !state.bgTimerPaused && finiteNumber(state.bgTimeLeft) > 0)
+    );
+  if (!active) {
+    if (room.gameClockTimeout) clearTimeout(room.gameClockTimeout);
+    room.gameClockTimeout = undefined;
+    return;
+  }
+  if (room.gameClockTimeout) return;
+  room.gameClockTimeout = setTimeout(() => {
+    room.gameClockTimeout = undefined;
+    if (getRoomByCode(room.code) !== room) return;
+    materializeRoomSnapshot(room);
+    if (room.currentGame === 'mafia' && room.gameState?.phase === 'day') {
+      emitRawAction(io, room, roomSocketIds(room), 'mafia', {
+        type: 'day-timer', value: room.gameState?.dayTimer,
+      }, 'server:timer');
+    } else if (room.currentGame === 'hundred-to-one') {
+      broadcastSnapshot(io, room, 'server:timer');
+    }
+    syncRoomClock(io, room);
+  }, Math.max(1, room.gameStateUpdatedAt + 1000 - Date.now()));
+  room.gameClockTimeout.unref();
+}
+
 function syncSpyVotingDeadline(io: SocketIOServer, room: Room): void {
   const state = room.gameState;
   const deadline = room.currentGame === 'spy' && state?.phase === 'voting' && state.voteTimerRunning
@@ -187,6 +219,7 @@ function actionTouchesGameClock(action: string, payload: Record<string, unknown>
 function emitSnapshotToSocket(io: SocketIOServer, room: Room, socketId: string, from: string): void {
   if (!room.currentGame || !room.gameState) return;
   materializeRoomSnapshot(room);
+  syncRoomClock(io, room);
   syncSpyVotingDeadline(io, room);
   const stateAction = stateActionForGame(room.currentGame, sanitizeSnapshot(
     room.currentGame,
@@ -281,6 +314,16 @@ function isAuthorizedH2OHostSync(snapshot: Record<string, unknown>, payload: Rec
   const phase = typeof snapshot.phase === 'string' ? snapshot.phase : 'topicSelect';
   const nextPhase = typeof payload.phase === 'string' ? payload.phase : phase;
   if (!validateStateSyncPhase('hundred-to-one', snapshot, payload)) return false;
+  if (phase === 'playing' && Array.isArray(snapshot.roundPhase)
+    && snapshot.roundPhase[Number(snapshot.curQ)] === 'switched'
+    && onlyKeys(payload, ['phase', 'curQ', 'buzzerWinner', 'buzzerActive', 'buzzerCountdown'])
+    && (nextPhase !== phase || Number(payload.curQ) > Number(snapshot.curQ))) return false;
+  if (snapshot.bgAwaitingReady === true && payload.bgPhase !== 0) return false;
+  if (phase === 'captainSelect' && nextPhase === 'teamNames') {
+    const captains = asRecord(snapshot.captains);
+    const roles = asRecord(snapshot.roles);
+    if (roles[String(captains.team1)] !== 'team1' || roles[String(captains.team2)] !== 'team2') return false;
+  }
 
   // Full initialization/reset snapshots are allowed only on their declared
   // legal phase transitions. Same-phase patches use a narrow per-phase list.
@@ -298,7 +341,7 @@ function isAuthorizedH2OHostSync(snapshot: Record<string, unknown>, payload: Rec
     playing: [
       'qState', 'strikes', 'roundBusted', 'roundActiveTeam', 'roundFund',
       'roundWonBy', 'roundPhase', 't1s', 't2s', 'curQ', 'phase',
-      'buzzerWinner', 'buzzerActive', 'buzzerCountdown', 'r4Time', 'r4Running',
+      'buzzerWinner', 'buzzerActive', 'buzzerCountdown', 'r4Time', 'r4Running', 'r4Reset',
     ],
     r4rules: ['phase', 'r4Time', 'r4Running'],
     results: [
@@ -320,6 +363,11 @@ function isAuthorizedH2OSync(room: Room, senderId: string, payload: Record<strin
   const snapshot = asRecord(room.gameState);
   const roles = asRecord(snapshot.roles);
   const senderRole = roles[senderId];
+  if (snapshot.phase === 'bigGame' && snapshot.bgAwaitingReady === true) {
+    const activeId = snapshot.bgPhase === 1 ? snapshot.bgP1Id : snapshot.bgP2Id;
+    if (senderId === activeId && payload.bgReady === true && onlyKeys(payload, ['bgReady'])) return true;
+    return senderRole === 'host' && payload.bgPhase === 0 && isAuthorizedH2OHostSync(snapshot, payload);
+  }
   if (senderRole === 'host') return isAuthorizedH2OHostSync(snapshot, payload);
 
   if ((!snapshot.phase || snapshot.phase === 'topicSelect') && senderId === room.gameHostPlayerId) {
@@ -327,6 +375,19 @@ function isAuthorizedH2OSync(room: Room, senderId: string, payload: Record<strin
   }
 
   const phase = snapshot.phase;
+  if (phase === 'title' && senderId === room.gameHostPlayerId && payload.phase === 'buzzer') {
+    return isAuthorizedH2OHostSync(snapshot, payload);
+  }
+  // The setup Next button belongs to the room host, who may play on a team
+  // while a different player moderates H2O. Keep this permission setup-only.
+  if (phase === 'roleSelect' && senderId === room.gameHostPlayerId
+    && payload.phase === 'captainSelect'
+    && onlyKeys(payload, ['phase', 'captains', 'captainConfirmed'])
+    && Object.keys(asRecord(payload.captains)).length === 0
+    && asRecord(payload.captainConfirmed).team1 === false
+    && asRecord(payload.captainConfirmed).team2 === false) {
+    return true;
+  }
   if (phase === 'roleSelect' && onlyKeys(payload, ['roles'])) {
     const nextRoles = asRecord(payload.roles);
     const allIds = new Set([...Object.keys(roles), ...Object.keys(nextRoles)]);
@@ -344,24 +405,19 @@ function isAuthorizedH2OSync(room: Room, senderId: string, payload: Record<strin
     const currentCaptains = asRecord(snapshot.captains);
     const nextConfirmed = asRecord(payload.captainConfirmed);
     const currentConfirmed = asRecord(snapshot.captainConfirmed);
-    const otherTeam = myTeam === 'team1' ? 'team2' : 'team1';
     const captainId = nextCaptains[myTeam];
     return typeof captainId === 'string' && roles[captainId] === myTeam
-      && nextCaptains[otherTeam] === currentCaptains[otherTeam]
-      && nextConfirmed[otherTeam] === currentConfirmed[otherTeam]
+      && (!currentConfirmed[myTeam] || captainId === currentCaptains[myTeam])
       && nextConfirmed[myTeam] === true;
   }
   if (phase === 'teamNames' && myTeam && snapshot.captains && asRecord(snapshot.captains)[myTeam] === senderId
     && onlyKeys(payload, ['t1n', 't2n', 'teamNameConfirmed', 'phase'])) {
-    const otherTeam = myTeam === 'team1' ? 'team2' : 'team1';
     const ownNameKey = myTeam === 'team1' ? 't1n' : 't2n';
     const otherNameKey = myTeam === 'team1' ? 't2n' : 't1n';
     const nextConfirmed = asRecord(payload.teamNameConfirmed);
-    const currentConfirmed = asRecord(snapshot.teamNameConfirmed);
     return typeof payload[ownNameKey] === 'string'
       && payload[otherNameKey] === undefined
-      && nextConfirmed[myTeam] === true
-      && nextConfirmed[otherTeam] === currentConfirmed[otherTeam];
+      && nextConfirmed[myTeam] === true;
   }
   if (phase === 'buzzer' && myTeam && asRecord(snapshot.captains)[myTeam] === senderId
     && onlyKeys(payload, ['buzzerWinner', 'buzzerActive'])) {
@@ -451,7 +507,22 @@ function isAuthorizedGameAction(room: Room, socket: Socket, action: string, payl
     }
     if (['alias:begin-turn', 'alias:guessed', 'alias:skip'].includes(action)) {
       const expectedPhase = action === 'alias:begin-turn' ? 'waiting' : 'explaining';
-      return activeAliasExplainerId(room.gameState) === senderId && room.gameState?.phase === expectedPhase;
+      if (activeAliasExplainerId(room.gameState) !== senderId || room.gameState?.phase !== expectedPhase) return false;
+      if (action === 'alias:skip' && room.gameState?.mode === 'classic' && finiteNumber(room.gameState?.timeLeft) <= 0) return false;
+      if (action === 'alias:guessed' && room.gameState?.finalWordPending === true) return false;
+      return true;
+    }
+    if (action === 'alias:award-final-word') {
+      const teamIndex = finiteNumber(payload.teamIndex, -1);
+      const teams = Array.isArray(room.gameState?.teams) ? room.gameState.teams : [];
+      return activeAliasExplainerId(room.gameState) === senderId
+        && room.gameState?.phase === 'explaining'
+        && room.gameState?.mode === 'classic'
+        && finiteNumber(room.gameState?.timeLeft) <= 0
+        && room.gameState?.finalWordPending === true
+        && Number.isInteger(teamIndex)
+        && teamIndex >= 0
+        && teamIndex < teams.length;
     }
     const hostPhaseByAction: Record<string, string> = {
       'alias:randomize-teams': 'teamSelect',
@@ -1004,6 +1075,8 @@ export function setupSocketHandlers(io: SocketIOServer) {
         }
       }
       if (!room || !room.currentGame || !isAuthorizedGameAction(room, socket, data.action, data.payload)) return;
+      // Legacy browser ticks cannot alter the server-owned Mafia clock.
+      if (data.action === 'mafia' && data.payload.type === 'day-timer') return;
 
       if (isRequestStateAction(data.action, data.payload)) {
         if (room.gameState) {
@@ -1018,6 +1091,34 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
 
       let payload: Record<string, unknown> = data.payload;
+      if (room.currentGame === 'hundred-to-one' && data.action === 'h2o:sync') {
+        const state = asRecord(room.gameState);
+        const senderId = getPlayerBySocket(room, socket.id)?.id ?? '';
+        const team = asRecord(state.roles)[senderId];
+        if (payload.bgReady === true) {
+          payload = { bgAwaitingReady: false, bgTimerPaused: false };
+        } else if (team === 'host' && state.phase === 'bigGame' && (payload.bgPhase === 1 || payload.bgPhase === 3)
+          && payload.bgPhase !== state.bgPhase) {
+          payload = { ...payload, bgAwaitingReady: true, bgTimerPaused: true };
+        } else if (payload.bgPhase === 0) {
+          payload = { ...payload, bgAwaitingReady: false };
+        }
+        if (team === 'team1' || team === 'team2') {
+          // Accept only the sender's team contribution; the other team's copy
+          // may be stale. Derive completion from the canonical merged state.
+          if (state.phase === 'captainSelect') {
+            const captains = { ...asRecord(state.captains), [team]: asRecord(payload.captains)[team] };
+            const confirmed = { ...asRecord(state.captainConfirmed), [team]: true };
+            payload = { captains, captainConfirmed: confirmed,
+              ...(confirmed.team1 && confirmed.team2 ? { phase: 'teamNames', teamNameConfirmed: { team1: false, team2: false } } : {}) };
+          } else if (state.phase === 'teamNames') {
+            const key = team === 'team1' ? 't1n' : 't2n';
+            const confirmed = { ...asRecord(state.teamNameConfirmed), [team]: true };
+            payload = { [key]: payload[key], teamNameConfirmed: confirmed,
+              ...(confirmed.team1 && confirmed.team2 ? { phase: 'title' } : {}) };
+          }
+        }
+      }
       if (room.currentGame === 'who-am-i') {
         payload = normalizeWhoAmIGuess(room.gameState, payload);
         if (payload.type === 'guess-confirm') {
@@ -1041,11 +1142,22 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
 
       materializeRoomSnapshot(room);
+      const previousClockState = room.gameState;
       room.gameState = reduceGameSnapshot(room.currentGame, room.gameState, data.action, payload);
-      if (actionTouchesGameClock(data.action, payload)) room.gameStateUpdatedAt = Date.now();
+      if ((room.currentGame === 'mafia' && payload.type === 'night-result')
+        || (room.currentGame === 'hundred-to-one' && (
+          payload.r4Reset === true
+          || (payload.r4Running === true && !previousClockState?.r4Running)
+          || (typeof payload.bgPhase === 'number' && payload.bgPhase !== previousClockState?.bgPhase)
+          || (payload.bgTimerPaused === false && previousClockState?.bgTimerPaused)
+          || (payload.buzzerCountdown === 3 && finiteNumber(previousClockState?.buzzerCountdown) <= 0)
+        ))) room.gameStateUpdatedAt = Date.now();
+      if (actionTouchesGameClock(data.action, payload)
+        && !['mafia', 'hundred-to-one'].includes(room.currentGame)) room.gameStateUpdatedAt = Date.now();
+      syncRoomClock(io, room);
 
       if (isStateSyncAction(data.action, payload)) {
-        broadcastSnapshot(io, room, socket.id, room.currentGame === 'spy' ? undefined : socket.id);
+        broadcastSnapshot(io, room, socket.id, ['spy', 'hundred-to-one'].includes(room.currentGame) ? undefined : socket.id);
         return;
       }
 
@@ -1076,7 +1188,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           emitRawAction(io, room, allSocketIds, data.action, payload, socket.id);
         } else if (controllerSocketId) {
           const controllerPayload = room.currentGame === 'alias'
-            && (data.action === 'alias:guessed' || data.action === 'alias:skip')
+            && (data.action === 'alias:guessed' || data.action === 'alias:skip' || data.action === 'alias:award-final-word')
             ? { ...payload, resolvedWordIndex: room.gameState?.currentWordIndex }
             : payload;
           emitRawAction(io, room, [controllerSocketId, socket.id], data.action, controllerPayload, socket.id);

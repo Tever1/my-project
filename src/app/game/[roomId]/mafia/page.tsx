@@ -39,6 +39,7 @@ interface MafiaGameState {
   donCheck: string | null; // targetId checked by Don this night
   donCheckResult: boolean | null;
   loverVisit: string | null; // targetId visited by lover this night
+  abilityBlocked?: boolean; // Recipient-only status, without disclosing another player's visit.
   detectiveCheck: string | null; // targetId checked this night
   detectiveResult: MafiaRole | null;
   doctorSave: string | null; // targetId saved this night
@@ -267,7 +268,6 @@ export default function MafiaPage() {
 
   const myRole = effectivePlayerId ? gs.roles[effectivePlayerId] : undefined;
   const amAlive = effectivePlayerId ? gs.alive.includes(effectivePlayerId) : false;
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const gsRef = useRef<MafiaGameState>(getInitialState());
 
   const playerName = useCallback(
@@ -599,24 +599,7 @@ export default function MafiaPage() {
   // -----------------------------------------------------------------------
   // Day timer
   // -----------------------------------------------------------------------
-  useEffect(() => {
-    const isModerator = Boolean(effectivePlayerId && effectivePlayerId === gs.hostPlayerId);
-    if (gs.phase === 'day' && dayTimerValue > 0 && isModerator) {
-      timerRef.current = setInterval(() => {
-        setDayTimerValue((v) => {
-          const next = Math.max(0, v - 1);
-          broadcast({ type: 'day-timer', value: next });
-          if (next === 0) {
-            clearInterval(timerRef.current!);
-          }
-          return next;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [broadcast, dayTimerValue, effectivePlayerId, gs.hostPlayerId, gs.phase]);
+  // The server owns the day clock, including while the moderator is away.
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -672,7 +655,7 @@ export default function MafiaPage() {
   };
 
   const handleDetectiveCheck = (targetId: string) => {
-    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'detective' || myRole !== 'detective' || gs.loverVisit === effectivePlayerId) return;
+    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'detective' || myRole !== 'detective' || gs.abilityBlocked || gs.detectiveCheck) return;
     broadcast({ type: 'detective-check', detectiveId: effectivePlayerId, targetId });
     setGs((prev) => ({ ...prev, detectiveCheck: targetId }));
     setPendingDetectiveTargetId(null);
@@ -680,7 +663,7 @@ export default function MafiaPage() {
   };
 
   const handleDoctorSave = (targetId: string) => {
-    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'doctor' || myRole !== 'doctor' || gs.loverVisit === effectivePlayerId) return;
+    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'doctor' || myRole !== 'doctor' || gs.abilityBlocked || gs.doctorSave) return;
     broadcast({ type: 'doctor-save', doctorId: effectivePlayerId, targetId });
     setGs((prev) => ({ ...prev, doctorSave: targetId }));
     setPendingDoctorTargetId(null);
@@ -688,14 +671,14 @@ export default function MafiaPage() {
   };
 
   const handleManiacKill = (targetId: string | null) => {
-    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'maniac' || myRole !== 'maniac' || gs.loverVisit === effectivePlayerId) return;
+    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'maniac' || myRole !== 'maniac' || gs.abilityBlocked) return;
     broadcast({ type: 'maniac-kill', maniacId: effectivePlayerId, targetId });
     setGs((prev) => ({ ...prev, maniacKill: targetId, maniacActed: true }));
     setNightActionDone(true);
   };
 
   const handleDonCheck = (targetId: string) => {
-    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'don' || myRole !== 'don' || gs.loverVisit === effectivePlayerId) return;
+    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'don' || myRole !== 'don' || gs.abilityBlocked) return;
     broadcast({ type: 'don-check-sheriff', donId: effectivePlayerId, targetId });
     setGs((prev) => ({ ...prev, donCheck: targetId }));
     setNightActionDone(true);
@@ -1648,7 +1631,7 @@ export default function MafiaPage() {
     const hasAliveDon = mafiaMembers.some((id) => gs.roles[id] === 'don');
     const isMyAbilityBlocked = Boolean(
       effectivePlayerId
-      && gs.loverVisit === effectivePlayerId
+      && gs.abilityBlocked
       && currentStage !== 'mafia'
       && currentStage !== 'lover',
     );
@@ -1789,7 +1772,7 @@ export default function MafiaPage() {
         </div>
       );
     } else if (currentStage === 'don' && myRole === 'don' && !donCheckDone) {
-      content = actionPanel('don', l('Кто скрывает жетон шерифа?', 'Who carries the sheriff badge?'), l('Проверьте одного участника. Результат узнаете только вы.', 'Inspect one player. Only you will learn the result.'), renderTargets(Object.keys(gs.roles).filter((id) => id !== effectivePlayerId), handleDonCheck, l('ПРОВЕРИТЬ', 'CHECK')));
+      content = actionPanel('don', l('Кто скрывает жетон шерифа?', 'Who carries the sheriff badge?'), l('Проверьте одного участника. Результат узнаете только вы.', 'Inspect one player. Only you will learn the result.'), renderTargets([...gs.alive, ...gs.eliminated.map(({ id }) => id)].filter((id) => id !== effectivePlayerId), handleDonCheck, l('ПРОВЕРИТЬ', 'CHECK')));
     } else if (currentStage === 'detective' && myRole === 'detective' && !detectiveDone) {
       content = actionPanel('detective', l('Кому нельзя доверять?', 'Who cannot be trusted?'), l('Проверьте одного живого игрока этой ночью.', 'Investigate one living player tonight.'), pendingDetectiveTargetId ? <div className="flex h-full flex-col items-center justify-center text-center"><MafiaPlayerToken name={playerName(pendingDetectiveTargetId)} /><span className={`${club.kicker} mt-5`}>{l('ПОДТВЕРДИТЕ ПРОВЕРКУ', 'CONFIRM INVESTIGATION')}</span><h3 className="mt-3 font-serif text-3xl">{playerName(pendingDetectiveTargetId)}</h3><p className={`${club.subtitle} mt-3`}>{l('После подтверждения выбор изменить нельзя.', 'You cannot change this choice after confirming.')}</p><div className="mt-6 grid w-full grid-cols-2 gap-3"><button type="button" className={club.secondaryButton} onClick={() => setPendingDetectiveTargetId(null)}>{l('Назад', 'Back')}</button><button type="button" className={club.primaryButton} onClick={() => handleDetectiveCheck(pendingDetectiveTargetId)}>{l('Подтвердить', 'Confirm')}</button></div></div> : renderTargets(targets, setPendingDetectiveTargetId, l('ВЫБРАТЬ', 'SELECT')));
     } else if (currentStage === 'doctor' && myRole === 'doctor' && !doctorDone) {
