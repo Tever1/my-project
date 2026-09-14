@@ -20,6 +20,7 @@ import {
   shouldFinishAliasRound,
 } from '@/lib/alias-classic.mts';
 import { Player } from '@/types/room';
+import { AliasFinalRoundBanner } from '@/components/games/AliasFinalRoundBanner';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -155,7 +156,6 @@ export default function AliasPage() {
   const [visualWordIndex, setVisualWordIndex] = useState(-1);
   const [visualLetter, setVisualLetter] = useState('');
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cardMotionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingVisualWordRef = useRef(-1);
   const pendingVisualLetterRef = useRef('');
@@ -164,7 +164,7 @@ export default function AliasPage() {
   const isHostRef = useRef(false);
 
   const isHost = isGameHost;
-  isHostRef.current = isHost;
+  useEffect(() => { isHostRef.current = isHost; }, [isHost]);
   const myId = effectivePlayerId;
 
   // Derived
@@ -196,6 +196,8 @@ export default function AliasPage() {
   const visualWord = visualWordIndex >= 0 ? ALIAS_WORDS[visualWordIndex] : currentWord;
   const myTeamIndex = gameState ? gameState.teams.findIndex((t) => t.playerIds.includes(myId)) : -1;
   const teamNameConfirmed = gameState?.teamNameConfirmed ?? gameState?.teams.map(() => false) ?? [];
+  const allTeamNamesConfirmed = Boolean(gameState?.teams.length
+    && gameState.teams.every((_, index) => teamNameConfirmed[index]));
   const firstConnectedInTeam = (team?: Team): string | null =>
     team
       ? (team.playerIds.find((id) => players.find((p) => p.id === id)?.isConnected) ?? team.playerIds[0] ?? null)
@@ -281,52 +283,24 @@ export default function AliasPage() {
       pendingVisualLetterRef.current = gameState?.currentLetter ?? '';
       return;
     }
-    setVisualWordIndex(gameState?.currentWordIndex ?? -1);
-    setVisualLetter(gameState?.currentLetter ?? '');
+    queueMicrotask(() => {
+      setVisualWordIndex(gameState?.currentWordIndex ?? -1);
+      setVisualLetter(gameState?.currentLetter ?? '');
+    });
   }, [gameState?.currentWordIndex, gameState?.currentLetter, cardExitDirection]);
 
   useEffect(() => {
     if (gameState?.phase === 'explaining') return;
     if (cardMotionTimerRef.current) clearTimeout(cardMotionTimerRef.current);
     cardMotionTimerRef.current = null;
-    setCardExitDirection(null);
+    queueMicrotask(() => setCardExitDirection(null));
   }, [gameState?.phase]);
 
   useEffect(() => () => {
     if (cardMotionTimerRef.current) clearTimeout(cardMotionTimerRef.current);
   }, []);
 
-  // ------------------------------------------------------------------
-  // Host: timer
-  // ------------------------------------------------------------------
-
-  useEffect(() => {
-    if (!isHost || !gameState || gameState.phase !== 'explaining') return;
-
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    timerRef.current = setInterval(() => {
-      setGameState((prev) => {
-        if (!prev || prev.phase !== 'explaining') return prev;
-        const newTime = prev.timeLeft - 1;
-        const next = { ...prev, timeLeft: Math.max(newTime, 0) };
-        gameStateRef.current = next;
-        broadcast('alias:tick', { timeLeft: next.timeLeft });
-
-        if (newTime <= 0) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          if (prev.mode === 'letter') setTimeout(() => finishTurn(next), 0);
-          return next;
-        }
-        return next;
-      });
-    }, 1000);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, gameState?.phase, gameState?.activeTeamIndex, gameState?.explainerIndices?.[gameState?.activeTeamIndex ?? 0]]);
+  // Gameplay clocks and expiry are owned by the server.
 
   // ------------------------------------------------------------------
   // Host: team select helpers
@@ -389,18 +363,16 @@ export default function AliasPage() {
 
   const setTeamName = useCallback((teamIndex: number, rawName: string) => {
     setGameState((prev) => {
-      if (!prev) return prev;
+      if (!prev || prev.phase !== 'teamName' || !prev.teams[teamIndex]) return prev;
       const fallback = locale === 'ru' ? `Команда ${teamIndex + 1}` : `Team ${teamIndex + 1}`;
       const name = rawName.trim() || prev.teams[teamIndex]?.name || fallback;
       const updatedTeams = prev.teams.map((t, i) => (i === teamIndex ? { ...t, name } : t));
       const confirmed = [...(prev.teamNameConfirmed ?? prev.teams.map(() => false))];
       confirmed[teamIndex] = true;
-      const allConfirmed = updatedTeams.every((_, i) => confirmed[i]);
       const next: AliasGameState = {
         ...prev,
         teams: updatedTeams,
         teamNameConfirmed: confirmed,
-        phase: allConfirmed ? 'waiting' : prev.phase,
       };
       broadcast('alias:state', next);
       return next;
@@ -408,13 +380,15 @@ export default function AliasPage() {
   }, [broadcast, locale]);
 
   const continueFromTeamNames = useCallback(() => {
+    if (!isHost) return;
     setGameState((prev) => {
-      if (!prev) return prev;
+      if (!prev || prev.phase !== 'teamName' || !prev.teams.length
+        || !prev.teams.every((_, index) => prev.teamNameConfirmed?.[index])) return prev;
       const next: AliasGameState = { ...prev, phase: 'waiting' };
       broadcast('alias:state', next);
       return next;
     });
-  }, [broadcast]);
+  }, [broadcast, isHost]);
 
   const continueIndividualSetup = useCallback(() => {
     setGameState((prev) => {
@@ -540,20 +514,6 @@ export default function AliasPage() {
   // Host: finish turn (time's up)
   // ------------------------------------------------------------------
 
-  const finishTurn = useCallback(
-    (prev: AliasGameState) => {
-      const result: AliasGameState = {
-        ...prev,
-        phase: 'turnResult',
-        timeLeft: 0,
-        finalWordPending: false,
-      };
-      gameStateRef.current = result;
-      setGameState(result);
-      broadcast('alias:state', result);
-    },
-    [broadcast],
-  );
 
   const awardFinalWord = useCallback((teamIndex: number, resolvedWordIndex?: number) => {
     const current = gameStateRef.current ?? gameState;
@@ -741,12 +701,12 @@ export default function AliasPage() {
         ...current.turnHistory,
         { word: ALIAS_WORDS[wordIndex], guessed: false },
       ],
-      currentLetter: current.currentLetter,
+      currentLetter: current.mode === 'letter' ? pickRandomLetter(locale, current.currentLetter) : current.currentLetter,
     };
     gameStateRef.current = updated;
     setGameState(updated);
     broadcast('alias:state', updated);
-  }, [isHost, gameState, broadcast]);
+  }, [isHost, gameState, broadcast, locale]);
 
   // ------------------------------------------------------------------
   // Non-host actions forwarded to host
@@ -783,7 +743,7 @@ export default function AliasPage() {
       setCardExitDirection(null);
       cardMotionTimerRef.current = null;
     }, reducedMotion ? 20 : 360);
-  }, [cardExitDirection, gameState?.mode, gameState?.phase, gameState?.timeLeft, isHost, handleSkip, handleGuessed, emitAction]);
+  }, [cardExitDirection, gameState, isHost, handleSkip, handleGuessed, emitAction]);
 
   const chooseFinalWordTeam = useCallback((teamIndex: number) => {
     if (isHost) awardFinalWord(teamIndex);
@@ -833,7 +793,6 @@ export default function AliasPage() {
   // ------------------------------------------------------------------
 
   const endGame = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
     emit('game:end', { code: roomId });
   }, [emit, roomId]);
 
@@ -858,6 +817,9 @@ export default function AliasPage() {
     gameState.round,
     gameState.finishingRound ?? null,
   );
+  const showFinalRoundBanner = gameState?.finishingRound !== null
+    && gameState?.finishingRound !== undefined
+    && (gameState.phase === 'waiting' || gameState.phase === 'explaining' || gameState.phase === 'turnResult');
   const guessedWords = gameState?.turnHistory.filter((item) => item.guessed) ?? [];
   const skippedWords = gameState?.turnHistory.filter((item) => !item.guessed) ?? [];
   const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -874,6 +836,7 @@ export default function AliasPage() {
       <header className="alias-live-header">
         <div className="alias-live-brand"><AliasIcon name="speech" className="h-7 w-7" /><span><b>{locale === 'ru' ? 'УГАДАЙ СЛОВО' : 'GUESS THE WORD'}</b><small>{mode === 'classic' ? (locale === 'ru' ? 'КЛАССИКА' : 'CLASSIC') : (locale === 'ru' ? 'НА БУКВУ' : 'LETTER MODE')}</small></span></div>
         {isHost && <button type="button" className="alias-live-end" onClick={() => setEndConfirmOpen(true)}>{locale === 'ru' ? 'ЗАВЕРШИТЬ' : 'END'}</button>}
+        {showFinalRoundBanner && <AliasFinalRoundBanner locale={locale} variant="phone" />}
       </header>
       <main className="alias-live-main">
       {/* ---- MODE SELECT ---- */}
@@ -943,8 +906,8 @@ export default function AliasPage() {
       {/* ---- TEAM NAME (classic mode only) ---- */}
       {gameState?.phase === 'teamName' && (
         <section className="alias-live-screen alias-live-names">
-          <span className="alias-live-kicker">{isTeamNamer ? (locale === 'ru' ? `ВЫ НАЗЫВАЕТЕ КОМАНДУ 0${myTeamIndex + 1}` : `YOU NAME TEAM 0${myTeamIndex + 1}`) : (locale === 'ru' ? 'КОМАНДЫ ВЫБИРАЮТ НАЗВАНИЯ' : 'TEAMS ARE CHOOSING NAMES')}</span>
-          <h1>{locale === 'ru' ? <>Имя<br/>команды</> : <>Team<br/>name</>}</h1>
+          <span className="alias-live-kicker">{allTeamNamesConfirmed ? (locale === 'ru' ? 'КОМАНДЫ ГОТОВЫ' : 'TEAMS ARE READY') : isTeamNamer ? (locale === 'ru' ? `ВЫ НАЗЫВАЕТЕ КОМАНДУ 0${myTeamIndex + 1}` : `YOU NAME TEAM 0${myTeamIndex + 1}`) : (locale === 'ru' ? 'КОМАНДЫ ВЫБИРАЮТ НАЗВАНИЯ' : 'TEAMS ARE CHOOSING NAMES')}</span>
+          <h1>{allTeamNamesConfirmed ? (locale === 'ru' ? <>Наши<br/>команды</> : <>Our<br/>teams</>) : locale === 'ru' ? <>Имя<br/>команды</> : <>Team<br/>name</>}</h1>
           {isTeamNamer && myTeamIndex >= 0 && !teamNameConfirmed[myTeamIndex] ? (
             <TeamNameInput
               defaultValue=""
@@ -959,7 +922,9 @@ export default function AliasPage() {
             <div className="alias-live-name-wait">
               <AliasIcon name="hourglass" className="h-8 w-8" />
               <p>
-              {myTeamIndex >= 0 && teamNameConfirmed[myTeamIndex]
+              {allTeamNamesConfirmed
+                ? (locale === 'ru' ? 'Названия готовы. Хост продолжит игру.' : 'Names are ready. The host will continue.')
+                : myTeamIndex >= 0 && teamNameConfirmed[myTeamIndex]
                 ? (locale === 'ru' ? 'Ждём вторую команду…' : 'Waiting for the other team…')
                 : (locale === 'ru' ? 'Капитан команды выбирает имя…' : 'Your captain is naming the team…')}
               </p>
@@ -967,7 +932,7 @@ export default function AliasPage() {
           )}
           <div className="alias-live-name-status">{gameState.teams.map((team, ti) => { const namerId = firstConnectedInTeam(team); const namerName = players.find((p) => p.id === namerId)?.nickname ?? '...'; return <article key={team.id} className={ti === myTeamIndex ? 'active' : ''}><span>{locale === 'ru' ? `КОМАНДА 0${ti + 1}` : `TEAM 0${ti + 1}`}</span><b>{team.name}</b><small>{teamNameConfirmed[ti] ? (locale === 'ru' ? 'ИМЯ ВЫБРАНО ✓' : 'NAME SET ✓') : (locale === 'ru' ? `${namerName} выбирает…` : `${namerName} is naming…`)}</small></article>; })}</div>
           {isHost && (
-            <button type="button" className="alias-live-secondary" onClick={continueFromTeamNames}>{locale === 'ru' ? 'ПРОДОЛЖИТЬ' : 'CONTINUE'} <span>→</span></button>
+            <button type="button" className="alias-live-secondary" disabled={!allTeamNamesConfirmed} onClick={continueFromTeamNames}>{locale === 'ru' ? 'ПРОДОЛЖИТЬ' : 'CONTINUE'} <span>→</span></button>
           )}
         </section>
       )}
@@ -975,7 +940,7 @@ export default function AliasPage() {
       {gameState?.phase === 'letterRule' && (
         <section className="alias-live-screen alias-live-letter-rule-screen">
           <span className="alias-live-kicker">{locale === 'ru' ? 'ПРАВИЛО РАУНДА' : 'ROUND RULE'}</span><h1>{locale === 'ru' ? <>Только<br/>на букву</> : <>Only words<br/>with the letter</>}</h1>
-          <div className="alias-live-letter-rule"><small>{locale === 'ru' ? 'ОБЪЯСНЯЙТЕ СЛОВА, ИСПОЛЬЗУЯ СЛОВА НА' : 'EXPLAIN USING WORDS THAT START WITH'}</small><b>{gameState.currentLetter}</b><span>{locale === 'ru' ? 'Буква меняется после каждого угаданного слова' : 'The letter changes after every guessed word'}</span></div>
+          <div className="alias-live-letter-rule"><small>{locale === 'ru' ? 'ОБЪЯСНЯЙТЕ СЛОВА, ИСПОЛЬЗУЯ СЛОВА НА' : 'EXPLAIN USING WORDS THAT START WITH'}</small><b>{gameState.currentLetter}</b><span>{locale === 'ru' ? 'Буква меняется после каждого угаданного или пропущенного слова' : 'The letter changes after every guessed or skipped word'}</span></div>
           <article className="alias-live-rule-note"><AliasIcon name="hourglass" className="h-7 w-7" /><span><b>{locale === 'ru' ? '90 секунд · цель 15' : '90 seconds · first to 15'}</b><small>{locale === 'ru' ? 'Пропуск без штрафа' : 'Skip without penalty'}</small></span></article>
           {isHost ? <button type="button" className="alias-live-primary" onClick={continueLetterRule}>{locale === 'ru' ? 'ПОНЯТНО' : 'GOT IT'} <span>→</span></button> : <div className="alias-live-wait"><i />{locale === 'ru' ? 'ОЖИДАЕМ ХОСТА' : 'WAITING FOR HOST'}</div>}
         </section>
@@ -998,7 +963,16 @@ export default function AliasPage() {
       {/* ---- EXPLAINING PHASE ---- */}
       {gameState?.phase === 'explaining' && (
         <section className="alias-live-screen alias-live-playing">
-          <div className="alias-live-roundline"><span>{locale === 'ru' ? `РАУНД ${gameState.round} · ${gameState.mode === 'classic' ? activeTeam?.name ?? '' : explainer?.nickname ?? ''}` : `ROUND ${gameState.round} · ${gameState.mode === 'classic' ? activeTeam?.name ?? '' : explainer?.nickname ?? ''}`}</span><b>{gameState.finalWordPending ? (locale === 'ru' ? 'ВЫБОР КОМАНДЫ' : 'CHOOSE A TEAM') : gameState.mode === 'classic' && gameState.timeLeft <= 0 ? (locale === 'ru' ? 'ПОСЛЕДНЕЕ СЛОВО' : 'FINAL WORD') : isExplainer ? (locale === 'ru' ? 'ОБЪЯСНЯЕТЕ ВЫ' : 'YOU EXPLAIN') : (locale === 'ru' ? 'ХОД ИДЁТ' : 'TURN IN PROGRESS')}</b></div>
+          <div className="alias-live-roundline">
+            <div className="alias-live-turn-summary">
+              <span>{locale === 'ru' ? `РАУНД ${gameState.round}` : `ROUND ${gameState.round}`} · {gameState.mode === 'classic' ? activeTeam?.name : explainer?.nickname}</span>
+              {isExplainer && <div className="alias-live-inline-counters">
+                <span aria-label={`${locale === 'ru' ? 'Угадано' : 'Guessed'}: ${gameState.wordsGuessed}`}><AliasIcon name="check" className="h-4 w-4" /><b>{gameState.wordsGuessed}</b></span>
+                <span aria-label={`${locale === 'ru' ? 'Пропущено' : 'Skipped'}: ${gameState.wordsSkipped}`}><AliasIcon name="cross" className="h-4 w-4" /><b>{gameState.wordsSkipped}</b></span>
+              </div>}
+            </div>
+            <b>{gameState.finalWordPending ? (locale === 'ru' ? 'ВЫБОР КОМАНДЫ' : 'CHOOSE A TEAM') : gameState.mode === 'classic' && gameState.timeLeft <= 0 ? (locale === 'ru' ? 'ПОСЛЕДНЕЕ СЛОВО' : 'FINAL WORD') : (locale === 'ru' ? 'ИДЁТ ХОД' : 'TURN IN PROGRESS')}</b>
+          </div>
 
           {/* Word / guess card */}
           {isExplainer && visualWord ? (

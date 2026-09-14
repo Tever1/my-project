@@ -137,14 +137,17 @@ test('spy pass-turn advances both question and drawing modes on the server', () 
   assert.equal(draw?.drawerId, 'p2');
 });
 
-test('spy guess resolves immediately and exposes the round result', () => {
+test('spy exact guess resolves immediately and a wrong guess can be declined', () => {
   const base = {
     phase: 'spyGuess', mode: 'guess', word: 'Аэропорт', spyId: 'p2', timerRunning: false,
     spyGuessNeedsConfirm: false, spyGuessAwaitingJudge: false, spyGuessJudgeId: '',
   };
   const wrong = reduceGameSnapshot('spy', base, 'spy:guess-try', { text: 'Вокзал' });
-  assert.equal(wrong?.phase, 'roundResult');
-  assert.deepEqual(wrong?.roundResult, {
+  assert.equal(wrong?.phase, 'spyGuess');
+  assert.equal(wrong?.spyGuessNeedsConfirm, true);
+  const declined = reduceGameSnapshot('spy', wrong, 'spy:guess-decline', {});
+  assert.equal(declined?.phase, 'roundResult');
+  assert.deepEqual(declined?.roundResult, {
     spyCaught: true, exposedId: 'p2', voteCount: 0, viaGuess: true, guessedRight: false,
   });
 
@@ -313,7 +316,7 @@ test('mafia actor validation enforces role, phase, life and action rules', () =>
 
 test('mafia host validation enforces legal phases, transitions and outcomes', () => {
   const night = {
-    phase: 'night', nightStage: 'doctor', round: 1, hostPlayerId: 'host',
+    phase: 'night', nightStage: 'doctor', round: 2, hostPlayerId: 'host',
     roles: { mafia: 'mafia', doctor: 'doctor', citizen: 'citizen' },
     alive: ['mafia', 'doctor', 'citizen'], mafiaVotes: { mafia: 'citizen' },
     doctorSave: 'citizen', lastDoctorSave: null, loverVisit: null, maniacKill: null,
@@ -329,22 +332,55 @@ test('mafia host validation enforces legal phases, transitions and outcomes', ()
   }, ['host', 'mafia', 'doctor', 'citizen']), false);
 });
 
-test('mafia private view exposes only own/faction and publicly revealed roles', () => {
+test('mafia private view does not reveal roles on death', () => {
   const snapshot = {
     phase: 'night', winner: null,
     roles: { m1: 'mafia', don: 'don', doctor: 'doctor', citizen: 'citizen', dead: 'detective' },
     alive: ['m1', 'don', 'doctor', 'citizen'], lastNightKills: ['dead'],
+    eliminated: [{ id: 'dead', role: 'detective' }],
     votes: { m1: 'doctor', doctor: 'm1' }, mafiaVotes: { m1: 'doctor', don: 'citizen' },
     doctorSave: 'citizen', detectiveCheck: null, detectiveResult: null,
     donCheck: null, donCheckResult: null, loverVisit: null, maniacKill: null, maniacActed: false,
   };
   const mafiaView = sanitizeSnapshot('mafia', snapshot, player('m1'));
-  assert.deepEqual(mafiaView.roles, { m1: 'mafia', don: 'don', dead: 'detective' });
+  assert.deepEqual(mafiaView.roles, { m1: 'mafia', don: 'don' });
   assert.deepEqual(mafiaView.mafiaVotes, { m1: 'doctor', don: 'citizen' });
   assert.deepEqual(mafiaView.votes, { m1: 'doctor', doctor: '' });
 
   const citizenView = sanitizeSnapshot('mafia', snapshot, player('citizen'));
-  assert.deepEqual(citizenView.roles, { citizen: 'citizen', dead: 'detective' });
+  assert.deepEqual(citizenView.roles, { citizen: 'citizen' });
   assert.deepEqual(citizenView.mafiaVotes, {});
   assert.deepEqual(citizenView.votes, { m1: '', doctor: '' });
+  for (const recipient of [player('citizen'), player('', { isTv: true })]) {
+    const view = sanitizeSnapshot('mafia', snapshot, recipient);
+    assert.deepEqual(view.lastNightKills, ['dead']);
+    assert.deepEqual(view.eliminated, [{ id: 'dead' }]);
+    assert.equal((view.roles as Record<string, string>).dead, undefined);
+  }
+  assert.deepEqual(sanitizeSnapshot('mafia', snapshot, player('host', { isMafiaHost: true })).roles, snapshot.roles);
+  assert.deepEqual(sanitizeSnapshot('mafia', { ...snapshot, phase: 'results', winner: 'mafia' }, player('', { isTv: true })).roles, snapshot.roles);
+});
+
+test('lover confirmation is private, immutable and reset for the next night', () => {
+  const snapshot = {
+    phase: 'night', round: 2, nightStage: 'lover',
+    roles: { lover: 'lover', doctor: 'doctor', citizen: 'citizen', mafia: 'mafia' },
+    alive: ['lover', 'doctor', 'citizen', 'mafia'], loverVisit: null, lastLoverVisit: 'citizen',
+  };
+  const action = { type: 'lover-visit', loverId: 'lover', targetId: 'doctor' };
+  assert.equal(validateMafiaActorAction(snapshot, 'lover', action), true);
+  for (const targetId of ['lover', 'citizen', 'absent']) {
+    assert.equal(validateMafiaActorAction(snapshot, 'lover', { ...action, targetId }), false);
+  }
+  assert.equal(validateMafiaActorAction({ ...snapshot, round: 1 }, 'lover', action), false);
+  assert.equal(validateMafiaActorAction(snapshot, 'mafia', action), false);
+  const confirmed = reduceGameSnapshot('mafia', snapshot, 'mafia:action', action)!;
+  assert.equal(confirmed.loverVisit, 'doctor');
+  assert.equal(validateMafiaActorAction(confirmed, 'lover', action), false);
+  assert.equal(validateMafiaActorAction(confirmed, 'lover', { ...action, targetId: 'mafia' }), false);
+  assert.equal(sanitizeSnapshot('mafia', confirmed, player('lover')).loverVisit, 'doctor');
+  assert.equal(sanitizeSnapshot('mafia', confirmed, player('citizen')).loverVisit, null);
+  assert.equal(sanitizeSnapshot('mafia', confirmed, player('', { isTv: true })).loverVisit, null);
+  const next = reduceGameSnapshot('mafia', confirmed, 'mafia:action', { type: 'start-night', round: 3 })!;
+  assert.equal(next.loverVisit, null);
 });

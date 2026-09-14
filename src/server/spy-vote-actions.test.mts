@@ -39,6 +39,7 @@ function roomAt(elapsedMs: number, actor = 'c') {
     Date: { now: () => 1000 + elapsedMs }, io: {}, socket: { id: actor },
     actionMatchesGame, advanceTimedSnapshot, isRequestStateAction, isStateSyncAction, reduceGameSnapshot, validateStateSyncPhase,
     getRoomByCode: () => room,
+    syncRoomClock: () => {},
     socketBelongsToRoom: () => true,
     getPlayerBySocket: () => room.players.get(actor),
     isGameController: (_room: unknown, sender: { id: string }) => sender.id === 'b',
@@ -68,9 +69,22 @@ test('the actual socket handler still accepts a vote just before the deadline', 
   assert.equal(h.broadcasts[0].exclude, undefined);
 });
 
-test('the host also receives the canonical result when its last timer patch arrives', () => {
+test('legacy host timer patches cannot expire voting early', () => {
   const h = roomAt(59999, 'b');
   h.receive({ code: 'TEST', action: 'spy:sync', payload: { voteTimerLeft: 0, voteTimerRunning: false } });
-  assert.equal(h.room.gameState.phase, 'roundResult');
+  assert.equal(h.room.gameState.phase, 'voting');
   assert.equal(h.broadcasts.at(-1)?.exclude, undefined);
+});
+
+test('last submitted vote uses the room roster and finishes immediately without snapshot players', () => {
+  const h = roomAt(1000, 'spy');
+  delete h.room.gameState.players;
+  h.room.gameState.votes = { a: 'spy', b: 'spy', c: 'spy' };
+  h.receive({ code: 'TEST', action: 'spy:vote', payload: { voterId: 'spy', suspectId: 'a' } });
+  assert.equal(h.room.gameState.phase, 'roundResult');
+  assert.equal(h.room.gameState.voteTimerRunning, false);
+  assert.deepEqual(h.room.gameState.roundResult, {
+    spyCaught: true, exposedId: 'spy', voteCount: 3, totalVotes: 4,
+  });
+  assert.equal(h.broadcasts.length, 1);
 });

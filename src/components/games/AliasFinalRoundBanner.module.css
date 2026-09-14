@@ -1,0 +1,27 @@
+.banner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ffb49c;
+  border-radius: 999px;
+  background: rgba(255, 123, 84, 0.18);
+  box-shadow: 0 0 18px rgba(255, 123, 84, 0.2);
+  color: #fff4e8;
+  font: 900 9px/1 ui-monospace, monospace;
+  letter-spacing: 0.16em;
+  text-align: center;
+}
+
+.phone {
+  grid-column: 1 / -1;
+  justify-self: center;
+  min-height: 25px;
+  padding: 0 12px;
+}
+
+.tv {
+  min-height: clamp(42px, 5vh, 60px);
+  margin-left: auto;
+  padding: 0 20px;
+  font-size: clamp(18px, 1.6vw, 30px);
+}

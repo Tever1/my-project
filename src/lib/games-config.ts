@@ -17,8 +17,8 @@ export const GAMES: GameInfo[] = [
     titleEn: '100 to 1',
     descriptionRu: 'Угадайте самые популярные ответы на вопросы опросов.',
     descriptionEn: 'Guess the most popular survey answers.',
-    minPlayers: 2,
-    maxPlayers: 20,
+    minPlayers: 5,
+    maxPlayers: 11,
     icon: '💯',
   },
   {

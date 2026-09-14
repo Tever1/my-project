@@ -23,7 +23,7 @@ import { Player } from '@/types/room';
 // ---------------------------------------------------------------------------
 
 interface CrocodileGameState {
-  phase: 'waiting' | 'ready' | 'explaining' | 'finished';
+  phase: 'waiting' | 'ready' | 'explaining' | 'turnResult' | 'finished';
   turnNumber: number;
   explainerIndex: number;
   explainerId: string;
@@ -39,7 +39,6 @@ interface CrocodileGameState {
 }
 
 const TURN_DURATION = 60; // seconds
-const TARGET_SCORE = 20;
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 10;
 
@@ -140,20 +139,22 @@ function SwipeWordCard({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 px-1 py-7">
-        {word ? (
-          <FitText
-            text={locale === 'ru' ? word.ru : word.en}
-            max={58}
-            min={18}
-            className="text-center font-black uppercase leading-[0.88] tracking-[-0.055em]"
-            style={{ textShadow: '0 4px 18px rgba(74,0,13,.35)' }}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <CrocIcon name="croc" className="h-24 w-24 text-white/80" />
-          </div>
-        )}
+      <div className="relative min-h-0 flex-1">
+        <div className="absolute -inset-x-4 inset-y-7">
+          {word ? (
+            <FitText
+              text={locale === 'ru' ? word.ru : word.en}
+              max={58}
+              min={18}
+              className="text-center font-black uppercase leading-[0.88] tracking-[-0.055em]"
+              style={{ textShadow: '0 4px 18px rgba(74,0,13,.35)' }}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <CrocIcon name="croc" className="h-24 w-24 text-white/80" />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">
@@ -188,15 +189,14 @@ export default function CrocodilePage() {
   const [outgoingWordIndex, setOutgoingWordIndex] = useState<number | null>(null);
   const [cardCycle, setCardCycle] = useState(0);
   const [swipeFeedback, setSwipeFeedback] = useState<'skipped' | 'guessed' | null>(null);
+  const [swipeAnimationDone, setSwipeAnimationDone] = useState(false);
   const swipeLockRef = useRef(false);
   const swipeResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feedbackResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reduceMotion = useReducedMotion();
 
   // Timer ref for host-side countdown
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  isGameHostRef.current = isGameHost;
+  useEffect(() => { isGameHostRef.current = isGameHost; }, [isGameHost]);
 
   // ------------------------------------------------------------------
   // Derived helpers
@@ -295,39 +295,8 @@ export default function CrocodilePage() {
   }, []);
 
   // ------------------------------------------------------------------
-  // Host: timer management
+  // The server owns the turn clock, including when the host phone sleeps.
   // ------------------------------------------------------------------
-
-  useEffect(() => {
-    if (!isGameHost || !gameState || gameState.phase !== 'explaining') return;
-
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    timerRef.current = setInterval(() => {
-      setGameState((prev) => {
-        if (!prev || prev.phase !== 'explaining') return prev;
-        const newTime = prev.timeLeft - 1;
-
-        broadcast('croc:tick', { timeLeft: Math.max(newTime, 0) });
-
-        if (newTime <= 0) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          setTimeout(() => advanceToNextExplainer(prev), 0);
-          const next = { ...prev, timeLeft: 0 };
-          gameStateRef.current = next;
-          return next;
-        }
-        const next = { ...prev, timeLeft: newTime };
-        gameStateRef.current = next;
-        return next;
-      });
-    }, 1000);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGameHost, gameState?.phase, gameState?.explainerId]);
 
   // ------------------------------------------------------------------
   // Host: start game
@@ -361,146 +330,25 @@ export default function CrocodilePage() {
   }, [isGameHost, players, broadcast]);
 
   // ------------------------------------------------------------------
-  // Host: advance to next explainer
-  // ------------------------------------------------------------------
-
-  const advanceToNextExplainer = useCallback(
-    (prev: CrocodileGameState) => {
-      if (prev.playersOrder.length === 0) {
-        const finished: CrocodileGameState = {
-          ...prev,
-          phase: 'finished',
-          timeLeft: 0,
-          winnerId: getLeaderId(prev.scores),
-        };
-        setGameState(finished);
-        gameStateRef.current = finished;
-        broadcast('croc:state', finished);
-        return;
-      }
-
-      const currentRound = getRoundNumber(prev);
-      const completesFinishingRound = prev.finishingRound !== null
-        && currentRound >= prev.finishingRound
-        && prev.explainerIndex === prev.playersOrder.length - 1;
-
-      if (completesFinishingRound) {
-        const finished: CrocodileGameState = {
-          ...prev,
-          phase: 'finished',
-          timeLeft: 0,
-          winnerId: getLeaderId(prev.scores),
-        };
-        setGameState(finished);
-        gameStateRef.current = finished;
-        broadcast('croc:state', finished);
-        return;
-      }
-
-      const nextIndex = (prev.explainerIndex + 1) % prev.playersOrder.length;
-      const nextId = prev.playersOrder[nextIndex];
-      const nextWordIdx = pickRandomWordIndex(prev.usedWordIndices);
-
-      const next: CrocodileGameState = {
-        ...prev,
-        phase: 'ready',
-        turnNumber: prev.turnNumber + 1,
-        explainerIndex: nextIndex,
-        explainerId: nextId,
-        currentWordIndex: nextWordIdx,
-        timeLeft: TURN_DURATION,
-        wordsGuessed: 0,
-        wordsSkipped: 0,
-        usedWordIndices: [...prev.usedWordIndices, nextWordIdx],
-      };
-
-      setGameState(next);
-      gameStateRef.current = next;
-      broadcast('croc:state', next);
-    },
-    [broadcast],
-  );
-
-  // ------------------------------------------------------------------
-  // Host: explainer starts a ready turn
+  // The current explainer asks the server to start the turn.
   // ------------------------------------------------------------------
 
   const startTurn = useCallback(() => {
-    if (!isGameHost) return;
-
     const current = gameStateRef.current;
     if (!current || current.phase !== 'ready') return;
-
-    const next: CrocodileGameState = {
-      ...current,
-      phase: 'explaining',
-      timeLeft: TURN_DURATION,
-    };
-
-    setGameState(next);
-    gameStateRef.current = next;
-    broadcast('croc:state', next);
-  }, [isGameHost, broadcast]);
-
-  // ------------------------------------------------------------------
-  // Host: award +1 and start the final round once somebody reaches the target
-  // ------------------------------------------------------------------
-
-  const handleGuessed = useCallback(() => {
-    const current = gameStateRef.current;
-    if (!isGameHost || !current || current.phase !== 'explaining') return;
-
-    const nextScore = (current.scores[current.explainerId] ?? 0) + 1;
-    const nextWordIdx = pickRandomWordIndex(current.usedWordIndices);
-    const finishingRound = current.finishingRound
-      ?? (nextScore >= TARGET_SCORE ? getRoundNumber(current) : null);
-    const updated: CrocodileGameState = {
-      ...current,
-      phase: 'explaining',
-      currentWordIndex: nextWordIdx,
-      wordsGuessed: current.wordsGuessed + 1,
-      scores: {
-        ...current.scores,
-        [current.explainerId]: nextScore,
-      },
-      finishingRound,
-      winnerId: null,
-      usedWordIndices: [...current.usedWordIndices, nextWordIdx],
-    };
-
-    setGameState(updated);
-    gameStateRef.current = updated;
-    broadcast('croc:state', updated);
-  }, [isGameHost, broadcast]);
-
-  // ------------------------------------------------------------------
-  // Host: explainer pressed "Пропустить" — skip word, no points
-  // ------------------------------------------------------------------
-
-  const handleSkip = useCallback(() => {
-    const current = gameStateRef.current;
-    if (!isGameHost || !current || current.phase !== 'explaining') return;
-
-    const nextWordIdx = pickRandomWordIndex(current.usedWordIndices);
-    const updated: CrocodileGameState = {
-      ...current,
-      currentWordIndex: nextWordIdx,
-      wordsSkipped: current.wordsSkipped + 1,
-      usedWordIndices: [...current.usedWordIndices, nextWordIdx],
-    };
-
-    setGameState(updated);
-    gameStateRef.current = updated;
-    broadcast('croc:state', updated);
-  }, [isGameHost, broadcast]);
+    broadcast('croc:start-turn', {
+      turnNumber: current.turnNumber,
+      currentWordIndex: current.currentWordIndex,
+    });
+  }, [broadcast]);
 
   // ------------------------------------------------------------------
   // Explainer presses Guessed / Skip (emit to host if not host)
   // ------------------------------------------------------------------
 
   const emitAction = useCallback(
-    (action: string) => {
-      broadcast(action, {});
+    (action: string, payload: Record<string, unknown> = {}) => {
+      broadcast(action, payload);
     },
     [broadcast],
   );
@@ -510,6 +358,7 @@ export default function CrocodilePage() {
     if (!current || current.phase !== 'explaining' || swipeDirection || swipeLockRef.current) return;
 
     swipeLockRef.current = true;
+    setSwipeAnimationDone(false);
     setOutgoingWordIndex(current.currentWordIndex);
     setSwipeDirection(direction);
     setSwipeFeedback(direction === 'right' ? 'guessed' : 'skipped');
@@ -517,53 +366,36 @@ export default function CrocodilePage() {
     if (swipeResetRef.current) clearTimeout(swipeResetRef.current);
     if (feedbackResetRef.current) clearTimeout(feedbackResetRef.current);
 
-    if (direction === 'right') {
-      if (isGameHost) handleGuessed();
-      else emitAction('croc:guessed');
-    } else if (isGameHost) {
-      handleSkip();
-    } else {
-      emitAction('croc:skip');
-    }
+    emitAction(direction === 'right' ? 'croc:guessed' : 'croc:skip', {
+      turnNumber: current.turnNumber,
+      currentWordIndex: current.currentWordIndex,
+    });
 
     swipeResetRef.current = setTimeout(() => {
-      setOutgoingWordIndex(null);
-      setSwipeDirection(null);
-      setCardCycle((cycle) => cycle + 1);
-      swipeLockRef.current = false;
+      setSwipeAnimationDone(true);
     }, reduceMotion ? 20 : 620);
 
     feedbackResetRef.current = setTimeout(() => {
       setSwipeFeedback(null);
     }, reduceMotion ? 40 : 1050);
-  }, [emitAction, handleGuessed, handleSkip, isGameHost, reduceMotion, swipeDirection]);
+  }, [emitAction, reduceMotion, swipeDirection]);
 
-  // Non-host explainer actions -> host listens
   useEffect(() => {
-    if (!isGameHost) return;
-    const cleanup = on('game:action', (data: unknown) => {
-      const { action } = data as {
-        action: string;
-        payload: Record<string, unknown>;
-        from: string;
-      };
-      if (action === 'croc:guessed') handleGuessed();
-      if (action === 'croc:skip') handleSkip();
-      if (action === 'croc:start-turn') startTurn();
-      if (action === 'croc:next-player' && gameState) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        advanceToNextExplainer(gameState);
-      }
+    if (!swipeDirection || !swipeAnimationDone || !nextWordIsReady) return;
+    const frame = requestAnimationFrame(() => {
+      setOutgoingWordIndex(null);
+      setSwipeDirection(null);
+      setCardCycle((cycle) => cycle + 1);
+      swipeLockRef.current = false;
     });
-    return cleanup;
-  }, [isGameHost, on, handleGuessed, handleSkip, startTurn, advanceToNextExplainer, gameState]);
+    return () => cancelAnimationFrame(frame);
+  }, [nextWordIsReady, swipeAnimationDone, swipeDirection]);
 
   // ------------------------------------------------------------------
   // Host: end game manually
   // ------------------------------------------------------------------
 
   const endGame = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
     emit('game:end', { code: roomId });
     router.push(user ? `/lobby/${roomId}` : `/join/${roomId}`);
   }, [emit, roomId, router, user]);
@@ -652,7 +484,7 @@ export default function CrocodilePage() {
           </div>
           <button
             type="button"
-            onClick={() => (isGameHost ? startTurn() : emitAction('croc:start-turn'))}
+            onClick={startTurn}
             className="min-h-[72px] rounded-[24px] bg-[#fff4da] text-lg font-black text-[#8f1224] shadow-[0_18px_42px_rgba(0,0,0,.25)] transition active:scale-[0.98]"
           >
             {locale === 'ru' ? 'НАЧАТЬ' : 'START'}
@@ -738,11 +570,31 @@ export default function CrocodilePage() {
         </div>
       )}
 
+      {gameState?.phase === 'turnResult' && (
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col text-center">
+          <div className="flex flex-1 flex-col items-center justify-center py-8">
+            <span className="font-mono text-xs uppercase tracking-[0.2em] text-[#ff8b78]">{locale === 'ru' ? 'ХОД ЗАВЕРШЁН' : 'TURN COMPLETE'}</span>
+            <h2 className="mt-4 text-3xl font-black">{isExplainer ? (locale === 'ru' ? 'Твой результат' : 'Your result') : currentExplainer?.nickname}</h2>
+            <div className="mt-8 w-full rounded-[32px] bg-[#ef3340] p-8">
+              <b className="block font-mono text-7xl">{gameState.wordsGuessed}</b>
+              <span className="mt-3 block text-lg font-bold">{locale === 'ru' ? 'Угадано слов за ход' : 'Words guessed this turn'}</span>
+            </div>
+          </div>
+          {isExplainer ? (
+            <button type="button" onClick={() => emitAction('croc:continue', { turnNumber: gameState.turnNumber })} className="mt-6 min-h-[68px] w-full shrink-0 rounded-[24px] bg-[#fff4da] text-lg font-black text-[#8f1224] transition active:scale-[0.98]">
+              {locale === 'ru' ? 'ПРОДОЛЖИТЬ' : 'CONTINUE'}
+            </button>
+          ) : <p className="mt-6 text-white/60">{locale === 'ru' ? 'Ждём, пока игрок нажмёт «Продолжить»' : 'Waiting for the player to continue'}</p>}
+        </div>
+      )}
+
       {gameState?.phase === 'finished' && (
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
           <span className="font-mono text-xs font-bold uppercase tracking-[0.25em] text-[#ff8b78]">{locale === 'ru' ? `Финиш · раунд ${roundNumber}` : `Finish · round ${roundNumber}`}</span>
           <h2 className="mt-3 text-5xl font-black tracking-[-0.05em]">
-            {locale === 'ru' ? `${winner?.nickname ?? 'Игрок'} победил` : `${winner?.nickname ?? 'Player'} wins`}
+            {winnerId && winnerId === effectivePlayerId
+              ? (locale === 'ru' ? 'Вы победили' : 'You won')
+              : (locale === 'ru' ? `${winner?.nickname ?? 'Игрок'} победил` : `${winner?.nickname ?? 'Player'} wins`)}
           </h2>
           <div className="mt-8 rounded-[34px] bg-[#ef3340] p-7 shadow-[0_28px_70px_rgba(239,51,64,.3)]">
             <PlayerAvatar nickname={winner?.nickname ?? '?'} sizePx={88} ring="#fff4da" />

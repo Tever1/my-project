@@ -90,18 +90,51 @@ test('Mafia internal button flow and recipient state', async () => {
       check(label,()=>{for(const [key,value] of Object.entries(expected))assert.deepEqual(state[key],value);});
       return state;
     };
-    const send=async(type:string,patch:Payload,expected:Payload)=>action(type,host,{type,...patch},expected);
+    const send=async(type:string,patch:Payload,expected:Payload)=> {
+      if (type === 'start-voting' && (await snap(host)).morningPending) {
+        await action('ordinary player cannot continue morning',players.c2,{type:'morning-continue'},{morningPending:true});
+        await action('host continues morning',host,{type:'morning-continue'},{morningPending:false,dayTimer:60});
+      }
+      return action(type,host,{type,...patch},expected);
+    };
     await send('select-host',{hostPlayerId:'host'},{hostPlayerId:'host'});
     await send('assign-roles',{hostPlayerId:'host',roles},{phase:'role-reveal',roles});
     for(const id of Object.keys(roles)) await action('see role '+id,players[id],{type:'role-seen',playerId:id},{phase:'role-reveal'});
     const publicState=await snap(tv);
     check('TV roles hidden',()=>assert.deepEqual(publicState.roles,{}));
     await send('start-night',{round:1},{phase:'night',nightStage:'mafia'});
+    for (const [id, type, actorKey] of [
+      ['maf', 'mafia-vote', 'voterId'], ['don', 'don-check-sheriff', 'donId'],
+      ['doc', 'doctor-save', 'doctorId'], ['det', 'detective-check', 'detectiveId'],
+      ['lover', 'lover-visit', 'loverId'], ['maniac', 'maniac-kill', 'maniacId'],
+    ]) await action('first night rejects '+id, players[id], {type, [actorKey]:id, targetId:'c1'},
+      {mafiaVotes:{}, doctorSave:null, detectiveCheck:null, donCheck:null, loverVisit:null, maniacKill:null});
+    await send('advance-night-stage', {stage:'lover'}, {nightStage:'mafia'});
+    await send('night-result',{killedId:null,killedIds:[],saved:false,savedIds:[],lastDoctorSave:null,lastLoverVisit:null},{phase:'day',alive:Object.keys(roles)});
+    await send('start-voting',{}, {phase:'voting'});
+    await action('first day tie A',players.c1,{type:'cast-vote',voterId:'c1',targetId:'maf'},{});
+    await action('first day tie B',players.c2,{type:'cast-vote',voterId:'c2',targetId:'don'},{});
+    await send('vote-tie',{round:2,candidates:['maf','don']},{votingRound:2});
+    await action('first day tie A2',players.c1,{type:'cast-vote',voterId:'c1',targetId:'maf'},{});
+    await action('first day tie B2',players.c2,{type:'cast-vote',voterId:'c2',targetId:'don'},{});
+    await send('vote-tie',{round:3,candidates:['maf','don']},{votingRound:3});
+    await action('first day pardon',players.c1,{type:'cast-vote',voterId:'c1',targetId:'pardon'},{});
+    await send('vote-pardoned',{playerIds:['maf','don']},{phase:'results'});
+    await send('start-night',{round:2},{phase:'night',nightStage:'mafia'});
     await action('citizen cannot vote as Mafia',players.c1,{type:'mafia-vote',voterId:'c1',targetId:'c2'},{mafiaVotes:{}});
+    await action('Mafia draft does not count',players.maf,{type:'mafia-select',voterId:'maf',targetId:'c2'},{mafiaVotes:{},mafiaDraftVotes:{maf:'c2'}});
+    const draftDonState = await snap(players.don);
+    check('Don sees draft before confirmation',()=>assert.deepEqual(draftDonState.mafiaDraftVotes,{maf:'c2'}));
+    assert.deepEqual((await snap(tv)).mafiaDraftVotes,{});
+    assert.deepEqual((await snap(players.c1)).mafiaDraftVotes,{});
+    await action('Mafia can change draft',players.maf,{type:'mafia-select',voterId:'maf',targetId:'c1'},{mafiaVotes:{},mafiaDraftVotes:{maf:'c1'}});
     await action('Mafia target',players.maf,{type:'mafia-vote',voterId:'maf',targetId:'c1'},{mafiaVotes:{maf:'c1'}});
+    await action('Mafia confirmed choice immutable',players.maf,{type:'mafia-vote',voterId:'maf',targetId:'c2'},{mafiaVotes:{maf:'c1'}});
+    await action('Mafia cannot change confirmed draft',players.maf,{type:'mafia-select',voterId:'maf',targetId:'c2'},{mafiaVotes:{maf:'c1'},mafiaDraftVotes:{maf:'c1'}});
     await action('Don target',players.don,{type:'mafia-vote',voterId:'don',targetId:'c1'},{mafiaVotes:{maf:'c1',don:'c1'}});
     await send('advance-night-stage',{stage:'lover'},{nightStage:'lover'});
     await action('Lover visit',players.lover,{type:'lover-visit',loverId:'lover',targetId:'c2'},{loverVisit:'c2'});
+    await action('Lover cannot change confirmed visit',players.lover,{type:'lover-visit',loverId:'lover',targetId:'doc'},{loverVisit:'c2'});
     await send('advance-night-stage',{stage:'maniac'},{nightStage:'maniac'});
     await action('Maniac skips',players.maniac,{type:'maniac-kill',maniacId:'maniac',targetId:null},{maniacActed:true,maniacKill:null});
     await send('advance-night-stage',{stage:'doctor'},{nightStage:'doctor'});
@@ -118,6 +151,7 @@ test('Mafia internal button flow and recipient state', async () => {
     const donTargets=[...(donState.alive as string[]), ...(donState.eliminated as {id:string}[]).map(({id})=>id)].filter(id=>id!=='don');
     check('Don button can target Detective',()=>assert.ok(donTargets.includes('det'),JSON.stringify(donTargets)));
     await action('Don check protocol',players.don,{type:'don-check-sheriff',donId:'don',targetId:'det'},{donCheck:'det'});
+    await action('Don cannot change confirmed check',players.don,{type:'don-check-sheriff',donId:'don',targetId:'doc'},{donCheck:'det'});
     await send('detective-result',{detectiveId:'det',role:'mafia'},{detectiveResult:'mafia'});
     await send('don-check-result',{donId:'don',targetId:'det',isDetective:true},{donCheckResult:true});
     await send('night-result',{killedId:null,killedIds:[],saved:true,savedIds:['c1'],lastDoctorSave:'c1',lastLoverVisit:'c2'},{phase:'day',dayTimer:60});
@@ -126,10 +160,14 @@ test('Mafia internal button flow and recipient state', async () => {
     await send('start-voting',{}, {phase:'voting'});
     for(const id of Object.keys(roles)) await action('day vote '+id,players[id],{type:'cast-vote',voterId:id,targetId:'c2'},{phase:'voting'});
     await send('vote-alibi',{playerId:'c2'},{phase:'results',lastVoteResult:'alibi'});
-    await send('start-night',{round:2},{phase:'night',round:2});
+    await send('start-night',{round:3},{phase:'night',round:3});
+    await send('advance-night-stage',{stage:'lover'},{nightStage:'mafia'});
+    await action('night3 mafia confirms',players.maf,{type:'mafia-vote',voterId:'maf',targetId:'c1'},{mafiaVotes:{maf:'c1'}});
+    await action('night3 Don confirms',players.don,{type:'mafia-vote',voterId:'don',targetId:'c1'},{mafiaVotes:{maf:'c1',don:'c1'}});
     await send('advance-night-stage',{stage:'lover'},{nightStage:'lover'});
     await action('Lover blocks doctor',players.lover,{type:'lover-visit',loverId:'lover',targetId:'doc'},{loverVisit:'doc'});
     await send('advance-night-stage',{stage:'maniac'},{nightStage:'maniac'});
+    await action('night3 Maniac skips',players.maniac,{type:'maniac-kill',maniacId:'maniac',targetId:null},{maniacActed:true});
     await send('advance-night-stage',{stage:'doctor'},{nightStage:'doctor'});
     const doctorState=await snap(players.doc);
     check('blocked Doctor UI condition',()=>assert.equal(doctorState.abilityBlocked,true));
@@ -140,23 +178,36 @@ test('Mafia internal button flow and recipient state', async () => {
     check('Don still cannot see Detective role',()=>assert.equal((donState.roles as Payload).det,undefined));
     await action('blocked Doctor action rejected',players.doc,{type:'doctor-save',doctorId:'doc',targetId:'c2'},{doctorSave:null});
     await send('advance-night-stage',{stage:'detective'},{nightStage:'detective'});
+    await send('advance-night-stage',{stage:'don'},{nightStage:'detective'});
+    await action('night3 sheriff confirms',players.det,{type:'detective-check',detectiveId:'det',targetId:'maf'},{detectiveCheck:'maf'});
     await send('advance-night-stage',{stage:'don'},{nightStage:'don'});
-    await send('night-result',{killedId:null,killedIds:[],saved:false,savedIds:[],lastDoctorSave:null,lastLoverVisit:'doc'},{phase:'day'});
+    await action('night3 Don check confirms',players.don,{type:'don-check-sheriff',donId:'don',targetId:'det'},{donCheck:'det'});
+    await send('night-result',{killedId:'c1',killedIds:['c1'],saved:false,savedIds:[],lastDoctorSave:null,lastLoverVisit:'doc'},{phase:'day'});
     await send('start-voting',{}, {phase:'voting'});
     for(let round=1;round<=2;round++){
-      await action('tie A '+round,players.c1,{type:'cast-vote',voterId:'c1',targetId:'maf'},{phase:'voting'});
+      await action('tie A '+round,players.det,{type:'cast-vote',voterId:'det',targetId:'maf'},{phase:'voting'});
       await action('tie B '+round,players.c2,{type:'cast-vote',voterId:'c2',targetId:'don'},{phase:'voting'});
       await send('vote-tie',{round:round+1,candidates:['maf','don']},{votingRound:round+1,votes:{}});
     }
-    await action('pardon vote',players.c1,{type:'cast-vote',voterId:'c1',targetId:'pardon'},{votes:{c1:'pardon'}});
-    await action('second day vote rejected',players.c1,{type:'cast-vote',voterId:'c1',targetId:'execute'},{votes:{c1:'pardon'}});
+    await action('pardon vote',players.det,{type:'cast-vote',voterId:'det',targetId:'pardon'},{votes:{det:'pardon'}});
+    await action('second day vote rejected',players.det,{type:'cast-vote',voterId:'det',targetId:'execute'},{votes:{det:'pardon'}});
     await send('vote-pardoned',{playerIds:['maf','don']},{phase:'results',lastVoteResult:'pardoned'});
-    await send('start-night',{round:3},{phase:'night',round:3});
-    for (const stage of ['lover','maniac','doctor','detective','don'])
-      await send('advance-night-stage',{stage},{nightStage:stage});
-    await send('night-result',{killedId:null,killedIds:[],saved:false,savedIds:[],lastDoctorSave:null,lastLoverVisit:null},{phase:'day'});
+    await send('start-night',{round:4},{phase:'night',round:4});
+    await action('night4 mafia',players.maf,{type:'mafia-vote',voterId:'maf',targetId:'c2'},{mafiaVotes:{maf:'c2'}});
+    await action('night4 Don',players.don,{type:'mafia-vote',voterId:'don',targetId:'c2'},{mafiaVotes:{maf:'c2',don:'c2'}});
+    await send('advance-night-stage',{stage:'lover'},{nightStage:'lover'});
+    await action('night4 lover',players.lover,{type:'lover-visit',loverId:'lover',targetId:'c2'},{loverVisit:'c2'});
+    await send('advance-night-stage',{stage:'maniac'},{nightStage:'maniac'});
+    await action('night4 Maniac',players.maniac,{type:'maniac-kill',maniacId:'maniac',targetId:null},{maniacActed:true});
+    await send('advance-night-stage',{stage:'doctor'},{nightStage:'doctor'});
+    await action('night4 Doctor',players.doc,{type:'doctor-save',doctorId:'doc',targetId:'c2'},{doctorSave:'c2'});
+    await send('advance-night-stage',{stage:'detective'},{nightStage:'detective'});
+    await action('night4 Sheriff',players.det,{type:'detective-check',detectiveId:'det',targetId:'maf'},{detectiveCheck:'maf'});
+    await send('advance-night-stage',{stage:'don'},{nightStage:'don'});
+    await action('night4 Don check',players.don,{type:'don-check-sheriff',donId:'don',targetId:'det'},{donCheck:'det'});
+    await send('night-result',{killedId:null,killedIds:[],saved:true,savedIds:['c2'],lastDoctorSave:'c2',lastLoverVisit:'c2'},{phase:'day'});
     await send('start-voting',{}, {phase:'voting'});
-    await action('elimination vote',players.c1,{type:'cast-vote',voterId:'c1',targetId:'maf'},{votes:{c1:'maf'}});
+    await action('elimination vote',players.det,{type:'cast-vote',voterId:'det',targetId:'maf'},{votes:{det:'maf'}});
     await send('eliminate',{playerId:'maf',role:'mafia'},{phase:'results',lastVoteTargetIds:['maf']});
     const afterElimination=await snap(tv);
     check('day elimination role hidden on TV',()=>assert.equal((afterElimination.roles as Payload).maf,undefined));

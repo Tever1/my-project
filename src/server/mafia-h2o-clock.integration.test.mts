@@ -60,9 +60,18 @@ test('Mafia and H2O publish server time without host ticks', async (t) => {
         const code = created.code;
         const hostJoin = await emitAck(host, 'room:join', { code, playerId: 'host', nickname: 'Host', role: 'player' });
         await emitAck(peer, 'room:join', { code, playerId: 'peer', nickname: 'Peer', role: 'player' });
+        if (game === 'mafia') {
+          for (const id of ['maf', 'citizen']) {
+            const extra = await join();
+            await emitAck(extra, 'room:join', { code, playerId: id, nickname: id, role: 'player' });
+          }
+        }
         if (game === 'hundred-to-one') {
           const secondTeam = await join();
           await emitAck(secondTeam, 'room:join', { code, playerId: 'second', nickname: 'Second', role: 'player' });
+          for (const id of ['extra1', 'extra2']) {
+            await emitAck(await join(), 'room:join', { code, playerId: id, nickname: id, role: 'player' });
+          }
         }
         await emitAck(tv, 'tv:join', { code });
         host.emit('game:select', { code, gameType: game });
@@ -77,9 +86,10 @@ test('Mafia and H2O publish server time without host ticks', async (t) => {
         };
         if (game === 'mafia') {
           await send({ type: 'select-host', hostPlayerId: 'host' });
-          await send({ type: 'assign-roles', hostPlayerId: 'host', roles: { peer: 'citizen' } });
+          await send({ type: 'assign-roles', hostPlayerId: 'host', roles: { peer: 'citizen', maf: 'mafia', citizen: 'citizen' } });
           await send({ type: 'start-night', round: 1 });
           await send({ type: 'night-result', killedId: null, killedIds: [], savedIds: [], saved: false, lastDoctorSave: null, lastLoverVisit: null });
+          await send({ type: 'morning-continue' });
         } else {
           await send({ topicId: 'classic', phase: 'roleSelect', qState: {} });
           await send({ roles: { host: 'host' } });
@@ -116,6 +126,22 @@ test('Mafia and H2O publish server time without host ticks', async (t) => {
           code, action: game === 'mafia' ? 'mafia' : 'h2o:request-state', payload: { type: 'request-state' },
         });
         await restored;
+        if (game === 'mafia') {
+          const automaticVote = [tv, peer].map(s => waitForEvent(s, 'game:action', value => {
+            const payload = value.payload as Payload;
+            return value.from === 'server:timer' && payload.type === 'sync-state'
+              && (payload.state as Payload)?.phase === 'voting';
+          }));
+          host.disconnect();
+          // Simulate elapsed wall time without a browser tick or a minute-long test.
+          const realNow = Date.now;
+          Date.now = () => realNow() + 60_000;
+          try {
+            await Promise.all(automaticVote);
+          } finally {
+            Date.now = realNow;
+          }
+        }
         if (game !== 'mafia') {
           await send({ r4Reset: true });
           const state = waitForEvent(tv, 'game:action', v => (v.payload as Payload).r4Time === 60);

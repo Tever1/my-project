@@ -47,6 +47,16 @@ test('classic finishing round remains stable if another team later reaches the t
   assert.equal(getAliasFinishingRound(5, 6, teams, ALIAS_CLASSIC_TARGET_SCORE), 5);
 });
 
+test('classic final round uses settled scores including skips and the final word', () => {
+  const teams = [{ id: 'one', score: 28 }, { id: 'two', score: 24 }];
+  assert.equal(getAliasFinishingRound(null, 4, teams, ALIAS_CLASSIC_TARGET_SCORE), null);
+  for (const [skipped, expectedRound] of [[2, null], [1, 4], [0, 4]] as const) {
+    const scored = scoreClassicTurn({ teams, activeTeamIndex: 0,
+      wordsGuessedBeforeFinal: 2, wordsSkipped: skipped, finalWordTeamIndex: 0 });
+    assert.equal(getAliasFinishingRound(null, 4, scored.teams, ALIAS_CLASSIC_TARGET_SCORE), expectedRound);
+  }
+});
+
 test('letter mode starts its finishing round at 15 and waits for every player', () => {
   const players = [
     { id: 'one', score: ALIAS_LETTER_TARGET_SCORE },

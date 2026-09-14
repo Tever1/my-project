@@ -6,6 +6,7 @@ import {
   actionMatchesGame,
   advanceTimedSnapshot,
   canUndoSpyDrawing,
+  mafiaWinner,
   isRequestStateAction,
   isStateSyncAction,
   normalizeWhoAmIGuess,
@@ -45,6 +46,8 @@ interface Room {
   spyVotingTimeout?: ReturnType<typeof setTimeout>;
   spyVotingDeadline?: number;
   gameClockTimeout?: ReturnType<typeof setTimeout>;
+  transitionTimeout?: ReturnType<typeof setTimeout>;
+  transitionKey?: string;
   tvSocketId: string | null;
   createdAt: number;
   kickedPlayerIds: Set<string>;
@@ -156,10 +159,88 @@ function materializeRoomSnapshot(room: Room): void {
   room.gameStateUpdatedAt += elapsedSeconds * 1000;
 }
 
+function syncDelayedTransition(io: SocketIOServer, room: Room): void {
+  const state = room.gameState;
+  const winner = room.currentGame === 'mafia' && state && !state.morningPending && !state.winner && ['day', 'results'].includes(String(state.phase))
+    ? mafiaWinner(stringArray(state.alive), asRecord(state.roles) as Record<string, string>) : null;
+  const buzzer = room.currentGame === 'hundred-to-one' && state?.phase === 'buzzer' && finiteNumber(state.buzzerWinner) > 0 && !state.buzzerActive;
+  const quizQuestionIndex = room.currentGame === 'quiz' && state?.phase === 'question' && state.showCorrect === true
+    && Number.isInteger(state.questionIndex) && finiteNumber(state.questionIndex, -1) >= 0
+    ? finiteNumber(state.questionIndex) : undefined;
+  const key = winner ? `mafia:${state?.round}:${state?.phase}:${winner}`
+    : buzzer ? `h2o:${state?.curQ}:${state?.buzzerWinner}`
+      : quizQuestionIndex !== undefined ? `quiz:reveal:${quizQuestionIndex}` : undefined;
+  if (key === room.transitionKey) return;
+  if (room.transitionTimeout) clearTimeout(room.transitionTimeout);
+  room.transitionTimeout = undefined;
+  room.transitionKey = key;
+  if (!key) return;
+  room.transitionTimeout = setTimeout(() => {
+    room.transitionTimeout = undefined;
+    if (getRoomByCode(room.code) !== room || room.transitionKey !== key || !room.gameState) return;
+    if (winner) {
+      room.gameState = reduceGameSnapshot('mafia', room.gameState, 'mafia', { type: 'game-over', winner });
+    } else if (buzzer) {
+      const current = room.gameState;
+      const active = Array.isArray(current.roundActiveTeam) ? [...current.roundActiveTeam] : [];
+      active[finiteNumber(current.curQ)] = current.buzzerWinner;
+      room.gameState = { ...current, phase: 'playing', roundActiveTeam: active };
+    } else if (quizQuestionIndex !== undefined) {
+      const current = room.gameState;
+      if (room.currentGame !== 'quiz' || current.phase !== 'question'
+        || current.showCorrect !== true || finiteNumber(current.questionIndex, -1) !== quizQuestionIndex) return;
+      const nextIndex = quizQuestionIndex + 1;
+      const queue = Array.isArray(current.questionQueue) ? current.questionQueue.map(asRecord) : [];
+      const totalQuestions = finiteNumber(current.totalQuestions, queue.length);
+      if (nextIndex >= totalQuestions) {
+        room.gameState = { ...current, phase: 'final' };
+      } else if (nextIndex === 5) {
+        room.gameState = { ...current, phase: 'mid-leaderboard' };
+      } else {
+        const question = queue[nextIndex];
+        if (!question) {
+          // The canonical queue is unavailable, so preserve the revealed result instead of corrupting state.
+          room.transitionKey = undefined;
+          return;
+        }
+        room.gameState = {
+          ...current,
+          phase: 'question',
+          questionIndex: nextIndex,
+          timeLeft: finiteNumber(question.timeLimit, 20),
+          currentQuestion: {
+            questionRu: question.questionRu,
+            questionEn: question.questionEn,
+            options: question.options,
+            correctIndex: question.correctIndex,
+          },
+          answers: {},
+          showCorrect: false,
+          correctPlayers: [],
+        };
+      }
+    }
+    room.transitionKey = undefined;
+    room.gameStateUpdatedAt = Date.now();
+    broadcastSnapshot(io, room, 'server:timer');
+    syncRoomClock(io, room);
+  }, winner ? 1500 : buzzer ? 3000 : 5000);
+  room.transitionTimeout.unref();
+}
+
 function syncRoomClock(io: SocketIOServer, room: Room): void {
+  syncDelayedTransition(io, room);
   const state = room.gameState;
   const active = room.currentGame === 'mafia'
     ? state?.phase === 'day' && finiteNumber(state.dayTimer) > 0
+    : room.currentGame === 'quiz'
+      ? state?.phase === 'countdown' || (state?.phase === 'question' && !state.showCorrect)
+    : room.currentGame === 'spy'
+      ? (state?.phase === 'playing' && state.timerRunning) || (state?.phase === 'discussion' && state.discussionTimerRunning) || (state?.phase === 'voting' && state.voteTimerRunning)
+    : room.currentGame === 'alias'
+      ? state?.phase === 'explaining' && finiteNumber(state.timeLeft) > 0
+    : room.currentGame === 'crocodile'
+      ? state?.phase === 'explaining' && finiteNumber(state.timeLeft) > 0
     : room.currentGame === 'hundred-to-one' && (
       (state?.phase === 'buzzer' && finiteNumber(state.buzzerCountdown) > 0)
       || (state?.phase === 'playing' && state.r4Running && finiteNumber(state.r4Time) > 0)
@@ -179,7 +260,7 @@ function syncRoomClock(io: SocketIOServer, room: Room): void {
       emitRawAction(io, room, roomSocketIds(room), 'mafia', {
         type: 'day-timer', value: room.gameState?.dayTimer,
       }, 'server:timer');
-    } else if (room.currentGame === 'hundred-to-one') {
+    } else {
       broadcastSnapshot(io, room, 'server:timer');
     }
     syncRoomClock(io, room);
@@ -451,6 +532,9 @@ function isAuthorizedGameAction(room: Room, socket: Socket, action: string, payl
   if (isRequestStateAction(action, payload)) return true;
   if (!senderId) return false;
 
+  if (room.currentGame === 'quiz' && room.gameState?.phase === 'question' && room.gameState.showCorrect === true
+    && ['quiz:sync', 'quiz:start-question', 'quiz:final'].includes(action)) return false;
+
   if (isStateSyncAction(action, payload)) {
     if (room.currentGame === 'mafia' || room.currentGame === 'who-am-i') return false;
     if (room.currentGame === 'hundred-to-one') {
@@ -481,17 +565,24 @@ function isAuthorizedGameAction(room: Room, socket: Socket, action: string, payl
     if (action === 'quiz:show-results') return phase === 'question' && !room.gameState?.showCorrect;
     if (action === 'quiz:countdown') return phase === 'waiting' || phase === 'countdown';
     if (action === 'quiz:start-question') {
-      return phase === 'countdown' || phase === 'results' || phase === 'mid-leaderboard'
-        || (phase === 'question' && room.gameState?.showCorrect === true);
+      return phase === 'countdown' || phase === 'results' || phase === 'mid-leaderboard';
     }
-    if (action === 'quiz:final') return phase === 'question' && room.gameState?.showCorrect === true;
+    if (action === 'quiz:final') return false;
     return false;
   }
 
   if (room.currentGame === 'crocodile') {
+    if (action === 'croc:continue') {
+      return room.gameState?.phase === 'turnResult'
+        && room.gameState.explainerId === senderId
+        && finiteNumber(payload.turnNumber, -1) === finiteNumber(room.gameState.turnNumber, -2);
+    }
     if (['croc:start-turn', 'croc:guessed', 'croc:skip'].includes(action)) {
       const expectedPhase = action === 'croc:start-turn' ? 'ready' : 'explaining';
-      return room.gameState?.explainerId === senderId && room.gameState?.phase === expectedPhase;
+      return room.gameState?.explainerId === senderId
+        && room.gameState?.phase === expectedPhase
+        && finiteNumber(payload.turnNumber, -1) === finiteNumber(room.gameState?.turnNumber, -2)
+        && finiteNumber(payload.currentWordIndex, -1) === finiteNumber(room.gameState?.currentWordIndex, -2);
     }
     return false;
   }
@@ -569,11 +660,15 @@ function isAuthorizedGameAction(room: Room, socket: Socket, action: string, payl
         && (room.gameState?.drawerId === senderId || isGameController(room, sender));
     }
     if (action === 'spy:undo') return canUndoSpyDrawing(room.gameState, payload, senderId);
-    if (action === 'spy:guess-start') return phase === 'playing' && room.gameState?.spyId === senderId;
+    if (action === 'spy:guess-start') return (phase === 'playing' || phase === 'discussion') && room.gameState?.spyId === senderId;
     if (action === 'spy:guess-try') {
       return phase === 'spyGuess' && room.gameState?.spyId === senderId
         && typeof payload.text === 'string' && payload.text.trim().length > 0
-        && !room.gameState?.spyGuessAwaitingJudge;
+        && !room.gameState?.spyGuessAwaitingJudge && !room.gameState?.spyGuessNeedsConfirm;
+    }
+    if (action === 'spy:guess-decline') {
+      return phase === 'spyGuess' && room.gameState?.spyId === senderId
+        && room.gameState.spyGuessNeedsConfirm === true && !room.gameState.spyGuessAwaitingJudge;
     }
     if (action === 'spy:guess-confirm') {
       return phase === 'spyGuess' && room.gameState?.spyId === senderId
@@ -595,7 +690,7 @@ function isAuthorizedGameAction(room: Room, socket: Socket, action: string, payl
     }
     const hostOnlyActions = new Set([
       'assign-roles', 'start-night', 'advance-night-stage', 'sync-state', 'detective-result',
-      'don-check-result', 'resolve-night', 'night-result', 'start-voting', 'vote-alibi',
+      'don-check-result', 'resolve-night', 'night-result', 'morning-continue', 'start-voting', 'vote-alibi',
       'day-timer', 'vote-tie', 'vote-pardoned', 'eliminate', 'eliminate-many', 'game-over', 'end-game',
     ]);
     if (hostOnlyActions.has(type)) {
@@ -1050,6 +1145,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
         });
         return;
       }
+      if (room.currentGame === 'hundred-to-one' && (playerCount < 5 || playerCount > 11)) {
+        socket.emit('game:error', {
+          messageRu: 'Для «100 к 1» нужно от 5 до 11 участников, включая ведущего',
+          messageEn: '100 to 1 requires 5 to 11 participants, including the host',
+        });
+        return;
+      }
       room.showQrCode = false;
       room.status = 'in-game';
       room.mafiaHostPlayerId = null;
@@ -1077,6 +1179,8 @@ export function setupSocketHandlers(io: SocketIOServer) {
       if (!room || !room.currentGame || !isAuthorizedGameAction(room, socket, data.action, data.payload)) return;
       // Legacy browser ticks cannot alter the server-owned Mafia clock.
       if (data.action === 'mafia' && data.payload.type === 'day-timer') return;
+      if (data.action === 'croc:tick') return;
+      if (data.action === 'alias:tick' || data.action === 'quiz:timer') return;
 
       if (isRequestStateAction(data.action, data.payload)) {
         if (room.gameState) {
@@ -1141,10 +1245,39 @@ export function setupSocketHandlers(io: SocketIOServer) {
         }
       }
 
+      if (room.currentGame === 'spy') {
+        const participants = [...room.players.values()].filter(player => player.role === 'player')
+          .map(player => ({ id: player.id, nickname: player.nickname }));
+        if (room.gameState) room.gameState = { ...room.gameState, players: participants };
+        if (data.action === 'spy:sync') payload = { ...payload, players: participants };
+        if (data.action === 'spy:guess-confirm') {
+          const candidates = [...room.players.values()].filter(player => player.role === 'player'
+            && player.id !== room.gameState?.spyId && player.isConnected && !player.isAway);
+          const judge = candidates[Math.floor(Math.random() * candidates.length)];
+          if (!judge) {
+            emitSnapshotToSocket(io, room, socket.id, 'server:snapshot');
+            return;
+          }
+          payload = { judgeId: judge.id };
+        }
+      }
       materializeRoomSnapshot(room);
       const previousClockState = room.gameState;
       room.gameState = reduceGameSnapshot(room.currentGame, room.gameState, data.action, payload);
-      if ((room.currentGame === 'mafia' && payload.type === 'night-result')
+      if (room.currentGame === 'quiz' && data.action === 'quiz:answer' && room.gameState?.phase === 'question' && !room.gameState.showCorrect) {
+        const participants = [...room.players.values()].filter(player => player.role === 'player');
+        if (participants.length && participants.every(player => Object.hasOwn(asRecord(room.gameState?.answers), player.id))) {
+          room.gameState = advanceTimedSnapshot('quiz', room.gameState, Math.max(1, finiteNumber(room.gameState.timeLeft)));
+        }
+      }
+      if (['quiz', 'spy', 'alias'].includes(room.currentGame) && (
+        previousClockState?.phase !== room.gameState?.phase
+        || (room.currentGame === 'quiz' && previousClockState?.questionIndex !== room.gameState?.questionIndex)
+        || (room.currentGame === 'spy' && ['timerRunning', 'discussionTimerRunning', 'voteTimerRunning'].some(key => room.gameState?.[key] === true && !previousClockState?.[key]))
+      )) room.gameStateUpdatedAt = Date.now();
+      if (room.currentGame === 'crocodile' && room.gameState?.phase === 'explaining'
+        && previousClockState?.phase !== 'explaining') room.gameStateUpdatedAt = Date.now();
+      if ((room.currentGame === 'mafia' && ['night-result', 'morning-continue'].includes(String(payload.type)))
         || (room.currentGame === 'hundred-to-one' && (
           payload.r4Reset === true
           || (payload.r4Running === true && !previousClockState?.r4Running)
@@ -1153,11 +1286,11 @@ export function setupSocketHandlers(io: SocketIOServer) {
           || (payload.buzzerCountdown === 3 && finiteNumber(previousClockState?.buzzerCountdown) <= 0)
         ))) room.gameStateUpdatedAt = Date.now();
       if (actionTouchesGameClock(data.action, payload)
-        && !['mafia', 'hundred-to-one'].includes(room.currentGame)) room.gameStateUpdatedAt = Date.now();
+        && !['mafia', 'hundred-to-one', 'crocodile', 'quiz', 'spy', 'alias'].includes(room.currentGame)) room.gameStateUpdatedAt = Date.now();
       syncRoomClock(io, room);
 
       if (isStateSyncAction(data.action, payload)) {
-        broadcastSnapshot(io, room, socket.id, ['spy', 'hundred-to-one'].includes(room.currentGame) ? undefined : socket.id);
+        broadcastSnapshot(io, room, socket.id, ['spy', 'hundred-to-one', 'alias', 'quiz'].includes(room.currentGame) ? undefined : socket.id);
         return;
       }
 
@@ -1167,6 +1300,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
       if (room.currentGame === 'quiz') {
         if (data.action === 'quiz:answer') {
+          if (room.gameState?.showCorrect) {
+            broadcastSnapshot(io, room, socket.id);
+            return;
+          }
           for (const targetSocketId of allSocketIds) {
             const recipient = getRecipient(room, targetSocketId);
             const canSeeAnswer = targetSocketId === socket.id || recipient.isGameHost;
@@ -1182,8 +1319,11 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
 
       if (room.currentGame === 'crocodile' || room.currentGame === 'alias') {
-        if (data.action.endsWith(':state') || data.action.endsWith(':tick')) {
-          broadcastSnapshot(io, room, socket.id, socket.id);
+        if (room.currentGame === 'crocodile'
+          && ['croc:start-turn', 'croc:guessed', 'croc:skip', 'croc:continue'].includes(data.action)) {
+          broadcastSnapshot(io, room, socket.id);
+        } else if (data.action.endsWith(':state') || data.action.endsWith(':tick')) {
+          broadcastSnapshot(io, room, socket.id, room.currentGame === 'alias' ? undefined : socket.id);
         } else if (data.action === 'alias:select-mode') {
           emitRawAction(io, room, allSocketIds, data.action, payload, socket.id);
         } else if (controllerSocketId) {
@@ -1201,20 +1341,12 @@ export function setupSocketHandlers(io: SocketIOServer) {
           broadcastSnapshot(io, room, socket.id, socket.id);
           return;
         }
-        if (['spy:pass-turn', 'spy:guess-start', 'spy:guess-try', 'spy:undo'].includes(data.action)) {
+        if (['spy:pass-turn', 'spy:guess-start', 'spy:guess-try', 'spy:guess-confirm', 'spy:guess-verdict', 'spy:guess-decline', 'spy:undo'].includes(data.action)) {
           broadcastSnapshot(io, room, socket.id);
           return;
         }
         if (data.action === 'spy:vote') {
           broadcastSnapshot(io, room, socket.id);
-          return;
-        }
-        if (data.action === 'spy:guess-confirm') {
-          if (controllerSocketId) emitRawAction(io, room, [controllerSocketId, socket.id], data.action, payload, socket.id);
-          return;
-        }
-        if (data.action === 'spy:guess-verdict') {
-          if (controllerSocketId) emitRawAction(io, room, [controllerSocketId, socket.id], data.action, payload, socket.id);
           return;
         }
         emitRawAction(io, room, allSocketIds, data.action, payload, socket.id);
@@ -1254,7 +1386,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           return;
         }
         const snapshotTransitionTypes = new Set([
-          'start-night', 'advance-night-stage', 'night-result', 'start-voting',
+          'start-night', 'advance-night-stage', 'night-result', 'morning-continue', 'start-voting',
           'vote-alibi', 'vote-tie', 'vote-pardoned', 'eliminate',
           'eliminate-many', 'game-over',
         ]);
@@ -1263,7 +1395,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           return;
         }
         const actorSecretTypes = new Set([
-          'mafia-vote', 'maniac-kill', 'don-check-sheriff', 'lover-visit',
+          'mafia-vote', 'mafia-select', 'maniac-kill', 'don-check-sheriff', 'lover-visit',
           'detective-check', 'doctor-save', 'cast-vote',
         ]);
         if (actorSecretTypes.has(type)) {
@@ -1277,7 +1409,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
             }
             return;
           }
-          if (type === 'mafia-vote') {
+          if (type === 'mafia-vote' || type === 'mafia-select') {
             const roles = asRecord(room.gameState?.roles);
             for (const player of room.players.values()) {
               if (roles[player.id] === 'mafia' || roles[player.id] === 'don') targets.push(player.socketId);

@@ -1,9 +1,10 @@
+import { codexCompletion, withCodexAdmin } from '@/lib/admin-codex';
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import type { QuizQuestion } from '@/types/game';
 
-export const maxDuration = 60; // секунд
+export const maxDuration = 200;
 
 const OVERRIDES_PATH = path.join(process.cwd(), 'data', 'quiz-overrides.json');
 
@@ -39,8 +40,6 @@ async function generateReplacement(
   currentQ: QuizQuestion,
   existingQuestions: string[],
 ): Promise<QuizQuestion> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY not set');
 
   const themeLabel = specialId.startsWith('harry-potter') ? 'Harry Potter'
     : specialId.startsWith('marvel') ? 'Marvel'
@@ -92,34 +91,11 @@ ${existingList}
   "explanationRu": "..."
 }`;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
-
-  let res: Response;
-  try {
-    res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'party-games-hub',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.65,
-        max_tokens: 800,
-      }),
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  const res = await codexCompletion(prompt);
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`OpenRouter ${res.status}: ${errText.slice(0, 200)}`);
+    throw new Error(`Codex ${res.status}: ${errText.slice(0, 200)}`);
   }
 
   const data = await res.json();
@@ -128,6 +104,13 @@ ${existingList}
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
   const parsed = JSON.parse(raw.slice(start, end + 1));
+  if (!parsed || typeof parsed.questionRu !== 'string' || !parsed.questionRu.trim()
+    || typeof parsed.questionEn !== 'string' || !parsed.questionEn.trim()
+    || !Number.isInteger(parsed.correctIndex) || parsed.correctIndex < 0 || parsed.correctIndex > 3
+    || !Array.isArray(parsed.options) || parsed.options.length !== 4
+    || parsed.options.some((option: { ru?: unknown; en?: unknown } | null) => !option
+      || typeof option.ru !== 'string' || !option.ru.trim()
+      || typeof option.en !== 'string' || !option.en.trim())) throw new Error('Invalid quiz result');
 
   return {
     ...currentQ,
@@ -141,7 +124,7 @@ ${existingList}
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
-export async function POST(req: NextRequest) {
+export const POST = withCodexAdmin(async (req: NextRequest) => {
   let body: {
     action: 'delete' | 'replace';
     quizType: 'general' | 'special';
@@ -204,4 +187,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-}
+});

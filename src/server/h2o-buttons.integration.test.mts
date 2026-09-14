@@ -38,6 +38,50 @@ function emitAck(socket: ClientSocket, event: string, payload: Payload): Promise
 
 import assert from 'node:assert/strict';
 
+for (const playerCount of [4, 5, 11, 12]) {
+  test(`H2O start range: ${playerCount} participants plus TV`, async () => {
+    const http = createServer();
+    const io = new SocketIOServer(http, { path: '/api/socketio' });
+    setupSocketHandlers(io);
+    await new Promise<void>(resolve => http.listen(0, '127.0.0.1', resolve));
+    const sockets: ClientSocket[] = [];
+    const connect = async () => {
+      const socket = createClient(`http://127.0.0.1:${(http.address() as { port: number }).port}`, { path: '/api/socketio', transports: ['websocket'] });
+      sockets.push(socket);
+      await waitForEvent(socket, 'connect');
+      return socket;
+    };
+    try {
+      const tv = await connect();
+      const { code } = await emitAck(tv, 'room:create', { playerId: 'tv', nickname: 'TV', role: 'tv' });
+      for (let i = 0; i < playerCount; i++) {
+        assert.equal((await emitAck(await connect(), 'room:join', { code, playerId: `p${i}`, nickname: `P${i}`, role: 'player' })).success, true);
+      }
+      const host = sockets[1];
+      const allowed = playerCount >= 5 && playerCount <= 11;
+      host.emit('game:select', { code, gameType: 'hundred-to-one' });
+      const result = waitForEvent(host, allowed ? 'game:started' : 'game:error');
+      host.emit('game:start', { code });
+      const response = await result;
+      if (allowed) assert.equal(response.gameType, 'hundred-to-one');
+      else {
+        assert.match(String(response.messageRu), /5 до 11/);
+        assert.match(String(response.messageEn), /5 to 11/);
+      }
+      const state = waitForEvent(host, 'room:state');
+      host.emit('room:get-state', { code });
+      const room = await state;
+      assert.equal(room.status, allowed ? 'in-game' : 'lobby');
+      assert.equal(room.showQrCode, !allowed);
+      assert.equal(room.maxPlayers, 20, 'Shared room capacity must not change');
+    } finally {
+      sockets.forEach(socket => socket.disconnect());
+      await io.close();
+      http.close();
+    }
+  });
+}
+
 test('H2O room host can advance roles when another player is the moderator', async () => {
   const http = createServer();
   const io = new SocketIOServer(http, { path: '/api/socketio' });
@@ -46,17 +90,18 @@ test('H2O room host can advance roles when another player is the moderator', asy
   const port = (http.address() as { port: number }).port;
   const sockets: ClientSocket[] = [];
   try {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       const socket = createClient(`http://127.0.0.1:${port}`, { path: '/api/socketio', transports: ['websocket'] });
       sockets.push(socket);
       await waitForEvent(socket, 'connect');
     }
-    const [tv, roomHost, moderator, teammate, opponent] = sockets;
+    const [tv, roomHost, moderator, teammate, opponent, extra] = sockets;
     const { code } = await emitAck(tv, 'room:create', { playerId: 'tv', nickname: 'TV', role: 'tv' });
     for (const [socket, id] of [[roomHost, 'room-host'], [moderator, 'moderator'], [teammate, 'teammate'], [opponent, 'opponent']] as const) {
       await emitAck(socket, 'room:join', { code, playerId: id, nickname: id, role: 'player' });
     }
     await emitAck(tv, 'tv:join', { code });
+    await emitAck(extra, 'room:join', { code, playerId: 'extra', nickname: 'Extra', role: 'player' });
     roomHost.emit('game:select', { code, gameType: 'hundred-to-one' });
     const started = waitForEvent(roomHost, 'game:started');
     roomHost.emit('game:start', { code });
@@ -113,6 +158,7 @@ test('H2O button protocol from team setup through replay', async () => {
     for (const [socket, id] of [[host, 'host'], [a, 'a'], [b, 'b'], [c, 'c']] as const)
       await emitAck(socket, 'room:join', { code, playerId: id, nickname: id, role: 'player' });
     await emitAck(tv, 'tv:join', { code });
+    await emitAck(await connect(), 'room:join', { code, playerId: 'extra', nickname: 'Extra', role: 'player' });
     host.emit('game:select', { code, gameType: 'hundred-to-one' });
     const started = waitForEvent(host, 'game:started'); host.emit('game:start', { code }); await started;
     const snapshot = async (socket: ClientSocket) => {

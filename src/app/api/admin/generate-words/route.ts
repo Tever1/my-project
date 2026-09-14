@@ -1,6 +1,7 @@
+import { codexCompletion, withCodexAdmin } from '@/lib/admin-codex';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export const POST = withCodexAdmin(async (req: NextRequest) => {
   const { theme, difficulty, count, game } = await req.json() as {
     theme: string;
     difficulty: string;
@@ -8,8 +9,11 @@ export async function POST(req: NextRequest) {
     game: 'alias' | 'crocodile';
   };
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: 'OPENROUTER_API_KEY not set' }, { status: 500 });
+  if (typeof theme !== 'string' || !theme.trim() || theme.length > 500
+    || !Number.isInteger(count) || count < 1 || count > 100
+    || !['easy', 'medium', 'hard'].includes(difficulty) || !['alias', 'crocodile'].includes(game)) {
+    return NextResponse.json({ error: 'Укажите тему, сложность и от 1 до 100 слов.' }, { status: 400 });
+  }
 
   const gameLabel = game === 'alias' ? 'Alias (объяснять словами, нельзя использовать однокоренные)' : 'Крокодил (объяснять жестами без слов)';
   const diffLabel = difficulty === 'easy' ? 'простые (все знают)' : difficulty === 'medium' ? 'средние' : 'сложные (редкие или специфичные)';
@@ -27,25 +31,11 @@ export async function POST(req: NextRequest) {
 Верни ТОЛЬКО JSON массив строк без пояснений:
 ["слово1", "слово2", ...]`;
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': 'http://localhost:3000',
-      'X-Title': 'party-games-hub',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.0-flash-001',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.8,
-      max_tokens: 1000,
-    }),
-  });
+  const res = await codexCompletion(prompt);
 
   if (!res.ok) {
     const text = await res.text();
-    return NextResponse.json({ error: `OpenRouter ${res.status}: ${text}` }, { status: 500 });
+    return NextResponse.json({ error: `Codex ${res.status}: ${text}` }, { status: res.status });
   }
 
   const data = await res.json();
@@ -56,8 +46,9 @@ export async function POST(req: NextRequest) {
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']');
     const words: string[] = JSON.parse(text.slice(start, end + 1));
+    if (!Array.isArray(words) || words.length !== count || words.some(word => typeof word !== 'string' || !word.trim() || word.length > 150)) throw new Error('Invalid words');
     return NextResponse.json({ words });
   } catch {
     return NextResponse.json({ error: 'Failed to parse response', raw }, { status: 500 });
   }
-}
+});

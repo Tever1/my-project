@@ -279,6 +279,13 @@ test('every production game restores an existing player after a full socket reco
       assert.equal(peerJoin.success, true);
       const peerReconnectToken = String(peerJoin.reconnectToken);
       assert.ok(peerReconnectToken);
+      if (gameType === 'hundred-to-one') {
+        for (const id of ['extra1', 'extra2', 'extra3']) {
+          const extra = await connect(url);
+          sockets.push(extra);
+          assert.equal((await emitAck(extra, 'room:join', { code, playerId: id, nickname: id, role: 'player' })).success, true);
+        }
+      }
       assert.equal((await emitAck(owner, 'tv:join', { code })).success, true);
 
       const roomState = waitForEvent(host, 'room:state');
@@ -566,7 +573,7 @@ test('room player names are limited to ten characters before duplicate checks', 
   assert.equal(rejected.error, 'name-taken');
 });
 
-test('spy active player can pass the turn and a wrong spy guess ends the round', async (t) => {
+test('spy canonical roster supports passing and a disputed guess uses a server judge', async (t) => {
   const httpServer = createServer();
   const io = new SocketIOServer(httpServer, { path: '/api/socketio' });
   setupSocketHandlers(io);
@@ -602,12 +609,7 @@ test('spy active player can pass the turn and a wrong spy guess ends the round',
     action: 'spy:sync',
     payload: {
       phase: 'dealing', mode: 'guess', word: 'Аэропорт', spyId: 'spy',
-      players: [
-        { id: 'host', nickname: 'Host', isHost: true },
-        { id: 'active', nickname: 'Active', isHost: false },
-        { id: 'spy', nickname: 'Spy', isHost: false },
-      ],
-      playerOrder: ['host', 'active', 'spy'], playerOrderIdx: 0,
+      playerOrder: ['active', 'host', 'spy'], playerOrderIdx: 0,
       guessAskerId: '', guessTargetId: '', guessCycleAnswered: [],
       readyPlayers: [], votes: {}, drawStrokes: [], timerLeft: 180, timerRunning: false,
     },
@@ -634,6 +636,14 @@ test('spy active player can pass the turn and a wrong spy guess ends the round',
   assert.equal(passedState.guessAskerId, 'host');
   assert.notEqual(passedState.guessTargetId, 'host');
 
+  const discussing = waitForEvent(spy, 'game:action', (value) => (
+    value.action === 'spy:sync' && (value.payload as EventPayload).phase === 'discussion'
+  ));
+  host.emit('game:action', { code, action: 'spy:sync', payload: {
+    phase: 'discussion', timerRunning: false, discussionTimeLeft: 60, discussionTimerRunning: true,
+  } });
+  await discussing;
+
   const tvGuessing = waitForEvent(owner, 'game:action', (value) => (
     value.action === 'spy:sync' && (value.payload as EventPayload).phase === 'spyGuess'
   ));
@@ -641,11 +651,36 @@ test('spy active player can pass the turn and a wrong spy guess ends the round',
   const hiddenGuessingState = (await tvGuessing).payload as EventPayload;
   assert.equal(hiddenGuessingState.spyId, '');
   assert.equal(hiddenGuessingState.word, '');
+  assert.equal(hiddenGuessingState.discussionTimerRunning, false);
 
+  const pending = waitForEvent(spy, 'game:action', (value) => (
+    value.action === 'spy:sync' && (value.payload as EventPayload).spyGuessNeedsConfirm === true
+  ));
+  spy.emit('game:action', { code, action: 'spy:guess-try', payload: { text: 'Аэропор' } });
+  assert.equal(((await pending).payload as EventPayload).phase, 'spyGuess');
+  const judging = waitForEvent(owner, 'game:action', (value) => (
+    value.action === 'spy:sync' && (value.payload as EventPayload).spyGuessAwaitingJudge === true
+  ));
+  spy.emit('game:action', { code, action: 'spy:guess-confirm', payload: { judgeId: 'spy' } });
+  const judgeState = (await judging).payload as EventPayload;
+  assert.ok(['host', 'active'].includes(String(judgeState.spyGuessJudgeId)));
+  assert.equal(judgeState.spyGuessText, '');
+  assert.equal(judgeState.word, '');
+  spy.emit('game:action', { code, action: 'spy:guess-verdict', payload: { accept: true } });
+  const stillPending = waitForEvent(spy, 'game:action', (value) => value.action === 'spy:sync');
+  spy.emit('game:action', { code, action: 'spy:request-state', payload: {} });
+  assert.equal(((await stillPending).payload as EventPayload).spyGuessAwaitingJudge, true);
+  const judge = judgeState.spyGuessJudgeId === 'host' ? host : active;
+  const restored = waitForEvent(judge, 'game:action', (value) => value.action === 'spy:sync');
+  judge.emit('game:action', { code, action: 'spy:request-state', payload: {} });
+  const restoredState = (await restored).payload as EventPayload;
+  assert.equal(restoredState.spyGuessText, 'Аэропор');
+  assert.equal(restoredState.word, 'Аэропорт');
+  assert.equal(restoredState.spyGuessAwaitingJudge, true);
   const tvResult = waitForEvent(owner, 'game:action', (value) => (
     value.action === 'spy:sync' && (value.payload as EventPayload).phase === 'roundResult'
   ));
-  spy.emit('game:action', { code, action: 'spy:guess-try', payload: { text: 'Вокзал' } });
+  judge.emit('game:action', { code, action: 'spy:guess-verdict', payload: { accept: false } });
   const resultState = (await tvResult).payload as EventPayload;
   assert.equal(resultState.spyId, 'spy');
   assert.equal(resultState.word, 'Аэропорт');

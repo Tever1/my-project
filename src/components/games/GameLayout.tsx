@@ -151,7 +151,6 @@ export function GameLayout({
             onClick={(e) => e.stopPropagation()}
           >
             <GlassCard className="p-6 text-center">
-              <p className="text-4xl mb-3">⚠️</p>
               <h3 className="text-xl font-bold mb-2">
                 {locale === 'ru' ? 'Завершить игру?' : 'End the game?'}
               </h3>
@@ -172,6 +171,7 @@ export function GameLayout({
                   variant="danger"
                   size="md"
                   className="flex-1"
+                  style={{ background: '#b5162d', borderColor: '#d72b43', color: '#ffffff', fontWeight: 700 }}
                   onClick={() => {
                     setEndConfirmOpen(false);
                     onEnd();

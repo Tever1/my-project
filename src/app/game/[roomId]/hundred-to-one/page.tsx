@@ -260,7 +260,6 @@ export default function HundredToOnePage() {
   const [bgDupMsg, setBgDupMsg] = useState(false);
   const r4Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const bgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const buzzerWinnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isHost = s.players.find(p => p.id === effectivePlayerId)?.isHost ?? false;
   const myRole: PlayerRole | null = effectivePlayerId ? s.roles[effectivePlayerId] || null : null;
@@ -431,14 +430,6 @@ export default function HundredToOnePage() {
     sndBuzz();
     update({ buzzerWinner: team, buzzerActive: false });
     // After 3 seconds go to playing, with winning team as active
-    setTimeout(() => {
-      setS(prev => {
-        const newActive = prev.roundActiveTeam.map((v, i) => i === prev.curQ ? team : v);
-        const patch = { phase: 'playing' as Phase, roundActiveTeam: newActive };
-        broadcast(patch);
-        return { ...prev, ...patch };
-      });
-    }, 3000);
   };
 
   // ── Open/close answer ──
@@ -652,24 +643,7 @@ export default function HundredToOnePage() {
     broadcast({ bgPhase: player === 1 ? 1 : 3, bgCurQ: 0, bgTimeLeft: time, bgTimerTotal: time, bgTimerPaused: false, ...(player === 1 ? { bgP1Ans: [] } : { bgP2Ans: [] }) });
   };
 
-  useEffect(() => {
-    if (!isGameHost || s.phase !== 'buzzer' || s.buzzerWinner <= 0 || s.buzzerActive) return;
-    if (buzzerWinnerTimerRef.current) return;
-    buzzerWinnerTimerRef.current = setTimeout(() => {
-      const cur = sRef.current;
-      const team = cur.buzzerWinner;
-      if (cur.phase !== 'buzzer' || team <= 0) return;
-      const newActive = cur.roundActiveTeam.map((value, index) => index === cur.curQ ? team : value);
-      update({ phase: 'playing', roundActiveTeam: newActive });
-      buzzerWinnerTimerRef.current = null;
-    }, 3000);
-    return () => {
-      if (buzzerWinnerTimerRef.current) {
-        clearTimeout(buzzerWinnerTimerRef.current);
-        buzzerWinnerTimerRef.current = null;
-      }
-    };
-  }, [isGameHost, s.buzzerActive, s.buzzerWinner, s.phase, update]);
+  // Gameplay clocks and expiry are owned by the server.
 
   const bgSubmitAnswer = () => {
     const v = bgInput.trim();
@@ -1548,17 +1522,17 @@ export default function HundredToOnePage() {
             (s.bgPhase === 1 ? effectivePlayerId === s.bgP1Id : effectivePlayerId === s.bgP2Id)
           ) && s.bgPhase >= 1 && !hideBigQuestions && (
             <>
-              <div className="mb-3 space-y-[7px]">
+              <div className="mb-3 grid auto-rows-fr gap-[7px]">
                 {BIG_Q.map((qq, i) => {
                   const ans = s.bgPhase <= 2 ? s.bgP1Ans[i] : s.bgP2Ans[i];
                   const matched = s.bgPhase <= 2 ? s.bgP1Matched[i] : s.bgP2Matched[i];
                   const isChecked = s.bgPhase === 2 || s.bgPhase === 4;
                   return (
-                    <div key={i} className={`${H2O_GLASS} rounded-[var(--radius-md)] p-3`}>
+                    <div key={i} className={`${H2O_GLASS} min-w-0 rounded-[var(--radius-md)] p-3`}>
                       <div className="flex items-center gap-2">
-                        <span className="w-4 font-mono text-[12px] font-bold text-white/25">{i + 1}</span>
-                        <span className="text-sm font-bold flex-1">{qq.q}</span>
-                        <span className={`text-sm font-bold min-w-[80px] text-right ${ans ? 'text-yellow-300' : 'text-white/30 italic'}`}>
+                        <span className="w-4 shrink-0 font-mono text-[12px] font-bold text-white/25">{i + 1}</span>
+                        <span className="min-w-0 flex-1 text-sm font-bold [overflow-wrap:anywhere]">{qq.q}</span>
+                        <span className={`w-[80px] shrink-0 text-sm font-bold text-right [overflow-wrap:anywhere] ${ans ? 'text-yellow-300' : 'text-white/30 italic'}`}>
                           {ans || '...'}
                         </span>
                         {isChecked && (
@@ -1569,14 +1543,14 @@ export default function HundredToOnePage() {
                       </div>
                       {/* Show all answers in check phase — host can click, players read-only */}
                       {isChecked && (
-                        <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-white/5">
+                        <div className="mt-2 grid auto-rows-fr grid-cols-2 gap-1 border-t border-white/5 pt-2">
                           {qq.answers.map((a, ai) => {
                             const usedByP1 = s.bgPhase === 4 && s.bgP1Matched[i] === a.t;
                             const isSelected = matched === a.t;
                             return isGameHost ? (
                               <button key={ai} disabled={usedByP1 && !isSelected}
                                 onClick={() => bgManualCredit(i, ai, s.bgPhase === 2)}
-                                className={`text-xs px-2 py-0.5 rounded border transition-all
+                                className={`flex min-h-11 min-w-0 items-center justify-center rounded border px-2 py-1 text-center text-xs [overflow-wrap:anywhere] transition-colors
                                   ${isSelected
                                     ? 'bg-green-500/30 text-green-300 border-green-400 font-bold'
                                     : usedByP1
@@ -1586,7 +1560,7 @@ export default function HundredToOnePage() {
                               </button>
                             ) : (
                               <span key={ai}
-                                className={`text-xs px-2 py-0.5 rounded border transition-all
+                                className={`flex min-h-11 min-w-0 items-center justify-center rounded border px-2 py-1 text-center text-xs [overflow-wrap:anywhere] transition-colors
                                   ${isSelected
                                     ? 'bg-green-500/30 text-green-300 border-green-400 font-bold'
                                     : usedByP1

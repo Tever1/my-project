@@ -33,10 +33,10 @@ test('equal tallies preserve the existing first-leader rule', () => {
   assert.deepEqual(result?.roundResult, { spyCaught: false, exposedId: 'c', voteCount: 1, totalVotes: 2 });
 });
 
-test('host timer reaching zero resolves on the server too', () => {
+test('host timer patches cannot resolve voting before the server deadline', () => {
   const result = reduceGameSnapshot('spy', voting, 'spy:sync', { voteTimerLeft: 0, voteTimerRunning: false });
-  assert.equal(result?.phase, 'roundResult');
-  assert.equal((result?.roundResult as { totalVotes: number }).totalVotes, 2);
+  assert.equal(result?.phase, 'voting');
+  assert.equal(result?.voteTimerLeft, voting.voteTimerLeft);
 });
 
 test('all submitted votes can finish voting early without waiting for the timer', () => {

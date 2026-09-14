@@ -266,20 +266,20 @@ function AnswerGrid({ locale, question, selected, reveal, interactive, onAnswer,
 function Rankings({ scores, final, locale, tv = false }: { scores: QuizPulseScore[]; final: boolean; locale: Locale; tv?: boolean }) {
   const density = scores.length <= 4 ? 'large' : scores.length <= 7 ? 'medium' : 'compact';
   const useTwoColumns = tv && scores.length >= 5;
-  const rowCount = Math.ceil(scores.length / 2);
+  const rowCount = 5;
   const gapClass = tv
     ? useTwoColumns
       ? density === 'medium' ? 'gap-x-[2.5%] gap-y-[clamp(5px,.5vw,7px)]' : 'gap-x-[2%] gap-y-[clamp(3px,.35vw,5px)]'
       : 'gap-[clamp(6px,.6vw,9px)]'
     : density === 'large' ? 'gap-3' : density === 'medium' ? 'gap-2' : 'gap-1.5';
   const rowClass = tv
-    ? density === 'large' ? 'rounded-[1vw] px-[5%] py-[1.8%]' : density === 'medium' ? 'rounded-[.85vw] px-[4.5%] py-[1%]' : 'rounded-[.75vw] px-[4%] py-[.65%]'
+    ? 'rounded-[.65vw] px-[clamp(10px,1vw,16px)] py-[clamp(6px,.5vw,8px)]'
     : density === 'large' ? 'rounded-[14px] px-4 py-4' : density === 'medium' ? 'rounded-[12px] px-3.5 py-2.5' : 'rounded-[10px] px-3 py-1.5';
   const rankClass = tv
     ? density === 'large' ? 'mr-1 w-[10%] text-[clamp(11px,1.15vw,17px)]' : density === 'medium' ? 'mr-1 w-[9%] text-[clamp(9px,.95vw,14px)]' : 'mr-1 w-[8%] text-[clamp(8px,.85vw,12px)]'
     : density === 'large' ? 'mr-1 w-7 text-[12px]' : density === 'medium' ? 'mr-1 w-6 text-[10px]' : 'mr-1 w-5 text-[9px]';
   const nameClass = tv
-    ? density === 'large' ? 'text-[clamp(13px,1.45vw,21px)]' : density === 'medium' ? 'text-[clamp(11px,1.15vw,17px)]' : 'text-[clamp(9px,1vw,14px)]'
+    ? density === 'large' ? 'text-[clamp(16.25px,1.8125vw,26.25px)]' : density === 'medium' ? 'text-[clamp(13.75px,1.4375vw,21.25px)]' : 'text-[clamp(11.25px,1.25vw,17.5px)]'
     : density === 'large' ? 'text-[17px]' : density === 'medium' ? 'text-[14px]' : 'text-[12px]';
   const scoreClass = tv
     ? density === 'large' ? 'text-[clamp(18px,1.8vw,26px)]' : density === 'medium' ? 'text-[clamp(16px,1.5vw,22px)]' : 'text-[clamp(14px,1.3vw,19px)]'
@@ -287,8 +287,8 @@ function Rankings({ scores, final, locale, tv = false }: { scores: QuizPulseScor
 
   return (
     <div
-      className={`grid ${useTwoColumns ? `h-full grid-flow-col grid-cols-2 ${density === 'medium' ? 'w-[74%]' : 'w-[88%]'}` : tv ? 'h-[75%] w-[52%] grid-cols-1' : 'grid-cols-1'} ${tv ? 'mx-auto' : ''} ${gapClass}`}
-      style={useTwoColumns ? { gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))` } : undefined}
+      className={`grid ${useTwoColumns ? 'w-full max-w-[44rem] grid-flow-col grid-cols-2' : tv ? 'w-full max-w-[22rem] grid-cols-1' : 'grid-cols-1'} ${tv ? 'mx-auto content-start items-start' : ''} ${gapClass}`}
+      style={useTwoColumns ? { gridTemplateRows: `repeat(${rowCount}, max-content)` } : undefined}
     >
       {scores.map((entry, index) => (
         <motion.div
@@ -299,7 +299,7 @@ function Rankings({ scores, final, locale, tv = false }: { scores: QuizPulseScor
           className={`flex min-w-0 items-center overflow-hidden border backdrop-blur-md ${rowClass} ${index === 0 ? 'border-[#61d8ff]/55 bg-[#164a72]/92 shadow-[0_0_28px_rgba(38,167,255,.16)]' : 'border-white/15 bg-[#111827]/82'}`}
         >
           <span className={`shrink-0 font-black text-[#8fbfff] ${rankClass}`}>{index + 1}</span>
-          <b className={`truncate ${nameClass}`}>{entry.name}</b>
+          <b className={`truncate leading-none ${nameClass}`}>{entry.name}</b>
           {final && index === 0 && tv && <span className={`ml-3 rounded-full bg-[#f13e55] font-black uppercase tracking-wide ${density === 'large' ? 'px-3 py-1.5 text-[11px]' : 'px-2 py-1 text-[8px]'}`}>{locale === 'ru' ? 'ПОБЕДИТЕЛЬ' : 'WINNER'}</span>}
           <strong className={`ml-auto pl-2 text-[#65c8ff] ${scoreClass}`}>{entry.score}</strong>
         </motion.div>
@@ -346,7 +346,6 @@ export function QuizPulsePlayerScreen(props: PlayerProps) {
                   {!props.showCorrect && props.myAnswer === undefined && <p className="pb-3 text-center text-[13px] font-bold uppercase tracking-[.12em] text-white/45">{c.choose}</p>}
                   {!props.showCorrect && props.myAnswer !== undefined && <div className="flex min-h-[51px] w-full items-center justify-between rounded-[14px] bg-[#164a72] px-4 py-3.5"><span className="text-[11px] font-black uppercase tracking-[.12em]">{c.accepted}</span><b className="text-[11px] uppercase tracking-[.08em] text-[#a9dcff]">{c.canChange}</b></div>}
                   {props.showCorrect && <motion.div initial={reduced ? false : { y: 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={`flex min-h-[51px] w-full items-center justify-between rounded-[14px] px-4 py-3.5 ${props.myAnswerIsCorrect ? 'bg-[#126b50]' : 'bg-[#7f2032]'}`}><span className="text-[11px] font-black uppercase tracking-[.12em]">{props.myAnswerIsCorrect ? c.correct : c.wrong}</span><b className={props.myAnswerIsCorrect ? 'text-[15px]' : 'text-[11px] uppercase tracking-[.08em] text-[#ffbdc5]'}>{props.myAnswerIsCorrect ? c.point : c.noPoint}</b></motion.div>}
-                  {props.showCorrect && props.isGameHost && <div className="mt-3"><PrimaryButton onClick={props.onNext}>{props.questionIndex + 1 < props.totalQuestions ? (props.locale === 'ru' ? 'СЛЕДУЮЩИЙ ВОПРОС' : 'NEXT QUESTION') : (props.locale === 'ru' ? 'ПОКАЗАТЬ РЕЗУЛЬТАТЫ' : 'SHOW RESULTS')}</PrimaryButton></div>}
                 </div>
               </>
             )}

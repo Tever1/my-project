@@ -7,10 +7,12 @@ import { useRoomState } from '@/lib/use-room-state';
 import { useGameBroadcast } from '@/lib/use-game-action';
 import { useNavigateOnGameEnd } from '@/lib/use-navigate-on-game-end';
 import { useTranslation } from '@/lib/i18n';
+import { isMafiaNightStageComplete } from '@/lib/mafia-night-completion.mts';
 import { useGameIdentity } from '@/lib/use-game-identity';
 import {
   MafiaClubMobileLayout,
   MafiaOrnament,
+  MafiaOwnRoleBack,
   MafiaPlayerToken,
   MafiaRoleCard,
   MafiaRoleThumb,
@@ -26,6 +28,7 @@ import { Player } from '@/types/room';
 // ---------------------------------------------------------------------------
 
 interface MafiaGameState {
+  morningPending?: boolean;
   phase: 'lobby' | 'role-reveal' | MafiaPhase;
   hostPlayerId: string | null;
   nightStage: MafiaNightStage | null;
@@ -34,6 +37,7 @@ interface MafiaGameState {
   alive: string[];
   eliminated: { id: string; role: MafiaRole }[];
   mafiaVotes: Record<string, string>; // mafiaId -> targetId
+  mafiaDraftVotes?: Record<string, string>;
   maniacKill: string | null; // targetId killed by maniac this night
   maniacActed: boolean;
   donCheck: string | null; // targetId checked by Don this night
@@ -61,6 +65,7 @@ interface MafiaGameState {
 type MafiaNightStage = 'mafia' | 'lover' | 'maniac' | 'doctor' | 'detective' | 'don';
 
 type GameAction =
+  | { type: 'morning-continue' }
   | { type: 'start-game' }
   | { type: 'sync-state'; state: MafiaGameState }
   | { type: 'request-state' }
@@ -70,6 +75,7 @@ type GameAction =
   | { type: 'start-night'; round: number }
   | { type: 'advance-night-stage'; stage: MafiaNightStage }
   | { type: 'mafia-vote'; voterId: string; targetId: string }
+  | { type: 'mafia-select'; voterId: string; targetId: string }
   | { type: 'maniac-kill'; maniacId: string; targetId: string | null }
   | { type: 'don-check-sheriff'; donId: string; targetId: string }
   | { type: 'don-check-result'; isDetective: boolean; donId: string; targetId: string }
@@ -148,7 +154,9 @@ function getSingleVoteLeader(voteCounts: Record<string, number>): string | null 
 function getAvailableNightStages(
   roles: Record<string, MafiaRole>,
   alive: string[],
+  round?: number,
 ): MafiaNightStage[] {
+  if (round === 1) return ['mafia'];
   const aliveRoles = new Set(alive.map((id) => roles[id]));
   return NIGHT_STAGE_ORDER.filter((stage) => (
     stage === 'mafia'
@@ -193,19 +201,6 @@ function assignRoles(playerIds: string[]): Record<string, MafiaRole> {
     roles[shuffled[idx++]] = 'citizen';
   }
   return roles;
-}
-
-function checkWin(
-  alive: string[],
-  roles: Record<string, MafiaRole>,
-): 'mafia' | 'citizens' | 'maniac' | null {
-  if (alive.length === 1 && roles[alive[0]] === 'maniac') return 'maniac';
-  const aliveMafia = alive.filter((id) => isMafiaRole(roles[id])).length;
-  const aliveManiacs = alive.filter((id) => roles[id] === 'maniac').length;
-  const aliveOthers = alive.length - aliveMafia;
-  if (aliveMafia === 0 && aliveManiacs === 0) return 'citizens';
-  if (aliveMafia >= aliveOthers) return 'mafia';
-  return null;
 }
 
 function getInitialState(): MafiaGameState {
@@ -261,6 +256,9 @@ export default function MafiaPage() {
   const [nightActionDone, setNightActionDone] = useState(false);
   const [dayTimerValue, setDayTimerValue] = useState(60);
   const [pendingDoctorTargetId, setPendingDoctorTargetId] = useState<string | null>(null);
+  const [pendingLoverTargetId, setPendingLoverTargetId] = useState<string | null>(null);
+  const [pendingDonTargetId, setPendingDonTargetId] = useState<string | null>(null);
+  const [pendingMafiaTargetId, setPendingMafiaTargetId] = useState<string | null>(null);
   const [pendingDetectiveTargetId, setPendingDetectiveTargetId] = useState<string | null>(null);
   const [pendingDayVoteTargetId, setPendingDayVoteTargetId] = useState<string | null>(null);
   // Cache of id→nickname that only grows — survives player disconnection
@@ -381,9 +379,10 @@ export default function MafiaPage() {
           setGs((prev) => ({
             ...prev,
             phase: 'night',
-            nightStage: getAvailableNightStages(prev.roles, prev.alive)[0] ?? 'mafia',
+            nightStage: getAvailableNightStages(prev.roles, prev.alive, payload.round)[0] ?? 'mafia',
             round: payload.round,
             mafiaVotes: {},
+            mafiaDraftVotes: {},
             maniacKill: null,
             maniacActed: false,
             donCheck: null,
@@ -405,6 +404,9 @@ export default function MafiaPage() {
           setNightActionDone(false);
           break;
 
+        case 'mafia-select':
+          setGs((prev) => ({ ...prev, mafiaDraftVotes: { ...prev.mafiaDraftVotes, [payload.voterId]: payload.targetId } }));
+          break;
         case 'mafia-vote':
           if (gsRef.current.nightStage !== 'mafia') break;
           setGs((prev) => ({
@@ -604,6 +606,9 @@ export default function MafiaPage() {
   useEffect(() => {
     queueMicrotask(() => {
       setPendingDoctorTargetId(null);
+      setPendingLoverTargetId(null);
+      setPendingDonTargetId(null);
+      setPendingMafiaTargetId(null);
       setPendingDetectiveTargetId(null);
       setPendingDayVoteTargetId(null);
     });
@@ -645,13 +650,21 @@ export default function MafiaPage() {
   // Night actions
   // -----------------------------------------------------------------------
   const handleMafiaVote = (targetId: string) => {
-    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'mafia' || !isMafiaRole(myRole)) return;
+    if (!effectivePlayerId || !isConnected || gs.round === 1 || gs.nightStage !== 'mafia' || !isMafiaRole(myRole) || gs.mafiaVotes[effectivePlayerId]) return;
     broadcast({ type: 'mafia-vote', voterId: effectivePlayerId, targetId });
+    setPendingMafiaTargetId(null);
     // Update local state immediately for instant UI feedback
     setGs((prev) => ({
       ...prev,
       mafiaVotes: { ...prev.mafiaVotes, [effectivePlayerId]: targetId },
     }));
+  };
+
+  const handleMafiaSelect = (targetId: string) => {
+    if (!effectivePlayerId || !isConnected || gs.round === 1 || gs.nightStage !== 'mafia' || !isMafiaRole(myRole) || gs.mafiaVotes[effectivePlayerId]) return;
+    setPendingMafiaTargetId(targetId);
+    broadcast({ type: 'mafia-select', voterId: effectivePlayerId, targetId });
+    setGs((prev) => ({ ...prev, mafiaDraftVotes: { ...prev.mafiaDraftVotes, [effectivePlayerId]: targetId } }));
   };
 
   const handleDetectiveCheck = (targetId: string) => {
@@ -678,15 +691,17 @@ export default function MafiaPage() {
   };
 
   const handleDonCheck = (targetId: string) => {
-    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'don' || myRole !== 'don' || gs.abilityBlocked) return;
+    if (!effectivePlayerId || !isConnected || gs.phase !== 'night' || gs.round === 1 || !amAlive || gs.nightStage !== 'don' || myRole !== 'don' || gs.abilityBlocked || gs.donCheck || targetId === effectivePlayerId || ![...gs.alive, ...gs.eliminated.map(({ id }) => id)].includes(targetId)) return;
     broadcast({ type: 'don-check-sheriff', donId: effectivePlayerId, targetId });
+    setPendingDonTargetId(null);
     setGs((prev) => ({ ...prev, donCheck: targetId }));
     setNightActionDone(true);
   };
 
   const handleLoverVisit = (targetId: string) => {
-    if (!effectivePlayerId || !isConnected || gs.nightStage !== 'lover' || myRole !== 'lover' || targetId === effectivePlayerId) return;
+    if (!effectivePlayerId || !isConnected || gs.phase !== 'night' || gs.round === 1 || gs.nightStage !== 'lover' || myRole !== 'lover' || gs.abilityBlocked || gs.loverVisit || !amAlive || !gs.alive.includes(targetId) || targetId === effectivePlayerId || targetId === gs.lastLoverVisit) return;
     broadcast({ type: 'lover-visit', loverId: effectivePlayerId, targetId });
+    setPendingLoverTargetId(null);
     setGs((prev) => ({ ...prev, loverVisit: targetId }));
     setNightActionDone(true);
   };
@@ -695,6 +710,12 @@ export default function MafiaPage() {
   // Host: resolve night
   // -----------------------------------------------------------------------
   const handleResolveNight = () => {
+    if (!isMafiaNightStageComplete(gs)) return;
+    if (gs.round === 1) {
+      broadcast({ type: 'night-result', killedId: null, killedIds: [], saved: false,
+        savedIds: [], lastDoctorSave: null, lastLoverVisit: null });
+      return;
+    }
     const aliveSet = new Set(gs.alive);
     const killed = new Set<string>();
     const savedIds = new Set<string>();
@@ -771,18 +792,12 @@ export default function MafiaPage() {
       lastLoverVisit: gs.loverVisit,
     });
 
-    // Check win condition after night
-    const aliveAfter = killedIds.length > 0
-      ? gs.alive.filter((id) => !killedIds.includes(id))
-      : gs.alive;
-    const winner = checkWin(aliveAfter, gs.roles);
-    if (winner) {
-      setTimeout(() => broadcast({ type: 'game-over', winner }), 1500);
-    }
+    // Terminal results are scheduled by the server.
   };
 
   const handleAdvanceNightStage = () => {
-    const stages = getAvailableNightStages(gs.roles, gs.alive);
+    if (!isMafiaNightStageComplete(gs)) return;
+    const stages = getAvailableNightStages(gs.roles, gs.alive, gs.round);
     const currentIndex = gs.nightStage ? stages.indexOf(gs.nightStage) : -1;
     const nextStage = stages[currentIndex + 1];
     if (nextStage) {
@@ -844,11 +859,6 @@ export default function MafiaPage() {
         broadcast({ type: 'eliminate-many', playerIds: eliminatedIds, roles });
       }
 
-      const aliveAfter = gs.alive.filter((id) => !eliminatedIds.includes(id));
-      const winner = checkWin(aliveAfter, gs.roles);
-      if (winner) {
-        setTimeout(() => broadcast({ type: 'game-over', winner }), 1500);
-      }
       return;
     }
 
@@ -872,11 +882,6 @@ export default function MafiaPage() {
     const eliminatedRole = gs.roles[eliminatedId];
     broadcast({ type: 'eliminate', playerId: eliminatedId, role: eliminatedRole });
 
-    const aliveAfter = gs.alive.filter((id) => id !== eliminatedId);
-    const winner = checkWin(aliveAfter, gs.roles);
-    if (winner) {
-      setTimeout(() => broadcast({ type: 'game-over', winner }), 1500);
-    }
   };
 
   // -----------------------------------------------------------------------
@@ -918,17 +923,18 @@ export default function MafiaPage() {
       <summary className="min-h-11 cursor-pointer list-none font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#d6b46a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f0d795]">
         {l('Все роли · пульт ведущего', 'All roles · host console')}
       </summary>
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {Object.entries(gs.roles).map(([id, role]) => {
-          const isAlive = gs.alive.includes(id);
-          return (
-          <div key={id} className={`flex min-h-12 items-center gap-2 border-b border-[#d6b46a]/10 py-2 ${isAlive ? '' : 'opacity-40 grayscale'}`}>
-            <MafiaRoleThumb role={role} alt="" />
-            <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${isAlive ? '' : 'line-through'}`}>{playerName(id)}</span>
-            <span className="text-right text-[10px] text-[#d6b46a]">{ROLE_LABELS[role][locale]}{!isAlive && <b className="mt-1 block text-[#efb4b9]">{l('ВЫБЫЛ', 'OUT')}</b>}</span>
+      <div className="mt-2 space-y-2">
+        {Array.from(new Set(Object.values(gs.roles))).map((role) => (
+          <div key={role} className="flex min-h-14 items-center gap-3 border-b border-[#d6b46a]/10 py-2 last:border-0">
+            <MafiaRoleThumb role={role} alt={ROLE_LABELS[role][locale]} />
+            <span className="text-xs text-[#d6b46a]">{role === 'citizen' ? l('Мирный житель', 'Citizen') : ROLE_LABELS[role][locale]}</span>
+            <span className="ml-auto min-w-0 flex-1 text-right text-sm leading-relaxed">
+              {Object.entries(gs.roles).filter(([, assignedRole]) => assignedRole === role).map(([id], index) => (
+                <span key={id}>{index > 0 && ', '}<span className={gs.alive.includes(id) ? '' : 'line-through opacity-40'}>{playerName(id)}</span></span>
+              ))}
+            </span>
           </div>
-          );
-        })}
+        ))}
       </div>
     </details>
   ) : null;
@@ -1622,13 +1628,13 @@ export default function MafiaPage() {
   // APPROVED DESIGN: Private club production views
   // -----------------------------------------------------------------------
   const renderNightClub = () => {
+    const draftTarget = pendingMafiaTargetId ?? (effectivePlayerId ? gs.mafiaDraftVotes?.[effectivePlayerId] : undefined);
     const targets = otherAlivePlayers;
     const currentStage = gs.nightStage ?? 'mafia';
-    const stages = getAvailableNightStages(gs.roles, gs.alive);
+    const stages = getAvailableNightStages(gs.roles, gs.alive, gs.round);
     const currentStageIndex = stages.indexOf(currentStage);
     const nextStage = stages[currentStageIndex + 1] ?? null;
     const mafiaMembers = gs.alive.filter((id) => isMafiaRole(gs.roles[id]));
-    const hasAliveDon = mafiaMembers.some((id) => gs.roles[id] === 'don');
     const isMyAbilityBlocked = Boolean(
       effectivePlayerId
       && gs.abilityBlocked
@@ -1669,7 +1675,7 @@ export default function MafiaPage() {
           <MafiaRoleThumb role={role} alt="" />
           <div><span className={club.kicker}>{l('ВАШЕ НОЧНОЕ ДЕЙСТВИЕ', 'YOUR NIGHT ACTION')}</span><h2 className="mt-1 font-serif text-3xl leading-none">{heading}</h2></div>
         </div>
-        <p className={`${club.subtitle} mb-5`}>{copy}</p>
+        {copy && <p className={`${club.subtitle} mb-5`}>{copy}</p>}
         <div className={`${club.card} ${danger ? club.cardDanger : ''} flex-1 p-3`}>{body}</div>
       </div>
     );
@@ -1678,11 +1684,12 @@ export default function MafiaPage() {
       <div className={club.playerList}>
         {targets.filter((id) => !isMafiaRole(gs.roles[id])).map((id) => {
           const name = playerName(id);
-          const voters = mafiaMembers.filter((memberId) => gs.mafiaVotes[memberId] === id);
-          const isOwnChoice = Boolean(effectivePlayerId && gs.mafiaVotes[effectivePlayerId] === id);
+          const voters = mafiaMembers.filter((memberId) => (gs.mafiaVotes[memberId] ?? gs.mafiaDraftVotes?.[memberId]) === id);
+          const confirmedChoice = effectivePlayerId ? gs.mafiaVotes[effectivePlayerId] : undefined;
+          const isOwnChoice = (confirmedChoice ?? pendingMafiaTargetId ?? (effectivePlayerId ? gs.mafiaDraftVotes?.[effectivePlayerId] : undefined)) === id;
           const teammateVoters = voters.filter((id) => id !== effectivePlayerId);
           return (
-            <button key={id} type="button" className={`${club.playerButton} ${club.playerButtonDanger} ${isOwnChoice ? 'ring-2 ring-[#f0d795] ring-offset-2 ring-offset-[#170919]' : ''}`} aria-pressed={isOwnChoice} onClick={() => handleMafiaVote(id)}>
+            <button key={id} type="button" className={`${club.playerButton} ${club.playerButtonDanger} ${isOwnChoice ? 'ring-2 ring-[#f0d795] ring-offset-2 ring-offset-[#170919]' : ''}`} aria-pressed={isOwnChoice} disabled={Boolean(confirmedChoice)} onClick={() => handleMafiaSelect(id)}>
               <MafiaPlayerToken name={name} />
               <span className={club.playerName}>{name}</span>
               <span className="ml-auto flex max-w-[48%] flex-col items-end gap-1 text-right">
@@ -1736,7 +1743,8 @@ export default function MafiaPage() {
               ))}
             </div>
           </div>
-          <button type="button" className={`${nextStage ? club.primaryButton : club.dangerButton} mt-5`} onClick={handleAdvanceNightStage}>
+          {!isMafiaNightStageComplete(gs) && <p className="mt-4 text-center text-xs text-[#f0d795]">{l('Ожидаем подтверждения всех участников этого хода', 'Waiting for every participant in this stage to confirm')}</p>}
+          <button type="button" disabled={!isConnected || !isMafiaNightStageComplete(gs)} className={`${nextStage ? club.primaryButton : club.dangerButton} mt-5`} onClick={handleAdvanceNightStage}>
             {nextStage ? l(`Следующий этап: ${stageLabel(nextStage)}`, `Next stage: ${stageLabel(nextStage)}`) : l('Завершить ночь и объявить утро', 'End the night and announce dawn')}
           </button>
         </div>
@@ -1744,7 +1752,16 @@ export default function MafiaPage() {
     };
 
     let content: React.ReactNode;
-    if (isMafiaHost) {
+    if (gs.round === 1) {
+      content = (
+        <div className="flex flex-1 flex-col">
+          <h2 className={club.title}>{l('Знакомство мафии', 'Mafia introduction')}</h2>
+          <p className={club.subtitle}>{l('В первую ночь мафия знакомится друг с другом. Убийств и проверок нет; остальные роли спят.', 'On the first night, the Mafia meet each other. No kills or investigations; all other roles sleep.')}</p>
+          {(isMafiaHost || isMafiaRole(myRole)) && <div className={`${club.card} mt-5 p-4`}><span className={club.kicker}>{l('СЕМЬЯ', 'FAMILY')}</span><p className="mt-3">{mafiaMembers.map((id) => `${playerName(id)} · ${ROLE_LABELS[gs.roles[id]][locale]}`).join(' / ')}</p></div>}
+          {isMafiaHost && <button type="button" className={`${club.primaryButton} mt-auto`} onClick={handleResolveNight}>{l('Завершить знакомство и объявить утро', 'Finish introductions and announce dawn')}</button>}
+        </div>
+      );
+    } else if (isMafiaHost) {
       content = renderHostNightConsole();
     } else if (!amAlive) {
       content = (
@@ -1755,14 +1772,7 @@ export default function MafiaPage() {
         </div>
       );
     } else if (currentStage === 'mafia' && isMafiaRole(myRole)) {
-      const mafiaActionCopy = gs.round === 1
-        ? hasAliveDon
-          ? l('Познакомьтесь с семьёй и выберите цель. При разногласии последнее слово остаётся за Доном.', 'Meet the family and choose a target. If you disagree, the Don has the final word.')
-          : l('Познакомьтесь с семьёй и выберите общую цель.', 'Meet the family and choose a shared target.')
-        : hasAliveDon
-        ? l('Выберите цель. Ваш выбор и голоса семьи отмечены разными индикаторами. Последнее слово остаётся за Доном.', 'Choose a target. Your choice and family votes use different indicators. The Don has the final word.')
-        : l('Выберите общую цель. Ваш выбор и голоса семьи отмечены разными индикаторами.', 'Choose a shared target. Your choice and family votes use different indicators.');
-      content = actionPanel('mafia', l('Кого сегодня не станет?', 'Who will disappear tonight?'), mafiaActionCopy, <><div className={`${club.cardGold} mb-3 p-3 text-xs`}><span className={club.kicker}>{l('ВАША СЕМЬЯ', 'YOUR FAMILY')}</span><p className="mt-2 text-[#fbf3df]/65">{mafiaMembers.map((id) => `${playerName(id)} · ${ROLE_LABELS[gs.roles[id]][locale]}`).join('  /  ')}</p></div>{renderMafiaTargets()}</>, true);
+      content = actionPanel('mafia', l('Кого сегодня не станет?', 'Who will disappear tonight?'), '', <><div className={`${club.cardGold} mb-3 p-3 text-xs`}><span className={club.kicker}>{l('ВАША СЕМЬЯ', 'YOUR FAMILY')}</span><p className="mt-2 text-[#fbf3df]/65">{mafiaMembers.map((id) => `${playerName(id)} · ${ROLE_LABELS[gs.roles[id]][locale]}`).join('  /  ')}</p></div>{renderMafiaTargets()}</>, true);
     } else if (isMyAbilityBlocked && NIGHT_STAGE_ROLE[currentStage] === myRole) {
       content = (
         <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -1772,7 +1782,18 @@ export default function MafiaPage() {
         </div>
       );
     } else if (currentStage === 'don' && myRole === 'don' && !donCheckDone) {
-      content = actionPanel('don', l('Кто скрывает жетон шерифа?', 'Who carries the sheriff badge?'), l('Проверьте одного участника. Результат узнаете только вы.', 'Inspect one player. Only you will learn the result.'), renderTargets([...gs.alive, ...gs.eliminated.map(({ id }) => id)].filter((id) => id !== effectivePlayerId), handleDonCheck, l('ПРОВЕРИТЬ', 'CHECK')));
+      content = actionPanel('don', l('Кто скрывает жетон шерифа?', 'Who carries the sheriff badge?'), l('Проверьте одного участника. Результат узнаете только вы.', 'Inspect one player. Only you will learn the result.'), pendingDonTargetId ? (
+        <div className="flex h-full flex-col items-center justify-center text-center">
+          <MafiaPlayerToken name={playerName(pendingDonTargetId)} />
+          <span className={`${club.kicker} mt-5`}>{l('ПОДТВЕРДИТЕ ПРОВЕРКУ', 'CONFIRM INVESTIGATION')}</span>
+          <h3 className="mt-3 font-serif text-3xl">{playerName(pendingDonTargetId)}</h3>
+          <p className={`${club.subtitle} mt-3`}>{l('После подтверждения выбор изменить нельзя.', 'You cannot change this choice after confirming.')}</p>
+          <div className="mt-6 grid w-full grid-cols-2 gap-3">
+            <button type="button" className={club.secondaryButton} onClick={() => setPendingDonTargetId(null)}>{l('Назад', 'Back')}</button>
+            <button type="button" className={club.primaryButton} disabled={!isConnected} onClick={() => handleDonCheck(pendingDonTargetId)}>{l('Подтвердить', 'Confirm')}</button>
+          </div>
+        </div>
+      ) : renderTargets([...gs.alive, ...gs.eliminated.map(({ id }) => id)].filter((id) => id !== effectivePlayerId), setPendingDonTargetId, l('ВЫБРАТЬ', 'SELECT')));
     } else if (currentStage === 'detective' && myRole === 'detective' && !detectiveDone) {
       content = actionPanel('detective', l('Кому нельзя доверять?', 'Who cannot be trusted?'), l('Проверьте одного живого игрока этой ночью.', 'Investigate one living player tonight.'), pendingDetectiveTargetId ? <div className="flex h-full flex-col items-center justify-center text-center"><MafiaPlayerToken name={playerName(pendingDetectiveTargetId)} /><span className={`${club.kicker} mt-5`}>{l('ПОДТВЕРДИТЕ ПРОВЕРКУ', 'CONFIRM INVESTIGATION')}</span><h3 className="mt-3 font-serif text-3xl">{playerName(pendingDetectiveTargetId)}</h3><p className={`${club.subtitle} mt-3`}>{l('После подтверждения выбор изменить нельзя.', 'You cannot change this choice after confirming.')}</p><div className="mt-6 grid w-full grid-cols-2 gap-3"><button type="button" className={club.secondaryButton} onClick={() => setPendingDetectiveTargetId(null)}>{l('Назад', 'Back')}</button><button type="button" className={club.primaryButton} onClick={() => handleDetectiveCheck(pendingDetectiveTargetId)}>{l('Подтвердить', 'Confirm')}</button></div></div> : renderTargets(targets, setPendingDetectiveTargetId, l('ВЫБРАТЬ', 'SELECT')));
     } else if (currentStage === 'doctor' && myRole === 'doctor' && !doctorDone) {
@@ -1780,7 +1801,18 @@ export default function MafiaPage() {
     } else if (currentStage === 'maniac' && myRole === 'maniac' && !nightActionDone && !maniacDone) {
       content = actionPanel('maniac', l('Кто станет вашей целью?', 'Who becomes your target?'), l('Вы играете один. Можно отказаться от действия.', 'You play alone. You may skip the action.'), <><div className={club.playerList}>{renderTargets(targets, handleManiacKill, l('ЦЕЛЬ', 'TARGET'), true)}</div><button type="button" className={`${club.secondaryButton} mt-3 w-full`} onClick={() => handleManiacKill(null)}>{l('Никого не выбирать', 'Choose nobody')}</button></>, true);
     } else if (currentStage === 'lover' && myRole === 'lover' && !loverDone) {
-      content = actionPanel('lover', l('К кому отправиться?', 'Who will you visit?'), l('Нельзя выбрать себя или одного игрока две ночи подряд. Ход мафии уже состоялся и не блокируется.', 'You cannot choose yourself or the same player on consecutive nights. The Mafia has already acted and cannot be blocked.'), renderTargets(targets.filter((id) => id !== gs.lastLoverVisit), handleLoverVisit, l('НАВЕСТИТЬ', 'VISIT')));
+      content = actionPanel('lover', l('К кому отправиться?', 'Who will you visit?'), l('Нельзя выбрать себя или одного игрока две ночи подряд. Ход мафии уже состоялся и не блокируется.', 'You cannot choose yourself or the same player on consecutive nights. The Mafia has already acted and cannot be blocked.'), pendingLoverTargetId ? (
+        <div className="flex h-full flex-col items-center justify-center text-center">
+          <MafiaPlayerToken name={playerName(pendingLoverTargetId)} />
+          <span className={`${club.kicker} mt-5`}>{l('ПОДТВЕРДИТЕ ВИЗИТ', 'CONFIRM VISIT')}</span>
+          <h3 className="mt-3 font-serif text-3xl">{playerName(pendingLoverTargetId)}</h3>
+          <p className={`${club.subtitle} mt-3`}>{l('После подтверждения выбор изменить нельзя.', 'You cannot change this choice after confirming.')}</p>
+          <div className="mt-6 grid w-full grid-cols-2 gap-3">
+            <button type="button" className={club.secondaryButton} onClick={() => setPendingLoverTargetId(null)}>{l('Назад', 'Back')}</button>
+            <button type="button" className={club.primaryButton} disabled={!isConnected} onClick={() => handleLoverVisit(pendingLoverTargetId)}>{l('Подтвердить', 'Confirm')}</button>
+          </div>
+        </div>
+      ) : renderTargets(targets.filter((id) => id !== gs.lastLoverVisit), setPendingLoverTargetId, l('НАВЕСТИТЬ', 'VISIT')));
     } else {
       content = (
         <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -1801,16 +1833,32 @@ export default function MafiaPage() {
       <div className="flex flex-1 flex-col">
         <div className="mb-5 text-center"><span className={club.kicker}>{l(`НОЧЬ ${gs.round}`, `NIGHT ${gs.round}`)}</span><MafiaOrnament /></div>
         {content}
+        {gs.round > 1 && amAlive && currentStage === 'mafia' && isMafiaRole(myRole) && (
+          effectivePlayerId && gs.mafiaVotes[effectivePlayerId]
+            ? <p className="mt-5 text-center text-[#f0d795]">{l('Ваш голос учтен', 'Your vote has been counted')}</p>
+            : <button type="button" className={`${club.primaryButton} mt-5`} disabled={!draftTarget || !isConnected} onClick={() => { if (draftTarget) handleMafiaVote(draftTarget); }}>{l('Подтвердить выбор', 'Confirm choice')}</button>
+        )}
       </div>
     );
   };
 
   const renderDayClub = () => {
     const killedIds = gs.lastNightKills.length > 0 ? gs.lastNightKills : (gs.lastNightKill ? [gs.lastNightKill] : []);
+    if (gs.morningPending) return (
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <span className={club.kicker}>{l('ИТОГ НОЧИ', 'NIGHT RESULT')}</span>
+        <h2 className={`${club.title} mt-7`}>{killedIds.length ? l('Этой ночью погибли', 'Died tonight') : l('Ночь прошла спокойно', 'A peaceful night')}</h2>
+        {killedIds.length > 0 && <div className={`${club.cardDanger} ${club.card} w-full p-5`}>{killedIds.map(id => <p key={id} className="font-serif text-2xl">{playerName(id)}</p>)}</div>}
+        {isMafiaHost ? <button type="button" disabled={!isConnected} className={`${club.primaryButton} mt-7 w-full`} onClick={() => broadcast({ type: 'morning-continue' })}>{l('Продолжить', 'Continue')}</button> : <p className={`${club.subtitle} mt-6`}>{l('Ведущий скоро начнёт обсуждение', 'The host will start the discussion soon')}</p>}
+      </div>
+    );
     return (
       <div className="flex flex-1 flex-col">
         <span className={club.kicker}>{l('УТРО · СВОДКА КЛУБА', 'MORNING · CLUB REPORT')}</span>
-        <h2 className={club.title}>{l('Город снова\nоткрыл глаза', 'The city opens\nits eyes again').split('\n').map((line, index) => <span key={line}>{index > 0 && <br />}{line}</span>)}</h2>
+        <div className={club.morningHeading}>
+          <h2 className={club.title}>{l('Город снова\nоткрыл глаза', 'The city opens\nits eyes again').split('\n').map((line, index) => <span key={line}>{index > 0 && <br />}{line}</span>)}</h2>
+          {myRole && !isMafiaHost && <MafiaOwnRoleBack role={myRole} locale={locale} />}
+        </div>
 
         {myRole === 'detective' && gs.detectiveCheck && gs.detectiveResult && (
           <div className={`${club.cardGold} ${club.card} mb-4 p-5 text-left`}>
@@ -1831,14 +1879,6 @@ export default function MafiaPage() {
             </p>
           </div>
         )}
-
-        <div className={`${club.card} ${killedIds.length > 0 ? club.cardDanger : club.cardSuccess} mb-4 p-5 text-center`}>
-          {killedIds.length > 0 ? (
-            <><span className={club.kicker}>{l('ЭТОЙ НОЧЬЮ КЛУБ ПОКИНУЛИ', 'LEFT THE CLUB TONIGHT')}</span><div className="mt-4 space-y-3">{killedIds.map((id) => <div key={id} className="flex items-center justify-center gap-3"><MafiaPlayerToken name={playerName(id)} /><div className="text-left"><b className="block font-serif text-xl">{playerName(id)}</b><span className="text-xs text-[#fbf3df]/45">{ROLE_LABELS[gs.roles[id]][locale]}</span></div></div>)}</div></>
-          ) : (
-            <><span className={club.kicker}>{l('НИКТО НЕ ПОКИНУЛ ГОРОД', 'NOBODY LEFT THE CITY')}</span><h3 className="mt-3 font-serif text-2xl">{gs.lastNightSaved ? l('Доктор изменил исход ночи', 'The doctor changed the night') : l('Ночь прошла спокойно', 'The night passed quietly')}</h3></>
-          )}
-        </div>
 
         <div className={`${club.cardGold} ${club.card} mb-4 min-h-[92px] p-5`}>
           <div className="flex items-end justify-between gap-4"><div><span className={club.kicker}>{l('ДО ГОЛОСОВАНИЯ', 'UNTIL VOTING')}</span><p className="mt-2 text-xs text-[#fbf3df]/45">{l('Обсудите, кому больше нельзя доверять', 'Discuss who can no longer be trusted')}</p></div><b className="inline-block w-[5ch] shrink-0 text-right font-mono text-4xl tabular-nums text-[#f0d795]">{Math.floor(dayTimerValue / 60)}:{String(dayTimerValue % 60).padStart(2, '0')}</b></div>
@@ -1865,7 +1905,6 @@ export default function MafiaPage() {
       <div className="flex flex-1 flex-col">
         <span className={club.kicker}>{gs.votingRound === 1 ? l('РЕШЕНИЕ ГОРОДА', 'THE CITY DECIDES') : gs.votingRound === 2 ? l('ПЕРЕГОЛОСОВАНИЕ', 'REVOTE') : l('КАЗНИТЬ ИЛИ ПОМИЛОВАТЬ', 'EXECUTE OR PARDON')}</span>
         <h2 className={club.title}>{votingTitle}</h2>
-        <p className={`${club.subtitle} mb-5`}>{l('Голос окончателен. Остальные увидят результат после завершения процедуры.', 'Your vote is final. The result appears when the procedure ends.')}</p>
 
         {amAlive && !myVote ? (
           pendingDayVoteTargetId ? (
@@ -1875,15 +1914,20 @@ export default function MafiaPage() {
           ) : (
             <div className={`${club.card} flex-1 p-3`}><div className={club.playerList}>{candidateIds.map((id) => { const name = playerName(id); return <button key={id} type="button" className={club.playerButton} onClick={() => setPendingDayVoteTargetId(id)}><MafiaPlayerToken name={name} /><span className={club.playerName}>{name}</span><span className={club.playerMeta}>{l('ВЫБРАТЬ', 'SELECT')}</span></button>; })}</div></div>
           )
-        ) : (
-          <div className={`${club.cardGold} ${club.card} p-6 text-center`}><div className={`${club.statusSeal} mx-auto`}><strong>{amAlive ? '✓' : '—'}</strong><span>{amAlive ? l('голос принят', 'vote accepted') : l('наблюдение', 'watching')}</span></div><h3 className="mt-6 font-serif text-2xl">{amAlive ? l('Решение запечатано', 'Your decision is sealed') : l('Вы наблюдаете за голосованием', 'You are watching the vote')}</h3>{myVote && <p className="mt-2 text-sm text-[#fbf3df]/48">{l('Ваш выбор:', 'Your choice:')} <b className="text-[#f0d795]">{myVote === 'execute' ? l('Казнить', 'Execute') : myVote === 'pardon' ? l('Помиловать', 'Pardon') : playerName(myVote)}</b></p>}</div>
-        )}
+        ) : !isMafiaHost ? (
+          <div className={`${club.cardGold} ${club.card} p-6 text-center`}><div className={`${club.statusSeal} mx-auto`}><strong>{amAlive ? '✓' : '—'}</strong><span>{amAlive ? l('голос принят', 'vote accepted') : l('наблюдение', 'watching')}</span></div><h3 className="mt-6 font-serif text-2xl">{amAlive ? l('Ваш голос учтен', 'Your vote has been counted') : l('Вы наблюдаете за голосованием', 'You are watching the vote')}</h3>{myVote && <p className="mt-2 text-sm text-[#fbf3df]/48">{l('Ваш выбор:', 'Your choice:')} <b className="text-[#f0d795]">{myVote === 'execute' ? l('Казнить', 'Execute') : myVote === 'pardon' ? l('Помиловать', 'Pardon') : playerName(myVote)}</b></p>}</div>
+        ) : null}
 
         <div className={`${club.card} mt-4 p-4`}><div className="flex items-center justify-between"><span className={club.kicker}>{l('ГОЛОСОВ ПРИНЯТО', 'VOTES RECEIVED')}</span><b className="font-serif text-2xl text-[#d6b46a]">{totalVotes} / {totalVoters}</b></div><div className="mt-3 h-0.5 bg-[#d6b46a]/10"><div className="h-full bg-[#d6b46a]" style={{ width: `${totalVoters ? Math.min(100, (totalVotes / totalVoters) * 100) : 0}%` }} /></div>{Object.keys(voteCounts).length > 0 && <p className="mt-3 text-[10px] text-[#fbf3df]/35">{l('Промежуточный итог скрыт до окончания голосования.', 'The interim tally stays hidden until voting ends.')}</p>}</div>
         {isMafiaHost && Object.keys(gs.votes).length > 0 && (
           <div className={`${club.cardGold} ${club.card} mt-4 p-4 text-left`}>
             <span className={club.kicker}>{l('РЕШЕНИЯ ВИДИТ ТОЛЬКО ВЕДУЩИЙ', 'VISIBLE TO THE HOST ONLY')}</span>
-            <div className="mt-3 space-y-2">{Object.entries(gs.votes).map(([voterId, targetId]) => <div key={voterId} className="flex items-center justify-between gap-3 border-b border-[#d6b46a]/10 py-2 last:border-0"><span className="truncate text-sm">{playerName(voterId)}</span><span className="text-right text-xs text-[#f0d795]">{targetId === 'execute' ? l('Казнить', 'Execute') : targetId === 'pardon' ? l('Помиловать', 'Pardon') : playerName(targetId)}</span></div>)}</div>
+            <div className="mt-3 space-y-2">{Array.from(new Set(Object.values(gs.votes))).filter(Boolean).map((targetId) => (
+              <div key={targetId} className="flex items-start justify-between gap-3 border-b border-[#d6b46a]/10 py-2 last:border-0">
+                <span className="min-w-0 text-sm text-[#f0d795]">{targetId === 'execute' ? l('Казнить', 'Execute') : targetId === 'pardon' ? l('Помиловать', 'Pardon') : playerName(targetId)}</span>
+                <span className="min-w-0 flex-1 text-right text-sm leading-relaxed">{Object.entries(gs.votes).filter(([, target]) => target === targetId).map(([voterId]) => playerName(voterId)).join(', ')}</span>
+              </div>
+            ))}</div>
           </div>
         )}
         {renderHostRoleRoster()}

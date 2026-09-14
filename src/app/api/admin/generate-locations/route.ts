@@ -1,10 +1,9 @@
+import { codexCompletion, withCodexAdmin } from '@/lib/admin-codex';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export const POST = withCodexAdmin(async (req: NextRequest) => {
   const { count } = await req.json() as { count: number };
-
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: 'OPENROUTER_API_KEY not set' }, { status: 500 });
+  if (!Number.isInteger(count) || count < 1 || count > 30) return NextResponse.json({ error: 'Допустимо от 1 до 30 локаций.' }, { status: 400 });
 
   const prompt = `Придумай ${count} новых локаций для игры «Шпион».
 
@@ -24,25 +23,11 @@ export async function POST(req: NextRequest) {
 Идеи для тематик: необычные места, исторические, фантастические, бытовые.
 Верни ТОЛЬКО JSON массив.`;
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': 'http://localhost:3000',
-      'X-Title': 'party-games-hub',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.0-flash-001',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.85,
-      max_tokens: 2000,
-    }),
-  });
+  const res = await codexCompletion(prompt);
 
   if (!res.ok) {
     const text = await res.text();
-    return NextResponse.json({ error: `OpenRouter ${res.status}: ${text}` }, { status: 500 });
+    return NextResponse.json({ error: `Codex ${res.status}: ${text}` }, { status: res.status });
   }
 
   const data = await res.json();
@@ -53,8 +38,13 @@ export async function POST(req: NextRequest) {
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']');
     const locations = JSON.parse(text.slice(start, end + 1));
+    if (!Array.isArray(locations) || locations.length !== count || locations.some(location =>
+      !location || typeof location.nameRu !== 'string' || !location.nameRu.trim()
+      || typeof location.nameEn !== 'string' || !location.nameEn.trim()
+      || !Array.isArray(location.roles) || location.roles.length < 6 || location.roles.length > 8
+      || location.roles.some((role: unknown) => typeof role !== 'string' || !role.trim()))) throw new Error('Invalid locations');
     return NextResponse.json({ locations });
   } catch {
     return NextResponse.json({ error: 'Failed to parse response', raw }, { status: 500 });
   }
-}
+});

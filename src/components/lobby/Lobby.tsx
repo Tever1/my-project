@@ -304,7 +304,7 @@ const games: GameInfo[] = [
     heroTitle: { word: "Самый", accent: "популярный" },
     description:
       "100 человек уже ответили. Угадай что они сказали — и забери банк команды.",
-    players: "4–10 игроков",
+    players: "5–11 игроков",
     duration: "≈ 30 минут",
     mode: "Шоу",
     rules: { sections: [
@@ -365,7 +365,7 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { user, isLoading, logout } = useAuth();
-  const { setLocale } = useTranslation();
+  const { locale, setLocale } = useTranslation();
   const { emit, on, isConnected } = useSocket();
   const { mode } = usePlayMode();
   const myRole: "tv" | "player" = mode === "desktop" ? "tv" : "player";
@@ -750,9 +750,16 @@ export function Lobby({ initialRoomCode }: LobbyProps) {
 
   const handleEmitStartGame = useCallback(() => {
     if (!roomCode) return;
+    if (roomState?.currentGame === 'hundred-to-one') {
+      const count = roomState.players.filter(player => player.role === 'player').length;
+      if (count < 5 || count > 11) {
+        toast.error(locale === 'ru' ? 'Для «100 к 1» нужно от 5 до 11 участников, включая ведущего' : '100 to 1 requires 5 to 11 participants, including the host');
+        return;
+      }
+    }
     emit('room:show-qr', { code: roomCode, show: false });
     emit('game:start', { code: roomCode });
-  }, [emit, roomCode]);
+  }, [emit, locale, roomCode, roomState]);
 
   const handleKick = useCallback((playerId: string) => {
     if (!roomCode) return;

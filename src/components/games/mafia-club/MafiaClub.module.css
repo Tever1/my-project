@@ -256,6 +256,21 @@
 .roleInline { display: flex; align-items: center; gap: 10px; }
 .roleThumb { position: relative; width: 42px; height: 56px; flex: 0 0 auto; overflow: hidden; border-radius: 6px; }
 .roleThumb img { object-fit: cover; }
+.ownRoleBack { display: block; width: 76px; flex: 0 0 76px; padding: 0; border: 0; border-radius: 9px; background: transparent; cursor: pointer; transform: rotate(4deg); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.ownRoleBack svg { display: block; width: 100%; height: auto; }
+.nightDeathNotice { position: fixed; z-index: 50; top: 110px; left: 18px; right: 18px; max-width: 440px; margin-inline: auto; padding: 22px; border: 1px solid rgba(185,76,101,.7); border-radius: 18px; background: #241025; box-shadow: 0 15px 50px rgba(0,0,0,.65); text-align: center; pointer-events: none; }
+.nightDeathNotice p { margin: 12px 0 0; font: 400 28px/1.2 Georgia,serif; overflow-wrap: anywhere; }
+.nightDeathNoticeTv { top: 130px; max-width: 760px; padding: 30px; }
+.nightDeathNoticeTv p { font-size: clamp(32px, 3vw, 56px); }
+.ownRoleBack:focus-visible { outline: 2px solid var(--club-gold); outline-offset: 4px; }
+.morningHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.morningHeading h2 { margin-bottom: 0; font-size: clamp(28px, 7.5vw, 38px); }
+.rolePreviewButton { display: inline-flex; flex: 0 0 auto; padding: 0; border: 0; background: transparent; cursor: zoom-in; border-radius: 6px; }
+.rolePreviewButton:focus-visible { outline: 2px solid var(--club-gold); outline-offset: 3px; }
+.rolePreviewDialog { margin: auto; width: min(calc(100vw - 36px), 366px); max-height: calc(100dvh - 36px); padding: 18px; overflow-y: auto; border: 1px solid rgba(214,180,106,.34); border-radius: 22px; background: #170919; color: #fbf3df; }
+.rolePreviewDialog::backdrop { background: rgba(5,2,6,.82); backdrop-filter: blur(10px); }
+.rolePreviewDialog .roleCard { width: min(100%, 330px, calc((100dvh - 150px) * .75)); }
+.rolePreviewDialog button { margin-top: 18px; width: 100%; }
 
 .modalOverlay { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(5,2,6,.72); backdrop-filter: blur(10px); }
 .modal { width: min(100%, 390px); padding: 26px; border: 1px solid rgba(214,180,106,.34); border-radius: 22px; background: linear-gradient(150deg,#2b142f,#110812); box-shadow: 0 35px 90px rgba(0,0,0,.65); text-align: center; }

@@ -305,9 +305,6 @@ const mkInitial = (): SpyGameState => ({
 const formatTime = (sec: number) =>
   `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, '0')}`;
 
-const normalizeWord = (w: string) =>
-  w.trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
-
 const shufflePlayers = (players: GamePlayer[]): string[] => {
   const ids = players.map(p => p.id);
   for (let i = ids.length - 1; i > 0; i -= 1) {
@@ -318,25 +315,13 @@ const shufflePlayers = (players: GamePlayer[]): string[] => {
 };
 
 const pickNextTarget = (
-  players: GamePlayer[],
+  playerOrder: string[],
   askerId: string,
   answeredThisCycle: string[],
 ): { targetId: string; cycleAnswered: string[] } => {
-  const notAsker = players.filter(p => p.id !== askerId);
-  let candidates = notAsker.filter(p => !answeredThisCycle.includes(p.id));
-  let nextCycleAnswered = answeredThisCycle;
-
-  if (candidates.length === 0) {
-    candidates = notAsker;
-    nextCycleAnswered = [];
-  }
-
-  if (candidates.length === 0) {
-    return { targetId: '', cycleAnswered: nextCycleAnswered };
-  }
-
-  const chosen = candidates[Math.floor(Math.random() * candidates.length)].id;
-  return { targetId: chosen, cycleAnswered: [...nextCycleAnswered, chosen] };
+  const index = playerOrder.indexOf(askerId);
+  const targetId = playerOrder.length > 1 ? playerOrder[(Math.max(0, index) + 1) % playerOrder.length] : '';
+  return { targetId, cycleAnswered: targetId ? [...answeredThisCycle, targetId] : answeredThisCycle };
 };
 
 const pickNextSpy = (
@@ -378,16 +363,6 @@ const pickWord = (used: number[]): { word: string; idx: number } => {
   const pick = available[Math.floor(Math.random() * available.length)];
   return { word: pick.w, idx: pick.i };
 };
-
-function resolveSpyGuess(correct: boolean, s: SpyGameState): Partial<SpyGameState> {
-  return {
-    phase: 'roundResult',
-    spyGuessAwaitingJudge: false,
-    spyGuessNeedsConfirm: false,
-    spyGuessJudgeId: '',
-    roundResult: { spyCaught: !correct, exposedId: s.spyId, voteCount: 0, viaGuess: true, guessedRight: correct },
-  };
-}
 
 export default function SpyGamePage() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -478,10 +453,10 @@ export default function SpyGamePage() {
           setLocalVote(null);
           setHasVoted(false);
         }
-        if (patch.phase === 'spyGuess') {
+        if (patch.phase === 'spyGuess' && sRef.current.phase !== 'spyGuess') {
           setGuessInput('');
         }
-        if (patch.phase) setPeeking(false);
+        if (patch.phase && patch.phase !== sRef.current.phase) setPeeking(false);
         setS(prev => ({ ...prev, ...patch }));
       }
 
@@ -502,58 +477,12 @@ export default function SpyGamePage() {
               patch.drawerId = prev.playerOrder[0] ?? '';
             } else {
               const asker = prev.playerOrder[0] ?? '';
-              const { targetId, cycleAnswered } = pickNextTarget(prev.players, asker, []);
+              const { targetId, cycleAnswered } = pickNextTarget(prev.playerOrder, asker, []);
               patch.guessAskerId = asker;
               patch.guessTargetId = targetId;
               patch.guessCycleAnswered = cycleAnswered;
             }
           }
-          broadcast(patch);
-          return { ...prev, ...patch };
-        });
-      }
-
-      if (action === 'spy:guess-start' && isGameHost) {
-        setS(prev => {
-          const patch: Partial<SpyGameState> = {
-            phase: 'spyGuess',
-            timerRunning: false,
-            spyGuessText: '',
-            spyGuessNeedsConfirm: false,
-            spyGuessAwaitingJudge: false,
-            spyGuessJudgeId: '',
-          };
-          broadcast(patch);
-          return { ...prev, ...patch };
-        });
-      }
-
-      if (action === 'spy:guess-try' && isGameHost) {
-        const { text } = payload as { text: string };
-        setS(prev => {
-          const correct = normalizeWord(text) === normalizeWord(prev.word);
-          const patch: Partial<SpyGameState> = correct
-            ? resolveSpyGuess(true, prev)
-            : { spyGuessText: text, spyGuessNeedsConfirm: true, spyGuessAwaitingJudge: false };
-          broadcast(patch);
-          return { ...prev, ...patch };
-        });
-      }
-
-      if (action === 'spy:guess-confirm' && isGameHost) {
-        setS(prev => {
-          const candidates = prev.players.filter(p => p.id !== prev.spyId);
-          const judge = candidates[Math.floor(Math.random() * candidates.length)]?.id ?? '';
-          const patch: Partial<SpyGameState> = { spyGuessNeedsConfirm: false, spyGuessAwaitingJudge: true, spyGuessJudgeId: judge };
-          broadcast(patch);
-          return { ...prev, ...patch };
-        });
-      }
-
-      if (action === 'spy:guess-verdict' && isGameHost) {
-        const { accept } = payload as { accept: boolean };
-        setS(prev => {
-          const patch = resolveSpyGuess(accept, prev);
           broadcast(patch);
           return { ...prev, ...patch };
         });
@@ -588,104 +517,7 @@ export default function SpyGamePage() {
     };
   }, [sendAction]);
 
-  useEffect(() => {
-    if (!isGameHost) return;
-    if (!s.timerRunning || s.timerLeft <= 0) return;
-
-    const id = setInterval(() => {
-      const cur = sRef.current;
-      if (!cur.timerRunning || cur.timerLeft <= 0) {
-        clearInterval(id);
-        return;
-      }
-      const newLeft = cur.timerLeft - 1;
-      if (newLeft <= 0) {
-        const patch = {
-          timerLeft: 0,
-          timerRunning: false,
-          phase: 'discussion' as Phase,
-          discussionTimeLeft: DISCUSSION_TIMER_TOTAL,
-          discussionTimerRunning: true,
-        };
-        setS(prev => ({ ...prev, ...patch }));
-        broadcast(patch);
-        clearInterval(id);
-        return;
-      }
-      const patch = { timerLeft: newLeft, timerRunning: newLeft > 0 };
-      setS(prev => ({ ...prev, ...patch }));
-      broadcast(patch);
-    }, 1000);
-
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.timerRunning, isGameHost, broadcast]);
-
-  useEffect(() => {
-    if (!isGameHost) return;
-    if (!s.voteTimerRunning || s.voteTimerLeft <= 0) return;
-
-    const id = setInterval(() => {
-      const cur = sRef.current;
-      if (!cur.voteTimerRunning || cur.voteTimerLeft <= 0) {
-        clearInterval(id);
-        return;
-      }
-
-      const newLeft = cur.voteTimerLeft - 1;
-      if (newLeft <= 0) {
-        // The server resolves only the votes received before this deadline.
-        const patch = { voteTimerLeft: 0, voteTimerRunning: false };
-        setS(prev => ({ ...prev, ...patch }));
-        broadcast(patch);
-        clearInterval(id);
-        return;
-      }
-
-      const patch = { voteTimerLeft: newLeft };
-      setS(prev => ({ ...prev, ...patch }));
-      broadcast(patch);
-    }, 1000);
-
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.voteTimerRunning, isGameHost, broadcast]);
-
-  useEffect(() => {
-    if (!isGameHost) return;
-    if (!s.discussionTimerRunning || s.discussionTimeLeft <= 0) return;
-
-    const id = setInterval(() => {
-      const cur = sRef.current;
-      if (cur.phase !== 'discussion' || !cur.discussionTimerRunning || cur.discussionTimeLeft <= 0) {
-        clearInterval(id);
-        return;
-      }
-
-      const newLeft = cur.discussionTimeLeft - 1;
-      if (newLeft <= 0) {
-        const patch = {
-          discussionTimeLeft: 0,
-          discussionTimerRunning: false,
-          phase: 'voting' as Phase,
-          votes: {},
-          voteTimerLeft: VOTE_TIMER_TOTAL,
-          voteTimerRunning: true,
-        };
-        setS(prev => ({ ...prev, ...patch }));
-        broadcast(patch);
-        clearInterval(id);
-        return;
-      }
-
-      const patch = { discussionTimeLeft: newLeft };
-      setS(prev => ({ ...prev, ...patch }));
-      broadcast(patch);
-    }, 1000);
-
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.discussionTimerRunning, isGameHost, broadcast]);
+  // Gameplay clocks and expiry are owned by the server.
 
   const startGame = (mode: SpyMode) => {
     if (!isGameHost) return;
@@ -788,7 +620,7 @@ export default function SpyGamePage() {
       patch.drawerId = s.playerOrder[0] ?? '';
     } else {
       const asker = s.playerOrder[0] ?? '';
-      const { targetId, cycleAnswered } = pickNextTarget(s.players, asker, []);
+      const { targetId, cycleAnswered } = pickNextTarget(s.playerOrder, asker, []);
       patch.guessAskerId = asker;
       patch.guessTargetId = targetId;
       patch.guessCycleAnswered = cycleAnswered;
@@ -996,8 +828,8 @@ export default function SpyGamePage() {
 
   const renderPeekBar = () => (
     <div
-      className="glass-card spy-card w-full px-4 py-1 select-none"
-      style={{ transform: 'none' }}
+      className="glass-card spy-card flex h-full w-full min-w-0 items-center px-2 py-1 select-none"
+      style={{ transform: 'none', margin: 0, height: '100%' }}
       onPointerDown={() => setPeeking(true)}
       onPointerUp={() => setPeeking(false)}
       onPointerLeave={() => setPeeking(false)}
@@ -1019,18 +851,13 @@ export default function SpyGamePage() {
       tabIndex={0}
       aria-label={l('Удерживайте, чтобы посмотреть секретное слово', 'Hold to reveal the secret word')}
     >
-      <div className="flex h-6 items-center justify-between gap-3">
-        <div className="flex h-6 min-w-0 items-center overflow-hidden">
+      <div className="flex h-6 w-full min-w-0 items-center justify-between gap-1">
+        <div className="flex h-6 min-w-0 flex-1 items-center overflow-hidden">
           {peeking ? (
             isSpy ? (
-              <p className="truncate text-sm font-black leading-tight text-red-500">
-                {l('ТЫ ШПИОН', 'YOU ARE THE SPY')}
-                {s.category && (
-                  <span className="ml-2 text-xs font-normal text-teal-300">{s.category}</span>
-                )}
-              </p>
+              <FitWord text={l('ТЫ ШПИОН', 'YOU ARE THE SPY')} max={16} min={8} className="font-black text-red-500" />
             ) : (
-              <FitWord text={s.word} max={16} className="font-bold text-white" />
+              <FitWord text={s.word} max={16} min={8} className="font-bold text-white" />
             )
           ) : (
             <p className="text-xs text-white/40">
@@ -1038,9 +865,9 @@ export default function SpyGamePage() {
             </p>
           )}
         </div>
-        <span className="flex-shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-0.5 text-xs text-white/50">
+        {!peeking && <span className="flex-shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/50">
           {l('ЗАЖМИ', 'HOLD')}
-        </span>
+        </span>}
       </div>
     </div>
   );
@@ -1156,7 +983,6 @@ export default function SpyGamePage() {
         roundResult: l('Итог раунда', 'Round result'),
       } as const)[s.phase];
   const spyPlayerName = s.players.find((player) => player.id === s.spyId)?.nickname ?? '???';
-  const readyRatio = s.players.length > 0 ? `${(s.readyPlayers.length / s.players.length) * 100}%` : '0%';
 
   return (
     <GameSurface className="spy-live-phone min-h-[100dvh] text-white">
@@ -1202,10 +1028,13 @@ export default function SpyGamePage() {
 
         {!s.gameOver && s.phase === 'dealing' && (
           <section className="spy-live-screen spy-live-briefing">
-            {renderBackButton()}
+            <div className="mb-[18px] flex items-center justify-between gap-3">
+              {renderBackButton()}
+              <div className="spy-live-progress ml-auto shrink-0" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none', minWidth: 100 }}><span>{s.readyPlayers.length} {l('ИЗ', 'OF')} {s.players.length} {l('ГОТОВЫ', 'READY')}</span></div>
+            </div>
             <span className="spy-live-kicker">{myReadyInDealing ? l('ДАННЫЕ ПОЛУЧЕНЫ', 'DATA RECEIVED') : l('СЕКРЕТНАЯ РОЛЬ', 'SECRET ROLE')}</span>
-            <h1>{myReadyInDealing ? l('Задание сохранено', 'Briefing secured') : l('Узнайте задание', 'Reveal your mission')}</h1>
-            <p>{myReadyInDealing ? l('Секрет снова скрыт. Дождитесь остальных участников.', 'The secret is hidden again. Wait for the other agents.') : l('Убедитесь, что никто не видит экран.', 'Make sure nobody can see your screen.')}</p>
+            <h1>{myReadyInDealing ? l('Задание сохранено', 'Briefing secured') : l('Узнайте слово', 'Reveal the word')}</h1>
+            {myReadyInDealing && <p>{l('Секрет снова скрыт. Дождитесь остальных участников.', 'The secret is hidden again. Wait for the other agents.')}</p>}
 
             {!peeking && (
               <button
@@ -1231,7 +1060,6 @@ export default function SpyGamePage() {
             )}
 
             {!myReadyInDealing && <button type="button" className="spy-live-primary" onClick={acknowledgeWord}>{l('ПОНЯТНО · СКРЫТЬ ДАННЫЕ', 'UNDERSTOOD · HIDE DATA')}</button>}
-            <div className="spy-live-progress"><i style={{ width: readyRatio }} /><span>{s.readyPlayers.length} {l('ИЗ', 'OF')} {s.players.length} {l('ГОТОВЫ', 'READY')}</span></div>
             {isGameHost && <button type="button" className="spy-live-secondary" onClick={startPlaying}>{s.mode === 'draw' ? l('НАЧАТЬ РИСОВАНИЕ', 'START DRAWING') : l('НАЧАТЬ ДОПРОС', 'START INTERVIEW')}</button>}
           </section>
         )}
@@ -1239,7 +1067,7 @@ export default function SpyGamePage() {
         {!s.gameOver && s.phase === 'playing' && (
           <section className={`spy-live-screen spy-live-playing ${s.mode === 'draw' ? 'is-draw' : ''}`}>
             {renderBackButton()}
-            <div className="spy-live-round-row"><span>{formatTime(s.timerLeft)}</span><b>{s.mode === 'draw' ? (isActivePlayer ? l('РИСУЕТЕ ВЫ', 'YOU ARE DRAWING') : `${l('РИСУЕТ', 'DRAWING')} · ${activePlayerName}`) : s.category}</b></div>
+            {s.mode === 'guess' && <div className="spy-live-round-row"><span>{formatTime(s.timerLeft)}</span><b>{s.category}</b></div>}
             {s.mode === 'guess' ? (
               <>
                 <span className="spy-live-kicker">{isActivePlayer ? l('ВАШ ХОД', 'YOUR TURN') : isTargetPlayer ? l('ВАМ ЗАДАЮТ ВОПРОС', 'YOU ARE BEING ASKED') : l('АКТИВНЫЙ ДОПРОС', 'ACTIVE INTERVIEW')}</span>
@@ -1250,15 +1078,19 @@ export default function SpyGamePage() {
             ) : (
               <>
                 <span className="spy-live-kicker">{isActivePlayer ? l('ВАШ ХОД', 'YOUR TURN') : l('ОБЩИЙ ХОЛСТ', 'SHARED CANVAS')}</span>
-                <h1>{isActivePlayer ? l('Нарисуйте улику', 'Draw a clue') : l(`${activePlayerName} рисует`, `${activePlayerName} is drawing`)}</h1>
-                <p>{l('Не используйте буквы и цифры.', 'Do not use letters or numbers.')}</p>
+                <div className="flex items-center justify-between gap-3" data-spy-drawing-header>
+                  <h1 style={{ margin: '10px 0 8px', fontSize: 'clamp(28px, 8vw, 38px)', fontWeight: 400, lineHeight: .98, letterSpacing: '-.04em', minWidth: 0 }}>{isActivePlayer ? l('Нарисуйте улику', 'Draw a clue') : l(`${activePlayerName} рисует`, `${activePlayerName} is drawing`)}</h1>
+                  <div className="spy-live-round-row shrink-0" style={{ margin: 0, justifyContent: 'center', textAlign: 'center' }} aria-label={l('Оставшееся время рисования', 'Drawing time remaining')}><span>{formatTime(s.timerLeft)}</span></div>
+                </div>
                 <div className="spy-live-canvas"><DrawCanvas canDraw={isDrawer} strokes={s.drawStrokes} onStroke={sendStroke} onClear={sendClear} onUndo={handleUndo} /><span>{l('ХОЛСТ СИНХРОНИЗИРУЕТСЯ С TV', 'CANVAS SYNCED WITH TV')}</span></div>
               </>
             )}
 
-            {renderPeekBar()}
+            <div className="mt-3.5 grid w-full grid-cols-2 items-stretch gap-2" data-spy-turn-controls>
+              <div className="min-w-0">{renderPeekBar()}</div>
+              <button type="button" className="spy-live-primary min-w-0" style={{ marginTop: 0, paddingInline: 8 }} disabled={!isActivePlayer} onClick={passTurn}>{l('ПЕРЕДАТЬ ХОД', 'PASS TURN')}</button>
+            </div>
             {isSpy && <button type="button" className="spy-live-secondary" onClick={() => sendAction('spy:guess-start')}>{l('УГАДАТЬ СЛОВО', 'GUESS THE WORD')}</button>}
-            {isActivePlayer && <button type="button" className="spy-live-primary" onClick={passTurn}>{s.mode === 'draw' ? l('ГОТОВО · ПЕРЕДАТЬ ХОД', 'DONE · PASS TURN') : l('ВОПРОС ЗАДАН · ПЕРЕДАТЬ ХОД', 'QUESTION ASKED · PASS TURN')}</button>}
             {s.mode === 'draw' && isGameHost && <button type="button" className="spy-live-secondary" onClick={nextWord}>{l('СЛЕДУЮЩЕЕ СЛОВО', 'NEXT WORD')}</button>}
             {isGameHost && <div className="spy-live-host-actions">{s.mode === 'guess' && renderHostAction('replace', l('ЗАМЕНИТЬ СЛОВО', 'REPLACE WORD'), <SpyIcon name="refresh" className="h-5 w-5" />)}{renderHostAction('voting', l('ОТКРЫТЬ ГОЛОСОВАНИЕ', 'OPEN VOTING'), <SpyIcon name="ballot" className="h-5 w-5" />)}</div>}
           </section>
@@ -1270,6 +1102,7 @@ export default function SpyGamePage() {
             <div className="spy-live-timer"><svg viewBox="0 0 180 180"><circle cx="90" cy="90" r="78" /><circle className="progress" cx="90" cy="90" r="78" style={{ strokeDasharray: DISCUSSION_RING_CIRCUMFERENCE, strokeDashoffset: DISCUSSION_RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(1, s.discussionTimeLeft / DISCUSSION_TIMER_TOTAL))) }} /></svg><b>{formatTime(s.discussionTimeLeft)}</b><small>{l('ДО ГОЛОСОВАНИЯ', 'UNTIL VOTING')}</small></div>
             <h1>{l('Сверьте показания', 'Compare the evidence')}</h1><p>{l('Обсудите улики и назовите тех, чьи ответы звучали подозрительно.', 'Discuss the clues and identify suspicious answers.')}</p>
             <div className="spy-live-agents">{s.players.slice(0, 7).map((player) => <i key={player.id}>{player.nickname[0]}</i>)}</div>
+            {isSpy && <button type="button" className="spy-live-secondary" onClick={() => sendAction('spy:guess-start')}>{l('УГАДАТЬ СЛОВО', 'GUESS THE WORD')}</button>}
             {isGameHost ? renderHostAction('voting', l('НАЧАТЬ ГОЛОСОВАНИЕ', 'START VOTING'), <SpyIcon name="ballot" className="h-5 w-5" />) : <div className="spy-live-host-note"><i /><span>{l('Ведущий откроет голосование', 'The host will open voting')}</span></div>}
           </section>
         )}
@@ -1287,10 +1120,14 @@ export default function SpyGamePage() {
           <section className="spy-live-screen spy-live-guess">
             {isSpy ? <>
               <span className="spy-live-kicker is-danger">{l('ВАС РАСКРЫЛИ', 'IDENTITY EXPOSED')}</span><div className="spy-live-alert"><SpyIcon name="mask" className="h-16 w-16" /></div><h1>{l('Последний шанс', 'One last chance')}</h1><p>{l('Угадайте секретное слово и перехватите победу.', 'Guess the secret word and steal the victory.')}</p>
-              <label className="spy-live-input"><span>{l('ВАША ВЕРСИЯ', 'YOUR GUESS')}</span><input value={guessInput} onChange={(event) => setGuessInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && guessInput.trim()) sendAction('spy:guess-try', { text: guessInput }); }} placeholder={l('Введите слово', 'Enter the word')} /></label>
+              {!s.spyGuessNeedsConfirm && !s.spyGuessAwaitingJudge && <label className="spy-live-input"><span>{l('ВАША ВЕРСИЯ', 'YOUR GUESS')}</span><input value={guessInput} onChange={(event) => setGuessInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && guessInput.trim()) sendAction('spy:guess-try', { text: guessInput }); }} placeholder={l('Введите слово', 'Enter the word')} /></label>}
               <div className="spy-live-category"><span>{l('КАТЕГОРИЯ', 'CATEGORY')}</span><b>{s.category}</b></div>
-              {!s.spyGuessAwaitingJudge && <button type="button" className="spy-live-danger" disabled={!guessInput.trim()} onClick={() => sendAction('spy:guess-try', { text: guessInput })}>{l('ОТПРАВИТЬ ОТВЕТ', 'SUBMIT ANSWER')}</button>}
-              {s.spyGuessNeedsConfirm && !s.spyGuessAwaitingJudge && <button type="button" className="spy-live-secondary" onClick={() => sendAction('spy:guess-confirm')}>{l('ДА, ПРОВЕРИТЬ У ИГРОКА', 'YES, ASK A PLAYER')}</button>}
+              {!s.spyGuessNeedsConfirm && !s.spyGuessAwaitingJudge && <button type="button" className="spy-live-danger" disabled={!guessInput.trim()} onClick={() => sendAction('spy:guess-try', { text: guessInput })}>{l('ОТПРАВИТЬ ОТВЕТ', 'SUBMIT ANSWER')}</button>}
+              {s.spyGuessNeedsConfirm && !s.spyGuessAwaitingJudge && <>
+                <p>{l('Нет точного совпадения. Если это опечатка, оспорьте решение — ответ проверит случайный игрок.', 'No exact match. If it is a typo, dispute the decision — a random player will review it.')}</p>
+                <button type="button" className="spy-live-secondary" onClick={() => sendAction('spy:guess-confirm')}>{l('ОСПОРИТЬ · ПЕРЕДАТЬ СУДЬЕ', 'DISPUTE · ASK A JUDGE')}</button>
+                <button type="button" className="spy-live-danger" onClick={() => sendAction('spy:guess-decline')}>{l('ПРИЗНАТЬ НЕВЕРНЫЙ ОТВЕТ', 'ACCEPT WRONG ANSWER')}</button>
+              </>}
               {s.spyGuessAwaitingJudge && <BreathingPlaceholder text={l('Ожидаем решение проверяющего…', 'Waiting for the judge...')} variant="breathing-text" />}
             </> : isJudge && s.spyGuessAwaitingJudge ? <>
               <span className="spy-live-kicker">{l('ТРЕБУЕТСЯ ПРОВЕРКА', 'REVIEW REQUIRED')}</span><h1>{l('Ответ можно засчитать?', 'Can this answer count?')}</h1><p>{l('Сравните версию шпиона с секретным словом.', 'Compare the spy guess with the secret word.')}</p>

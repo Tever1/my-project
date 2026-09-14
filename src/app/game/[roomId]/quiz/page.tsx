@@ -95,8 +95,6 @@ export default function QuizPage() {
 
   const [gameState, setGameState] = useState<QuizGameState>(INITIAL_STATE);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef(3);
   const gameStateRef = useRef<QuizGameState>(INITIAL_STATE);
   const isHostRef = useRef(false);
@@ -113,19 +111,9 @@ export default function QuizPage() {
   const isGameHost = Boolean(effectivePlayerId && gameState.gameHostPlayerId && effectivePlayerId === gameState.gameHostPlayerId);
   const myAnswer = effectivePlayerId ? gameState.answers[effectivePlayerId] : undefined;
   const totalPlayers = gameState.players.length;
-  const answeredCount = Object.keys(gameState.answers).length;
-  const allAnswered = totalPlayers > 0 && answeredCount >= totalPlayers;
 
   useEffect(() => {
     const unsubscribe = on('room:closed', () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
       stopTimerSound();
       window.sessionStorage.setItem(ROOM_CLOSED_NOTICE_KEY, '1');
       router.push('/');
@@ -379,85 +367,7 @@ export default function QuizPage() {
     };
   }, [sendAction]);
 
-  // ------- Host timer logic -------
-
-  useEffect(() => {
-    if (!isGameHost) return;
-    if (gameState.phase !== 'question' || gameState.showCorrect) return;
-
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    timerRef.current = setInterval(() => {
-      setGameState((prev) => {
-        const next = prev.timeLeft - 1;
-        if (next <= 0) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          sendAction('quiz:timer', { timeLeft: 0 });
-          return { ...prev, timeLeft: 0 };
-        }
-        sendAction('quiz:timer', { timeLeft: next });
-        return { ...prev, timeLeft: next };
-      });
-    }, 1000);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isGameHost, gameState.phase, gameState.showCorrect, gameState.questionIndex, sendAction]);
-
-  useEffect(() => {
-    if (!isGameHost || gameState.phase !== 'countdown') return;
-    if (countdownTimerRef.current) return;
-
-    countdownRef.current = gameStateRef.current.countdownValue;
-    const questionIdx = gameState.questionIndex;
-    countdownTimerRef.current = setInterval(() => {
-      countdownRef.current -= 1;
-      if (countdownRef.current <= 0) {
-        if (countdownTimerRef.current) {
-          clearInterval(countdownTimerRef.current);
-          countdownTimerRef.current = null;
-        }
-        const q = questionsRef.current[questionIdx];
-        if (!q) return;
-
-        shownIdsRef.current.add(q.id);
-        const questionData = {
-          questionRu: q.questionRu,
-          questionEn: q.questionEn,
-          options: q.options,
-          correctIndex: q.correctIndex,
-        };
-
-        setGameState((prev) => ({
-          ...prev,
-          phase: 'question',
-          questionIndex: questionIdx,
-          timeLeft: q.timeLimit,
-          currentQuestion: questionData,
-          answers: {},
-          showCorrect: false,
-          correctPlayers: [],
-        }));
-        sendAction('quiz:start-question', {
-          questionIndex: questionIdx,
-          timeLeft: q.timeLimit,
-          question: questionData,
-        });
-        return;
-      }
-
-      setGameState((prev) => ({ ...prev, countdownValue: countdownRef.current }));
-      sendAction('quiz:countdown', { value: countdownRef.current, questionIndex: questionIdx });
-    }, 1000);
-
-    return () => {
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
-    };
-  }, [gameState.phase, gameState.questionIndex, isGameHost, sendAction]);
+  // Gameplay clocks and expiry are owned by the server.
 
   // ------- Timer sound effect -------
 
@@ -471,40 +381,7 @@ export default function QuizPage() {
 
   // ------- Game Actions -------
 
-  const revealResults = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    const question = gameState.currentQuestion;
-    if (!question) return;
-
-    const newScores = { ...gameState.scores };
-    const correct: string[] = [];
-
-    for (const [playerId, answerIdx] of Object.entries(gameState.answers)) {
-      if (answerIdx === question.correctIndex) {
-        newScores[playerId] = (newScores[playerId] || 0) + 1;
-        correct.push(playerId);
-      }
-    }
-
-    setGameState((prev) => ({ ...prev, showCorrect: true, scores: newScores, correctPlayers: correct }));
-
-    sendAction('quiz:show-results', { scores: newScores, correctPlayers: correct });
-
-    emit('game:state-update', {
-      code: roomId,
-      gameState: { scores: newScores },
-    });
-  }, [gameState.currentQuestion, gameState.answers, gameState.scores, emit, roomId, sendAction]);
-
-  // ------- Auto-reveal -------
-
-  useEffect(() => {
-    if (!isGameHost || gameState.phase !== 'question' || gameState.showCorrect) return;
-    if (gameState.timeLeft <= 0 || allAnswered) {
-      queueMicrotask(revealResults);
-    }
-  }, [gameState.timeLeft, allAnswered, isGameHost, gameState.phase, gameState.showCorrect, revealResults]);
+  // The server reveals on timeout or when all participants have answered.
 
   const runCountdown = (questionIdx: number) => {
     countdownRef.current = 3;

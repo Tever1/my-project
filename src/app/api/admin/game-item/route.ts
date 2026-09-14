@@ -1,3 +1,4 @@
+import { codexCompletion, withCodexAdmin } from '@/lib/admin-codex';
 import { NextRequest, NextResponse } from 'next/server';
 import { readOverrides, writeOverrides } from '@/lib/game-overrides';
 
@@ -7,7 +8,7 @@ function getItemId(item: unknown): string {
   return obj.ru ?? obj.q ?? JSON.stringify(item);
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withCodexAdmin(async (req: NextRequest) => {
   const body = await req.json();
   const { action, game, item } = body as { action: 'delete' | 'replace'; game: string; item: unknown };
 
@@ -40,11 +41,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not supported' }, { status: 400 });
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'OPENROUTER_API_KEY not set' }, { status: 500 });
-    }
-
     let prompt: string;
     if (game === 'alias' || game === 'crocodile') {
       prompt = `Generate one word suitable for the party game "${game}". Return ONLY valid JSON in this exact format: {"ru":"слово","en":"word"}. The word should be a common noun, easy to describe or act out. No markdown, no explanation.`;
@@ -58,22 +54,11 @@ export async function POST(req: NextRequest) {
 
     let parsed: Record<string, string>;
     try {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-pro-preview',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 100,
-        }),
-      });
+      const res = await codexCompletion(prompt);
 
       if (!res.ok) {
         const err = await res.text();
-        return NextResponse.json({ error: `OpenRouter error: ${err}` }, { status: 502 });
+        return NextResponse.json({ error: `Codex error: ${err}` }, { status: 502 });
       }
 
       const data = await res.json();
@@ -83,6 +68,8 @@ export async function POST(req: NextRequest) {
       content = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
       parsed = JSON.parse(content);
+      if (!parsed || typeof parsed.ru !== 'string' || !parsed.ru.trim()
+        || typeof parsed.en !== 'string' || !parsed.en.trim()) throw new Error('Invalid bilingual result');
     } catch (err) {
       return NextResponse.json({ error: `Failed to generate replacement: ${(err as Error).message}` }, { status: 502 });
     }
@@ -109,4 +96,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-}
+});

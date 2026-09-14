@@ -1,4 +1,9 @@
 import whoAmIFlow from '../lib/who-am-i-flow.ts';
+import { isMafiaNightStageComplete } from '../lib/mafia-night-completion.mts';
+import * as gameDataModule from '../lib/game-data.ts';
+
+const { CROCODILE_WORDS } = ('default' in gameDataModule
+  ? gameDataModule.default : gameDataModule) as typeof import('../lib/game-data.ts');
 
 const { getWhoAmINextTurnIndex } = whoAmIFlow;
 
@@ -27,6 +32,78 @@ const numberValue = (value: unknown, fallback = 0): number =>
 const stringValue = (value: unknown): string => typeof value === 'string' ? value : '';
 
 const cloneRecord = (value: unknown): UnknownRecord => structuredClone(record(value));
+
+function pickCrocodileWordIndex(usedValue: unknown, currentWordIndex = -1): number {
+  const used = Array.isArray(usedValue)
+    ? usedValue.filter((value): value is number => Number.isInteger(value))
+    : [];
+  let available = CROCODILE_WORDS.map((_, index) => index).filter((index) => !used.includes(index));
+  if (!available.length) {
+    available = CROCODILE_WORDS.map((_, index) => index).filter((index) => index !== currentWordIndex);
+  }
+  return available[Math.floor(Math.random() * available.length)] ?? 0;
+}
+
+function reduceCrocodileAction(
+  currentValue: GameSnapshot | null,
+  action: string,
+): GameSnapshot | null {
+  if (!currentValue) return currentValue;
+  const current = cloneRecord(currentValue);
+
+  if (action === 'croc:continue') {
+    if (current.phase !== 'turnResult') return current;
+    const order = strings(current.playersOrder);
+    const round = Math.floor((numberValue(current.turnNumber, 1) - 1) / Math.max(1, order.length)) + 1;
+    if (!order.length || (typeof current.finishingRound === 'number'
+      && round >= current.finishingRound && numberValue(current.explainerIndex) === order.length - 1)) {
+      return { ...current, phase: 'finished', winnerId: Object.entries(record(current.scores))
+        .sort((a, b) => numberValue(b[1]) - numberValue(a[1]))[0]?.[0] ?? null };
+    }
+    const index = (numberValue(current.explainerIndex) + 1) % order.length;
+    const used = Array.isArray(current.usedWordIndices) ? current.usedWordIndices : [];
+    const word = pickCrocodileWordIndex(used, numberValue(current.currentWordIndex, -1));
+    return { ...current, phase: 'ready', timeLeft: 60, turnNumber: numberValue(current.turnNumber) + 1,
+      explainerIndex: index, explainerId: order[index], currentWordIndex: word,
+      wordsGuessed: 0, wordsSkipped: 0, usedWordIndices: [...used, word] };
+  }
+
+  if (action === 'croc:start-turn') {
+    if (current.phase !== 'ready') return current;
+    return { ...current, phase: 'explaining', timeLeft: 60 };
+  }
+
+  if ((action !== 'croc:guessed' && action !== 'croc:skip') || current.phase !== 'explaining') {
+    return current;
+  }
+
+  const currentWordIndex = numberValue(current.currentWordIndex, -1);
+  const nextWordIndex = pickCrocodileWordIndex(current.usedWordIndices, currentWordIndex);
+  const usedWordIndices = Array.isArray(current.usedWordIndices) ? current.usedWordIndices : [];
+  const next: UnknownRecord = {
+    ...current,
+    currentWordIndex: nextWordIndex,
+    usedWordIndices: [...usedWordIndices, nextWordIndex],
+  };
+
+  if (action === 'croc:guessed') {
+    const explainerId = stringValue(current.explainerId);
+    const scores = record(current.scores);
+    const nextScore = numberValue(scores[explainerId]) + 1;
+    const playersOrder = strings(current.playersOrder);
+    const round = Math.floor((numberValue(current.turnNumber, 1) - 1) / Math.max(1, playersOrder.length)) + 1;
+    next.scores = { ...scores, [explainerId]: nextScore };
+    next.wordsGuessed = numberValue(current.wordsGuessed) + 1;
+    next.finishingRound = typeof current.finishingRound === 'number'
+      ? current.finishingRound
+      : nextScore >= 20 ? round : null;
+    next.winnerId = null;
+  } else {
+    next.wordsSkipped = numberValue(current.wordsSkipped) + 1;
+  }
+
+  return next;
+}
 
 export function canUndoSpyDrawing(snapshotValue: GameSnapshot | null, payloadValue: unknown, actorId: string): boolean {
   const snapshot = record(snapshotValue);
@@ -67,9 +144,17 @@ function finishSpyVoting(snapshot: UnknownRecord): void {
   });
 }
 
+function spyParticipantIds(snapshot: UnknownRecord): string[] {
+  const roster = Array.isArray(snapshot.players)
+    ? snapshot.players.map(value => stringValue(record(value).id)).filter(Boolean)
+    : [];
+  return [...new Set(roster.length ? roster : strings(snapshot.playerOrder))];
+}
+
 function advanceSpyTurn(snapshot: UnknownRecord): UnknownRecord {
   const mode = stringValue(snapshot.mode);
-  const playerOrder = strings(snapshot.playerOrder);
+  const participants = spyParticipantIds(snapshot);
+  const playerOrder = [...new Set([...strings(snapshot.playerOrder).filter(id => participants.includes(id)), ...participants])];
   if (mode === 'draw') {
     const nextIndex = playerOrder.length > 0
       ? (numberValue(snapshot.playerOrderIdx) + 1) % playerOrder.length
@@ -80,25 +165,13 @@ function advanceSpyTurn(snapshot: UnknownRecord): UnknownRecord {
     };
   }
 
-  const players = Array.isArray(snapshot.players) ? snapshot.players.map(record) : [];
-  const fallbackIndex = playerOrder.length > 0
-    ? (numberValue(snapshot.playerOrderIdx) + 1) % playerOrder.length
-    : 0;
-  const nextAskerId = stringValue(snapshot.guessTargetId) || playerOrder[fallbackIndex] || '';
-  let cycleAnswered = strings(snapshot.guessCycleAnswered);
-  let candidates = players.filter((candidate) => {
-    const id = stringValue(candidate.id);
-    return id && id !== nextAskerId && !cycleAnswered.includes(id);
-  });
-  if (candidates.length === 0) {
-    cycleAnswered = [];
-    candidates = players.filter((candidate) => {
-      const id = stringValue(candidate.id);
-      return id && id !== nextAskerId;
-    });
-  }
-  const targetId = stringValue(candidates[Math.floor(Math.random() * candidates.length)]?.id);
+  const currentIndex = playerOrder.indexOf(stringValue(snapshot.guessAskerId));
+  const nextIndex = playerOrder.length ? ((currentIndex >= 0 ? currentIndex : numberValue(snapshot.playerOrderIdx)) + 1) % playerOrder.length : 0;
+  const nextAskerId = playerOrder[nextIndex] ?? '';
+  const targetId = playerOrder.length > 1 ? playerOrder[(nextIndex + 1) % playerOrder.length] : '';
+  const cycleAnswered = nextIndex === playerOrder.length - 1 ? [] : strings(snapshot.guessCycleAnswered);
   return {
+    playerOrderIdx: nextIndex,
     guessAskerId: nextAskerId,
     guessTargetId: targetId,
     guessCycleAnswered: targetId ? [...cycleAnswered, targetId] : cycleAnswered,
@@ -126,10 +199,17 @@ export function validateStateSyncPhase(
 ): boolean {
   const current = record(currentValue);
   const payload = record(payloadValue);
+  // A host snapshot must not dismiss or overwrite a server-owned turn result.
+  if (gameType === 'crocodile' && current.phase === 'turnResult') return false;
   if (typeof payload.phase !== 'string') return true;
 
   const nextPhase = payload.phase;
   const currentPhase = stringValue(current.phase);
+  const isCrocodileReplay = gameType === 'crocodile'
+    && currentPhase === 'finished' && nextPhase === 'ready' && payload.turnNumber === 1;
+  if (gameType === 'crocodile' && typeof current.turnNumber === 'number'
+    && typeof payload.turnNumber === 'number' && payload.turnNumber < current.turnNumber
+    && !isCrocodileReplay) return false;
   const initialPhases: Record<string, string[]> = {
     crocodile: ['ready'],
     alias: ['modeSelect', 'teamSelect', 'individualSetup'],
@@ -143,7 +223,7 @@ export function validateStateSyncPhase(
   const transitions: Record<string, Record<string, string[]>> = {
     crocodile: {
       ready: ['explaining', 'finished'],
-      explaining: ['ready', 'finished'],
+      explaining: [],
       finished: ['ready'],
     },
     alias: {
@@ -218,6 +298,7 @@ export function actionMatchesGame(gameType: string | null, action: string): bool
 }
 
 function getMafiaNightStages(snapshot: UnknownRecord): string[] {
+  if (snapshot.round === 1) return ['mafia'];
   const roles = record(snapshot.roles) as Record<string, string>;
   const alive = strings(snapshot.alive);
   const aliveRoles = new Set(alive.map((id) => roles[id]));
@@ -230,7 +311,7 @@ function getMafiaNightStages(snapshot: UnknownRecord): string[] {
 function initialMafiaSnapshot(): UnknownRecord {
   return {
     phase: 'lobby', hostPlayerId: null, nightStage: null, roles: {}, roleSeenIds: [], alive: [], eliminated: [],
-    mafiaVotes: {}, maniacKill: null, maniacActed: false, donCheck: null, donCheckResult: null,
+    mafiaVotes: {}, mafiaDraftVotes: {}, maniacKill: null, maniacActed: false, donCheck: null, donCheckResult: null,
     loverVisit: null, detectiveCheck: null, detectiveResult: null, doctorSave: null,
     lastDoctorSave: null, lastLoverVisit: null, dayTimer: 60, votes: {}, votingRound: 1,
     votingCandidates: [], lastVoteResult: null, lastVoteTargetIds: [], lastNightKill: null,
@@ -241,7 +322,15 @@ function initialMafiaSnapshot(): UnknownRecord {
 function reduceMafiaSnapshot(current: GameSnapshot | null, payloadValue: unknown): GameSnapshot | null {
   const payload = record(payloadValue);
   const type = stringValue(payload.type);
-  if (type === 'sync-state') return cloneRecord(payload.state);
+  if (type === 'sync-state') {
+    const state = cloneRecord(payload.state);
+    if (current?.morningPending) {
+      state.morningPending = true;
+      state.phase = 'day';
+      state.dayTimer = 60;
+    }
+    return state;
+  }
   if (type === 'request-state') return current;
 
   const next = { ...initialMafiaSnapshot(), ...cloneRecord(current) };
@@ -271,13 +360,14 @@ function reduceMafiaSnapshot(current: GameSnapshot | null, payloadValue: unknown
     case 'start-night':
       Object.assign(next, {
         phase: 'night', nightStage: getMafiaNightStages(next)[0] ?? 'mafia', round: numberValue(payload.round, 1),
-        mafiaVotes: {}, maniacKill: null, maniacActed: false, donCheck: null, donCheckResult: null,
+        mafiaVotes: {}, mafiaDraftVotes: {}, maniacKill: null, maniacActed: false, donCheck: null, donCheckResult: null,
         detectiveCheck: null, detectiveResult: null, loverVisit: null, doctorSave: null, votes: {},
         votingRound: 1, votingCandidates: [], lastVoteResult: null, lastVoteTargetIds: [],
       });
       break;
     case 'advance-night-stage': next.nightStage = payload.stage ?? null; break;
     case 'mafia-vote': next.mafiaVotes = { ...record(next.mafiaVotes), [stringValue(payload.voterId)]: payload.targetId }; break;
+    case 'mafia-select': next.mafiaDraftVotes = { ...record(next.mafiaDraftVotes), [stringValue(payload.voterId)]: payload.targetId }; break;
     case 'maniac-kill': next.maniacKill = payload.targetId ?? null; next.maniacActed = true; break;
     case 'don-check-sheriff': next.donCheck = payload.targetId ?? null; break;
     case 'don-check-result': next.donCheck = payload.targetId ?? next.donCheck; next.donCheckResult = payload.isDetective ?? null; break;
@@ -293,12 +383,19 @@ function reduceMafiaSnapshot(current: GameSnapshot | null, payloadValue: unknown
       const eliminated = Array.isArray(next.eliminated) ? [...next.eliminated] : [];
       for (const id of killedIds) eliminated.push({ id, role: roles[id] });
       Object.assign(next, {
-        phase: 'day', nightStage: null, lastNightKill: payload.killedId ?? null, lastNightKills: killedIds,
+        phase: 'day', morningPending: true, nightStage: null, lastNightKill: payload.killedId ?? null, lastNightKills: killedIds,
         lastNightSaved: Boolean(payload.saved), lastDoctorSave: payload.lastDoctorSave ?? null,
         lastLoverVisit: payload.lastLoverVisit ?? null, alive: alive.filter((id) => !killedIds.includes(id)),
         eliminated, dayTimer: 60, votes: {}, votingRound: 1, votingCandidates: [],
         lastVoteResult: null, lastVoteTargetIds: [],
       });
+      break;
+    }
+    case 'morning-continue': {
+      next.morningPending = false;
+      next.dayTimer = 60;
+      const winner = mafiaWinner(alive, roles);
+      if (winner) { next.winner = winner; next.phase = 'results'; }
       break;
     }
     case 'day-timer': next.dayTimer = Math.max(0, numberValue(payload.value)); break;
@@ -407,6 +504,9 @@ export function reduceGameSnapshot(
   if (gameType === 'mafia') return reduceMafiaSnapshot(current, payload);
   if (gameType === 'who-am-i') return reduceWhoAmISnapshot(current, payload);
   if (isRequestStateAction(action, payload)) return current;
+  if (gameType === 'crocodile' && ['croc:start-turn', 'croc:guessed', 'croc:skip', 'croc:continue'].includes(action)) {
+    return reduceCrocodileAction(current, action);
+  }
 
   if (action === 'croc:state' || action === 'alias:state') {
     const next = cloneRecord(payload);
@@ -425,7 +525,31 @@ export function reduceGameSnapshot(
       && numberValue(current.activeTeamIndex) === numberValue(next.activeTeamIndex)
       && activeAliasExplainer(record(current)) === activeAliasExplainer(next);
     if (isSameCrocodileTurn || isSameAliasTurn) {
-      next.timeLeft = Math.min(numberValue(current?.timeLeft), numberValue(next.timeLeft));
+      next.timeLeft = current?.timeLeft;
+    }
+    if (action === 'alias:state' && current?.phase === 'explaining'
+      && (next.phase === 'explaining' || next.phase === 'turnResult')
+      && current.round === next.round && current.activeTeamIndex === next.activeTeamIndex
+      && activeAliasExplainer(record(current)) === activeAliasExplainer(next)) {
+      // The controller may receive a private view without the history. Preserve
+      // the canonical ledger and append only newly resolved words from its patch.
+      const history = Array.isArray(current.turnHistory) ? current.turnHistory : [];
+      const incoming = Array.isArray(next.turnHistory) ? next.turnHistory : [];
+      const added = Math.max(0, numberValue(next.wordsGuessed) + numberValue(next.wordsSkipped)
+        - numberValue(current.wordsGuessed) - numberValue(current.wordsSkipped));
+      next.turnHistory = [...history, ...(added > 0 ? incoming.slice(-added) : [])];
+    }
+    if (isSameCrocodileTurn) {
+      next.currentWordIndex = current?.currentWordIndex;
+      next.usedWordIndices = current?.usedWordIndices;
+      next.scores = current?.scores;
+      next.wordsGuessed = current?.wordsGuessed;
+      next.wordsSkipped = current?.wordsSkipped;
+      next.finishingRound = current?.finishingRound;
+      next.winnerId = current?.winnerId;
+    }
+    if (action === 'croc:state' && current?.phase === 'ready' && next.phase === 'explaining') {
+      next.timeLeft = 60;
     }
     return next;
   }
@@ -443,7 +567,8 @@ export function reduceGameSnapshot(
         ? []
         : ['timeLeft', 'countdownValue'];
     timerKeys.forEach((key) => {
-      if (typeof previous[key] === 'number' && typeof payload[key] === 'number' && numberValue(payload[key]) > numberValue(previous[key])) {
+      if (previous.phase === next.phase && previous.questionIndex === next.questionIndex
+        && typeof previous[key] === 'number' && typeof payload[key] === 'number') {
         next[key] = previous[key];
       }
     });
@@ -454,9 +579,9 @@ export function reduceGameSnapshot(
         ['voteTimerLeft', 'voteTimerRunning'],
       ];
       spyTimers.forEach(([timeKey, runningKey]) => {
-        if (previous[runningKey] && typeof payload[timeKey] === 'number'
-          && numberValue(payload[timeKey]) > numberValue(previous[timeKey])) {
+        if (previous.phase === next.phase && typeof previous[timeKey] === 'number' && typeof payload[timeKey] === 'number') {
           next[timeKey] = previous[timeKey];
+          if (previous[runningKey] && payload[runningKey] === false) next[runningKey] = previous[runningKey];
         }
       });
       if (next.phase === 'voting' && numberValue(next.voteTimerLeft) <= 0) finishSpyVoting(next);
@@ -503,11 +628,11 @@ export function reduceGameSnapshot(
       case 'quiz:config': Object.assign(next, payload); break;
       case 'quiz:answer': next.answers = { ...record(next.answers), [stringValue(payload.playerId)]: payload.answerIndex }; break;
       case 'quiz:timer': next.timeLeft = Math.min(numberValue(next.timeLeft), numberValue(payload.timeLeft)); break;
-      case 'quiz:show-results': Object.assign(next, { showCorrect: true, scores: payload.scores, correctPlayers: payload.correctPlayers }); break;
+      case 'quiz:show-results': return advanceTimedSnapshot('quiz', next, Math.max(1, numberValue(next.timeLeft)));
       case 'quiz:countdown': Object.assign(next, {
         phase: 'countdown',
         countdownValue: next.phase === 'countdown'
-          ? Math.min(numberValue(next.countdownValue), numberValue(payload.value))
+          ? next.countdownValue
           : payload.value,
         questionIndex: typeof payload.questionIndex === 'number' ? payload.questionIndex : next.questionIndex,
       }); break;
@@ -521,18 +646,27 @@ export function reduceGameSnapshot(
       Object.assign(next, {
         phase: 'spyGuess',
         timerRunning: false,
+        discussionTimerRunning: false,
         spyGuessText: '',
         spyGuessNeedsConfirm: false,
         spyGuessAwaitingJudge: false,
         spyGuessJudgeId: '',
       });
     }
-    if (action === 'spy:guess-try') {
-      const correct = normalizeSpyWord(payload.text) === normalizeSpyWord(next.word);
+    const resolvesGuess = action === 'spy:guess-verdict' || action === 'spy:guess-decline'
+      || (action === 'spy:guess-try' && normalizeSpyWord(payload.text) === normalizeSpyWord(next.word));
+    if (action === 'spy:guess-try' && !resolvesGuess) {
+      Object.assign(next, { spyGuessText: payload.text, spyGuessNeedsConfirm: true, spyGuessAwaitingJudge: false, spyGuessJudgeId: '' });
+    }
+    if (action === 'spy:guess-confirm') {
+      Object.assign(next, { spyGuessNeedsConfirm: false, spyGuessAwaitingJudge: true, spyGuessJudgeId: payload.judgeId });
+    }
+    if (resolvesGuess) {
+      const correct = action === 'spy:guess-try' || (action === 'spy:guess-verdict' && payload.accept === true);
       Object.assign(next, {
         phase: 'roundResult',
         timerRunning: false,
-        spyGuessText: payload.text,
+        spyGuessText: action === 'spy:guess-try' ? payload.text : next.spyGuessText,
         spyGuessNeedsConfirm: false,
         spyGuessAwaitingJudge: false,
         spyGuessJudgeId: '',
@@ -552,8 +686,8 @@ export function reduceGameSnapshot(
     }
     if (action === 'spy:vote' && next.phase === 'voting') {
       next.votes = { ...record(next.votes), [stringValue(payload.voterId)]: payload.suspectId };
-      const players = Array.isArray(next.players) ? next.players.map(record) : [];
-      if (players.length > 0 && players.every((player) => Object.hasOwn(record(next.votes), stringValue(player.id)))) {
+      const voters = spyParticipantIds(next);
+      if (voters.length > 0 && voters.every(id => Object.hasOwn(record(next.votes), id))) {
         finishSpyVoting(next);
       }
     }
@@ -586,6 +720,12 @@ export function advanceTimedSnapshot(
 
   if ((gameType === 'crocodile' || gameType === 'alias') && next.phase === 'explaining') {
     subtract('timeLeft', elapsedSeconds);
+    if (gameType === 'alias' && next.mode === 'letter' && next.timeLeft === 0) {
+      Object.assign(next, { phase: 'turnResult', finalWordPending: false });
+    }
+    if (gameType === 'crocodile' && next.timeLeft === 0) {
+      next.phase = 'turnResult';
+    }
     return next;
   }
 
@@ -671,7 +811,12 @@ export function advanceTimedSnapshot(
   }
 
   if (gameType === 'mafia' && next.phase === 'day') {
+    if (next.morningPending) return next;
     subtract('dayTimer', elapsedSeconds);
+    if (next.dayTimer === 0) Object.assign(next, {
+      phase: 'voting', votes: {}, votingRound: 1, votingCandidates: [],
+      lastVoteResult: null, lastVoteTargetIds: [],
+    });
     return next;
   }
 
@@ -727,7 +872,6 @@ function sanitizeMafia(snapshotValue: GameSnapshot, recipient: GameRecipient): G
       if (role === 'mafia' || role === 'don') visibleRoleIds.add(id);
     });
   }
-  strings(snapshot.lastNightKills).forEach((id) => visibleRoleIds.add(id));
   if (revealAll) Object.keys(roles).forEach((id) => visibleRoleIds.add(id));
   snapshot.roles = Object.fromEntries(Object.entries(roles).filter(([id]) => visibleRoleIds.has(id)));
   if (Array.isArray(snapshot.eliminated)) {
@@ -747,6 +891,7 @@ function sanitizeMafia(snapshotValue: GameSnapshot, recipient: GameRecipient): G
   snapshot.mafiaVotes = myRole === 'mafia' || myRole === 'don'
     ? mafiaVotes
     : {};
+  snapshot.mafiaDraftVotes = myRole === 'mafia' || myRole === 'don' ? record(snapshot.mafiaDraftVotes) : {};
   if (myRole !== 'doctor') { snapshot.doctorSave = null; snapshot.lastDoctorSave = null; }
   if (myRole !== 'detective') { snapshot.detectiveCheck = null; snapshot.detectiveResult = null; }
   if (myRole !== 'don') { snapshot.donCheck = null; snapshot.donCheckResult = null; }
@@ -821,7 +966,7 @@ export function sanitizeSnapshot(gameType: string, snapshotValue: GameSnapshot, 
       ]));
     }
     const canSeeGuess = isSpy || recipient.playerId === snapshot.spyGuessJudgeId;
-    if (!recipient.isGameHost && !canSeeGuess) snapshot.spyGuessText = '';
+    if (!revealResult && !canSeeGuess) snapshot.spyGuessText = '';
   }
   if (gameType === 'hundred-to-one') {
     const phase = numberValue(snapshot.bgPhase);
@@ -887,15 +1032,16 @@ export function validateMafiaActorAction(snapshotValue: GameSnapshot | null, sen
     const candidates = strings(snapshot.votingCandidates);
     return targetAlive && (candidates.length === 0 || candidates.includes(targetId));
   }
-  if (!isAlive || phase !== 'night') return false;
-  if (type === 'mafia-vote') {
+  if (!isAlive || phase !== 'night' || snapshot.round === 1) return false;
+  if (type === 'mafia-vote' || type === 'mafia-select') {
     return payload.voterId === senderId && stage === 'mafia' && (role === 'mafia' || role === 'don')
+      && !Object.hasOwn(record(snapshot.mafiaVotes), senderId)
       && targetAlive && roles[targetId] !== 'mafia' && roles[targetId] !== 'don';
   }
   if (blocked) return false;
   if (type === 'maniac-kill') return payload.maniacId === senderId && stage === 'maniac' && role === 'maniac' && (!targetId || targetAlive && targetId !== senderId);
-  if (type === 'don-check-sheriff') return payload.donId === senderId && stage === 'don' && role === 'don' && Boolean(roles[targetId]) && targetId !== senderId;
-  if (type === 'lover-visit') return payload.loverId === senderId && stage === 'lover' && role === 'lover' && targetAlive && targetId !== senderId && targetId !== snapshot.lastLoverVisit;
+  if (type === 'don-check-sheriff') return payload.donId === senderId && stage === 'don' && role === 'don' && !snapshot.donCheck && Boolean(roles[targetId]) && targetId !== senderId;
+  if (type === 'lover-visit') return payload.loverId === senderId && stage === 'lover' && role === 'lover' && !snapshot.loverVisit && targetAlive && targetId !== senderId && targetId !== snapshot.lastLoverVisit;
   if (type === 'detective-check') return !snapshot.detectiveCheck && payload.detectiveId === senderId && stage === 'detective' && role === 'detective' && targetAlive && targetId !== senderId;
   if (type === 'doctor-save') return !snapshot.doctorSave && payload.doctorId === senderId && stage === 'doctor' && role === 'doctor' && targetAlive && targetId !== senderId && targetId !== snapshot.lastDoctorSave;
   return false;
@@ -907,7 +1053,7 @@ function sameStringSet(leftValue: unknown, rightValue: unknown): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function mafiaWinner(alive: string[], roles: Record<string, string>): string | null {
+export function mafiaWinner(alive: string[], roles: Record<string, string>): string | null {
   if (alive.length === 1 && roles[alive[0]] === 'maniac') return 'maniac';
   const mafiaCount = alive.filter((id) => roles[id] === 'mafia' || roles[id] === 'don').length;
   const maniacCount = alive.filter((id) => roles[id] === 'maniac').length;
@@ -927,6 +1073,7 @@ function topVoteIds(votesValue: unknown): string[] {
 }
 
 function expectedMafiaNightResult(snapshot: UnknownRecord): { killedIds: string[]; savedIds: string[]; doctorSave: string | null } {
+  if (snapshot.round === 1) return { killedIds: [], savedIds: [], doctorSave: null };
   const roles = record(snapshot.roles) as Record<string, string>;
   const alive = strings(snapshot.alive);
   const aliveSet = new Set(alive);
@@ -983,9 +1130,10 @@ export function validateMafiaHostAction(
   if (type === 'advance-night-stage') {
     const stages = getMafiaNightStages(snapshot);
     const currentIndex = stages.indexOf(stringValue(snapshot.nightStage));
-    return phase === 'night' && currentIndex >= 0 && payload.stage === stages[currentIndex + 1];
+    return phase === 'night' && currentIndex >= 0 && payload.stage === stages[currentIndex + 1] && isMafiaNightStageComplete(snapshot);
   }
   if (type === 'detective-result') {
+    if (snapshot.round === 1) return false;
     const detectiveId = stringValue(payload.detectiveId);
     const stages = getMafiaNightStages(snapshot);
     return phase === 'night' && stages.indexOf(stringValue(snapshot.nightStage)) >= stages.indexOf('detective')
@@ -993,6 +1141,7 @@ export function validateMafiaHostAction(
       && payload.role === roles[stringValue(snapshot.detectiveCheck)];
   }
   if (type === 'don-check-result') {
+    if (snapshot.round === 1) return false;
     const donId = stringValue(payload.donId);
     const targetId = stringValue(snapshot.donCheck);
     return phase === 'night' && snapshot.nightStage === 'don'
@@ -1001,14 +1150,16 @@ export function validateMafiaHostAction(
   }
   if (type === 'night-result') {
     const expected = expectedMafiaNightResult(snapshot);
-    return phase === 'night' && sameStringSet(payload.killedIds, expected.killedIds)
+    const stages = getMafiaNightStages(snapshot);
+    return phase === 'night' && snapshot.nightStage === stages.at(-1) && isMafiaNightStageComplete(snapshot) && sameStringSet(payload.killedIds, expected.killedIds)
       && sameStringSet(payload.savedIds, expected.savedIds)
       && payload.killedId === (expected.killedIds[0] ?? null)
       && payload.saved === (expected.savedIds.length > 0)
       && payload.lastDoctorSave === expected.doctorSave
       && payload.lastLoverVisit === (snapshot.loverVisit ?? null);
   }
-  if (type === 'start-voting') return phase === 'day';
+  if (type === 'morning-continue') return phase === 'day' && snapshot.morningPending === true;
+  if (type === 'start-voting') return phase === 'day' && !snapshot.morningPending;
   if (type === 'day-timer') {
     return phase === 'day' && typeof payload.value === 'number'
       && payload.value >= 0 && payload.value <= numberValue(snapshot.dayTimer, 60);
@@ -1038,7 +1189,7 @@ export function validateMafiaHostAction(
     return phase === 'voting' && ids.length > 0 && sameStringSet(ids, expected)
       && ids.every((id) => aliveSet.has(id));
   }
-  if (type === 'game-over') return (phase === 'day' || phase === 'results') && payload.winner === mafiaWinner(alive, roles);
+  if (type === 'game-over') return (phase === 'day' || phase === 'results') && !snapshot.morningPending && payload.winner === mafiaWinner(alive, roles);
   if (type === 'end-game') return true;
   return false;
 }

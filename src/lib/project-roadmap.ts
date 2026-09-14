@@ -15,11 +15,11 @@ export interface ProjectPhase {
   effort: {
     minHours: number;
     maxHours: number;
-    basis: 'historical-estimate' | 'forecast';
+    basis: 'historical-estimate' | 'forecast' | 'untracked';
   };
 }
 
-export const PROJECT_ROADMAP_UPDATED_AT = '2026-08-24';
+export const PROJECT_ROADMAP_UPDATED_AT = '2026-09-13';
 
 export const PROJECT_PHASES: ProjectPhase[] = [
   {
@@ -124,14 +124,14 @@ export const PROJECT_PHASES: ProjectPhase[] = [
   {
     id: 'J',
     title: 'Audit & Consolidation',
-    subtitle: 'Текущая фаза',
+    subtitle: 'Завершена 13 сентября 2026',
     track: 'experience',
-    status: 'active',
-    summary: 'Закрепить принятые решения, убрать системные расхождения и сформировать финальную документацию дизайн-системы.',
-    outcomes: ['Общий UI/motion audit', 'Проверка phone и TV consistency', 'Финальный документ design system'],
-    exitCriteria: 'Аудит закрыт, критичные расхождения устранены, дизайн-система документирована.',
-    nextAction: 'Составить scope аудита без повторного редизайна утверждённых игр.',
-    effort: { minHours: 24, maxHours: 40, basis: 'forecast' },
+    status: 'complete',
+    summary: 'Фаза аудита завершена по подтверждению владельца. Исправления и результаты проверок зафиксированы в отчётах; отдельные проверки перед публикацией остаются в очереди.',
+    outcomes: ['Аудит игр и исправления', 'Серверные таймеры, privacy и reconnect', 'Результаты и ограничения в номерных отчётах'],
+    exitCriteria: 'Завершение подтверждено владельцем 13 сентября 2026. Это не отметка о прохождении всех отложенных QA/review.',
+    nextAction: 'Подготовить решения для K: TTS, языки и формат нейроведущего.',
+    effort: { minHours: 24, maxHours: 40, basis: 'untracked' },
   },
   {
     id: 'K',

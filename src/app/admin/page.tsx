@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import { adminFetch as fetch } from '@/lib/admin-fetch';
+import { CodexAdminAccess } from '@/components/admin/CodexAdminAccess';
+import { QuizCheckReports } from '@/components/admin/QuizCheckReports';
 import { ProjectRoadmapTab } from '@/components/admin/ProjectRoadmapTab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -160,7 +163,8 @@ function BackgroundsTab() {
       body: JSON.stringify({ theme: customThemeInput }),
     });
     const data = await res.json();
-    setCustomPromptText(data.prompt ?? '');
+    if (!res.ok) { setErrorMsg(data.error ?? 'Ошибка Codex'); setStep('error'); }
+    else setCustomPromptText(data.prompt ?? '');
     setPromptLoading(false);
   }
 
@@ -411,7 +415,7 @@ function BackgroundsTab() {
           </div>
 
           <p className="text-xs text-amber-300/60 bg-amber-900/20 border border-amber-500/20 rounded-xl px-3 py-2">
-            ⚠️ Стоит ~$0.07 за изображение. Существующие файлы не перезаписываются.
+            Существующие файлы не перезаписываются.
           </p>
 
           {(step === 'idle' || step === 'error') && (
@@ -499,6 +503,11 @@ type Selection =
 
 // ─── Question viewer panel ────────────────────────────────────────────────────
 
+function quizReportKey(selection: Selection) {
+  return selection?.type === 'special' ? `special:${selection.id}`
+    : selection ? `general:${selection.topic}:${selection.difficulty}` : '';
+}
+
 function QuestionViewer({ selection }: { selection: Selection }) {
   const [questions, setQuestions] = useState<QuizQuestionRaw[]>([]);
   const [loading, setLoading] = useState(false);
@@ -531,7 +540,7 @@ function QuestionViewer({ selection }: { selection: Selection }) {
     const res = await fetch('/api/admin/fact-check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questions }),
+      body: JSON.stringify({ questions, quizKey: quizReportKey(selection), quizLabel: selection?.label }),
     });
     const data = await res.json();
     setReport(data.report ?? data.error ?? 'Нет ответа');
@@ -597,7 +606,7 @@ function QuestionViewer({ selection }: { selection: Selection }) {
         fetch('/api/admin/fact-check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ questions: [newQ] }),
+          body: JSON.stringify({ questions: [newQ], quizKey: quizReportKey(selection), quizLabel: selection?.label }),
         })
           .then((r) => r.json())
           .then((d) => {
@@ -624,7 +633,7 @@ function QuestionViewer({ selection }: { selection: Selection }) {
       const res = await fetch('/api/admin/fact-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questions: [q] }),
+        body: JSON.stringify({ questions: [q], quizKey: quizReportKey(selection), quizLabel: selection?.label }),
       });
       const data = await res.json();
       setFactCheckResults((prev) => ({ ...prev, [q.id]: data.report ?? data.error ?? '⚠️ Нет ответа' }));
@@ -660,6 +669,7 @@ function QuestionViewer({ selection }: { selection: Selection }) {
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <h3 className="text-sm font-bold text-white/70 uppercase tracking-widest">{selection.label}</h3>
         <div className="flex items-center gap-3">
+          <QuizCheckReports quizKey={quizReportKey(selection)} />
           {!loading && <span className="text-xs text-white/30">{questions.length} вопросов</span>}
           {!loading && questions.length > 0 && (
             <button
@@ -953,7 +963,7 @@ function QuizzesTab() {
 
       {/* ── Right: question viewer ── */}
       <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-5 overflow-hidden">
-        <QuestionViewer selection={selection} />
+        <QuestionViewer key={quizReportKey(selection)} selection={selection} />
       </div>
     </div>
   );
@@ -1722,6 +1732,8 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[#0f0f1a] text-white font-mono p-8">
       <h1 className="text-3xl font-bold mb-1 text-purple-400">⚙️ Admin Dashboard</h1>
       <p className="text-white/40 text-sm mb-8">Party Games Hub — внутренние инструменты</p>
+
+      <CodexAdminAccess />
 
       {/* Tab bar */}
       <div className="flex gap-2 mb-8 border-b border-white/10 pb-0">

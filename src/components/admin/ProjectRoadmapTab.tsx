@@ -86,7 +86,7 @@ function PhaseCard({ phase, expanded, onToggle }: { phase: ProjectPhase; expande
                 {status.label}
               </span>
               <span className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[10px] font-bold tracking-wide text-white/50">
-                {phase.effort.basis === 'historical-estimate' ? 'Затрачено' : 'Оценка'} · {formatHours(phase.effort.minHours, phase.effort.maxHours)}
+                {phase.effort.basis === 'untracked' ? 'Фактическое время не учтено' : `${phase.effort.basis === 'historical-estimate' ? 'Затрачено (оценка)' : 'Прогноз'} · ${formatHours(phase.effort.minHours, phase.effort.maxHours)}`}
               </span>
               <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/25">{TRACK_COPY[phase.track]}</span>
             </div>
@@ -127,7 +127,9 @@ function PhaseCard({ phase, expanded, onToggle }: { phase: ProjectPhase; expande
                   </>
                 )}
                 <p className="mt-4 border-t border-white/10 pt-3 text-[11px] leading-4 text-white/30">
-                  {phase.effort.basis === 'historical-estimate'
+                  {phase.effort.basis === 'untracked'
+                    ? `Точный учёт времени не вёлся. Первоначальный прогноз ${formatHours(phase.effort.minHours, phase.effort.maxHours)} не является фактическими затратами.`
+                    : phase.effort.basis === 'historical-estimate'
                     ? 'Ретроспективная оценка по отчётам, рабочим сессиям и объёму изменений.'
                     : 'Прогноз для текущего scope, включая реализацию, ревью, исправления и проверки.'}
                 </p>
@@ -182,7 +184,7 @@ export function ProjectRoadmapTab() {
               Дизайн утверждён.<br />Двигаемся к продукту.
             </h2>
             <p className="mt-5 max-w-2xl text-sm leading-6 text-white/55 sm:text-base sm:leading-7">
-              Визуальный фундамент и игровые миры завершены. Текущая задача — закрепить систему аудитом, затем перейти к нейроведущему, аккаунтам и монетизации.
+              Визуальный фундамент, игровые миры и фаза аудита завершены. Далее — подготовка нейроведущего, аккаунты и монетизация.
             </p>
           </div>
 
@@ -198,12 +200,12 @@ export function ProjectRoadmapTab() {
               <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-300 to-violet-400 transition-all duration-700" style={{ width: `${progress}%` }} />
             </div>
             <div className="mt-4 flex items-center justify-between text-xs">
-              <span className="text-white/35">Текущая фаза</span>
-              <span className="font-bold text-amber-200">J · Audit & Consolidation</span>
+              <span className="text-white/35">Следующая фаза</span>
+              <span className="font-bold text-amber-200">K · Нейроведущий (запланирован)</span>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2 border-t border-white/10 pt-4">
               <div className="rounded-2xl bg-white/[0.04] px-3 py-3">
-                <p className="text-[10px] uppercase tracking-wider text-white/30">Уже затрачено</p>
+                <p className="text-[10px] uppercase tracking-wider text-white/30">Оценка A–I, без J</p>
                 <p className="mt-1 text-lg font-black text-emerald-200">{formatHours(spentHours.min, spentHours.max)}</p>
               </div>
               <div className="rounded-2xl bg-white/[0.04] px-3 py-3">
@@ -270,7 +272,7 @@ export function ProjectRoadmapTab() {
           После закрытия крупной фазы общий системный чат обновляет её статус, результаты и дату roadmap вместе с PROJECT_CONTEXT, TASKS и handoff. Следующая фаза становится текущей только после подтверждения критериев завершения.
         </p>
         <p className="mt-3 max-w-4xl text-xs leading-5 text-white/35">
-          Часы показаны диапазонами: точный time tracking исторически не вёлся. Для завершённых фаз это восстановленная оценка, для J–M — прогноз при текущем объёме требований.
+          Точный учёт времени исторически не вёлся. A–I — восстановленная оценка; фактические часы J неизвестны и не включены в сумму. K–M — прогноз при текущем объёме требований.
         </p>
       </section>
     </div>

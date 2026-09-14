@@ -29,17 +29,18 @@ test('H2O transitions preserve separate controllers and merge stale confirmation
     socket.timeout(1500).emit(name, data, (error: Error | null, response: State) => error ? reject(error) : resolve(response));
   });
   try {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       const socket = connect(`http://127.0.0.1:${port}`, { path: '/api/socketio', transports: ['websocket'] });
       sockets.push(socket);
       await event(socket, 'connect');
     }
-    const [tv, owner, moderator, a, b] = sockets;
+    const [tv, owner, moderator, a, b, extra] = sockets;
     const { code } = await ack(tv, 'room:create', { playerId: 'tv', nickname: 'TV', role: 'tv' });
     for (const [socket, id] of [[owner, 'owner'], [moderator, 'moderator'], [a, 'a'], [b, 'b']] as const) {
       await ack(socket, 'room:join', { code, playerId: id, nickname: id, role: 'player' });
     }
     await ack(tv, 'tv:join', { code });
+    await ack(extra, 'room:join', { code, playerId: 'extra', nickname: 'Extra', role: 'player' });
     owner.emit('game:select', { code, gameType: 'hundred-to-one' });
     const started = event(owner, 'game:started');
     owner.emit('game:start', { code });
