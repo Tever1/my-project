@@ -22,6 +22,7 @@ export function CodexAdminAccess() {
     });
     if (response.ok || (action === 'logout' && response.status === 401)) {
       setSaved(action === 'login'); setKey('');
+      if (action === 'login') window.dispatchEvent(new Event('codex-admin-authenticated'));
       try { sessionStorage.removeItem('party-codex-admin-key'); } catch { /* Legacy storage may be unavailable. */ }
     } else {
       const data = await response.json().catch(() => ({}));

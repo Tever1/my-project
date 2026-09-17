@@ -9,6 +9,7 @@ export interface QuizCheckReport {
   label: string;
   report: string;
   questions: string;
+  questionIds?: string[];
 }
 
 const directory = path.join(process.cwd(), 'data', 'quiz-check-reports');
@@ -28,7 +29,7 @@ export async function listQuizCheckReports(quizKey: string, root = directory): P
   for (const name of names) {
     if (!/^[a-f0-9-]{36}\.json$/.test(name)) continue;
     const entry: QuizCheckReport = JSON.parse(await readFile(path.join(root, name), 'utf8'));
-    if (entry.quizKey === quizKey) entries.push(entry);
+    if (entry.quizKey === quizKey || (quizKey === 'general:all:all' && entry.quizKey.startsWith('general:'))) entries.push(entry);
   }
   return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

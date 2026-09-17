@@ -53,7 +53,7 @@ ${formatted}`;
   const report = data.choices?.[0]?.message?.content ?? 'Нет ответа';
   if (quizKey) {
     try {
-      const saved = await saveQuizCheckReport({ quizKey, label: quizLabel!, report, questions: formatted });
+      const saved = await saveQuizCheckReport({ quizKey, label: quizLabel!, report, questions: formatted, questionIds: questions.map(question => question.id) });
       return NextResponse.json({ report, reportId: saved.id });
     } catch {
       return NextResponse.json({ report: `ВНИМАНИЕ: не удалось сохранить отчёт. Скопируйте его сейчас.\n\n${report}`, saved: false });

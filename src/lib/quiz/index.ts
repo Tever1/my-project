@@ -4,6 +4,7 @@ import { HISTORY_QUESTIONS } from './history';
 import { POP_CULTURE_QUESTIONS } from './pop-culture';
 import { HARRY_POTTER_1_QUESTIONS } from './themed/harry-potter';
 import { MARVEL_1_QUESTIONS } from './themed/marvel';
+import type { GameCatalog } from '@/lib/content/catalog';
 
 type QuizTopicInfoWithIcon = QuizTopicInfo & { iconUrl: string };
 type SpecialQuizThemeInfoWithIcon = SpecialQuizThemeInfo & { iconUrl: string };
@@ -103,6 +104,21 @@ const SPECIAL_QUIZ_BANKS: Record<string, QuizQuestion[]> = {
   'marvel-1': MARVEL_1_QUESTIONS,
 };
 
+/** Install a published catalog on the client before a new game is configured. */
+export function installQuizCatalog(catalog: GameCatalog) {
+  ALL_QUIZ_QUESTIONS.splice(0, ALL_QUIZ_QUESTIONS.length, ...catalog.general);
+  SPECIAL_QUIZZES.splice(0, SPECIAL_QUIZZES.length, ...catalog.quizzes.map(({ questions: ignored, ...quiz }) => {
+    void ignored; return quiz;
+  }));
+  const themes = new Map<string, SpecialQuizThemeInfoWithIcon>();
+  for (const quiz of catalog.quizzes) themes.set(quiz.theme, { id: quiz.theme,
+    titleRu: quiz.titleRu.replace(/\s*#\d+$/, ''), titleEn: quiz.titleEn.replace(/\s*#\d+$/, ''),
+    icon: '', iconUrl: quiz.iconUrl, backgroundUrl: quiz.backgroundUrl });
+  SPECIAL_QUIZ_THEMES.splice(0, SPECIAL_QUIZ_THEMES.length, ...themes.values());
+  for (const id of Object.keys(SPECIAL_QUIZ_BANKS)) delete SPECIAL_QUIZ_BANKS[id];
+  for (const quiz of catalog.quizzes) SPECIAL_QUIZ_BANKS[quiz.id] = quiz.questions;
+}
+
 /**
  * Get questions for a special quiz.
  * Uses the dedicated question bank if available, otherwise falls back to
@@ -112,6 +128,7 @@ export function getSpecialQuizQuestions(
   quizId: string,
   excludeIds?: Set<string>,
 ): QuizQuestion[] {
+  if (!SPECIAL_QUIZZES.some(quiz => quiz.id === quizId)) return [];
   let questions = SPECIAL_QUIZ_BANKS[quizId]
     ?? ALL_QUIZ_QUESTIONS.filter((q) => q.difficulty === 'medium');
 

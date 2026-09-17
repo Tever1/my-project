@@ -13,6 +13,7 @@ import { QuizPulsePlayerScreen } from '@/components/games/quiz-pulse/QuizPulse';
 import { QuizDifficulty, QuizTopic, QuizQuestion } from '@/types/game';
 import { getQuizQuestions, getSpecialQuizQuestions, QUIZ_TOPICS, QUIZ_DIFFICULTIES, SPECIAL_QUIZZES, SPECIAL_QUIZ_THEMES } from '@/lib/quiz';
 import { useTimerSound } from '@/lib/use-timer-sound';
+import { refreshGameContent } from '@/lib/content/client';
 
 const ROOM_CLOSED_NOTICE_KEY = 'party-hub-room-closed-notice';
 
@@ -105,6 +106,7 @@ export default function QuizPage() {
 
   // Host-only state: the actual question objects (not sent to clients, only question data is synced)
   const questionsRef = useRef<QuizQuestion[]>([]);
+  const startingRef = useRef(false);
   const shownIdsRef = useRef<Set<string>>(new Set());
 
   const isHost = gameState.players.find((p) => p.id === user?.id)?.isHost ?? false;
@@ -394,29 +396,31 @@ export default function QuizPage() {
     sendAction('quiz:countdown', { value: countdownRef.current, questionIndex: questionIdx });
   };
 
-  const startGame = () => {
+  const startGame = async () => {
+    if (startingRef.current || !isGameHostRef.current) return;
+    startingRef.current = true;
     warmupSound();
-    // If host hasn't generated questions yet (e.g., "Play Again"), regenerate
-    if (questionsRef.current.length === 0) {
-      if (gameState.config.mode === 'special' && gameState.config.specialQuizId) {
-        const questions = getSpecialQuizQuestions(gameState.config.specialQuizId, shownIdsRef.current);
-        questionsRef.current = questions.slice(0, Math.min(QUESTIONS_PER_GAME, questions.length));
-      } else if (gameState.config.topic && gameState.config.difficulty) {
-        const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
-        questionsRef.current = questions.slice(0, Math.min(QUESTIONS_PER_GAME, questions.length));
-      }
+    try {
+      await refreshGameContent();
+      if (!isGameHostRef.current) return;
+      const current = gameStateRef.current;
+      if (current.phase !== 'waiting' && current.phase !== 'final') return;
+      const config = current.config;
+      const questions = config.mode === 'special' && config.specialQuizId
+        ? getSpecialQuizQuestions(config.specialQuizId, shownIdsRef.current)
+        : config.topic && config.difficulty ? getQuizQuestions(config.topic, config.difficulty, shownIdsRef.current) : [];
+      if (!questions.length) throw new Error('Empty quiz');
+      questionsRef.current = questions.slice(0, QUESTIONS_PER_GAME);
+      const initialScores: Record<string, number> = {};
+      current.players.forEach(p => { initialScores[p.id] = 0; });
+      setGameState(prev => ({ ...prev, scores: initialScores, totalQuestions: questionsRef.current.length, questionQueue: questionsRef.current }));
+      sendAction('quiz:sync', { scores: initialScores, totalQuestions: questionsRef.current.length, questionQueue: questionsRef.current });
+      runCountdown(0);
+    } catch {
+      window.alert(locale === 'ru' ? 'Не удалось загрузить вопросы. Обновите выбор квиза и повторите.' : 'Unable to load questions. Choose the quiz again and retry.');
+    } finally {
+      startingRef.current = false;
     }
-
-    const initialScores: Record<string, number> = {};
-    gameState.players.forEach((p) => {
-      initialScores[p.id] = 0;
-    });
-
-    setGameState((prev) => ({ ...prev, scores: initialScores }));
-
-    sendAction('quiz:sync', { scores: initialScores });
-
-    runCountdown(0);
   };
 
   const startQuestionImmediate = (questionIdx: number) => {
@@ -474,21 +478,7 @@ export default function QuizPage() {
   };
 
   const playAgain = () => {
-    // Regenerate questions (excluding already shown ones)
-    if (gameState.config.mode === 'special' && gameState.config.specialQuizId) {
-      const questions = getSpecialQuizQuestions(gameState.config.specialQuizId, shownIdsRef.current);
-      const total = Math.min(QUESTIONS_PER_GAME, questions.length);
-      questionsRef.current = questions.slice(0, total);
-      setGameState((prev) => ({ ...prev, totalQuestions: total, questionQueue: questionsRef.current }));
-      sendAction('quiz:sync', { totalQuestions: total, questionQueue: questionsRef.current });
-    } else if (gameState.config.topic && gameState.config.difficulty) {
-      const questions = getQuizQuestions(gameState.config.topic, gameState.config.difficulty, shownIdsRef.current);
-      const total = Math.min(QUESTIONS_PER_GAME, questions.length);
-      questionsRef.current = questions.slice(0, total);
-      setGameState((prev) => ({ ...prev, totalQuestions: total, questionQueue: questionsRef.current }));
-      sendAction('quiz:sync', { totalQuestions: total, questionQueue: questionsRef.current });
-    }
-    startGame();
+    void startGame();
   };
 
   const endGame = () => {

@@ -19,6 +19,7 @@ import {
   whoAmIClayStyles as clay,
 } from '@/components/games/who-am-i-clay/WhoAmIClay';
 import { WHO_AM_I_CHARACTERS } from '@/lib/game-data';
+import { refreshGameContent } from '@/lib/content/client';
 import { Player } from '@/types/room';
 
 // ---------------------------------------------------------------------------
@@ -126,6 +127,7 @@ export default function WhoAmIPage() {
   } | null>(null);
   const lastQuestionAnswerAtRef = useRef(0);
   const recentlyUsedRef = useRef<Set<string>>(new Set());
+  const startingRef = useRef(false);
   const gsRef = useRef<WhoAmIGameState>(getInitialState());
 
   const playerName = useCallback(
@@ -325,14 +327,20 @@ export default function WhoAmIPage() {
   // -----------------------------------------------------------------------
   // Host: start game
   // -----------------------------------------------------------------------
-  const handleStart = () => {
-    const playerIds = players.map((p) => p.id);
-    const characters = assignCharacters(playerIds, recentlyUsedRef.current);
-    recentlyUsedRef.current = new Set(
-      Object.values(characters).map((character) => character.en),
-    );
-    const turnOrder = [...playerIds].sort(() => Math.random() - 0.5);
-    broadcast({ type: 'start-game', characters, turnOrder });
+  const handleStart = async () => {
+    if (startingRef.current || !isGameHost) return;
+    startingRef.current = true;
+    try {
+      await refreshGameContent();
+      const playerIds = players.map(p => p.id);
+      if (WHO_AM_I_CHARACTERS.length < playerIds.length) throw new Error('Not enough characters');
+      const characters = assignCharacters(playerIds, recentlyUsedRef.current);
+      recentlyUsedRef.current = new Set(Object.values(characters).map(character => character.en));
+      const turnOrder = [...playerIds].sort(() => Math.random() - 0.5);
+      broadcast({ type: 'start-game', characters, turnOrder });
+    } catch {
+      window.alert(l('Не удалось загрузить персонажей. Повторите запуск.', 'Unable to load characters. Retry starting the game.'));
+    } finally { startingRef.current = false; }
   };
 
   // -----------------------------------------------------------------------

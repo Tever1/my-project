@@ -2,9 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
+import './admin.css';
+import { AdminIcon } from '@/components/admin/AdminIcon';
+import { ContentStudio, CharacterStudio, WordStudio } from '@/components/admin/ContentStudio';
+import { ContentWorkspace, ContentSaveButton, useContentWorkspace } from '@/components/admin/ContentWorkspace';
 import { adminFetch as fetch } from '@/lib/admin-fetch';
 import { CodexAdminAccess } from '@/components/admin/CodexAdminAccess';
-import { QuizCheckReports } from '@/components/admin/QuizCheckReports';
 import { ProjectRoadmapTab } from '@/components/admin/ProjectRoadmapTab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,15 +19,7 @@ interface BgFile {
   url: string;
   sizeKb: number;
   createdAt: number;
-}
-
-interface GeneralStat {
-  topic: string;
-  titleRu: string;
-  total: number;
-  easy: number;
-  medium: number;
-  hard: number;
+  group?: string;
 }
 
 interface SpecialStat {
@@ -56,19 +52,19 @@ interface RoomInfo {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const THEMES = [
-  { id: 'harry-potter',     label: 'Harry Potter',     icon: '⚡' },
-  { id: 'marvel',           label: 'Marvel',           icon: '🦸' },
-  { id: 'star-wars',        label: 'Star Wars',        icon: '🌌' },
-  { id: 'lord-of-the-rings',label: 'Lord of the Rings',icon: '💍' },
-  { id: 'game-of-thrones',  label: 'Game of Thrones',  icon: '🐉' },
-  { id: 'disney',           label: 'Disney',           icon: '🏰' },
-  { id: 'friends',          label: 'Friends',          icon: '☕' },
-  { id: 'breaking-bad',     label: 'Breaking Bad',     icon: '🧪' },
-  { id: 'the-office',       label: 'The Office',       icon: '📋' },
-  { id: 'geography',        label: 'География',        icon: '🌍' },
-  { id: 'history',          label: 'История',          icon: '📜' },
-  { id: 'sports',           label: 'Спорт',            icon: '⚽' },
-  { id: 'music',            label: 'Музыка',           icon: '🎵' },
+  { id: 'harry-potter',     label: 'Harry Potter',     icon: '' },
+  { id: 'marvel',           label: 'Marvel',           icon: '' },
+  { id: 'star-wars',        label: 'Star Wars',        icon: '' },
+  { id: 'lord-of-the-rings',label: 'Lord of the Rings',icon: '' },
+  { id: 'game-of-thrones',  label: 'Game of Thrones',  icon: '' },
+  { id: 'disney',           label: 'Disney',           icon: '' },
+  { id: 'friends',          label: 'Friends',          icon: '' },
+  { id: 'breaking-bad',     label: 'Breaking Bad',     icon: '' },
+  { id: 'the-office',       label: 'The Office',       icon: '' },
+  { id: 'geography',        label: 'География',        icon: '' },
+  { id: 'history',          label: 'История',          icon: '' },
+  { id: 'sports',           label: 'Спорт',            icon: '' },
+  { id: 'music',            label: 'Музыка',           icon: '' },
 ];
 
 const GAME_LABELS: Record<string, string> = {
@@ -90,6 +86,8 @@ type Tab = 'roadmap' | 'backgrounds' | 'quizzes' | 'games' | 'rooms';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function BackgroundsTab() {
+  const { draft } = useContentWorkspace();
+  const [backgroundGroup, setBackgroundGroup] = useState('all');
   const [files, setFiles] = useState<BgFile[]>([]);
   const [usedFiles, setUsedFiles] = useState<Map<string, SpecialStat[]>>(new Map());
   const [loadingFiles, setLoadingFiles] = useState(true);
@@ -142,13 +140,14 @@ function BackgroundsTab() {
   }, [lightbox]);
 
   async function handleDelete(name: string) {
-    if (!confirm(`Удалить ${name}.png?`)) return;
+    if (!confirm(`Удалить ${name}?`)) return;
     setDeletingName(name);
-    await fetch('/api/admin/backgrounds', {
+    const response = await fetch('/api/admin/backgrounds', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'delete', name }),
     });
+    if (!response.ok) { const data = await response.json(); window.alert(data.error ?? 'Не удалось удалить фон'); }
     setDeletingName(null);
     fetchFiles();
   }
@@ -199,11 +198,11 @@ function BackgroundsTab() {
       const res = await fetch('/api/admin/save-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataUrl: previewDataUrl, name: saveName }),
+        body: JSON.stringify({ dataUrl: previewDataUrl, name: saveName, group: theme }),
       });
       const data = await res.json();
       if (!res.ok) { setErrorMsg(data.error ?? 'Ошибка при сохранении'); setStep('error'); return; }
-      setSavedPath(data.path);
+      setSavedPath(`${data.path} · PNG-исходник: ${data.sourcePath}${data.warning ? ` · ${data.warning}` : ''}`);
       setStep('saved');
       fetchFiles();
     } catch (err) {
@@ -221,11 +220,13 @@ function BackgroundsTab() {
 
   const themeLabel = THEMES.find((t) => t.id === theme)?.label ?? theme;
 
-  const assignedFiles = files.filter((f) => usedFiles.has(f.name));
-  const freeFiles     = files.filter((f) => !usedFiles.has(f.name));
+  const visibleFiles = files.filter(f => /\.webp$/i.test(f.filename) && (backgroundGroup === 'all' || (f.group ?? 'other') === backgroundGroup));
+  const usage = (f: BgFile) => draft?.catalog.quizzes.filter(q => q.backgroundUrl.split('/').pop() === f.filename.split('/').pop()) ?? usedFiles.get(f.name) ?? [];
+  const assignedFiles = visibleFiles.filter(f => usage(f).length > 0);
+  const freeFiles = visibleFiles.filter(f => usage(f).length === 0);
 
   function BgCard({ f }: { f: BgFile }) {
-    const quizzes = usedFiles.get(f.name) ?? [];
+    const quizzes = usage(f);
     return (
       <div
         className="relative group rounded-xl overflow-hidden border border-white/10 aspect-video bg-white/5 cursor-zoom-in"
@@ -237,14 +238,14 @@ function BackgroundsTab() {
           <div className="absolute top-2 left-2 flex flex-wrap gap-1">
             {quizzes.map((q) => (
               <span key={q.id} className="bg-black/70 text-white text-[10px] px-2 py-0.5 rounded-lg font-bold">
-                {q.icon} {q.titleRu}
+                {q.titleRu}
               </span>
             ))}
           </div>
         )}
         {/* Zoom hint */}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className="bg-black/70 text-white text-[10px] px-2 py-1 rounded-lg">🔍</span>
+          <span className="bg-black/70 text-white text-[10px] px-2 py-1 rounded-lg"></span>
         </div>
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex flex-col justify-end p-3 opacity-0 group-hover:opacity-100">
@@ -273,6 +274,7 @@ function BackgroundsTab() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-white/50 uppercase tracking-widest">Галерея фонов</h2>
+          <select aria-label="Папка фонов" value={backgroundGroup} onChange={e => setBackgroundGroup(e.target.value)} className="rounded-xl border border-white/15 bg-slate-950 px-3 py-2 text-xs"><option value="all">Все папки</option>{[...new Set(files.map(f => f.group ?? 'other'))].map(group => <option key={group} value={group}>{group === 'harry-potter' ? 'Гарри Поттер' : group === 'marvel' ? 'Marvel' : group}</option>)}</select>
           <button onClick={fetchFiles} className="text-xs text-white/30 hover:text-white/60 transition-colors">обновить</button>
         </div>
 
@@ -398,7 +400,7 @@ function BackgroundsTab() {
                 disabled={promptLoading || !customThemeInput.trim()}
                 className="flex-shrink-0 px-3 py-2 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-white/70"
               >
-                {promptLoading ? '...' : '✨ Промпт'}
+                {promptLoading ? '...' : ' Промпт'}
               </button>
             </div>
             {customPromptText && (
@@ -431,7 +433,7 @@ function BackgroundsTab() {
           )}
 
           {step === 'error' && (
-            <p className="text-xs text-red-300 bg-red-900/30 border border-red-500/30 rounded-xl px-3 py-2">❌ {errorMsg}</p>
+            <p className="text-xs text-red-300 bg-red-900/30 border border-red-500/30 rounded-xl px-3 py-2"> {errorMsg}</p>
           )}
         </div>
 
@@ -445,7 +447,7 @@ function BackgroundsTab() {
 
             {step === 'saved' ? (
               <div className="space-y-3">
-                <p className="text-sm text-green-300 bg-green-900/30 border border-green-500/30 rounded-xl px-3 py-2">✅ Сохранено: {savedPath}</p>
+                <p className="text-sm text-green-300 bg-green-900/30 border border-green-500/30 rounded-xl px-3 py-2"> Сохранено: {savedPath}</p>
                 <button onClick={resetGen} className="w-full py-3 rounded-xl font-bold text-sm bg-white/10 hover:bg-white/20 transition-colors">
                   Сгенерировать ещё
                 </button>
@@ -485,493 +487,7 @@ function BackgroundsTab() {
 // QUIZZES TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ─── Question types ───────────────────────────────────────────────────────────
-
-interface QuizQuestionRaw {
-  id: string;
-  questionRu: string;
-  questionEn: string;
-  options: { ru: string; en: string }[];
-  correctIndex: number;
-  difficulty?: string;
-}
-
-type Selection =
-  | { type: 'general'; topic: string; difficulty: string; label: string }
-  | { type: 'special'; id: string; label: string }
-  | null;
-
-// ─── Question viewer panel ────────────────────────────────────────────────────
-
-function quizReportKey(selection: Selection) {
-  return selection?.type === 'special' ? `special:${selection.id}`
-    : selection ? `general:${selection.topic}:${selection.difficulty}` : '';
-}
-
-function QuestionViewer({ selection }: { selection: Selection }) {
-  const [questions, setQuestions] = useState<QuizQuestionRaw[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [report, setReport] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [replacingId, setReplacingId] = useState<string | null>(null);
-  const [replaceError, setReplaceError] = useState<string | null>(null);
-  const [checkingId, setCheckingId] = useState<string | null>(null);
-  const [factCheckResults, setFactCheckResults] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (!selection) return;
-    setLoading(true);
-    setQuestions([]);
-    setReport(null);
-
-    const url = selection.type === 'special'
-      ? `/api/admin/quiz-questions?specialId=${selection.id}`
-      : `/api/admin/quiz-questions?topic=${selection.topic}&difficulty=${selection.difficulty}`;
-
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => { setQuestions(d.questions ?? []); setLoading(false); });
-  }, [selection]);
-
-  async function handleFactCheck() {
-    setChecking(true);
-    setReport(null);
-    const res = await fetch('/api/admin/fact-check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questions, quizKey: quizReportKey(selection), quizLabel: selection?.label }),
-    });
-    const data = await res.json();
-    setReport(data.report ?? data.error ?? 'Нет ответа');
-    setChecking(false);
-  }
-
-  async function handleDeleteQuestion(q: QuizQuestionRaw) {
-    setDeletingId(q.id);
-    // Optimistic remove
-    setQuestions((prev) => prev.filter((x) => x.id !== q.id));
-    await fetch('/api/admin/quiz-item', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'delete',
-        quizType: selection?.type ?? 'general',
-        specialId: selection?.type === 'special' ? selection.id : undefined,
-        question: q,
-      }),
-    });
-    setDeletingId(null);
-  }
-
-  async function handleReplaceQuestion(q: QuizQuestionRaw) {
-    if (selection?.type !== 'special') return;
-    setReplacingId(q.id);
-    setReplaceError(null);
-    try {
-      const res = await fetch('/api/admin/quiz-item', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'replace',
-          quizType: 'special',
-          specialId: selection.id,
-          question: q,
-          existingQuestions: questions.map((x) => x.questionRu),
-        }),
-      });
-      const text = await res.text();
-      if (!text) {
-        setReplaceError(`Пустой ответ от сервера (HTTP ${res.status}). Возможно, таймаут — попробуй ещё раз.`);
-        return;
-      }
-      let data: { ok?: boolean; replacement?: QuizQuestionRaw; error?: string };
-      try {
-        data = JSON.parse(text);
-      } catch {
-        setReplaceError(`Невалидный JSON от сервера: ${text.slice(0, 200)}`);
-        return;
-      }
-      if (data.ok && data.replacement) {
-        const newQ: QuizQuestionRaw = data.replacement;
-        setQuestions((prev) => {
-          const idx = prev.findIndex((x) => x.id === q.id);
-          const next = prev.filter((x) => x.id !== q.id);
-          if (idx >= 0) next.splice(idx, 0, newQ);
-          else next.push(newQ);
-          return next;
-        });
-        // Факт-чекинг запускаем отдельно, уже после отображения вопроса
-        setFactCheckResults((prev) => ({ ...prev, [newQ.id]: '⏳ Проверяю...' }));
-        fetch('/api/admin/fact-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ questions: [newQ], quizKey: quizReportKey(selection), quizLabel: selection?.label }),
-        })
-          .then((r) => r.json())
-          .then((d) => {
-            const result = d.report ?? d.error ?? '⚠️ Нет ответа';
-            setFactCheckResults((prev) => ({ ...prev, [newQ.id]: result }));
-          })
-          .catch(() => {
-            setFactCheckResults((prev) => ({ ...prev, [newQ.id]: '⚠️ Не удалось проверить' }));
-          });
-      } else {
-        setReplaceError(data.error ?? 'Неизвестная ошибка');
-      }
-    } catch (err) {
-      setReplaceError((err as Error).message ?? 'Ошибка запроса');
-    } finally {
-      setReplacingId(null);
-    }
-  }
-
-  async function handleFactCheckOne(q: QuizQuestionRaw) {
-    setCheckingId(q.id);
-    setFactCheckResults((prev) => ({ ...prev, [q.id]: '⏳ Проверяю...' }));
-    try {
-      const res = await fetch('/api/admin/fact-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questions: [q], quizKey: quizReportKey(selection), quizLabel: selection?.label }),
-      });
-      const data = await res.json();
-      setFactCheckResults((prev) => ({ ...prev, [q.id]: data.report ?? data.error ?? '⚠️ Нет ответа' }));
-    } catch {
-      setFactCheckResults((prev) => ({ ...prev, [q.id]: '⚠️ Не удалось проверить' }));
-    } finally {
-      setCheckingId(null);
-    }
-  }
-
-  if (!selection) {
-    return (
-      <div className="h-full flex items-center justify-center text-center px-8">
-        <div>
-          <p className="text-4xl mb-3 opacity-30">👆</p>
-          <p className="text-white/30 text-sm">Нажми на количество вопросов<br />или на тематический квиз</p>
-        </div>
-      </div>
-    );
-  }
-
-  const diffColor: Record<string, string> = {
-    easy: 'text-green-400 bg-green-900/20 border-green-500/30',
-    medium: 'text-yellow-400 bg-yellow-900/20 border-yellow-500/30',
-    hard: 'text-red-400 bg-red-900/20 border-red-500/30',
-  };
-  const diffLabel: Record<string, string> = { easy: 'Лёгкий', medium: 'Средний', hard: 'Сложный' };
-  const optionLetters = ['A', 'B', 'C', 'D'];
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-shrink-0">
-        <h3 className="text-sm font-bold text-white/70 uppercase tracking-widest">{selection.label}</h3>
-        <div className="flex items-center gap-3">
-          <QuizCheckReports quizKey={quizReportKey(selection)} />
-          {!loading && <span className="text-xs text-white/30">{questions.length} вопросов</span>}
-          {!loading && questions.length > 0 && (
-            <button
-              onClick={handleFactCheck}
-              disabled={checking}
-              className="text-xs bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-blue-300 hover:text-blue-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {checking ? '⏳ Проверяю...' : '🔍 Проверить достоверность'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Replace error */}
-      {replaceError && (
-        <div className="mb-4 flex-shrink-0 bg-red-900/20 border border-red-500/30 rounded-2xl p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-red-300 uppercase tracking-widest">Ошибка замены</span>
-            <button onClick={() => setReplaceError(null)} className="text-xs text-white/30 hover:text-white/60">✕</button>
-          </div>
-          <p className="text-xs text-red-300/80 mt-1">{replaceError}</p>
-        </div>
-      )}
-
-      {/* Fact-check report */}
-      {report && (
-        <div className="mb-4 flex-shrink-0 bg-blue-900/20 border border-blue-500/30 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-blue-300 uppercase tracking-widest">Отчёт о достоверности</span>
-            <button onClick={() => setReport(null)} className="text-xs text-white/30 hover:text-white/60">✕</button>
-          </div>
-          <pre className="text-xs text-white/80 whitespace-pre-wrap leading-relaxed font-sans">{report}</pre>
-        </div>
-      )}
-
-      {/* List */}
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-        {loading && (
-          <p className="text-white/30 text-sm">Загрузка...</p>
-        )}
-        {!loading && questions.map((q, idx) => {
-          const isDeleting  = deletingId  === q.id;
-          const isReplacing = replacingId === q.id;
-          const isChecking  = checkingId  === q.id;
-          const isBusy      = isDeleting || isReplacing || isChecking;
-          return (
-          <div key={q.id} className={`bg-white/5 border border-white/10 rounded-2xl p-4 transition-opacity ${isBusy ? 'opacity-40 pointer-events-none' : ''}`}>
-            {/* Question header */}
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-white/30 text-xs font-bold">#{idx + 1}</span>
-                {q.difficulty && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${diffColor[q.difficulty] ?? 'text-white/40 bg-white/5 border-white/10'}`}>
-                    {diffLabel[q.difficulty] ?? q.difficulty}
-                  </span>
-                )}
-              </div>
-              {/* Action buttons */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                {isReplacing && <span className="text-xs text-white/30 animate-pulse">генерирую...</span>}
-                {isChecking  && <span className="text-xs text-white/30 animate-pulse">проверяю...</span>}
-                <button
-                  onClick={() => handleFactCheckOne(q)}
-                  disabled={isBusy}
-                  title="Проверить достоверность"
-                  className="text-[11px] px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 text-blue-300 hover:text-blue-200 transition-colors disabled:opacity-40"
-                >
-                  🔍
-                </button>
-                {selection?.type === 'special' && (
-                  <button
-                    onClick={() => handleReplaceQuestion(q)}
-                    disabled={isBusy}
-                    title="Заменить (AI)"
-                    className="text-[11px] px-2 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 hover:text-purple-200 transition-colors disabled:opacity-40"
-                  >
-                    🔄
-                  </button>
-                )}
-                <button
-                  onClick={() => handleDeleteQuestion(q)}
-                  disabled={isBusy}
-                  title="Удалить"
-                  className="text-[11px] px-2 py-1 rounded-lg bg-red-600/10 hover:bg-red-600/30 border border-red-500/20 text-red-400 hover:text-red-300 transition-colors disabled:opacity-40"
-                >
-                  🗑
-                </button>
-              </div>
-            </div>
-
-            {/* Question text */}
-            <p className="text-white text-sm font-medium mb-1">{q.questionRu}</p>
-            <p className="text-white/40 text-xs mb-3">{q.questionEn}</p>
-
-            {/* Fact-check result (shown after AI replacement) */}
-            {factCheckResults[q.id] && (
-              <div className={`mb-3 px-3 py-1.5 rounded-lg text-xs border ${
-                factCheckResults[q.id].startsWith('✅')
-                  ? 'bg-green-900/20 border-green-500/30 text-green-300'
-                  : factCheckResults[q.id].startsWith('❌')
-                  ? 'bg-red-900/20 border-red-500/30 text-red-300'
-                  : 'bg-yellow-900/20 border-yellow-500/30 text-yellow-300'
-              }`}>
-                {factCheckResults[q.id]}
-              </div>
-            )}
-
-            {/* Options */}
-            <div className="space-y-1.5">
-              {q.options.map((opt, i) => (
-                <div
-                  key={i}
-                  className={`flex items-start gap-2 rounded-xl px-3 py-2 text-xs transition-colors ${
-                    i === q.correctIndex
-                      ? 'bg-green-900/40 border border-green-500/40 text-green-300'
-                      : 'bg-white/5 border border-white/5 text-white/50'
-                  }`}
-                >
-                  <span className={`font-bold flex-shrink-0 ${i === q.correctIndex ? 'text-green-400' : 'text-white/30'}`}>
-                    {optionLetters[i]}
-                  </span>
-                  <div>
-                    <p>{opt.ru}</p>
-                    <p className="opacity-60">{opt.en}</p>
-                  </div>
-                  {i === q.correctIndex && (
-                    <span className="ml-auto flex-shrink-0 text-green-400">✓</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Quizzes tab ──────────────────────────────────────────────────────────────
-
-function QuizzesTab() {
-  const [general, setGeneral] = useState<GeneralStat[]>([]);
-  const [special, setSpecial] = useState<SpecialStat[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState<string | null>(null);
-  const [selection, setSelection] = useState<Selection>(null);
-
-  useEffect(() => {
-    fetch('/api/admin/quiz-stats')
-      .then((r) => r.json())
-      .then((d) => { setGeneral(d.general ?? []); setSpecial(d.special ?? []); setLoading(false); });
-  }, []);
-
-  function selectGeneral(topic: string, difficulty: string, titleRu: string) {
-    const diffLabel = difficulty === 'all' ? 'все' : difficulty === 'easy' ? 'лёгкие' : difficulty === 'medium' ? 'средние' : 'сложные';
-    setSelection({ type: 'general', topic, difficulty, label: `${titleRu} — ${diffLabel}` });
-  }
-
-  function selectSpecial(q: SpecialStat) {
-    setSelection({ type: 'special', id: q.id, label: q.titleRu });
-  }
-
-  function buildPrompt(quiz: SpecialStat): string {
-    const nextNum = quiz.number + 1;
-    const themeLabel = THEMES.find((t) => t.id === quiz.theme)?.label ?? quiz.theme;
-    return `Придумай 10 вопросов средней сложности для квиза «${themeLabel} #${nextNum}».\n\nТребования:\n- Не повторять темы, которые уже покрыты в квизе #${quiz.number}\n- 4 варианта ответа (A, B, C, D), один правильный\n- Вопросы и варианты — на русском и английском\n- Средняя сложность: не слишком очевидные, но проверяемые факты\n- Все факты точные и соответствуют канону`;
-  }
-
-  async function copyPrompt(quiz: SpecialStat, e: React.MouseEvent) {
-    e.stopPropagation();
-    await navigator.clipboard.writeText(buildPrompt(quiz));
-    setCopied(quiz.id);
-    setTimeout(() => setCopied(null), 2000);
-  }
-
-  const isSelected = (s: Selection) => {
-    if (!selection || !s) return false;
-    if (selection.type !== s.type) return false;
-    if (selection.type === 'special' && s.type === 'special') return selection.id === s.id;
-    if (selection.type === 'general' && s.type === 'general') return selection.topic === s.topic && selection.difficulty === s.difficulty;
-    return false;
-  };
-
-  if (loading) return <p className="text-white/30 text-sm">Загрузка...</p>;
-
-  return (
-    <div className="flex gap-6 h-[calc(100vh-220px)] min-h-[500px]">
-
-      {/* ── Left: quiz list ── */}
-      <div className="w-[420px] flex-shrink-0 overflow-y-auto space-y-6 pr-1">
-
-        {/* General quizzes */}
-        <section>
-          <h2 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">Общие квизы</h2>
-          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-white/30 text-[10px] uppercase tracking-widest">
-                  <th className="text-left px-4 py-2.5">Тема</th>
-                  <th className="text-center px-3 py-2.5">Все</th>
-                  <th className="text-center px-3 py-2.5 text-green-400/60">Лёг</th>
-                  <th className="text-center px-3 py-2.5 text-yellow-400/60">Сред</th>
-                  <th className="text-center px-3 py-2.5 text-red-400/60">Слож</th>
-                </tr>
-              </thead>
-              <tbody>
-                {general.map((g, i) => {
-                  const isRowSel = selection?.type === 'general' && selection.topic === g.topic && selection.difficulty === 'all';
-                  return (
-                    <tr key={g.topic} className={`${i < general.length - 1 ? 'border-b border-white/5' : ''} group`}>
-                      <td
-                        onClick={() => selectGeneral(g.topic, 'all', g.titleRu)}
-                        className={`px-4 py-3 font-medium cursor-pointer transition-colors ${isRowSel ? 'text-purple-300' : 'text-white hover:text-purple-300'}`}
-                      >
-                        {g.titleRu}
-                      </td>
-                      <td
-                        onClick={() => selectGeneral(g.topic, 'all', g.titleRu)}
-                        className={`px-3 py-3 text-center font-bold cursor-pointer transition-colors ${isRowSel ? 'text-purple-300' : 'text-white/80 hover:text-purple-300'}`}
-                      >
-                        {g.total}
-                      </td>
-                      <td
-                        onClick={() => selectGeneral(g.topic, 'easy', g.titleRu)}
-                        className={`px-3 py-3 text-center cursor-pointer transition-opacity ${isSelected({ type: 'general', topic: g.topic, difficulty: 'easy', label: '' }) ? 'opacity-100 underline' : 'opacity-80 hover:opacity-100'} text-green-400`}
-                      >
-                        {g.easy}
-                      </td>
-                      <td
-                        onClick={() => selectGeneral(g.topic, 'medium', g.titleRu)}
-                        className={`px-3 py-3 text-center cursor-pointer transition-opacity ${isSelected({ type: 'general', topic: g.topic, difficulty: 'medium', label: '' }) ? 'opacity-100 underline' : 'opacity-80 hover:opacity-100'} text-yellow-400`}
-                      >
-                        {g.medium}
-                      </td>
-                      <td
-                        onClick={() => selectGeneral(g.topic, 'hard', g.titleRu)}
-                        className={`px-3 py-3 text-center cursor-pointer transition-opacity ${isSelected({ type: 'general', topic: g.topic, difficulty: 'hard', label: '' }) ? 'opacity-100 underline' : 'opacity-80 hover:opacity-100'} text-red-400`}
-                      >
-                        {g.hard}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Special quizzes */}
-        <section>
-          <h2 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">Тематические квизы</h2>
-          <div className="space-y-2">
-            {special.map((q) => {
-              const isSel = selection?.type === 'special' && selection.id === q.id;
-              return (
-                <div
-                  key={q.id}
-                  onClick={() => selectSpecial(q)}
-                  className={`rounded-2xl px-4 py-3 flex items-center justify-between gap-3 cursor-pointer transition-all border ${
-                    isSel
-                      ? 'bg-purple-600/20 border-purple-400/40'
-                      : 'bg-white/5 border-white/10 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-xl flex-shrink-0">{q.icon}</span>
-                    <div className="min-w-0">
-                      <p className={`font-bold text-sm truncate ${isSel ? 'text-purple-200' : 'text-white'}`}>{q.titleRu}</p>
-                      <p className={`text-xs mt-0.5 ${q.hasDedicatedBank ? 'text-green-400' : 'text-amber-400'}`}>
-                        {q.hasDedicatedBank ? `✅ ${q.count} вопросов` : `⚠️ fallback (${q.count})`}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => copyPrompt(q, e)}
-                    className="flex-shrink-0 text-[10px] bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg px-2 py-1 transition-colors text-white/50 hover:text-white"
-                  >
-                    {copied === q.id ? '✅' : `📋 #${q.number + 1}`}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 p-3 bg-purple-900/20 border border-purple-500/20 rounded-2xl text-xs text-purple-300/60 leading-relaxed">
-            <strong className="text-purple-300">Добавить квиз:</strong> нажми 📋 → вставь промпт в чат с Claude → одобри → готово.
-          </div>
-        </section>
-      </div>
-
-      {/* ── Right: question viewer ── */}
-      <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-5 overflow-hidden">
-        <QuestionViewer key={quizReportKey(selection)} selection={selection} />
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ROOMS TAB
-// ═══════════════════════════════════════════════════════════════════════════════
+function QuizzesTab() { return <ContentStudio />; }
 
 function RoomsTab() {
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
@@ -1067,7 +583,7 @@ function RoomsTab() {
                         : 'bg-white/5 border-white/5 text-white/30 line-through'
                     }`}
                   >
-                    {p.isHost ? '👑 ' : ''}{p.nickname}
+                    {p.isHost ? ' ' : ''}{p.nickname}
                   </span>
                 ))}
               </div>
@@ -1122,7 +638,7 @@ function WordGeneratorPanel({ defaultGame }: { defaultGame: 'alias' | 'crocodile
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-        <span className="text-base">✨</span>
+        <span className="text-base"></span>
         <div>
           <p className="text-sm font-bold text-white">Генератор слов</p>
           <p className="text-xs text-white/40">AI генерирует слова по теме для банка игры</p>
@@ -1140,7 +656,7 @@ function WordGeneratorPanel({ defaultGame }: { defaultGame: 'alias' | 'crocodile
                 : 'bg-white/5 border-white/10 text-white/50 hover:border-white/30'
             }`}
           >
-            {g === 'alias' ? '🗣 Угадай слово' : '🤸 Крокодил'}
+            {g === 'alias' ? ' Угадай слово' : ' Крокодил'}
           </button>
         ))}
       </div>
@@ -1188,17 +704,17 @@ function WordGeneratorPanel({ defaultGame }: { defaultGame: 'alias' | 'crocodile
         disabled={wordLoading || !wordTheme.trim()}
         className="w-full py-2 rounded-xl font-bold text-sm bg-purple-600 hover:bg-purple-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {wordLoading ? '⏳ Генерирую...' : 'Сгенерировать'}
+        {wordLoading ? ' Генерирую...' : 'Сгенерировать'}
       </button>
 
-      {wordError && <p className="text-xs text-red-300">❌ {wordError}</p>}
+      {wordError && <p className="text-xs text-red-300"> {wordError}</p>}
 
       {words.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-white/40">{words.length} слов</span>
             <button onClick={copyWords} className="text-xs text-white/50 hover:text-white transition-colors">
-              {wordCopied ? '✅ Скопировано' : '📋 Копировать всё'}
+              {wordCopied ? ' Скопировано' : ' Копировать всё'}
             </button>
           </div>
           <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
@@ -1252,7 +768,7 @@ function LocationGeneratorPanel() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-        <span className="text-base">✨</span>
+        <span className="text-base"></span>
         <div>
           <p className="text-sm font-bold text-white">Генератор локаций</p>
           <p className="text-xs text-white/40">AI придумывает новые места и роли для игры</p>
@@ -1275,17 +791,17 @@ function LocationGeneratorPanel() {
         disabled={locLoading}
         className="w-full py-2 rounded-xl font-bold text-sm bg-purple-600 hover:bg-purple-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {locLoading ? '⏳ Генерирую...' : 'Сгенерировать локации'}
+        {locLoading ? ' Генерирую...' : 'Сгенерировать локации'}
       </button>
 
-      {locError && <p className="text-xs text-red-300">❌ {locError}</p>}
+      {locError && <p className="text-xs text-red-300"> {locError}</p>}
 
       {locations.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-white/40">{locations.length} локаций</span>
             <button onClick={copyLocations} className="text-xs text-white/50 hover:text-white transition-colors">
-              {locCopied ? '✅ Скопировано' : '📋 Копировать'}
+              {locCopied ? ' Скопировано' : ' Копировать'}
             </button>
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -1396,9 +912,11 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
       <div className="relative flex-shrink-0">
         <button
           onClick={(e) => { e.stopPropagation(); setActiveMenu(isMenuOpen ? null : itemId); }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-white/40 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/10"
+          aria-label="Действия с элементом"
+          aria-expanded={isMenuOpen}
+          className="text-white/40 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/10"
         >
-          ✏️
+          Действия
         </button>
         {isMenuOpen && (
           <div className="absolute right-0 top-full mt-1 z-10 bg-[#1a1a2e] border border-white/20 rounded-xl shadow-xl overflow-hidden min-w-[120px]">
@@ -1408,14 +926,14 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
                 disabled={isReplacing}
                 className="w-full text-left px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2"
               >
-                🔄 Заменить
+                 Заменить
               </button>
             )}
             <button
               onClick={() => handleDelete(itemId, item)}
               className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors flex items-center gap-2"
             >
-              🗑 Удалить
+               Удалить
             </button>
           </div>
         )}
@@ -1423,11 +941,14 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
     );
   }
 
+  if (game?.id === 'who-am-i') return <CharacterStudio />;
+  if (game?.id === 'alias' || game?.id === 'crocodile' || game?.id === 'spy') return <WordStudio key={game.id} group={game.id} />;
+
   if (!game) {
     return (
       <div className="h-full flex items-center justify-center text-center px-8">
         <div>
-          <p className="text-4xl mb-3 opacity-30">👈</p>
+          <p className="text-4xl mb-3 opacity-30"></p>
           <p className="text-white/30 text-sm">Выбери игру слева<br />чтобы посмотреть данные</p>
         </div>
       </div>
@@ -1439,7 +960,7 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-xl">{game.icon}</span>
+          <AdminIcon name={game.id} />
           <h3 className="text-sm font-bold text-white/70 uppercase tracking-widest">{game.titleRu}</h3>
         </div>
         {!loading && data && <span className="text-xs text-white/30">{game.count} {game.unit}</span>}
@@ -1531,7 +1052,7 @@ function GameDataViewer({ game }: { game: GameStat | null }) {
                       : 'bg-white/5 border-white/10 text-white/50 hover:border-white/30'
                   }`}
                 >
-                  {t.icon} {t.name}
+                  {t.name}
                 </button>
               ))}
             </div>
@@ -1664,12 +1185,12 @@ function GamesTab() {
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">{game.icon}</span>
+                  <AdminIcon name={game.id} />
                   <span className={`font-bold text-sm ${isSel ? 'text-purple-200' : 'text-white'}`}>{game.titleRu}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {gameHasTool && (
-                    <span className="text-[10px] text-purple-400/60" title="Есть генератор">✨</span>
+                    <span className="text-[10px] text-purple-400/60" title="Есть генератор"></span>
                   )}
                   <span className={`text-xs font-bold ${isSel ? 'text-purple-300' : 'text-white/50'}`}>
                     {game.count}
@@ -1717,43 +1238,51 @@ function GamesTab() {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function AdminPage() {
+function AdminPageContent() {
   const [tab, setTab] = useState<Tab>('roadmap');
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'roadmap',     label: 'Этапы',   icon: 'A–M' },
-    { id: 'backgrounds', label: 'Фоны',    icon: '🖼️' },
-    { id: 'quizzes',     label: 'Квизы',   icon: '📊' },
-    { id: 'games',       label: 'Игры',    icon: '🎲' },
-    { id: 'rooms',       label: 'Комнаты', icon: '🎮' },
+    { id: 'backgrounds', label: 'Фоны',    icon: '' },
+    { id: 'quizzes',     label: 'Квизы',   icon: '' },
+    { id: 'games',       label: 'Игры',    icon: '' },
+    { id: 'rooms',       label: 'Комнаты', icon: '' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-white font-mono p-8">
-      <h1 className="text-3xl font-bold mb-1 text-purple-400">⚙️ Admin Dashboard</h1>
-      <p className="text-white/40 text-sm mb-8">Party Games Hub — внутренние инструменты</p>
+    <div className="admin-workspace min-h-screen px-4 py-6 sm:p-8 lg:p-10">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4"><AdminIcon name="games" size={48} /><div>
+          <p className="mb-2 text-[10px] uppercase tracking-[.24em] text-indigo-200/60">Party Games Hub</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Панель управления</h1>
+          <p className="mt-2 text-sm text-slate-400">Контент, генерация и прогресс проекта</p>
+        </div></div>
+        <Link href="/" className="rounded-full border border-white/15 px-4 py-2 text-xs text-slate-300 hover:bg-white/5">Открыть игры →</Link>
+      </header>
 
       <CodexAdminAccess />
+      <ContentSaveButton />
 
       {/* Tab bar */}
-      <div className="flex gap-2 mb-8 border-b border-white/10 pb-0">
+      <nav aria-label="Разделы админки" className="my-6 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-black/15 p-2">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-5 py-2.5 text-sm font-bold rounded-t-xl transition-all -mb-px border-b-2 ${
+            aria-current={tab === t.id ? 'page' : undefined}
+            className={`flex shrink-0 items-center gap-3 px-5 py-3 text-sm font-semibold rounded-xl transition-colors border ${
               tab === t.id
-                ? 'text-white border-purple-400 bg-white/5'
-                : 'text-white/40 border-transparent hover:text-white/70'
+                ? 'text-white border-indigo-300/25 bg-indigo-300/10'
+                : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5'
             }`}
           >
-            {t.icon} {t.label}
+            <AdminIcon name={t.id} /> {t.label}
           </button>
         ))}
-      </div>
+      </nav>
 
       {/* Tab content */}
-      <div className={tab === 'roadmap' || tab === 'quizzes' || tab === 'games' ? 'w-full' : 'max-w-3xl'}>
+      <div className={`admin-content ${tab === 'roadmap' || tab === 'quizzes' || tab === 'games' ? 'w-full' : 'max-w-4xl'}`}>
         {tab === 'roadmap'     && <ProjectRoadmapTab />}
         {tab === 'backgrounds' && <BackgroundsTab />}
         {tab === 'quizzes'     && <QuizzesTab />}
@@ -1763,3 +1292,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+export default function AdminPage() { return <ContentWorkspace><AdminPageContent /></ContentWorkspace>; }

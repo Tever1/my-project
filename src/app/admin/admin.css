@@ -1,0 +1,21 @@
+.admin-workspace {
+  --admin-accent: #a7b8ff;
+  background: radial-gradient(ellipse at 80% 0%, #1b2544 0%, transparent 45%), #0b101b;
+  color: #edf1fa;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+.admin-workspace button, .admin-workspace a, .admin-workspace summary {
+  outline-offset: 4px;
+}
+.admin-workspace :focus-visible { outline: 2px solid var(--admin-accent); }
+.admin-workspace input, .admin-workspace select, .admin-workspace textarea {
+  color-scheme: dark;
+}
+.admin-workspace pre { overflow-wrap: anywhere; }
+.admin-workspace .text-white\/30, .admin-workspace .text-white\/40 { color: #91a0b8; }
+@media (max-width: 767px) {
+  .admin-content > .flex { flex-direction: column; height: auto; min-height: 0; }
+  .admin-content > .flex > .w-72 { width: 100%; max-height: 340px; }
+  .admin-content > .flex > .w-\[420px\] { width: 100%; max-height: 340px; }
+  .admin-content > .flex > .flex-1 { min-height: 500px; overflow: visible; }
+}

@@ -36,7 +36,7 @@ export async function getAdminCodexKey(): Promise<string> {
   return (await readFile(keyPath, 'utf8')).trim();
 }
 
-export function withCodexAdmin(handler: (req: NextRequest) => Promise<Response>) {
+export function withCodexAdmin(handler: (req: NextRequest) => Promise<Response>, maxBodyBytes = 100_000) {
   return async (req: NextRequest): Promise<Response> => {
     try {
       const expected = Buffer.from(await getAdminCodexKey());
@@ -69,9 +69,9 @@ export function withCodexAdmin(handler: (req: NextRequest) => Promise<Response>)
         const { done, value } = await reader.read();
         if (done) break;
         size += value.length;
-        if (size > 100_000) {
+        if (size > maxBodyBytes) {
           await reader.cancel();
-          return NextResponse.json({ error: 'Запрос слишком большой (максимум 100 КБ).' }, { status: 413 });
+          return NextResponse.json({ error: `Запрос слишком большой (максимум ${Math.floor(maxBodyBytes / 1000)} КБ).` }, { status: 413 });
         }
         chunks.push(value);
       }
