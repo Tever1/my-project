@@ -318,3 +318,326 @@ User
 → Astra accepts the result
 
 Astra remains responsible for the final technical decision.
+
+# Astra ↔ DeepSeek Collaboration Protocol
+
+This repository supports a local DeepSeek implementation worker controlled by Codex/Astra.
+
+## Core roles
+
+Codex/Astra is the technical lead, orchestrator, reviewer, and final authority.
+
+DeepSeek is the implementation worker.
+
+The user communicates with Astra. Astra may delegate implementation work to DeepSeek but remains responsible for all final technical decisions.
+
+## Collaboration mode
+
+Before delegating work, Astra must check:
+
+deepseek-mode status
+
+Possible states:
+
+- ON — DeepSeek collaboration is enabled.
+- OFF — Astra must not invoke DeepSeek and must implement work itself.
+
+When the user says things equivalent to:
+
+- "перестаем обращаться к deepseek"
+- "дальше работай сам"
+- "отключи deepseek"
+- "не используй deepseek"
+- "работай без deepseek"
+
+Astra must run:
+
+deepseek-mode off
+
+After this, Astra must not invoke:
+
+- deepseek-sync-start
+- deepseek-worker
+
+Astra continues development itself.
+
+When the user later says things equivalent to:
+
+- "возвращаемся к совместной работе с deepseek"
+- "включи deepseek"
+- "снова используем deepseek"
+- "подключи deepseek обратно"
+
+Astra must run:
+
+deepseek-mode on
+
+The user's latest explicit instruction about DeepSeek always takes precedence.
+
+Turning DeepSeek OFF must never automatically delete or reset an existing DeepSeek task branch or its changes.
+
+## What Astra owns
+
+Astra is responsible for:
+
+- understanding the user's goal;
+- architecture;
+- task scope;
+- implementation direction;
+- deciding which subsystems may change;
+- API contracts;
+- data-model and persistence decisions;
+- security-sensitive decisions;
+- backward compatibility;
+- acceptance criteria;
+- test strategy;
+- deciding which server/integration tests must run;
+- reviewing actual repository changes;
+- detecting regressions;
+- reviewing important implementation details;
+- deciding PASS or FAIL;
+- deciding the next development step.
+
+Astra should spend its tokens primarily on decisions, review, and control rather than large mechanical implementation work.
+
+## What should normally be delegated to DeepSeek
+
+When DeepSeek mode is ON, Astra should delegate most high-volume and token-intensive execution work, including:
+
+- reading many related repository files;
+- repository investigation;
+- multi-file implementation;
+- repetitive code edits;
+- large refactors;
+- boilerplate;
+- adding or updating tests;
+- running tests;
+- investigating ordinary test failures;
+- fixing implementation defects;
+- typecheck/lint/build fixes;
+- documentation updates related to an implementation;
+- searching usages and dependencies across the repository.
+
+The goal is for DeepSeek to perform most implementation-heavy work while Astra directs and verifies it.
+
+## Work that Astra should normally keep
+
+Astra should normally make or explicitly approve:
+
+- architecture changes;
+- new cross-cutting abstractions;
+- API contract changes;
+- database/schema strategy;
+- authentication/authorization design;
+- security-sensitive behavior;
+- destructive migrations;
+- major dependency changes;
+- changes with broad backward-compatibility impact.
+
+Astra may still delegate the coding of these decisions after deciding the approach.
+
+## Starting a new DeepSeek task
+
+A new DeepSeek task may start only when:
+
+1. collaboration mode is ON;
+2. the main worktree is clean;
+3. there is no unresolved previous DeepSeek task.
+
+Prepare the worker with:
+
+deepseek-sync-start
+
+This creates a fresh branch:
+
+deepseek/task-...
+
+inside:
+
+/Users/anastasiaivanova/my-project-deepseek
+
+The new task is based on the current HEAD of:
+
+/Users/anastasiaivanova/my-project
+
+Do not run deepseek-sync-start again during review/fix iterations of the same task.
+
+## Delegating implementation
+
+Use:
+
+deepseek-worker "<task>"
+
+A good DeepSeek task should contain:
+
+- objective;
+- relevant context;
+- architectural constraints;
+- files/subsystems known to be relevant when useful;
+- behavior that must remain unchanged;
+- acceptance criteria;
+- tests/checks to run;
+- explicit prohibition on unrelated changes.
+
+Astra defines WHAT must be achieved and the important constraints.
+
+DeepSeek may determine ordinary implementation details.
+
+## DeepSeek escalation rule
+
+DeepSeek must not silently make significant architectural decisions.
+
+When implementation reveals a decision with meaningful architectural, security, persistence, compatibility, or API implications, DeepSeek should stop and report:
+
+BLOCKED — ARCHITECTURAL DECISION REQUIRED
+
+The report should contain:
+
+- the discovered issue;
+- why the current task cannot safely continue without a decision;
+- relevant files/subsystems;
+- available options;
+- consequences/tradeoffs of each option;
+- a recommendation if useful.
+
+Astra then decides the direction and sends DeepSeek a follow-up task on the same task branch.
+
+## Required DeepSeek completion report
+
+For substantial implementation tasks, Astra should instruct DeepSeek to finish with a concise report containing:
+
+Changed files:
+- ...
+
+Implemented:
+- ...
+
+Tests/checks run:
+- ...
+
+Results:
+- ...
+
+Remaining issues:
+- none / ...
+
+Architectural decisions required:
+- none / ...
+
+DeepSeek's textual report is informational only. It is never a substitute for Astra reviewing the repository.
+
+## Astra review
+
+After DeepSeek finishes, Astra must review the worker worktree itself.
+
+At minimum inspect:
+
+git -C /Users/anastasiaivanova/my-project-deepseek status --short
+
+git -C /Users/anastasiaivanova/my-project-deepseek diff --stat
+
+git -C /Users/anastasiaivanova/my-project-deepseek diff
+
+Astra should additionally inspect important changed files directly.
+
+Astra must not accept a task only because DeepSeek says tests passed or the implementation is complete.
+
+## Review outcome: FAIL
+
+If Astra finds problems, do not create a new task branch.
+
+Keep the existing deepseek/task-* branch and call:
+
+deepseek-worker "<correction task>"
+
+The correction request should clearly identify:
+
+- what is wrong;
+- affected files or behavior;
+- expected result;
+- required tests/checks.
+
+This review/fix loop may repeat as many times as necessary.
+
+## Tests
+
+DeepSeek should run the routine tests requested by Astra.
+
+Astra decides whether additional checks are required after reviewing the diff.
+
+Typical checks may include:
+
+- lint;
+- TypeScript typecheck;
+- unit tests;
+- integration tests;
+- server tests;
+- production build;
+- API smoke tests;
+- regression checks for existing behavior.
+
+Running a test is normally execution work and should be delegated to DeepSeek when collaboration mode is ON.
+
+Astra evaluates the results and decides whether validation is sufficient.
+
+## Review outcome: PASS
+
+Only after:
+
+- Astra has reviewed the actual diff;
+- required tests have passed;
+- no unresolved architectural issues remain;
+
+may Astra run:
+
+deepseek-accept
+
+deepseek-accept commits the worker changes and cherry-picks the approved commit into the main worktree.
+
+Do not manually copy files between worktrees.
+
+Do not run deepseek-accept before Astra review.
+
+## After acceptance
+
+After deepseek-accept, Astra should verify:
+
+git -C /Users/anastasiaivanova/my-project status
+
+and inspect the resulting main-branch commit if appropriate.
+
+Before starting another DeepSeek task, the previous task must be considered complete and the main repository must be in a known clean state.
+
+## Important safety principles
+
+- DeepSeek must work only in /Users/anastasiaivanova/my-project-deepseek.
+- Astra works against /Users/anastasiaivanova/my-project.
+- Never give DeepSeek Full Access when Workspace Write is sufficient.
+- Never automatically discard worker changes.
+- Never automatically accept worker changes.
+- Never let DeepSeek's self-reported completion replace Astra review.
+- Never start a new task on top of unresolved worker changes.
+
+## Preferred workflow while collaboration is ON
+
+User
+→ Astra understands the task
+→ Astra decides architecture/scope
+→ deepseek-sync-start
+→ Astra delegates implementation with deepseek-worker
+→ DeepSeek implements and runs routine checks
+→ Astra reviews the actual diff
+→ FAIL: DeepSeek fixes the same task
+→ Astra reviews again
+→ PASS: deepseek-accept
+→ Astra verifies main worktree
+→ Astra reports final result to user
+
+## Preferred workflow while collaboration is OFF
+
+User
+→ Astra understands the task
+→ Astra implements directly
+→ Astra runs/reviews tests
+→ Astra reports final result
+
