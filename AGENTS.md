@@ -168,13 +168,13 @@ Codex работает в нескольких чатах с разделени�
 
 # DeepSeek Worker Collaboration
 
-This repository supports a local DeepSeek worker used as an implementation agent under Codex/Astra supervision.
+This repository supports a local DeepSeek worker used as an implementation agent under Codex supervision.
 
 ## Roles
 
-Codex/Astra is the technical lead and final authority.
+Codex is the technical lead and final authority.
 
-Astra is responsible for:
+Codex is responsible for:
 - understanding the user's request;
 - deciding architecture and implementation direction;
 - defining scope and constraints;
@@ -197,10 +197,10 @@ DeepSeek should handle most high-volume and token-intensive execution work, incl
 - writing tests;
 - running tests;
 - investigating ordinary test failures;
-- fixing implementation defects found during Astra review;
+- fixing implementation defects found during Codex review;
 - other large mechanical coding tasks.
 
-Astra should avoid duplicating large implementation work itself while DeepSeek collaboration is enabled.
+Codex should avoid duplicating large implementation work itself while DeepSeek collaboration is enabled.
 
 ## Collaboration mode
 
@@ -210,8 +210,8 @@ deepseek-mode status
 
 Possible modes:
 
-- ON: Astra should delegate appropriate implementation-heavy work to DeepSeek.
-- OFF: Astra must not invoke DeepSeek and must perform development work itself.
+- ON: Codex should delegate appropriate implementation-heavy work to DeepSeek.
+- OFF: Codex must not invoke DeepSeek and must perform development work itself.
 
 When the user says things equivalent to:
 
@@ -220,7 +220,7 @@ When the user says things equivalent to:
 - "отключи deepseek"
 - "не используй deepseek"
 
-Astra must run:
+Codex must run:
 
 deepseek-mode off
 
@@ -233,7 +233,7 @@ When the user later says things equivalent to:
 - "включи deepseek"
 - "подключи deepseek обратно"
 
-Astra must run:
+Codex must run:
 
 deepseek-mode on
 
@@ -245,7 +245,7 @@ Do not automatically discard existing DeepSeek task changes when collaboration i
 
 ## Starting a new DeepSeek task
 
-Before a new delegated task, Astra must check:
+Before a new delegated task, Codex must check:
 
 deepseek-mode status
 
@@ -273,21 +273,21 @@ The task given to DeepSeek should clearly include:
 - tests/checks DeepSeek should run;
 - instruction not to make unrelated changes.
 
-Astra defines WHAT and the constraints.
+Codex defines WHAT and the constraints.
 
-DeepSeek may determine implementation details, but significant architectural changes should be escalated back to Astra rather than invented silently.
+DeepSeek may determine implementation details, but significant architectural changes should be escalated back to Codex rather than invented silently.
 
 ## Reviewing DeepSeek work
 
 Never accept DeepSeek's textual claim that a task is complete without inspecting the repository.
 
-Astra must review the worker worktree directly, including as appropriate:
+Codex must review the worker worktree directly, including as appropriate:
 
 git -C /Users/anastasiaivanova/my-project-deepseek status
 git -C /Users/anastasiaivanova/my-project-deepseek diff --stat
 git -C /Users/anastasiaivanova/my-project-deepseek diff
 
-Astra should also inspect important changed files directly and determine any additional tests required.
+Codex should also inspect important changed files directly and determine any additional tests required.
 
 If review fails, delegate corrections with another:
 
@@ -297,7 +297,7 @@ Continue on the same DeepSeek task branch.
 
 ## Acceptance
 
-Only after Astra has reviewed the implementation and required tests have passed may Astra run:
+Only after Codex has reviewed the implementation and required tests have passed may Codex run:
 
 deepseek-accept
 
@@ -310,37 +310,37 @@ Do not merge or accept DeepSeek changes before review.
 The preferred collaboration model while DeepSeek mode is ON is:
 
 User
-→ Astra plans and directs
+→ Codex plans and directs
 → DeepSeek performs implementation-heavy work
-→ Astra reviews
+→ Codex reviews
 → DeepSeek fixes issues if needed
-→ Astra verifies tests
-→ Astra accepts the result
+→ Codex verifies tests
+→ Codex accepts the result
 
-Astra remains responsible for the final technical decision.
+Codex remains responsible for the final technical decision.
 
-# Astra ↔ DeepSeek Collaboration Protocol
+# Codex ↔ DeepSeek Collaboration Protocol
 
-This repository supports a local DeepSeek implementation worker controlled by Codex/Astra.
+This repository supports a local DeepSeek implementation worker controlled by Codex.
 
 ## Core roles
 
-Codex/Astra is the technical lead, orchestrator, reviewer, and final authority.
+The active Codex model is the technical lead, orchestrator, reviewer, and final authority.
 
 DeepSeek is the implementation worker.
 
-The user communicates with Astra. Astra may delegate implementation work to DeepSeek but remains responsible for all final technical decisions.
+The user communicates with Codex. Codex may delegate implementation work to DeepSeek but remains responsible for all final technical decisions.
 
 ## Collaboration mode
 
-Before delegating work, Astra must check:
+Before delegating work, Codex must check:
 
 deepseek-mode status
 
 Possible states:
 
 - ON — DeepSeek collaboration is enabled.
-- OFF — Astra must not invoke DeepSeek and must implement work itself.
+- OFF — Codex must not invoke DeepSeek and must implement work itself.
 
 When the user says things equivalent to:
 
@@ -350,16 +350,16 @@ When the user says things equivalent to:
 - "не используй deepseek"
 - "работай без deepseek"
 
-Astra must run:
+Codex must run:
 
 deepseek-mode off
 
-After this, Astra must not invoke:
+After this, Codex must not invoke:
 
 - deepseek-sync-start
 - deepseek-worker
 
-Astra continues development itself.
+Codex continues development itself.
 
 When the user later says things equivalent to:
 
@@ -368,7 +368,7 @@ When the user later says things equivalent to:
 - "снова используем deepseek"
 - "подключи deepseek обратно"
 
-Astra must run:
+Codex must run:
 
 deepseek-mode on
 
@@ -376,9 +376,9 @@ The user's latest explicit instruction about DeepSeek always takes precedence.
 
 Turning DeepSeek OFF must never automatically delete or reset an existing DeepSeek task branch or its changes.
 
-## What Astra owns
+## What Codex owns
 
-Astra is responsible for:
+Codex is responsible for:
 
 - understanding the user's goal;
 - architecture;
@@ -398,11 +398,11 @@ Astra is responsible for:
 - deciding PASS or FAIL;
 - deciding the next development step.
 
-Astra should spend its tokens primarily on decisions, review, and control rather than large mechanical implementation work.
+Codex should spend its tokens primarily on decisions, review, and control rather than large mechanical implementation work.
 
 ## What should normally be delegated to DeepSeek
 
-When DeepSeek mode is ON, Astra should delegate most high-volume and token-intensive execution work, including:
+When DeepSeek mode is ON, Codex should delegate most high-volume and token-intensive execution work, including:
 
 - reading many related repository files;
 - repository investigation;
@@ -418,11 +418,11 @@ When DeepSeek mode is ON, Astra should delegate most high-volume and token-inten
 - documentation updates related to an implementation;
 - searching usages and dependencies across the repository.
 
-The goal is for DeepSeek to perform most implementation-heavy work while Astra directs and verifies it.
+The goal is for DeepSeek to perform most implementation-heavy work while Codex directs and verifies it.
 
-## Work that Astra should normally keep
+## Work that Codex should normally keep
 
-Astra should normally make or explicitly approve:
+Codex should normally make or explicitly approve:
 
 - architecture changes;
 - new cross-cutting abstractions;
@@ -434,7 +434,7 @@ Astra should normally make or explicitly approve:
 - major dependency changes;
 - changes with broad backward-compatibility impact.
 
-Astra may still delegate the coding of these decisions after deciding the approach.
+Codex may still delegate the coding of these decisions after deciding the approach.
 
 ## Starting a new DeepSeek task
 
@@ -479,7 +479,7 @@ A good DeepSeek task should contain:
 - tests/checks to run;
 - explicit prohibition on unrelated changes.
 
-Astra defines WHAT must be achieved and the important constraints.
+Codex defines WHAT must be achieved and the important constraints.
 
 DeepSeek may determine ordinary implementation details.
 
@@ -500,11 +500,11 @@ The report should contain:
 - consequences/tradeoffs of each option;
 - a recommendation if useful.
 
-Astra then decides the direction and sends DeepSeek a follow-up task on the same task branch.
+Codex then decides the direction and sends DeepSeek a follow-up task on the same task branch.
 
 ## Required DeepSeek completion report
 
-For substantial implementation tasks, Astra should instruct DeepSeek to finish with a concise report containing:
+For substantial implementation tasks, Codex should instruct DeepSeek to finish with a concise report containing:
 
 Changed files:
 - ...
@@ -524,11 +524,11 @@ Remaining issues:
 Architectural decisions required:
 - none / ...
 
-DeepSeek's textual report is informational only. It is never a substitute for Astra reviewing the repository.
+DeepSeek's textual report is informational only. It is never a substitute for Codex reviewing the repository.
 
-## Astra review
+## Codex review
 
-After DeepSeek finishes, Astra must review the worker worktree itself.
+After DeepSeek finishes, Codex must review the worker worktree itself.
 
 At minimum inspect:
 
@@ -538,13 +538,13 @@ git -C /Users/anastasiaivanova/my-project-deepseek diff --stat
 
 git -C /Users/anastasiaivanova/my-project-deepseek diff
 
-Astra should additionally inspect important changed files directly.
+Codex should additionally inspect important changed files directly.
 
-Astra must not accept a task only because DeepSeek says tests passed or the implementation is complete.
+Codex must not accept a task only because DeepSeek says tests passed or the implementation is complete.
 
 ## Review outcome: FAIL
 
-If Astra finds problems, do not create a new task branch.
+If Codex finds problems, do not create a new task branch.
 
 Keep the existing deepseek/task-* branch and call:
 
@@ -561,9 +561,9 @@ This review/fix loop may repeat as many times as necessary.
 
 ## Tests
 
-DeepSeek should run the routine tests requested by Astra.
+DeepSeek should run the routine tests requested by Codex.
 
-Astra decides whether additional checks are required after reviewing the diff.
+Codex decides whether additional checks are required after reviewing the diff.
 
 Typical checks may include:
 
@@ -578,17 +578,17 @@ Typical checks may include:
 
 Running a test is normally execution work and should be delegated to DeepSeek when collaboration mode is ON.
 
-Astra evaluates the results and decides whether validation is sufficient.
+Codex evaluates the results and decides whether validation is sufficient.
 
 ## Review outcome: PASS
 
 Only after:
 
-- Astra has reviewed the actual diff;
+- Codex has reviewed the actual diff;
 - required tests have passed;
 - no unresolved architectural issues remain;
 
-may Astra run:
+may Codex run:
 
 deepseek-accept
 
@@ -596,11 +596,11 @@ deepseek-accept commits the worker changes and cherry-picks the approved commit 
 
 Do not manually copy files between worktrees.
 
-Do not run deepseek-accept before Astra review.
+Do not run deepseek-accept before Codex review.
 
 ## After acceptance
 
-After deepseek-accept, Astra should verify:
+After deepseek-accept, Codex should verify:
 
 git -C /Users/anastasiaivanova/my-project status
 
@@ -611,33 +611,33 @@ Before starting another DeepSeek task, the previous task must be considered comp
 ## Important safety principles
 
 - DeepSeek must work only in /Users/anastasiaivanova/my-project-deepseek.
-- Astra works against /Users/anastasiaivanova/my-project.
+- Codex works against /Users/anastasiaivanova/my-project.
 - Never give DeepSeek Full Access when Workspace Write is sufficient.
 - Never automatically discard worker changes.
 - Never automatically accept worker changes.
-- Never let DeepSeek's self-reported completion replace Astra review.
+- Never let DeepSeek's self-reported completion replace Codex review.
 - Never start a new task on top of unresolved worker changes.
 
 ## Preferred workflow while collaboration is ON
 
 User
-→ Astra understands the task
-→ Astra decides architecture/scope
+→ Codex understands the task
+→ Codex decides architecture/scope
 → deepseek-sync-start
-→ Astra delegates implementation with deepseek-worker
+→ Codex delegates implementation with deepseek-worker
 → DeepSeek implements and runs routine checks
-→ Astra reviews the actual diff
+→ Codex reviews the actual diff
 → FAIL: DeepSeek fixes the same task
-→ Astra reviews again
+→ Codex reviews again
 → PASS: deepseek-accept
-→ Astra verifies main worktree
-→ Astra reports final result to user
+→ Codex verifies main worktree
+→ Codex reports final result to user
 
 ## Preferred workflow while collaboration is OFF
 
 User
-→ Astra understands the task
-→ Astra implements directly
-→ Astra runs/reviews tests
-→ Astra reports final result
+→ Codex understands the task
+→ Codex implements directly
+→ Codex runs/reviews tests
+→ Codex reports final result
 
