@@ -783,3 +783,28 @@ Preferred progress updates:
 
 Do not report every file read, grep call, or shell command unless it is relevant to a problem or the user asks for detailed logs.
 
+
+## Review/fix loop guardrail
+
+Do not allow an unbounded DeepSeek correction loop.
+
+If DeepSeek fails to resolve the same substantive issue after two correction attempts, Codex must stop the automatic retry cycle and reassess the task.
+
+Codex should then decide one of the following:
+
+- reformulate the task with clearer constraints;
+- provide additional repository context;
+- change the implementation approach;
+- split the task into smaller parts;
+- handle the problematic part directly;
+- ask the user for a decision if the blocker is genuinely architectural or ambiguous.
+
+Do not continue sending nearly identical correction prompts to DeepSeek indefinitely.
+
+A retry counts toward this limit when it addresses the same underlying defect or failed acceptance criterion.
+
+A new independent defect discovered during review may start a new correction cycle.
+
+If the failure reveals an architectural, API, security, persistence, migration, or backward-compatibility decision, use the existing escalation rule instead of repeated retries.
+
+Codex should inform the user when the automatic correction loop is stopped because repeated DeepSeek attempts did not resolve the issue.
