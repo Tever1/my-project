@@ -808,3 +808,27 @@ A new independent defect discovered during review may start a new correction cyc
 If the failure reveals an architectural, API, security, persistence, migration, or backward-compatibility decision, use the existing escalation rule instead of repeated retries.
 
 Codex should inform the user when the automatic correction loop is stopped because repeated DeepSeek attempts did not resolve the issue.
+
+## DeepSeek usage reporting
+
+After each completed DeepSeek worker task, Codex should run:
+
+deepseek-stats
+
+Codex should include a concise usage summary in the user-facing progress or completion message.
+
+Preferred format:
+
+DeepSeek usage:
+- Task: $...
+- Today: $...
+- This month: $...
+
+Do not dump the full usage CSV or detailed token accounting into the chat unless the user asks for it.
+
+If useful, Codex may additionally mention total tokens for the current task.
+
+Usage reporting is informational only and must not replace implementation review, test validation, or acceptance checks.
+
+If a DeepSeek task fails or is stopped before acceptance, Codex should still report the task usage if a usage record was created.
+
