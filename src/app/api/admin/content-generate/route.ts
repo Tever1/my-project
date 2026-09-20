@@ -4,7 +4,7 @@ import { codexCompletion, withCodexAdmin } from '@/lib/admin-codex';
 import { contentStore } from '@/lib/content/server';
 import { ContentConflict } from '@/lib/content/store';
 import type { ContentQuestion } from '@/lib/content/catalog';
-import { checkSignature } from '@/lib/content/catalog';
+import { checkSignature, scopedCheckSignature } from '@/lib/content/catalog';
 import { parseReplacement } from '@/lib/content/replacement';
 import { quizContentPolicy } from '@/lib/content/quiz-policy';
 
@@ -17,7 +17,7 @@ export const POST = withCodexAdmin(async request => {
     const bank = input.quizId === 'general' ? draft.catalog.general : quiz?.questions;
     const previous = bank?.find(q => q.id === input.replaceId);
     if (input.count !== 1 || !previous?.check || previous.check.status === 'verified'
-      || previous.check.signature !== checkSignature(previous) || input.signature !== checkSignature(previous)) return NextResponse.json({ error: 'Сначала проверьте текущую версию вопроса. Замена доступна для вопросов с замечаниями или неподтверждённых.' }, { status: 409 });
+      || previous.check.signature !== scopedCheckSignature(previous.check.scope, previous) || input.signature !== checkSignature(previous)) return NextResponse.json({ error: 'Сначала проверьте текущую версию вопроса. Замена доступна для вопросов с замечаниями или неподтверждённых.' }, { status: 409 });
     const themes = { science: 'Наука', history: 'История', 'pop-culture': 'Поп-культура', random: 'Общая эрудиция' };
     const response = await codexCompletion(`Замени неудачный вопрос новым вопросом на ДРУГОЙ факт в той же тематике: ${JSON.stringify(quiz?.titleRu ?? themes[previous.topic])}.
 ${quizContentPolicy(quiz)}

@@ -4,7 +4,8 @@ import Image from 'next/image';
 import { adminFetch } from '@/lib/admin-fetch';
 import { useContentWorkspace } from './ContentWorkspace';
 import { QuizCheckReports } from './QuizCheckReports';
-import { isVerified as baseIsVerified, isCodexVerified, checkSignature, type ContentQuestion, type ContentQuiz } from '@/lib/content/catalog';
+import { isVerified as baseIsVerified, isCodexVerified, isCurrentCheck, checkSignature, type ContentQuestion, type ContentQuiz } from '@/lib/content/catalog';
+import { CONTENT_CHECK_BATCH_SIZE } from '@/lib/content/fact-check';
 import { HARRY_POTTER_FILMS_POLICY } from '@/lib/content/quiz-policy';
 
 interface Background { filename: string; url: string; group: string; sha256: string }
@@ -59,10 +60,10 @@ export function ContentStudio() {
     setWorking(true); setMessage('');
     setCheckProgress({ done: 0, total: items.length, skipped: 0, phase: 'running' });
     try {
-      for (let index = 0; index < items.length; index += 10) {
-        setMessage(`Проверка ${index + 1}–${Math.min(index + 10, items.length)} из ${items.length}…`);
+      for (let index = 0; index < items.length; index += CONTENT_CHECK_BATCH_SIZE) {
+        setMessage(`Проверка ${index + 1}–${Math.min(index + CONTENT_CHECK_BATCH_SIZE, items.length)} из ${items.length}…`);
         const response = await adminFetch('/api/admin/content-check', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ questions: items.slice(index, index + 10), quizKey, quizLabel: quiz?.titleRu ?? 'Общий квиз' }) });
+          body: JSON.stringify({ questions: items.slice(index, index + CONTENT_CHECK_BATCH_SIZE), quizKey, quizLabel: quiz?.titleRu ?? 'Общий квиз' }) });
         const data = await response.json(); if (!response.ok) throw new Error(data.error);
         setCheckProgress(previous => previous && ({ ...previous, done: previous.done + (data.applied ?? 0), skipped: previous.skipped + (data.skipped ?? 0) }));
         if (data.warning || data.stale) { setMessage(data.warning ?? 'Часть вопросов изменилась во время проверки: их статусы не применены.'); await reload(); return; }
@@ -124,37 +125,37 @@ export function ContentStudio() {
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <input aria-label="Поиск вопросов" placeholder="Поиск вопросов…" className={`${field} !mt-0 max-w-sm`} value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} />
       <select aria-label="Статус проверки" className={`${field} !mt-0 max-w-xs`} value={filter} onChange={e => { setFilter(e.target.value); setPage(0); }}><option value="all">Все статусы</option><option value="verified">Проверены</option><option value="unverified">Нужна проверка</option><option value="issue">Есть замечания</option></select>
-      <span className="text-xs text-slate-400">Прошли проверку Codex: {questions.filter(q => q.check?.signature === checkSignature(q)).length} / {questions.length} · Подтверждено: {questions.filter(isVerified).length}</span>
+      <span className="text-xs text-slate-400">Прошли проверку Codex: {questions.filter(isCurrentCheck).length} / {questions.length} · Подтверждено: {questions.filter(isVerified).length}</span>
     </div>
     <div className="mb-5 flex flex-wrap items-center gap-2"><button disabled={busy || working} className={button} onClick={newQuestion}>Добавить вопрос</button>
-      <button disabled={busy || working || !pendingCheck.length} className={button} onClick={() => { if (window.confirm(`Проверить ${pendingCheck.length} вопросов? Уже подтверждённые с источниками будут пропущены. Это ${Math.ceil(pendingCheck.length / 10)} запросов к Codex и расход лимитов аккаунта.`)) void check(pendingCheck); }}>Проверить список ({pendingCheck.length})</button>
+      <button disabled={busy || working || !pendingCheck.length} className={button} onClick={() => { if (window.confirm(`Проверить ${pendingCheck.length} вопросов? Проверяется только русский текст вопроса и ответов. Уже подтверждённые с источниками будут пропущены. Это ${Math.ceil(pendingCheck.length / CONTENT_CHECK_BATCH_SIZE)} запросов к Codex и расход лимитов аккаунта.`)) void check(pendingCheck); }}>Проверить список ({pendingCheck.length})</button>
       <QuizCheckReports quizKey={quizKey} />
       {quiz && <><label className="text-xs text-slate-400">Количество<input aria-label="Количество генерируемых вопросов" className={`${field} !mt-0 ml-2 !w-16`} type="number" min={1} max={10} value={count} onChange={e => setCount(Number(e.target.value))} /></label><button disabled={busy || working} className={button} onClick={() => void generate()}>Создать вопросы через Codex</button></>}
     </div>
     {checkProgress && <section className="mb-4 rounded-xl border border-indigo-200/20 bg-indigo-200/5 p-4" aria-label="Прогресс проверки вопросов">
       <p role="status" className="text-sm text-indigo-100">{checkProgress.phase === 'done' ? 'Проверка завершена' : checkProgress.phase === 'stopped' ? 'Проверка остановлена' : 'Codex проверяет вопросы'} · Проверено {checkProgress.done} из {checkProgress.total}{checkProgress.skipped > 0 ? ` · Уже подтверждены и пропущены: ${checkProgress.skipped}` : ''}</p>
       <progress aria-label="Обработано вопросов" className="mt-3 h-3 w-full accent-indigo-300" max={checkProgress.total} value={checkProgress.done + checkProgress.skipped} />
-      <p className="mt-2 text-[11px] text-slate-400">Результаты приходят блоками до 10 вопросов. «Проверено» включает вопросы с замечаниями, а не только подтверждённые.</p>
+      <p className="mt-2 text-[11px] text-slate-400">Результаты приходят блоками до {CONTENT_CHECK_BATCH_SIZE} вопросов. Проверяется только русский текст. «Проверено» включает вопросы с замечаниями, а не только подтверждённые.</p>
     </section>}
     {message && <p role="status" className="mb-4 whitespace-pre-wrap break-words rounded-xl border border-indigo-200/20 p-3 text-xs text-indigo-100">{message}</p>}
     {filtered.length > 30 && <div className="mb-4 flex items-center gap-3"><button className={button} disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Назад</button><span className="text-xs text-slate-400">Страница {currentPage + 1} / {Math.ceil(filtered.length / 30)}</span><button className={button} disabled={(currentPage + 1) * 30 >= filtered.length} onClick={() => setPage(currentPage + 1)}>Далее</button></div>}
     <div className="grid gap-3 xl:grid-cols-2">{visible.map(q => <article key={q.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><span className={`rounded-full border px-3 py-1 text-[11px] ${isVerified(q) ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200' : q.check?.status === 'issue' ? 'border-red-300/30 bg-red-300/10 text-red-200' : 'border-amber-300/30 bg-amber-300/10 text-amber-200'}`}>{isVerified(q) ? q.approval ? 'Утверждён владельцем' : 'Проверен Codex' : q.check?.status === 'issue' ? 'Есть замечания' : 'Нужна проверка'}</span>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><span className={`rounded-full border px-3 py-1 text-[11px] ${isVerified(q) ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200' : q.check?.status === 'issue' ? 'border-red-300/30 bg-red-300/10 text-red-200' : 'border-amber-300/30 bg-amber-300/10 text-amber-200'}`}>{isVerified(q) ? q.approval ? 'Утверждён владельцем' : q.check?.scope === 'ru' ? 'Проверен Codex · RU' : 'Проверен Codex' : q.check?.status === 'issue' ? 'Есть замечания' : 'Нужна проверка'}</span>
         <span className="text-[10px] text-slate-400">{q.difficulty} · {q.topic}</span></div>
       <h3 className="text-sm font-semibold">{q.questionRu}</h3><p className="mt-1 text-xs text-slate-400">{q.questionEn}</p>
       <ol className="mt-3 space-y-1 text-xs">{q.options.map((o, i) => <li key={i} className={`rounded-lg px-3 py-2 ${i === q.correctIndex ? 'bg-emerald-300/10 text-emerald-200' : 'bg-black/10 text-slate-400'}`}>{String.fromCharCode(65 + i)} · {o.ru}<span className="block opacity-70">{o.en}</span></li>)}</ol>
       {q.check && <details className="mt-3 text-xs text-slate-400"><summary className="cursor-pointer">Проверка · {new Date(q.check.checkedAt).toLocaleString('ru-RU')}</summary><p className="mt-2">{q.check.summary}</p>{q.check.sources.map(source => <a key={source} href={source} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all text-blue-200 underline">{source}</a>)}</details>}
       {quiz?.theme === 'harry-potter' && q.check && q.check.policy !== HARRY_POTTER_FILMS_POLICY && <p className="mt-3 text-xs text-amber-200">Старая проверка: нужно перепроверить по фильмам.</p>}
       {q.check?.correction && <section className="mt-4 rounded-xl border border-indigo-300/30 bg-indigo-300/5 p-3" aria-label="Предлагаемое исправление Codex">
-        <h4 className="text-sm font-semibold text-indigo-100">Предлагаемое исправление</h4><p className="mt-2 text-xs text-slate-300">{q.check.correction.summary}</p>
-        <p className="mt-3 text-sm font-semibold">{q.check.correction.questionRu}</p><p className="mt-1 text-xs text-slate-400">{q.check.correction.questionEn}</p>
-        <ol className="mt-3 space-y-1 text-xs">{q.check.correction.options.map((o, i) => <li key={i} className={`rounded-lg px-2 py-2 ${i === q.check!.correction!.correctIndex ? 'bg-emerald-300/10 text-emerald-200' : 'text-slate-400'}`}>{String.fromCharCode(65 + i)} · {o.ru}<span className="block opacity-70">{o.en}</span></li>)}</ol>
+        <h4 className="text-sm font-semibold text-indigo-100">Предлагаемое исправление{q.check.scope === 'ru' ? ' · RU' : ''}</h4><p className="mt-2 text-xs text-slate-300">{q.check.correction.summary}</p>
+        <p className="mt-3 text-sm font-semibold">{q.check.correction.questionRu}</p>{q.check.scope !== 'ru' && <p className="mt-1 text-xs text-slate-400">{q.check.correction.questionEn}</p>}
+        <ol className="mt-3 space-y-1 text-xs">{q.check.correction.options.map((o, i) => <li key={i} className={`rounded-lg px-2 py-2 ${i === q.check!.correction!.correctIndex ? 'bg-emerald-300/10 text-emerald-200' : 'text-slate-400'}`}>{String.fromCharCode(65 + i)} · {o.ru}{q.check!.scope !== 'ru' && <span className="block opacity-70">{o.en}</span>}</li>)}</ol>
         {q.check.correction.sources.map(source => <a key={source} href={source} target="_blank" rel="noopener noreferrer" className="mt-2 block break-all text-xs text-blue-200 underline">{source}</a>)}
         <div className="mt-3 flex flex-wrap items-center gap-2"><button className={`${button} bg-indigo-200/10 text-indigo-100`} disabled={busy || working || q.check.correction.status !== 'verified'} onClick={() => void act('fix-question', { quizId: selected, id: q.id, signature: q.check!.signature })}>Исправить</button><span className="text-[11px] text-slate-400">{q.check.correction.status === 'verified' ? 'После применения: «Проверен Codex». Запись в игру — через дискету.' : 'Исправление пока не подтверждено источниками. Повторите проверку или отредактируйте вручную.'}</span></div>
       </section>}
       <div className="mt-4 flex flex-wrap gap-2"><button disabled={busy || working} className={button} onClick={() => setEditing(structuredClone(q))}>Редактировать</button><button disabled={busy || working || isCurrentCodexVerified(q)} className={button} onClick={() => void check([q])}>{isCurrentCodexVerified(q) ? 'Уже проверен' : quiz?.theme === 'harry-potter' && isCodexVerified(q) ? 'Перепроверить по фильмам' : 'Проверить'}</button>
         <QuizCheckReports quizKey={quizKey} questionId={q.id} />
-        {q.check && q.check.status !== 'verified' && q.check.signature === checkSignature(q) && <button disabled={busy || working} className={`${button} text-indigo-200`} onClick={() => void replaceQuestion(q)}>Заменить вопрос</button>}
+        {q.check && q.check.status !== 'verified' && isCurrentCheck(q) && <button disabled={busy || working} className={`${button} text-indigo-200`} onClick={() => void replaceQuestion(q)}>Заменить вопрос</button>}
         {q.check && !isVerified(q) && q.check.sources.length > 0 && <button disabled={busy || working} className={`${button} text-emerald-200`} onClick={() => { if (window.confirm(`Утвердить вопрос несмотря на результат Codex?\n${q.check!.summary}\nРешение владельца будет сохранено отдельно от отчёта.`)) void act('approve-question', { quizId: selected, id: q.id }); }}>Утвердить вручную</button>}
         <button disabled={busy || working} className={`${button} text-red-300`} onClick={() => { if (window.confirm('Удалить вопрос из черновика? В игровом файле он останется до сохранения дискетой.')) void act('delete-question', { quizId: selected, id: q.id }); }}>Удалить</button></div>
     </article>)}</div>

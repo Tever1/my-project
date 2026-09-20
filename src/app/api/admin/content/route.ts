@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withCodexAdmin } from '@/lib/admin-codex';
 import { contentStore } from '@/lib/content/server';
 import { ContentConflict } from '@/lib/content/store';
-import { checkSignature, type ContentQuestion, type ContentQuiz } from '@/lib/content/catalog';
+import { checkSignature, scopedCheckSignature, type ContentQuestion, type ContentQuiz } from '@/lib/content/catalog';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { applyQuestionCorrection } from '@/lib/content/fact-check';
@@ -32,8 +32,10 @@ export const POST = withCodexAdmin(async request => {
       if (input.action === 'save-question' && bank) {
         const q = input.question as ContentQuestion;
         const previous = bank.find(item => item.id === q?.id);
-        const unchanged = previous && checkSignature(previous) === checkSignature(q);
-        const safe = { ...q, check: unchanged ? previous.check : undefined, approval: unchanged ? previous.approval : undefined };
+        // Russian checks survive English-only edits; owner approval keeps the full bilingual signature semantics.
+        const checkCurrent = !!previous?.check && previous.check.signature === scopedCheckSignature(previous.check.scope, q);
+        const approvalCurrent = !!previous?.approval && previous.approval.signature === checkSignature(q);
+        const safe = { ...q, check: checkCurrent ? previous?.check : undefined, approval: approvalCurrent ? previous?.approval : undefined };
         const index = bank.findIndex(item => item.id === q.id);
         if (index < 0) bank.push(safe); else bank[index] = safe;
       } else if (input.action === 'fix-question' && bank) {
@@ -42,7 +44,8 @@ export const POST = withCodexAdmin(async request => {
         applyQuestionCorrection(question, input.signature);
       } else if (input.action === 'approve-question' && bank) {
         const q = bank.find(item => item.id === input.id);
-        if (!q?.check || q.check.signature !== checkSignature(q) || q.check.sources.length === 0) throw new Error('Сначала проверьте текущую версию вопроса с источниками');
+        const check = q?.check;
+        if (!q || !check || check.signature !== scopedCheckSignature(check.scope, q) || check.sources.length === 0) throw new Error('Сначала проверьте текущую версию вопроса с источниками');
         q.approval = { signature: checkSignature(q), approvedAt: new Date().toISOString() };
       } else if (input.action === 'delete-question' && bank) {
         const index = bank.findIndex(q => q.id === input.id);

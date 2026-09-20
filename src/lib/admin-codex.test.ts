@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
-import { getAdminCodexKey, withCodexAdmin, codexCompletion, createAdminSession, validAdminSession, ADMIN_SESSION_AGE, ADMIN_SESSION_COOKIE } from './admin-codex';
+import { getAdminCodexKey, withCodexAdmin, codexCompletion, createAdminSession, validAdminSession, ADMIN_SESSION_AGE, ADMIN_SESSION_COOKIE, resolveCodexModel, factCheckCodexOptions, codexDeadlineMs, FACTCHECK_MODEL_DEFAULT } from './admin-codex';
 import { POST as sessionPost } from '../app/api/admin/session/route';
 
 test('session signatures reject tampering, expiry and a rotated key', () => {
@@ -85,4 +85,19 @@ test('Codex bridge rejects invalid work and concurrent requests without spawning
   state.adminCodexBusy = true;
   try { assert.equal((await codexCompletion('test')).status, 429); }
   finally { state.adminCodexBusy = false; }
+});
+
+test('fact-check resolves the smaller model with no deadline while other operations keep their defaults', () => {
+  assert.equal(FACTCHECK_MODEL_DEFAULT, 'gpt-5.6-terra');
+  assert.equal(resolveCodexModel(undefined, {}), 'gpt-6-astra');
+  assert.equal(resolveCodexModel(undefined, { ADMIN_CODEX_MODEL: 'custom' }), 'custom');
+  assert.equal(resolveCodexModel('per-call', { ADMIN_CODEX_MODEL: 'custom' }), 'per-call');
+  assert.deepEqual(factCheckCodexOptions({}), { model: 'gpt-5.6-terra', noDeadline: true });
+  assert.equal(factCheckCodexOptions({ ADMIN_CODEX_FACTCHECK_MODEL: 'small-model' }).model, 'small-model');
+  // The global model override must not affect the fact-check path.
+  assert.equal(factCheckCodexOptions({ ADMIN_CODEX_MODEL: 'gpt-6-astra' }).model, 'gpt-5.6-terra');
+  assert.equal(codexDeadlineMs(false), 180_000);
+  assert.equal(codexDeadlineMs(true), 480_000);
+  assert.equal(codexDeadlineMs(false, { noDeadline: true }), undefined);
+  assert.equal(codexDeadlineMs(true, { noDeadline: true }), undefined);
 });

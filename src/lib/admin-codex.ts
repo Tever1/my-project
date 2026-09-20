@@ -85,7 +85,25 @@ export function withCodexAdmin(handler: (req: NextRequest) => Promise<Response>,
 }
 
 // Each button runs an isolated, non-interactive Codex session, never a shell command from user input.
-export async function codexCompletion(prompt: string, image = false, webSearch = false): Promise<Response> {
+export interface CodexCompletionOptions {
+  // Optional per-call model override. Omit it to keep ADMIN_CODEX_MODEL / gpt-6-astra.
+  model?: string;
+  // Removes the fixed wall-clock kill. Only the fact-check path opts out.
+  noDeadline?: boolean;
+}
+export const FACTCHECK_MODEL_DEFAULT = 'gpt-5.6-terra';
+export function resolveCodexModel(model?: string, env: Record<string, string | undefined> = process.env): string {
+  return model || env.ADMIN_CODEX_MODEL || 'gpt-6-astra';
+}
+// Fact-check uses a smaller model, overridable only through ADMIN_CODEX_FACTCHECK_MODEL.
+export function factCheckCodexOptions(env: Record<string, string | undefined> = process.env): { model: string; noDeadline: true } {
+  return { model: env.ADMIN_CODEX_FACTCHECK_MODEL || FACTCHECK_MODEL_DEFAULT, noDeadline: true };
+}
+export function codexDeadlineMs(image = false, options: CodexCompletionOptions = {}): number | undefined {
+  if (options.noDeadline) return undefined;
+  return image ? 480_000 : 180_000;
+}
+export async function codexCompletion(prompt: string, image = false, webSearch = false, options: CodexCompletionOptions = {}): Promise<Response> {
   if (!prompt.trim() || prompt.length > 80_000) {
     return new Response('Недопустимый размер задания Codex.', { status: 400 });
   }
@@ -109,7 +127,7 @@ export async function codexCompletion(prompt: string, image = false, webSearch =
       const child = spawn(executable, [
         'exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
         '--sandbox', 'read-only', '--color', 'never',
-        '-m', process.env.ADMIN_CODEX_MODEL || 'gpt-6-astra',
+        '-m', resolveCodexModel(options.model),
         '-c', 'features.shell_tool=false', '-c', 'features.multi_agent=false',
         '-c', `features.image_generation=${image}`,
         '-c', `web_search="${webSearch && !image ? 'live' : 'disabled'}"`, '-c', 'model_reasoning_effort="low"',
@@ -120,16 +138,20 @@ export async function codexCompletion(prompt: string, image = false, webSearch =
           process.env[key] ? [[key, process.env[key]!]] : [])) },
       });
       let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (error?: Error, text?: string) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         if (error) reject(error); else resolve(text ?? '');
       };
-      const timer = setTimeout(() => {
-        child.kill('SIGKILL');
-        finish(new Error(`Codex не ответил за ${image ? 8 : 3} минуты. Повторите запрос позже.`));
-      }, image ? 480_000 : 180_000);
+      const deadline = codexDeadlineMs(image, options);
+      if (deadline !== undefined) {
+        timer = setTimeout(() => {
+          child.kill('SIGKILL');
+          finish(new Error(`Codex не ответил за ${image ? 8 : 3} минуты. Повторите запрос позже.`));
+        }, deadline);
+      }
       // Drain stderr, but never return credentials, tool logs, or internal paths to the browser.
       child.stderr.on('data', () => {});
       child.stdin.on('error', () => {});

@@ -1,10 +1,13 @@
 import type { QuizQuestion, SpecialQuizInfo } from '@/types/game';
 
 export type CheckStatus = 'unverified' | 'verified' | 'issue';
+// Absent scope keeps the legacy bilingual semantics; 'ru' verifies Russian text only.
+export type CheckScope = 'bilingual' | 'ru';
 export type QuestionText = Pick<QuizQuestion, 'questionRu' | 'questionEn' | 'options' | 'correctIndex'>;
 export interface QuestionCorrection extends QuestionText { status: 'verified' | 'unverified'; summary: string; sources: string[] }
 export interface ContentCheck {
   status: CheckStatus;
+  scope?: CheckScope;
   signature: string;
   checkedAt: string;
   sources: string[];
@@ -29,8 +32,21 @@ export interface ContentDraft extends ContentEnvelope { baseRevision: string; ch
 export function checkSignature(q: Pick<QuizQuestion, 'questionRu' | 'questionEn' | 'options' | 'correctIndex'>) {
   return JSON.stringify([q.questionRu, q.questionEn, q.options, q.correctIndex]);
 }
+// Russian-only signature: questionRu, Russian option texts and correctIndex. English is intentionally out of scope.
+export function russianCheckSignature(q: Pick<QuizQuestion, 'questionRu' | 'options' | 'correctIndex'>) {
+  return JSON.stringify([q.questionRu, q.options.map(option => option.ru), q.correctIndex]);
+}
+// Resolve the signature a check of a given scope must match. Legacy checks without a scope stay fully bilingual.
+export function scopedCheckSignature(scope: CheckScope | undefined, q: Pick<QuizQuestion, 'questionRu' | 'questionEn' | 'options' | 'correctIndex'>) {
+  return scope === 'ru' ? russianCheckSignature(q) : checkSignature(q);
+}
+export function isCurrentCheck(q: ContentQuestion) {
+  return !!q.check && q.check.signature === scopedCheckSignature(q.check.scope, q);
+}
 export function isCodexVerified(q: ContentQuestion) {
-  return q.check?.status === 'verified' && q.check.signature === checkSignature(q) && q.check.sources.length > 0;
+  const check = q.check;
+  return !!check && check.status === 'verified' && check.sources.length > 0
+    && check.signature === scopedCheckSignature(check.scope, q);
 }
 export function isVerified(q: ContentQuestion) {
   return isCodexVerified(q)
