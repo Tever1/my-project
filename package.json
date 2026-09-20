@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"src/**/*.test.mts\"",
     "phones": "bash scripts/dev-phones.sh",
     "gen-image": "node scripts/generate-image.mjs",
     "gen-icon": "node scripts/generate-icon.mjs",
