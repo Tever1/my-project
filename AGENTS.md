@@ -641,3 +641,145 @@ User
 → Codex runs/reviews tests
 → Codex reports final result
 
+
+## Standard DeepSeek task format
+
+When delegating a substantial implementation task to DeepSeek, Codex should use a structured prompt with the following sections.
+
+### Objective
+
+State exactly what must be implemented or fixed.
+
+### Context
+
+Provide only the context DeepSeek needs to work efficiently:
+- relevant feature/module;
+- current behavior;
+- why the change is needed;
+- known related components.
+
+Avoid dumping unnecessary project history.
+
+### Constraints
+
+State important technical constraints, for example:
+- existing API contracts that must remain compatible;
+- architectural patterns that must be preserved;
+- files/subsystems that must not be changed;
+- security or persistence constraints;
+- no unrelated refactoring.
+
+### Relevant files/subsystems
+
+List known relevant files or directories when useful.
+
+DeepSeek may inspect additional files if needed.
+
+### Acceptance criteria
+
+Define observable conditions that mean the implementation is complete.
+
+Prefer concrete criteria such as:
+- endpoint returns expected data;
+- UI state behaves correctly;
+- reconnect flow remains unchanged;
+- all existing tests continue to pass.
+
+### Required validation
+
+Specify checks DeepSeek must run, when applicable:
+- npm run typecheck
+- npm run lint
+- npm test
+- targeted unit/integration tests
+- production build
+- server/API smoke tests
+
+DeepSeek should fix ordinary implementation/test failures before returning.
+
+### Do not change
+
+Explicitly state anything that must remain untouched.
+
+Examples:
+- unrelated UI;
+- public API shape;
+- existing localization behavior;
+- generated assets;
+- unrelated dependencies.
+
+### Escalation rule
+
+If DeepSeek discovers a decision with architectural, API, security, persistence, migration, or backward-compatibility impact, it must stop and report:
+
+BLOCKED — ARCHITECTURAL DECISION REQUIRED
+
+It must not silently choose a major architectural direction.
+
+### Completion report
+
+DeepSeek must end substantial tasks with:
+
+Changed files:
+- ...
+
+Implemented:
+- ...
+
+Tests/checks run:
+- ...
+
+Results:
+- ...
+
+Remaining issues:
+- none / ...
+
+Architectural decisions required:
+- none / ...
+
+Codex must treat this report as informational only and still review the actual repository changes.
+
+## Delegation threshold
+
+Do not invoke DeepSeek for trivial changes where delegation overhead is greater than the implementation work.
+
+Codex should normally implement directly when the task is limited to examples such as:
+- a one-line fix;
+- simple text/copy change;
+- renaming a local variable;
+- a tiny isolated style adjustment;
+- a very small config change with obvious behavior;
+- another clearly local change that can be safely implemented and verified immediately.
+
+Codex should normally prefer DeepSeek when the task involves one or more of:
+- multiple files;
+- broad repository investigation;
+- significant implementation volume;
+- repetitive changes;
+- refactoring;
+- writing or updating several tests;
+- debugging test failures;
+- large log analysis;
+- repository-wide search;
+- substantial documentation changes tied to code;
+- implementation that is likely to consume significant context or tokens.
+
+The purpose of DeepSeek delegation is to offload high-volume execution work, not to delegate every edit.
+
+## User-visible progress
+
+During a delegated task, Codex should keep the user informed at meaningful milestones without flooding the chat with low-level tool activity.
+
+Preferred progress updates:
+
+- "DeepSeek: анализирует задачу"
+- "DeepSeek: выполняет реализацию"
+- "DeepSeek: запускает проверки"
+- "Codex: проверяет diff"
+- "DeepSeek: исправляет замечания"
+- "Codex: финальная проверка"
+- "Результат принят"
+
+Do not report every file read, grep call, or shell command unless it is relevant to a problem or the user asks for detailed logs.
+
