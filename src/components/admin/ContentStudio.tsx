@@ -18,6 +18,8 @@ interface Background { filename: string; url: string; group: string; sha256: str
 const field = 'mt-1 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm';
 const button = 'rounded-xl border border-white/15 px-3 py-2 text-xs hover:bg-white/10 disabled:opacity-40';
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+const approvedCount = (questions: ContentQuestion[], policy?: string | null) => questions.filter(question =>
+  baseIsVerified(question) && (!policy || question.check?.policy === policy)).length;
 
 export function ContentStudio() {
   const { draft, busy, act, reload, message: workspaceMessage } = useContentWorkspace();
@@ -130,12 +132,12 @@ export function ContentStudio() {
       {([['all', 'Все общие вопросы'], ['science', 'Наука'], ['history', 'История'], ['pop-culture', 'Поп-культура']] as const).map(([key, title]) => {
         const bank = draft.catalog.general.filter(q => key === 'all' || q.topic === key);
         return <button key={key} aria-pressed={selected === 'general' && topic === key} className={`w-full rounded-2xl border p-4 text-left ${selected === 'general' && topic === key ? 'border-indigo-300/40 bg-indigo-300/10' : 'border-white/10 bg-white/5'}`} onClick={() => { setSelected('general'); setTopic(key); setPage(0); setSearch(''); setQualityIds(null); setQualityReport(null); }}>
-          <span className="flex justify-between gap-2 text-sm font-semibold"><span>{title}</span><span className="text-indigo-200">{bank.length}</span></span>
+          <span className="flex justify-between gap-2 text-sm font-semibold"><span>{title}</span><span className="whitespace-nowrap text-indigo-200">{bank.length} <span className="text-[10px] font-normal text-slate-400">· утв. {approvedCount(bank)}</span></span></span>
           <span className="mt-2 block text-[10px] text-slate-400">Лёгкие {bank.filter(q => q.difficulty === 'easy').length} · Средние {bank.filter(q => q.difficulty === 'medium').length} · Сложные {bank.filter(q => q.difficulty === 'hard').length}</span>
         </button>;
       })}
       <h3 className="pt-4 text-xs font-semibold uppercase tracking-widest text-slate-400">Тематические</h3>
-      {draft.catalog.quizzes.map(q => <button key={q.id} aria-pressed={selected === q.id} className={`w-full rounded-2xl border p-4 text-left ${selected === q.id ? 'border-indigo-300/40 bg-indigo-300/10' : 'border-white/10 bg-white/5'}`} onClick={() => { setSelected(q.id); setPage(0); setSearch(''); setQualityIds(null); setQualityReport(null); }}><span className="flex justify-between gap-2 text-sm font-semibold"><span>{q.titleRu} · №{q.number}</span><span className="text-indigo-200">{q.questions.length}</span></span><span className="mt-2 block text-[10px] text-slate-400">{q.theme} · Проверено {q.questions.filter(isVerified).length}</span></button>)}
+      {draft.catalog.quizzes.map(q => <button key={q.id} aria-pressed={selected === q.id} className={`w-full rounded-2xl border p-4 text-left ${selected === q.id ? 'border-indigo-300/40 bg-indigo-300/10' : 'border-white/10 bg-white/5'}`} onClick={() => { setSelected(q.id); setPage(0); setSearch(''); setQualityIds(null); setQualityReport(null); }}><span className="flex justify-between gap-2 text-sm font-semibold"><span>{q.titleRu} · №{q.number}</span><span className="whitespace-nowrap text-indigo-200">{q.questions.length} <span className="text-[10px] font-normal text-slate-400">· утв. {approvedCount(q.questions, quizPolicyId(q))}</span></span></span><span className="mt-2 block text-[10px] text-slate-400">{q.theme}</span></button>)}
     </aside>
     <div className="min-w-0">
     <ContentJobsPanel jobs={jobs} error={jobsError} onCommand={command} />
