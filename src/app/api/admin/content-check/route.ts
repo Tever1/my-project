@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { saveQuizCheckReport } from '@/lib/quiz-check-reports';
 import { contentStore } from '@/lib/content/server';
 import { scopedCheckSignature, type ContentQuestion } from '@/lib/content/catalog';
-import { CONTENT_CHECK_BATCH_SIZE, parseCheckVerdicts, pendingQuestionChecks } from '@/lib/content/fact-check';
+import { CONTENT_CHECK_BATCH_SIZE, FACT_CHECK_OUTPUT_SCHEMA, parseCodexCheckResponse, pendingQuestionChecks } from '@/lib/content/fact-check';
 import { quizContentPolicy, quizPolicyId } from '@/lib/content/quiz-policy';
 
 export const POST = withCodexAdmin(async request => {
@@ -35,15 +35,16 @@ sources — прямые https URL реально открытых страни�
 и не меняй. Проверь именно исправленный вариант по открытым первичным источникам. correction.status=verified
 только если он однозначно верен и есть прямые источники; иначе unverified.
 correction.summary объясняет изменения по-русски. Не предлагай тот же текст.
-Верни ТОЛЬКО JSON: {"results":[{"id":"...","status":"verified|issue|unverified","summary":"...","sources":["https://..."],"correction":{"questionRu":"...","options":[{"ru":"..."},{"ru":"..."},{"ru":"..."},{"ru":"..."}],"correctIndex":0,"status":"verified|unverified","summary":"...","sources":["https://..."]}}]}.
-Поле correction опускай у verified/unverified или если обоснованное исправление невозможно.
+Верни ТОЛЬКО JSON, например: {"results":[{"id":"...","status":"verified","summary":"...","sources":["https://..."],"correction":null}]}.
+Поле correction обязательно у каждого результата: у verified/unverified или если обоснованное исправление невозможно ставь correction: null.
+Объект correction допустим только у issue, например: {"results":[{"id":"...","status":"issue","summary":"...","sources":["https://..."],"correction":{"questionRu":"...","options":[{"ru":"..."},{"ru":"..."},{"ru":"..."},{"ru":"..."}],"correctIndex":0,"status":"verified","summary":"...","sources":["https://..."]}}]}.
 Каждый входной id ровно один раз. Без markdown и внутренних идентификаторов цитат.
 ${formatted}`;
-  const response = await codexCompletion(prompt, false, true, factCheckCodexOptions());
+  const response = await codexCompletion(prompt, false, true, { ...factCheckCodexOptions(), outputSchema: FACT_CHECK_OUTPUT_SCHEMA });
   if (!response.ok) return NextResponse.json({ error: `Codex ${response.status}: ${await response.text()}` }, { status: response.status });
   const data = await response.json(); const raw = data.choices?.[0]?.message?.content ?? '';
   let results;
-  try { results = parseCheckVerdicts(raw, questions.map(q => q.id), { scope: 'ru', originals: questions }); }
+  try { results = parseCodexCheckResponse(data, questions.map(q => q.id), { scope: 'ru', originals: questions }); }
   catch { return NextResponse.json({ error: 'Codex вернул некорректный отчёт. Вопросы не утверждены.', report: raw }, { status: 422 }); }
   const report = results.map(result => {
     const correction = result.correction;

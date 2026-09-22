@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
-import { getAdminCodexKey, withCodexAdmin, codexCompletion, createAdminSession, validAdminSession, ADMIN_SESSION_AGE, ADMIN_SESSION_COOKIE, resolveCodexModel, factCheckCodexOptions, codexDeadlineMs, FACTCHECK_MODEL_DEFAULT } from './admin-codex';
+import { getAdminCodexKey, withCodexAdmin, codexCompletion, codexExecArgs, createAdminSession, validAdminSession, ADMIN_SESSION_AGE, ADMIN_SESSION_COOKIE, resolveCodexModel, factCheckCodexOptions, codexDeadlineMs, FACTCHECK_MODEL_DEFAULT } from './admin-codex';
 import { POST as sessionPost } from '../app/api/admin/session/route';
 
 test('session signatures reject tampering, expiry and a rotated key', () => {
@@ -100,4 +100,20 @@ test('fact-check resolves the smaller model with no deadline while other operati
   assert.equal(codexDeadlineMs(true), 480_000);
   assert.equal(codexDeadlineMs(false, { noDeadline: true }), undefined);
   assert.equal(codexDeadlineMs(true, { noDeadline: true }), undefined);
+});
+
+test('codex exec asks for the output schema only when the caller supplies one', () => {
+  const base = { model: 'gpt-5.6-terra', image: false, webSearch: true, outputPath: '/tmp/answer.txt' };
+  const plain = codexExecArgs(base);
+  assert.equal(plain.includes('--output-schema'), false);
+  assert.equal(plain.at(-1), '-');
+  assert.equal(plain[plain.indexOf('--output-last-message') + 1], '/tmp/answer.txt');
+  assert.equal(plain[plain.indexOf('-m') + 1], 'gpt-5.6-terra');
+  const shaped = codexExecArgs({ ...base, outputSchemaPath: '/tmp/output-schema.json' });
+  const index = shaped.indexOf('--output-schema');
+  assert.ok(index >= 0);
+  assert.equal(shaped[index + 1], '/tmp/output-schema.json');
+  assert.equal(shaped.at(-1), '-');
+  // Image generation never receives a fact-check schema.
+  assert.equal(codexExecArgs({ ...base, image: true, outputSchemaPath: undefined }).includes('--output-schema'), false);
 });

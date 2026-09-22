@@ -90,6 +90,8 @@ export interface CodexCompletionOptions {
   model?: string;
   // Removes the fixed wall-clock kill. Only the fact-check path opts out.
   noDeadline?: boolean;
+  // Optional JSON schema for the final message, forwarded to `codex exec --output-schema`.
+  outputSchema?: unknown;
 }
 export const FACTCHECK_MODEL_DEFAULT = 'gpt-5.6-terra';
 export function resolveCodexModel(model?: string, env: Record<string, string | undefined> = process.env): string {
@@ -103,6 +105,20 @@ export function codexDeadlineMs(image = false, options: CodexCompletionOptions =
   if (options.noDeadline) return undefined;
   return image ? 480_000 : 180_000;
 }
+// Isolated command line for `codex exec`. Exported so flag wiring is testable without a live model.
+export interface CodexExecArgsInput { model: string; image: boolean; webSearch: boolean; outputPath: string; outputSchemaPath?: string }
+export function codexExecArgs(input: CodexExecArgsInput): string[] {
+  return [
+    'exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
+    '--sandbox', 'read-only', '--color', 'never',
+    '-m', input.model,
+    '-c', 'features.shell_tool=false', '-c', 'features.multi_agent=false',
+    '-c', `features.image_generation=${input.image}`,
+    '-c', `web_search="${input.webSearch && !input.image ? 'live' : 'disabled'}"`, '-c', 'model_reasoning_effort="low"',
+    ...(input.outputSchemaPath ? ['--output-schema', input.outputSchemaPath] : []),
+    '--output-last-message', input.outputPath, '-',
+  ];
+}
 export async function codexCompletion(prompt: string, image = false, webSearch = false, options: CodexCompletionOptions = {}): Promise<Response> {
   if (!prompt.trim() || prompt.length > 80_000) {
     return new Response('Недопустимый размер задания Codex.', { status: 400 });
@@ -114,6 +130,9 @@ export async function codexCompletion(prompt: string, image = false, webSearch =
   try {
     directory = await mkdtemp(path.join(tmpdir(), 'party-codex-'));
     const output = path.join(directory, 'answer.txt');
+    // Write the caller's schema beside the answer so the CLI can constrain the final message.
+    const schemaPath = image || options.outputSchema === undefined ? undefined : path.join(directory, 'output-schema.json');
+    if (schemaPath) await writeFile(schemaPath, JSON.stringify(options.outputSchema));
     // Resolve symlinks so Codex can locate its adjacent code-mode host binary.
     const configured = process.env.ADMIN_CODEX_BIN || 'codex';
     const candidates = configured.includes(path.sep) ? [configured]
@@ -124,15 +143,9 @@ export async function codexCompletion(prompt: string, image = false, webSearch =
     }
     if (!executable) throw new Error('Codex CLI не найден. Проверьте ADMIN_CODEX_BIN.');
     const content = await new Promise<string>((resolve, reject) => {
-      const child = spawn(executable, [
-        'exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
-        '--sandbox', 'read-only', '--color', 'never',
-        '-m', resolveCodexModel(options.model),
-        '-c', 'features.shell_tool=false', '-c', 'features.multi_agent=false',
-        '-c', `features.image_generation=${image}`,
-        '-c', `web_search="${webSearch && !image ? 'live' : 'disabled'}"`, '-c', 'model_reasoning_effort="low"',
-        '--output-last-message', output, '-',
-      ], {
+      const child = spawn(executable, codexExecArgs({
+        model: resolveCodexModel(options.model), image, webSearch, outputPath: output, outputSchemaPath: schemaPath,
+      }), {
         cwd: directory, stdio: ['pipe', 'ignore', 'pipe'],
         env: { NODE_ENV: process.env.NODE_ENV, ...Object.fromEntries(['HOME', 'PATH', 'CODEX_HOME', 'TMPDIR', 'SYSTEMROOT'].flatMap(key =>
           process.env[key] ? [[key, process.env[key]!]] : [])) },

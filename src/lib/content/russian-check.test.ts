@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTENT_CHECK_BATCH_SIZE, applyQuestionCorrection, parseCheckVerdicts, pendingQuestionChecks } from './fact-check';
+import { CONTENT_CHECK_BATCH_SIZE, ContentCheckParseError, FACT_CHECK_OUTPUT_SCHEMA, applyQuestionCorrection, parseCheckVerdicts, parseCodexCheckResponse, pendingQuestionChecks } from './fact-check';
 import { checkSignature, isCodexVerified, isCurrentCheck, russianCheckSignature, scopedCheckSignature, type ContentQuestion } from './catalog';
 
 const original: ContentQuestion = { id: 'q', questionRu: 'Вопрос', questionEn: 'Question', options: ['A', 'B', 'C', 'D'].map(ru => ({ ru, en: `EN ${ru}` })), correctIndex: 0, topic: 'history', difficulty: 'medium', timeLimit: 20 };
@@ -117,4 +117,54 @@ test('one content-check request is two questions by default', () => {
   assert.equal(CONTENT_CHECK_BATCH_SIZE, 2);
   assert.equal(scopedCheckSignature('ru', original), russianCheckSignature(original));
   assert.equal(scopedCheckSignature(undefined, original), checkSignature(original));
+});
+
+test('malformed fact-check JSON with a missing separator fails closed with a Russian error', () => {
+  const second = { ...structuredClone(original), id: 'q2' };
+  // Exactly the production failure: a separator is missing between two array elements.
+  const missingComma = '{"results":[{"id":"q","status":"verified","summary":"Верно","sources":["https://example.org/source"]} '
+    + '{"id":"q2","status":"unverified","summary":"Мало данных","sources":[]}]}';
+  assert.throws(
+    () => parseCodexCheckResponse({ choices: [{ message: { content: missingComma } }] }, ['q', 'q2'], { scope: 'ru', originals: [original, second] }),
+    (error: unknown) => {
+      assert.ok(error instanceof ContentCheckParseError);
+      assert.match(error.message, /некорректн/i);
+      assert.doesNotMatch(error.message, /position|Unexpected|Expected|JSON\.parse/i);
+      return true;
+    },
+  );
+  assert.throws(() => parseCheckVerdicts(missingComma, ['q', 'q2'], { scope: 'ru', originals: [original, second] }), ContentCheckParseError);
+});
+
+test('valid fact-check envelope parses while empty and partial responses fail closed', () => {
+  const second = { ...structuredClone(original), id: 'q2' };
+  const envelope = (results: unknown) => ({ choices: [{ message: { content: JSON.stringify({ results }) } }] });
+  const verified = { id: 'q', status: 'verified', summary: 'Верно', sources: ['https://example.org/source'], correction: null };
+  const unverified = { id: 'q2', status: 'unverified', summary: 'Мало данных', sources: [], correction: null };
+  const parsed = parseCodexCheckResponse(envelope([verified, unverified]), ['q', 'q2'], { scope: 'ru', originals: [original, second] });
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].status, 'verified');
+  assert.equal(parsed[1].status, 'unverified');
+  // The schema requires a nullable correction; a null must stay unset after parsing.
+  assert.equal(parsed[0].correction ?? null, null);
+  assert.equal(parsed[1].correction ?? null, null);
+  assert.throws(() => parseCodexCheckResponse(envelope([verified]), ['q', 'q2'], { scope: 'ru', originals: [original, second] }), /Не все вопросы получили результат/);
+  assert.throws(() => parseCodexCheckResponse(envelope([{ ...verified, sources: ['javascript:alert(1)'] }, unverified]), ['q', 'q2']), /Некорректный формат проверки/);
+  assert.throws(() => parseCodexCheckResponse({ choices: [{ message: { content: '' } }] }, ['q'], { scope: 'ru', originals: [original] }), ContentCheckParseError);
+  assert.throws(() => parseCodexCheckResponse({}, ['q'], { scope: 'ru', originals: [original] }), ContentCheckParseError);
+});
+
+test('fact-check output schema matches the parser envelope and uses only CLI-supported keywords', () => {
+  const schema = FACT_CHECK_OUTPUT_SCHEMA as unknown as {
+    type: string; additionalProperties: boolean; required: string[];
+    properties: { results: { type: string; items: { additionalProperties: boolean; required: string[]; properties: Record<string, { enum?: string[]; anyOf?: { type: string }[] }> } } };
+  };
+  assert.equal(schema.type, 'object');
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual(schema.required, ['results']);
+  const item = schema.properties.results.items;
+  assert.equal(item.additionalProperties, false);
+  assert.deepEqual(item.required, ['id', 'status', 'summary', 'sources', 'correction']);
+  assert.deepEqual(item.properties.status.enum, ['verified', 'issue', 'unverified']);
+  assert.deepEqual(item.properties.correction.anyOf?.map(branch => branch.type), ['null', 'object']);
 });

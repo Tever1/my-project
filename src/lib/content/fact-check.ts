@@ -3,6 +3,56 @@ import { isCodexVerified, scopedCheckSignature, validateQuestion, type CheckScop
 // One content-check request is deliberately small so a Russian verdict arrives quickly.
 export const CONTENT_CHECK_BATCH_SIZE = 2;
 
+// Enforced through `codex exec --output-schema` so a small model cannot drop a JSON separator.
+// Only keywords accepted by the bundled Codex CLI are used; optional `correction` is a nullable anyOf branch.
+export const FACT_CHECK_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['results'],
+  properties: {
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'status', 'summary', 'sources', 'correction'],
+        properties: {
+          id: { type: 'string' },
+          status: { enum: ['verified', 'issue', 'unverified'] },
+          summary: { type: 'string' },
+          sources: { type: 'array', items: { type: 'string' } },
+          correction: {
+            anyOf: [
+              { type: 'null' },
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['questionRu', 'options', 'correctIndex', 'status', 'summary', 'sources'],
+                properties: {
+                  questionRu: { type: 'string' },
+                  options: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['ru'], properties: { ru: { type: 'string' } } } },
+                  correctIndex: { type: 'integer' },
+                  status: { enum: ['verified', 'unverified'] },
+                  summary: { type: 'string' },
+                  sources: { type: 'array', items: { type: 'string' } },
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+// Fail-closed error raised when the model response cannot be parsed; never leaks raw parser internals.
+export class ContentCheckParseError extends Error {
+  constructor(message = 'Codex вернул некорректный отчёт проверки. Вопросы не утверждены, повторите проверку.') {
+    super(message);
+    this.name = 'ContentCheckParseError';
+  }
+}
+
 export interface CheckVerdict { id: string; status: 'verified' | 'issue' | 'unverified'; summary: string; sources: string[]; correction?: QuestionCorrection }
 
 interface RawCorrection {
@@ -61,10 +111,16 @@ export function parseCheckVerdicts(raw: string, ids: string[], options: CheckPar
   const scope = options.scope ?? 'bilingual';
   const originals = new Map((options.originals ?? []).map(question => [question.id, question]));
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  const parsed = JSON.parse(cleaned) as { results: CheckVerdict[] };
-  if (!Array.isArray(parsed.results) || parsed.results.length !== ids.length) throw new Error('Не все вопросы получили результат');
+  let parsed: unknown;
+  try { parsed = JSON.parse(cleaned); }
+  catch { throw new ContentCheckParseError(); }
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { results?: unknown }).results)) {
+    throw new ContentCheckParseError('Codex вернул отчёт без списка результатов. Вопросы не утверждены, повторите проверку.');
+  }
+  const results = (parsed as { results: CheckVerdict[] }).results;
+  if (results.length !== ids.length) throw new Error('Не все вопросы получили результат');
   const seen = new Set<string>();
-  for (const result of parsed.results) {
+  for (const result of results) {
     if (!result || !ids.includes(result.id) || seen.has(result.id)
       || !['verified', 'issue', 'unverified'].includes(result.status)
       || typeof result.summary !== 'string' || result.summary.length > 4000
@@ -75,7 +131,16 @@ export function parseCheckVerdicts(raw: string, ids: string[], options: CheckPar
       result.correction = scope === 'ru' ? parseRussianCorrection(result, originals.get(result.id)) : parseBilingualCorrection(result);
     }
   }
-  return parsed.results;
+  return results;
+}
+
+// The real call-site seam: unwraps the Codex response envelope and fails closed on an empty or malformed message.
+export function parseCodexCheckResponse(data: unknown, ids: string[], options: CheckParseOptions = {}): CheckVerdict[] {
+  const content = (data as { choices?: { message?: { content?: unknown } }[] } | null)?.choices?.[0]?.message?.content;
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new ContentCheckParseError('Codex вернул пустой отчёт проверки. Вопросы не утверждены, повторите проверку.');
+  }
+  return parseCheckVerdicts(content, ids, options);
 }
 
 export function applyQuestionCorrection(question: ContentQuestion, signature: string) {
