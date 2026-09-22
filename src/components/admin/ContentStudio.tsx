@@ -11,7 +11,7 @@ import { ContentJobsPanel, useContentJobs } from './ContentJobsPanel';
 import { QuizHealthPanel } from './QuizHealthPanel';
 import { QuestionPreview } from './QuestionPreview';
 import { QuestionHistory } from './QuestionHistory';
-import { analyzeQuizQuality } from '@/lib/content/quality';
+import { buildQuizQualityReport, isQuizQualityReportFresh, type QuizQualityReport } from '@/lib/content/quality-report';
 import { questionLifecycle, QUESTION_LIFECYCLE_LABELS } from '@/lib/content/lifecycle';
 
 interface Background { filename: string; url: string; group: string; sha256: string }
@@ -34,6 +34,7 @@ export function ContentStudio() {
   const [count, setCount] = useState(5);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualityIds, setQualityIds] = useState<string[] | null>(null);
+  const [qualityReport, setQualityReport] = useState<QuizQualityReport | null>(null);
   const [preview, setPreview] = useState<ContentQuestion | null>(null);
   const [historyQuestion, setHistoryQuestion] = useState<ContentQuestion | null>(null);
   const [published, setPublished] = useState<GameCatalog | null>(null);
@@ -54,11 +55,13 @@ export function ContentStudio() {
   const quizKey = selected === 'general' ? `general:${topic}:all` : `special:${selected}`;
   const activeCheckIds = new Set(jobs.filter(job => job.type === 'quiz-check' && ['queued', 'running'].includes(job.status))
     .flatMap(job => job.input.questionIds ?? []));
-  const quality = analyzeQuizQuality(questions);
+  const qualityKey = `${quizKey}@${draft.revision}`;
+  const quality = isQuizQualityReportFresh(qualityReport, qualityKey) ? qualityReport.issues : null;
+  const activeQualityIds = quality ? qualityIds : null;
   const publishedQuestions = selected === 'general' ? published?.general ?? [] : published?.quizzes.find(item => item.id === selected)?.questions ?? [];
   const filtered = questions.filter(q => {
     const matches = `${q.questionRu} ${q.questionEn}`.toLowerCase().includes(search.toLowerCase());
-    return (!qualityIds || qualityIds.includes(q.id)) && matches && (filter === 'all' || (filter === 'verified' ? isVerified(q)
+    return (!activeQualityIds || activeQualityIds.includes(q.id)) && matches && (filter === 'all' || (filter === 'verified' ? isVerified(q)
       : filter === 'issue' ? q.check?.status === 'issue' : !isVerified(q)));
   });
   const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 30) - 1));
@@ -71,6 +74,14 @@ export function ContentStudio() {
   }
   function newQuiz() {
     setQuizEditing({ id: `quiz-${crypto.randomUUID()}`, theme: '', number: 1, titleRu: '', titleEn: '', icon: '', iconUrl: '/icons/games/quiz.png', backgroundUrl: '', questions: [] });
+  }
+  function runQualityCheck() {
+    const report = buildQuizQualityReport(qualityKey, questions);
+    setQualityReport(report);
+    setQualityIds(null);
+    setPage(0);
+    const found = questions.filter(q => (report.issues.get(q.id)?.length ?? 0) > 0).length;
+    setMessage(found ? `Локальная проверка: замечания у ${found} из ${questions.length}.` : `Локальная проверка: замечаний нет (${questions.length} вопросов).`);
   }
   async function check(items: ContentQuestion[]) {
     items = items.filter(q => !isCurrentCodexVerified(q));
@@ -118,19 +129,19 @@ export function ContentStudio() {
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">Готовые квизы</h2>
       {([['all', 'Все общие вопросы'], ['science', 'Наука'], ['history', 'История'], ['pop-culture', 'Поп-культура']] as const).map(([key, title]) => {
         const bank = draft.catalog.general.filter(q => key === 'all' || q.topic === key);
-        return <button key={key} aria-pressed={selected === 'general' && topic === key} className={`w-full rounded-2xl border p-4 text-left ${selected === 'general' && topic === key ? 'border-indigo-300/40 bg-indigo-300/10' : 'border-white/10 bg-white/5'}`} onClick={() => { setSelected('general'); setTopic(key); setPage(0); setSearch(''); }}>
+        return <button key={key} aria-pressed={selected === 'general' && topic === key} className={`w-full rounded-2xl border p-4 text-left ${selected === 'general' && topic === key ? 'border-indigo-300/40 bg-indigo-300/10' : 'border-white/10 bg-white/5'}`} onClick={() => { setSelected('general'); setTopic(key); setPage(0); setSearch(''); setQualityIds(null); setQualityReport(null); }}>
           <span className="flex justify-between gap-2 text-sm font-semibold"><span>{title}</span><span className="text-indigo-200">{bank.length}</span></span>
           <span className="mt-2 block text-[10px] text-slate-400">Лёгкие {bank.filter(q => q.difficulty === 'easy').length} · Средние {bank.filter(q => q.difficulty === 'medium').length} · Сложные {bank.filter(q => q.difficulty === 'hard').length}</span>
         </button>;
       })}
       <h3 className="pt-4 text-xs font-semibold uppercase tracking-widest text-slate-400">Тематические</h3>
-      {draft.catalog.quizzes.map(q => <button key={q.id} aria-pressed={selected === q.id} className={`w-full rounded-2xl border p-4 text-left ${selected === q.id ? 'border-indigo-300/40 bg-indigo-300/10' : 'border-white/10 bg-white/5'}`} onClick={() => { setSelected(q.id); setPage(0); setSearch(''); }}><span className="flex justify-between gap-2 text-sm font-semibold"><span>{q.titleRu} · №{q.number}</span><span className="text-indigo-200">{q.questions.length}</span></span><span className="mt-2 block text-[10px] text-slate-400">{q.theme} · Проверено {q.questions.filter(isVerified).length}</span></button>)}
+      {draft.catalog.quizzes.map(q => <button key={q.id} aria-pressed={selected === q.id} className={`w-full rounded-2xl border p-4 text-left ${selected === q.id ? 'border-indigo-300/40 bg-indigo-300/10' : 'border-white/10 bg-white/5'}`} onClick={() => { setSelected(q.id); setPage(0); setSearch(''); setQualityIds(null); setQualityReport(null); }}><span className="flex justify-between gap-2 text-sm font-semibold"><span>{q.titleRu} · №{q.number}</span><span className="text-indigo-200">{q.questions.length}</span></span><span className="mt-2 block text-[10px] text-slate-400">{q.theme} · Проверено {q.questions.filter(isVerified).length}</span></button>)}
     </aside>
     <div className="min-w-0">
     <ContentJobsPanel jobs={jobs} error={jobsError} onCommand={command} />
-    <QuizHealthPanel questions={questions} published={publishedQuestions} onFilter={ids => { setQualityIds(ids); setPage(0); }} />
+    <QuizHealthPanel questions={questions} published={publishedQuestions} issues={quality} onAnalyze={runQualityCheck} onFilter={ids => { setQualityIds(ids); setPage(0); }} />
     <div className="mb-5 flex flex-wrap items-center gap-3">
-      <select aria-label="Квиз" className={`${field} !mt-0 max-w-md`} value={selected} onChange={event => { setSelected(event.target.value); setMessage(''); setPage(0); setSelectedIds(new Set()); setQualityIds(null); }}>
+      <select aria-label="Квиз" className={`${field} !mt-0 max-w-md`} value={selected} onChange={event => { setSelected(event.target.value); setMessage(''); setPage(0); setSelectedIds(new Set()); setQualityIds(null); setQualityReport(null); }}>
         <option value="general">Общие вопросы ({draft.catalog.general.length})</option>{draft.catalog.quizzes.map(q => <option key={q.id} value={q.id}>{q.titleRu} · №{q.number} ({q.questions.length})</option>)}
       </select><button disabled={busy || working} className={button} onClick={newQuiz}>Создать тематический квиз</button>
       {quiz && <><button disabled={busy || working} className={button} onClick={() => setQuizEditing(structuredClone(quiz))}>Настройки квиза и фон</button>
@@ -142,7 +153,7 @@ export function ContentStudio() {
       <input aria-label="Поиск вопросов" placeholder="Поиск вопросов…" className={`${field} !mt-0 max-w-sm`} value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} />
       <select aria-label="Статус проверки" className={`${field} !mt-0 max-w-xs`} value={filter} onChange={e => { setFilter(e.target.value); setPage(0); }}><option value="all">Все статусы</option><option value="verified">Проверены</option><option value="unverified">Нужна проверка</option><option value="issue">Есть замечания</option></select>
       <span className="text-xs text-slate-400">Прошли проверку Codex: {questions.filter(isCurrentCheck).length} / {questions.length} · Подтверждено: {questions.filter(isVerified).length}</span>
-      {qualityIds && <button className={button} onClick={() => setQualityIds(null)}>Сбросить локальные замечания</button>}
+      {quality && qualityIds && <button className={button} onClick={() => setQualityIds(null)}>Сбросить локальные замечания</button>}
     </div>
     <div className="mb-5 flex flex-wrap items-center gap-2"><button disabled={busy || working} className={button} onClick={newQuestion}>Добавить вопрос</button>
       <button disabled={busy || working || !pendingCheck.length} className={button} onClick={() => void check(pendingCheck)}>Проверить список ({pendingCheck.length})</button>
@@ -161,7 +172,7 @@ export function ContentStudio() {
     </section>
     {message && <p role="status" className="mb-4 whitespace-pre-wrap break-words rounded-xl border border-indigo-200/20 p-3 text-xs text-indigo-100">{message}</p>}
     {filtered.length > 30 && <div className="mb-4 flex items-center gap-3"><button className={button} disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Назад</button><span className="text-xs text-slate-400">Страница {currentPage + 1} / {Math.ceil(filtered.length / 30)}</span><button className={button} disabled={(currentPage + 1) * 30 >= filtered.length} onClick={() => setPage(currentPage + 1)}>Далее</button></div>}
-    <div className="grid gap-3 xl:grid-cols-2">{visible.map(q => { const lifecycle = activeCheckIds.has(q.id) ? 'checking' : questionLifecycle(q, publishedQuestions.find(item => item.id === q.id)); const issues = quality.get(q.id) ?? []; return <article key={q.id} className={`rounded-2xl border bg-white/5 p-4 ${selectedIds.has(q.id) ? 'border-cyan-300/50' : 'border-white/10'}`}>
+    <div className="grid gap-3 xl:grid-cols-2">{visible.map(q => { const lifecycle = activeCheckIds.has(q.id) ? 'checking' : questionLifecycle(q, publishedQuestions.find(item => item.id === q.id)); const issues = quality?.get(q.id) ?? []; return <article key={q.id} className={`rounded-2xl border bg-white/5 p-4 ${selectedIds.has(q.id) ? 'border-cyan-300/50' : 'border-white/10'}`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><label className="flex cursor-pointer items-center gap-2"><input type="checkbox" aria-label={`Выбрать вопрос: ${q.questionRu}`} checked={selectedIds.has(q.id)} onChange={event => setSelectedIds(previous => { const next = new Set(previous); if (event.target.checked) next.add(q.id); else next.delete(q.id); return next; })} /><span className={`rounded-full border px-3 py-1 text-[11px] ${isVerified(q) ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200' : q.check?.status === 'issue' ? 'border-red-300/30 bg-red-300/10 text-red-200' : 'border-amber-300/30 bg-amber-300/10 text-amber-200'}`}>{lifecycle === 'verified-ru' ? 'Проверен Codex · RU' : QUESTION_LIFECYCLE_LABELS[lifecycle]}</span></label>
         <span className="text-[10px] text-slate-400">{q.difficulty} · {q.topic}</span></div>
       <h3 className="text-sm font-semibold">{q.questionRu}</h3><p className="mt-1 text-xs text-slate-400">{q.questionEn}</p>
