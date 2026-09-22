@@ -90,9 +90,9 @@ export function applyQuestionCorrection(question: ContentQuestion, signature: st
     // Russian-only corrections may change the Russian text, Russian options and correctIndex; English is preserved exactly.
     ? { ...question, questionRu: correction.questionRu,
         options: question.options.map((option, index) => ({ ru: correction.options[index]!.ru, en: option.en })),
-        correctIndex: correction.correctIndex, approval: undefined }
+        correctIndex: correction.correctIndex, approval: undefined, translation: undefined }
     : { ...question, questionRu: correction.questionRu, questionEn: correction.questionEn,
-        options: correction.options.map(option => ({ ru: option.ru, en: option.en })), correctIndex: correction.correctIndex, approval: undefined };
+        options: correction.options.map(option => ({ ru: option.ru, en: option.en })), correctIndex: correction.correctIndex, approval: undefined, translation: undefined };
   validateQuestion(next);
   const nextSignature = scopedCheckSignature(previous.scope, next);
   if (nextSignature === previous.signature) throw new Error('Предложение не изменяет вопрос');

@@ -59,6 +59,7 @@ test('dangerous background paths and duplicate question IDs are rejected without
   await assert.rejects(store.change(initial.revision, 'bad path', catalog => { catalog.quizzes[0].backgroundUrl = '/backgrounds/../../secret.png'; }));
   await assert.rejects(store.change(initial.revision, 'duplicate', catalog => { catalog.general.push(catalog.general[0]); }));
   assert.equal((await store.draft()).revision, initial.revision);
+  assert.equal((await store.history()).length, 0);
 }));
 test('sync rejects empty playable general banks and too few characters', () => fixture(async store => {
   const initial = await store.draft();
@@ -73,6 +74,15 @@ test('draft reload preserves edits across store instances', () => fixture(async 
   const reloaded = new ContentStore(root, async () => baseline());
   assert.equal((await reloaded.draft()).revision, next.revision);
   assert.equal((await reloaded.draft()).catalog.general[0].questionRu, 'Сохранён');
+}));
+test('question history preserves the previous version and can restore only that question', () => fixture(async store => {
+  const initial = await store.draft();
+  const changed = await store.change(initial.revision, 'edit question', catalog => { catalog.general[0].questionRu = 'Изменён'; });
+  const history = await store.questionHistory('general', initial.catalog.general[0].id);
+  assert.equal(history[0].question.questionRu, 'Вопрос');
+  const restored = await store.restoreQuestion(changed.revision, history[0].id, 'general', initial.catalog.general[0].id);
+  assert.equal(restored.catalog.general[0].questionRu, 'Вопрос');
+  assert.equal(restored.catalog.general[1].questionRu, initial.catalog.general[1].questionRu);
 }));
 test('legacy migration is pending, not automatically published', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'party-content-migrate-'));

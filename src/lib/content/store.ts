@@ -1,13 +1,16 @@
 import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { validateCatalog, validatePlayableCatalog, type ContentDraft, type ContentEnvelope, type GameCatalog } from './catalog';
+import { validateCatalog, validatePlayableCatalog, type ContentDraft, type ContentEnvelope, type ContentQuestion, type GameCatalog } from './catalog';
+
+export interface ContentHistoryEntry { id: string; at: string; label: string; revision: string; catalog: GameCatalog }
 
 export class ContentConflict extends Error {}
 export class ContentStore {
   constructor(private root: string, private baseline: () => Promise<GameCatalog>, private migrate?: (catalog: GameCatalog) => Promise<GameCatalog>) {}
   private publishedPath() { return path.join(this.root, 'content', 'game-content.json'); }
   private draftPath() { return path.join(this.root, 'data', 'admin-content-draft.json'); }
+  private historyPath() { return path.join(this.root, 'data', 'admin-content-history.json'); }
   private async read<T>(filename: string): Promise<T | null> {
     try { return JSON.parse(await readFile(filename, 'utf8')); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; }
@@ -29,6 +32,11 @@ export class ContentStore {
       throw error;
     }
     try { return await operation(); } finally { await unlink(filename); }
+  }
+  private async recordHistory(draft: ContentDraft, label: string) {
+    const history = await this.read<ContentHistoryEntry[]>(this.historyPath()) ?? [];
+    history.unshift({ id: randomUUID(), at: new Date().toISOString(), label, revision: draft.revision, catalog: structuredClone(draft.catalog) });
+    await this.write(this.historyPath(), history.slice(0, 30));
   }
   async published(): Promise<ContentEnvelope> {
     const stored = await this.read<ContentEnvelope>(this.publishedPath());
@@ -52,7 +60,20 @@ export class ContentStore {
     return this.locked(async () => {
       const draft = await this.draft();
       if (draft.revision !== revision) throw new ContentConflict('Черновик изменён в другой вкладке. Обновите список.');
+      const before = structuredClone(draft);
       edit(draft.catalog); validateCatalog(draft.catalog);
+      await this.recordHistory(before, `До изменения: ${label}`);
+      draft.revision = randomUUID(); draft.changes.push(label);
+      await this.write(this.draftPath(), draft);
+      return draft;
+    });
+  }
+  async changeCurrent(label: string, edit: (catalog: GameCatalog) => void): Promise<ContentDraft> {
+    return this.locked(async () => {
+      const draft = await this.draft();
+      const before = structuredClone(draft);
+      edit(draft.catalog); validateCatalog(draft.catalog);
+      await this.recordHistory(before, `До изменения: ${label}`);
       draft.revision = randomUUID(); draft.changes.push(label);
       await this.write(this.draftPath(), draft);
       return draft;
@@ -61,12 +82,42 @@ export class ContentStore {
   async applyChecks(edit: (catalog: GameCatalog) => number): Promise<ContentDraft> {
     return this.locked(async () => {
       const draft = await this.draft();
+      const before = structuredClone(draft);
       const count = edit(draft.catalog);
       if (count > 0) {
+        await this.recordHistory(before, 'До проверки вопросов');
         draft.revision = randomUUID(); draft.changes.push(`Проверка вопросов: ${count}`);
         await this.write(this.draftPath(), draft);
       }
       return draft;
+    });
+  }
+  async history() {
+    const history = await this.read<ContentHistoryEntry[]>(this.historyPath()) ?? [];
+    return history.map(({ id, at, label, revision }) => ({ id, at, label, revision }));
+  }
+  async questionHistory(quizId: string, questionId: string) {
+    const history = await this.read<ContentHistoryEntry[]>(this.historyPath()) ?? [];
+    const question = (catalog: GameCatalog): ContentQuestion | undefined => quizId === 'general'
+      ? catalog.general.find(item => item.id === questionId)
+      : catalog.quizzes.find(quiz => quiz.id === quizId)?.questions.find(item => item.id === questionId);
+    return history.flatMap(entry => {
+      const item = question(entry.catalog);
+      return item ? [{ id: entry.id, at: entry.at, label: entry.label, question: item }] : [];
+    });
+  }
+  async restoreQuestion(revision: string, historyId: string, quizId: string, questionId: string) {
+    const history = await this.read<ContentHistoryEntry[]>(this.historyPath()) ?? [];
+    const entry = history.find(item => item.id === historyId);
+    if (!entry) throw new Error('Версия истории не найдена');
+    const oldQuestion = quizId === 'general' ? entry.catalog.general.find(item => item.id === questionId)
+      : entry.catalog.quizzes.find(quiz => quiz.id === quizId)?.questions.find(item => item.id === questionId);
+    if (!oldQuestion) throw new Error('В этой версии вопрос не найден');
+    return this.change(revision, 'Восстановлена версия вопроса', catalog => {
+      const bank = quizId === 'general' ? catalog.general : catalog.quizzes.find(quiz => quiz.id === quizId)?.questions;
+      if (!bank) throw new Error('Квиз не найден');
+      const index = bank.findIndex(item => item.id === questionId);
+      if (index < 0) bank.push(structuredClone(oldQuestion)); else bank[index] = structuredClone(oldQuestion);
     });
   }
   async sync(revision: string): Promise<ContentDraft> {

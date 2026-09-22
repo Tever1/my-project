@@ -16,8 +16,17 @@ export interface ContentCheck {
   policy?: string;
   correction?: QuestionCorrection;
 }
-export interface ContentQuestion extends QuizQuestion { check?: ContentCheck; approval?: { signature: string; approvedAt: string } }
-export interface ContentQuiz extends SpecialQuizInfo { iconUrl: string; questions: ContentQuestion[] }
+export interface ContentTranslation { signature: string; translatedAt: string; model: string }
+export interface ContentQuestion extends QuizQuestion {
+  check?: ContentCheck;
+  approval?: { signature: string; approvedAt: string };
+  translation?: ContentTranslation;
+}
+export interface ContentQuiz extends SpecialQuizInfo {
+  iconUrl: string;
+  questions: ContentQuestion[];
+  verificationPolicy?: string;
+}
 export interface ContentCharacter { id: string; ru: string; en: string; checked?: boolean }
 export type WordGroup = 'alias' | 'crocodile' | 'spy';
 export interface ContentWord { id: string; ru: string; en?: string; checked?: boolean }
@@ -80,6 +89,7 @@ export function validateCatalog(catalog: GameCatalog) {
       || !/^[a-z0-9-]{1,100}$/.test(quiz.theme) || !quiz.titleRu?.trim() || !quiz.titleEn?.trim()
       || quiz.titleRu.length > 200 || quiz.titleEn.length > 200
       || !Number.isInteger(quiz.number) || quiz.number < 1
+      || (quiz.verificationPolicy !== undefined && (typeof quiz.verificationPolicy !== 'string' || quiz.verificationPolicy.length > 4000))
       || !/^\/backgrounds\/[a-zA-Z0-9_/-]+\.(png|webp|jpg|jpeg)$/.test(quiz.backgroundUrl)
       || !quiz.iconUrl.startsWith('/icons/')) throw new Error('Некорректные данные тематического квиза');
     quizIds.add(quiz.id);
@@ -118,8 +128,8 @@ export function validatePlayableCatalog(catalog: GameCatalog) {
 }
 export function withoutChecks(catalog: GameCatalog): GameCatalog {
   const clean = (q: ContentQuestion): ContentQuestion => {
-    const { check: ignored, approval: ignoredApproval, ...question } = q;
-    void ignored; void ignoredApproval;
+    const { check: ignored, approval: ignoredApproval, translation: ignoredTranslation, ...question } = q;
+    void ignored; void ignoredApproval; void ignoredTranslation;
     return question;
   };
   const { words: ignoredWords, ...publicCatalog } = catalog;

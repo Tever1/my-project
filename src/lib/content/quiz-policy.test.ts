@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { quizContentPolicy, HARRY_POTTER_FILMS_POLICY } from './quiz-policy';
+import { quizContentPolicy, quizPolicyId, HARRY_POTTER_FILMS_POLICY } from './quiz-policy';
 import { pendingQuestionChecks } from './fact-check';
 import { checkSignature, type ContentQuestion } from './catalog';
 
@@ -14,6 +14,18 @@ test('Harry Potter policy is movie-only and resolves book conflicts in favor of 
 test('policy is keyed by canonical quiz theme, not a user-facing title', () => {
   assert.equal(quizContentPolicy({ theme: 'marvel', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter' }), '');
   assert.match(quizContentPolicy({ theme: 'harry-potter', titleRu: 'Другое', titleEn: 'Other' }), /только восемь/);
+});
+test('a thematic quiz can define its own verification profile', () => {
+  const policy = quizContentPolicy({ theme: 'marvel', titleRu: 'Marvel', titleEn: 'Marvel', verificationPolicy: 'Только фильмы MCU до Endgame.' });
+  assert.match(policy, /Только фильмы MCU до Endgame/);
+  assert.doesNotMatch(policy, /восемь основных фильмов Harry Potter/);
+});
+test('a custom Harry Potter profile augments but cannot replace the film-only canon', () => {
+  const quiz = { theme: 'harry-potter', titleRu: 'Гарри Поттер', titleEn: 'Harry Potter', verificationPolicy: 'Не использовать вопросы про даты премьер.' };
+  const policy = quizContentPolicy(quiz);
+  assert.match(policy, /восемь основных фильмов/);
+  assert.match(policy, /Не использовать вопросы про даты премьер/);
+  assert.match(quizPolicyId(quiz) ?? '', /^harry-potter-films-v1\+custom:/);
 });
 test('old positive verdict is rechecked under films policy; current films verdict is skipped', () => {
   const q: ContentQuestion = { id: 'q', topic: 'random', difficulty: 'medium', timeLimit: 20, questionRu: 'Вопрос', questionEn: 'Question', options: ['A', 'B', 'C', 'D'].map(ru => ({ ru, en: ru })), correctIndex: 0 };
