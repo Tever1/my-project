@@ -37,14 +37,35 @@ export function useContentJobs(onCompleted: () => void) {
 
 const labels: Record<AdminJob['status'], string> = { queued: 'В очереди', running: 'Выполняется', completed: 'Готово', failed: 'Ошибка', cancelled: 'Отменено' };
 export function ContentJobsPanel({ jobs, error, onCommand }: { jobs: AdminJob[]; error: string; onCommand: (action: 'retry' | 'cancel', id: string) => Promise<void> }) {
-  const visible = jobs.slice(0, 8); if (!visible.length && !error) return null;
-  return <section className="mb-5 rounded-2xl border border-cyan-300/20 bg-cyan-300/5 p-4" aria-label="Очередь заданий Codex">
-    <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Очередь контента</h3><p className="mt-1 text-xs text-slate-400">Работа продолжается после переключения вкладки или обновления страницы.</p></div><span className="text-xs text-cyan-200">{jobs.filter(job => ['queued', 'running'].includes(job.status)).length} активных</span></div>
-    <div className="grid gap-2 lg:grid-cols-2">{visible.map(job => <article key={job.id} className="rounded-xl border border-white/10 bg-black/15 p-3">
-      <div className="flex items-start justify-between gap-2"><div><p className="text-xs font-semibold">{job.label}</p><p className="mt-1 text-[11px] text-slate-400">{labels[job.status]} · попытка {job.attempts}</p></div><span className={`rounded-full px-2 py-1 text-[10px] ${job.status === 'completed' ? 'bg-emerald-300/10 text-emerald-200' : job.status === 'failed' ? 'bg-red-300/10 text-red-200' : 'bg-cyan-300/10 text-cyan-100'}`}>{job.progress.done}/{job.progress.total}</span></div>
-      <progress className="mt-3 h-2 w-full accent-cyan-300" max={Math.max(1, job.progress.total)} value={job.progress.done} />
-      <p className="mt-2 text-[11px] text-slate-400">{job.error ?? job.progress.message}</p>
-      <div className="mt-2 flex gap-2">{['failed', 'cancelled'].includes(job.status) && <button className="rounded-lg border border-white/15 px-2 py-1 text-[11px] hover:bg-white/10" onClick={() => void onCommand('retry', job.id)}>Повторить</button>}{['queued', 'running'].includes(job.status) && <button className="rounded-lg border border-white/15 px-2 py-1 text-[11px] text-red-200 hover:bg-white/10" onClick={() => void onCommand('cancel', job.id)}>Отменить после блока</button>}</div>
-    </article>)}</div>{error && <p className="mt-3 text-xs text-red-200">{error}</p>}
-  </section>;
+  const active = jobs.filter(job => job.status === 'queued' || job.status === 'running');
+  const failed = jobs.filter(job => job.status === 'failed');
+  const cancelled = jobs.filter(job => job.status === 'cancelled');
+  if (!active.length && !failed.length && !cancelled.length && !error) return null;
+  return <>
+    {!!active.length && <section className="mb-5 rounded-2xl border border-cyan-300/20 bg-cyan-300/5 p-4" aria-label="Очередь заданий Codex">
+      <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Очередь контента</h3><p className="mt-1 text-xs text-slate-400">Работа продолжается после переключения вкладки или обновления страницы.</p></div><span className="text-xs text-cyan-200">{active.length} активных</span></div>
+      <div className="grid gap-2 lg:grid-cols-2">{active.slice(0, 8).map(job => <article key={job.id} className="rounded-xl border border-white/10 bg-black/15 p-3">
+        <div className="flex items-start justify-between gap-2"><div><p className="text-xs font-semibold">{job.label}</p><p className="mt-1 text-[11px] text-slate-400">{labels[job.status]} · попытка {job.attempts}</p></div><span className="rounded-full bg-cyan-300/10 px-2 py-1 text-[10px] text-cyan-100">{job.progress.done}/{job.progress.total}</span></div>
+        <progress className="mt-3 h-2 w-full accent-cyan-300" max={Math.max(1, job.progress.total)} value={job.progress.done} />
+        <p className="mt-2 text-[11px] text-slate-400">{job.progress.message}</p>
+        <button className="mt-2 rounded-lg border border-white/15 px-2 py-1 text-[11px] text-red-200 hover:bg-white/10" onClick={() => void onCommand('cancel', job.id)}>Отменить после блока</button>
+      </article>)}</div>
+    </section>}
+    {!!failed.length && <section className="mb-5 rounded-2xl border border-red-300/20 bg-red-300/5 p-4" aria-label="Задания с ошибкой">
+      <h3 className="text-sm font-semibold text-red-100">Задания с ошибкой</h3>
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">{failed.map(job => <article key={job.id} className="rounded-xl border border-white/10 p-3">
+        <p className="text-xs font-semibold">{job.label} · {job.progress.done}/{job.progress.total}</p>
+        <p className="mt-2 text-[11px] text-red-200">{job.error ?? job.progress.message}</p>
+        <button className="mt-2 rounded-lg border border-white/15 px-2 py-1 text-[11px] hover:bg-white/10" onClick={() => void onCommand('retry', job.id)}>Повторить</button>
+      </article>)}</div>
+    </section>}
+    {!!cancelled.length && <details className="mb-5 rounded-2xl border border-white/10 p-4 text-xs text-slate-300">
+      <summary className="cursor-pointer">Отменённые задания · {cancelled.length}</summary>
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">{cancelled.map(job => <div key={job.id} className="rounded-xl border border-white/10 p-3">
+        <p>{job.label} · {job.progress.done}/{job.progress.total}</p>
+        <button className="mt-2 rounded-lg border border-white/15 px-2 py-1 hover:bg-white/10" onClick={() => void onCommand('retry', job.id)}>Повторить</button>
+      </div>)}</div>
+    </details>}
+    {error && <p className="mb-5 text-xs text-red-200">{error}</p>}
+  </>;
 }

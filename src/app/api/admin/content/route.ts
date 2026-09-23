@@ -36,7 +36,7 @@ export const POST = withCodexAdmin(async request => {
       const bank = input.quizId === 'general' ? catalog.general : catalog.quizzes.find(quiz => quiz.id === input.quizId)?.questions;
       if (input.action === 'fix-question' || input.action === 'approve-question') {
         const policy = quizPolicyId(catalog.quizzes.find(quiz => quiz.id === input.quizId));
-        if (policy && bank?.find(q => q.id === input.id)?.check?.policy !== policy) throw new Error('Сначала перепроверьте вопрос по фильмам Гарри Поттера');
+        if (policy && bank?.find(q => q.id === input.id)?.check?.policy !== policy) throw new Error('Сначала перепроверьте вопрос по действующему канону квиза');
       }
       if (input.action === 'save-question' && bank) {
         const q = input.question as ContentQuestion;

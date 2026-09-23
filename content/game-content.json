@@ -1,5 +1,5 @@
 {
-  "revision": "018dbb71-05fe-40e0-984e-0bbcd9325dc9",
+  "revision": "3784f34e-38be-4839-bad9-3be931907f59",
   "catalog": {
     "general": [
       {
@@ -12576,7 +12576,7 @@
             "id": "mv1-1",
             "topic": "pop-culture",
             "difficulty": "medium",
-            "questionRu": "Как настоящее имя Капитана Америка?",
+            "questionRu": "Как настоящее имя первого Капитана Америки в MCU?",
             "questionEn": "What is Captain America's real name?",
             "options": [
               {
@@ -12597,7 +12597,19 @@
               }
             ],
             "correctIndex": 1,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "verified",
+              "signature": "[\"Как настоящее имя первого Капитана Америки в MCU?\",[\"Джеймс Роудс\",\"Стив Роджерс\",\"Сэм Уилсон\",\"Баки Барнс\"],1]",
+              "checkedAt": "2026-09-23T05:06:55.626Z",
+              "summary": "Применено предложенное Codex исправление. Первым Капитаном Америкой в MCU является Стив Роджерс.",
+              "sources": [
+                "https://movies.disney.com/avengers-endgame/"
+              ],
+              "reportId": "5ff9c4ea-6d81-4f23-a3e0-73f5daeb7635",
+              "policy": "marvel-mcu-v1",
+              "scope": "ru"
+            }
           },
           {
             "id": "mv1-2",
@@ -12624,7 +12636,20 @@
               }
             ],
             "correctIndex": 2,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "verified",
+              "scope": "ru",
+              "signature": "[\"Какой камень Бесконечности был вставлен в лоб Вижна?\",[\"Камень Души\",\"Камень Реальности\",\"Камень Разума\",\"Камень Силы\"],2]",
+              "checkedAt": "2026-09-23T05:02:18.944Z",
+              "sources": [
+                "https://www.marvel.com/characters/war-machine-james-rhodes/on-screen/"
+              ],
+              "summary": "В MCU в лбу Вижна находится Камень Разума; указанный правильный вариант однозначен.",
+              "reportId": "5ff9c4ea-6d81-4f23-a3e0-73f5daeb7635",
+              "correction": null,
+              "policy": "marvel-mcu-v1"
+            }
           },
           {
             "id": "mv1-3",
@@ -12651,7 +12676,20 @@
               }
             ],
             "correctIndex": 1,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "unverified",
+              "scope": "ru",
+              "signature": "[\"На какой планете находится Камень Души в «Войне бесконечности»?\",[\"Нор\",\"Вормир\",\"Ксандар\",\"Асгард\"],1]",
+              "checkedAt": "2026-09-23T05:03:01.381Z",
+              "sources": [
+                "https://movies.disney.com/avengers-infinity-war"
+              ],
+              "summary": "Вариант «Вормир» соответствует событию MCU, но в открытых официальных источниках не найдено прямого подтверждения местонахождения Камня Души.",
+              "reportId": "e225e01e-7088-4eca-86d2-647fc64cb96e",
+              "correction": null,
+              "policy": "marvel-mcu-v1"
+            }
           },
           {
             "id": "mv1-4",
@@ -12678,7 +12716,20 @@
               }
             ],
             "correctIndex": 2,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "verified",
+              "scope": "ru",
+              "signature": "[\"Как называется молот Тора?\",[\"Громобой\",\"Гунгнир\",\"Мьёльнир\",\"Ярнбьёрн\"],2]",
+              "checkedAt": "2026-09-23T05:03:01.381Z",
+              "sources": [
+                "https://www.marvel.com/thorpremiere"
+              ],
+              "summary": "В MCU молот Тора называется «Мьёльнир»; это вариант с индексом 2.",
+              "reportId": "e225e01e-7088-4eca-86d2-647fc64cb96e",
+              "correction": null,
+              "policy": "marvel-mcu-v1"
+            }
           },
           {
             "id": "mv1-5",
@@ -12705,7 +12756,20 @@
               }
             ],
             "correctIndex": 1,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "verified",
+              "scope": "ru",
+              "signature": "[\"Кто пожертвовал собой ради Камня Души в «Мстители: Финал»?\",[\"Железный Человек\",\"Чёрная Вдова\",\"Капитан Америка\",\"Соколиный Глаз\"],1]",
+              "checkedAt": "2026-09-23T05:03:43.854Z",
+              "sources": [
+                "https://disneystudiosawards.s3.amazonaws.com/avengers-endgame/Avengers_Endgame.pdf"
+              ],
+              "summary": "В «Мстители: Финал» Наташа Романофф (Чёрная Вдова) жертвует собой, чтобы Клинт Бартон получил Камень Души.",
+              "reportId": "71da33fa-5057-4b90-b7c0-4f16a803ee36",
+              "correction": null,
+              "policy": "marvel-mcu-v1"
+            }
           },
           {
             "id": "mv1-6",
@@ -12732,7 +12796,20 @@
               }
             ],
             "correctIndex": 2,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "verified",
+              "scope": "ru",
+              "signature": "[\"Как называется родина Чёрной Пантеры?\",[\"Мадрипур\",\"Соковия\",\"Ваканда\",\"Генош\"],2]",
+              "checkedAt": "2026-09-23T05:03:43.854Z",
+              "sources": [
+                "https://www.marvel.com/watch/digital-series/marvel-101/marvel-studios-black-panther-marvel-101"
+              ],
+              "summary": "В MCU Чёрная Пантера — правитель и защитник Ваканды; верный ответ — «Ваканда».",
+              "reportId": "71da33fa-5057-4b90-b7c0-4f16a803ee36",
+              "correction": null,
+              "policy": "marvel-mcu-v1"
+            }
           },
           {
             "id": "mv1-7",
@@ -12759,7 +12836,20 @@
               }
             ],
             "correctIndex": 1,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "verified",
+              "scope": "ru",
+              "signature": "[\"Как настоящее имя Человека-паука в MCU?\",[\"Майлз Моралес\",\"Питер Паркер\",\"Бен Рейли\",\"Мигель О'Хара\"],1]",
+              "checkedAt": "2026-09-23T05:04:29.203Z",
+              "sources": [
+                "https://d23.com/suspenseful-new-spider-man-no-way-home-trailer-plus-more-in-news-briefs/"
+              ],
+              "summary": "В MCU Человек-паук — Питер Паркер; указан правильный вариант с индексом 1.",
+              "reportId": "4a317821-ae18-4467-ae98-9c8cc6c39226",
+              "correction": null,
+              "policy": "marvel-mcu-v1"
+            }
           },
           {
             "id": "mv1-8",
@@ -12786,7 +12876,20 @@
               }
             ],
             "correctIndex": 0,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "verified",
+              "scope": "ru",
+              "signature": "[\"Кто создал Альтрона?\",[\"Тони Старк и Брюс Бэннер\",\"Только Тони Старк\",\"Ник Фьюри\",\"ГИДРА\"],0]",
+              "checkedAt": "2026-09-23T05:04:29.203Z",
+              "sources": [
+                "https://d23.com/captain-america-civil-war-what-you-need-to-know-before-you-see-it/"
+              ],
+              "summary": "В MCU программу, ставшую Альтроном, создали Тони Старк и Брюс Бэннер; указан правильный вариант с индексом 0.",
+              "reportId": "4a317821-ae18-4467-ae98-9c8cc6c39226",
+              "correction": null,
+              "policy": "marvel-mcu-v1"
+            }
           },
           {
             "id": "mv1-9",
@@ -12813,7 +12916,48 @@
               }
             ],
             "correctIndex": 2,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "issue",
+              "scope": "ru",
+              "signature": "[\"Какую организацию возглавляет Ник Фьюри?\",[\"ГИДРА\",\"АИМ\",\"Щ.И.Т.\",\"СВОРД\"],2]",
+              "checkedAt": "2026-09-23T05:05:20.359Z",
+              "sources": [
+                "https://d23.com/a-to-z/avengers-marvels-the-film/",
+                "https://d23.com/meet-the-characters-of-marvel-studios-the-marvels/"
+              ],
+              "summary": "Формулировка без периода неоднозначна: в MCU Фьюри возглавлял Щ.И.Т., но позднее стал директором С.А.Б.Е.Р. В фильме «Мстители» он прямо назван директором Щ.И.Т.",
+              "reportId": "5810a321-bf86-4e36-8078-ff70b298b56f",
+              "correction": {
+                "questionRu": "Какую организацию возглавлял Ник Фьюри в фильме «Мстители» (2012) MCU?",
+                "questionEn": "Which organization does Nick Fury lead?",
+                "options": [
+                  {
+                    "ru": "ГИДРА",
+                    "en": "HYDRA"
+                  },
+                  {
+                    "ru": "АИМ",
+                    "en": "AIM"
+                  },
+                  {
+                    "ru": "Щ.И.Т.",
+                    "en": "S.H.I.E.L.D."
+                  },
+                  {
+                    "ru": "СВОРД",
+                    "en": "SWORD"
+                  }
+                ],
+                "correctIndex": 2,
+                "status": "verified",
+                "summary": "Официальное описание «Мстителей» называет Ника Фьюри директором Щ.И.Т.",
+                "sources": [
+                  "https://d23.com/a-to-z/avengers-marvels-the-film/"
+                ]
+              },
+              "policy": "marvel-mcu-v1"
+            }
           },
           {
             "id": "mv1-10",
@@ -12840,7 +12984,20 @@
               }
             ],
             "correctIndex": 2,
-            "timeLimit": 20
+            "timeLimit": 20,
+            "check": {
+              "status": "verified",
+              "scope": "ru",
+              "signature": "[\"Как зовут ИИ-помощника Тони Старка в ранних фильмах MCU?\",[\"ПЯТНИЦА\",\"ВИЖН\",\"ДЖАРВИС\",\"ЭДИТ\"],2]",
+              "checkedAt": "2026-09-23T05:05:20.359Z",
+              "sources": [
+                "https://d23.com/mcu-robot-roundup/"
+              ],
+              "summary": "Правильный ответ — «ДЖАРВИС»: официальный материал Disney описывает J.A.R.V.I.S. как изобретение Тони Старка и его помощника до замены на ПЯТНИЦУ после событий «Мстителей: Эры Альтрона».",
+              "reportId": "5810a321-bf86-4e36-8078-ff70b298b56f",
+              "correction": null,
+              "policy": "marvel-mcu-v1"
+            }
           }
         ]
       }

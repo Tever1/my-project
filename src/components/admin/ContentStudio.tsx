@@ -34,6 +34,8 @@ export function ContentStudio() {
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState('');
   const [count, setCount] = useState(5);
+  const [checkDialogOpen, setCheckDialogOpen] = useState(false);
+  const [checkAmount, setCheckAmount] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualityIds, setQualityIds] = useState<string[] | null>(null);
   const [qualityReport, setQualityReport] = useState<QuizQualityReport | null>(null);
@@ -42,9 +44,12 @@ export function ContentStudio() {
   const [published, setPublished] = useState<GameCatalog | null>(null);
   const questionDialog = useRef<HTMLDialogElement>(null);
   const quizDialog = useRef<HTMLDialogElement>(null);
+  const checkDialog = useRef<HTMLDialogElement>(null);
+  const checkSubmitting = useRef(false);
   const file = useRef<HTMLInputElement>(null);
   useEffect(() => { if (editing && questionDialog.current && !questionDialog.current.open) questionDialog.current.showModal(); }, [editing]);
   useEffect(() => { if (quizEditing && quizDialog.current && !quizDialog.current.open) quizDialog.current.showModal(); }, [quizEditing]);
+  useEffect(() => { if (checkDialogOpen && checkDialog.current && !checkDialog.current.open) checkDialog.current.showModal(); }, [checkDialogOpen]);
   useEffect(() => { adminFetch('/api/admin/backgrounds').then(r => r.json()).then(data => setBackgrounds(data.files ?? [])); }, []);
   useEffect(() => { fetch('/api/content', { cache: 'no-store' }).then(response => response.json()).then(data => setPublished(data.catalog ?? null)).catch(() => {}); }, []);
   const jobCompleted = useCallback(() => { void reload(); }, [reload]);
@@ -55,7 +60,7 @@ export function ContentStudio() {
   const isVerified = (q: ContentQuestion) => baseIsVerified(q) && (!requiredPolicy || q.check?.policy === requiredPolicy);
   const questions = selected === 'general' ? draft.catalog.general.filter(q => topic === 'all' || q.topic === topic) : quiz?.questions ?? [];
   const quizKey = selected === 'general' ? `general:${topic}:all` : `special:${selected}`;
-  const activeCheckIds = new Set(jobs.filter(job => job.type === 'quiz-check' && ['queued', 'running'].includes(job.status))
+  const activeCheckIds = new Set(jobs.filter(job => job.type === 'quiz-check' && job.input.quizId === selected && ['queued', 'running'].includes(job.status))
     .flatMap(job => job.input.questionIds ?? []));
   const qualityKey = `${quizKey}@${draft.revision}`;
   const quality = isQuizQualityReportFresh(qualityReport, qualityKey) ? qualityReport.issues : null;
@@ -69,7 +74,10 @@ export function ContentStudio() {
   const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 30) - 1));
   const visible = filtered.slice(currentPage * 30, currentPage * 30 + 30);
   const isCurrentCodexVerified = (q: ContentQuestion) => isCodexVerified(q) && (!requiredPolicy || q.check?.policy === requiredPolicy);
-  const pendingCheck = filtered.filter(q => !isCurrentCodexVerified(q));
+  const pendingCheck = filtered.filter(q => !isCurrentCodexVerified(q) && !activeCheckIds.has(q.id));
+  const requestedCheckCount = Number(checkAmount);
+  const validCheckAmount = /^\d+$/.test(checkAmount) && Number.isSafeInteger(requestedCheckCount)
+    && requestedCheckCount >= 1 && requestedCheckCount <= pendingCheck.length;
   function newQuestion() {
     setEditing({ id: `q-${crypto.randomUUID()}`, questionRu: '', questionEn: '', options: Array.from({ length: 4 }, () => ({ ru: '', en: '' })),
       correctIndex: 0, topic: selected === 'general' ? 'science' : 'random', difficulty: 'medium', timeLimit: 20 });
@@ -85,16 +93,21 @@ export function ContentStudio() {
     const found = questions.filter(q => (report.issues.get(q.id)?.length ?? 0) > 0).length;
     setMessage(found ? `Локальная проверка: замечания у ${found} из ${questions.length}.` : `Локальная проверка: замечаний нет (${questions.length} вопросов).`);
   }
-  async function check(items: ContentQuestion[]) {
-    items = items.filter(q => !isCurrentCodexVerified(q));
-    if (!items.length) { setMessage('Все выбранные вопросы уже подтверждены Codex с источниками. Повторная проверка не нужна.'); return; }
+  async function check(items: ContentQuestion[], fromDialog = false) {
+    if (checkSubmitting.current) return;
+    items = items.filter(q => !isCurrentCodexVerified(q) && !activeCheckIds.has(q.id));
+    if (!items.length) { setMessage('Выбранные вопросы уже проверены или находятся в очереди.'); return; }
     const requests = Math.ceil(items.length / CONTENT_CHECK_BATCH_SIZE);
-    if (!window.confirm(`Добавить в очередь проверку ${items.length} вопросов?\n\nМодель: gpt-5.6-terra\nЗапросов: ${requests}\nОриентир: 2–6 минут на блок, без жёсткого таймаута.\nПроверяется только русский оригинал.`)) return;
+    if (!fromDialog && !window.confirm(`Добавить в очередь проверку ${items.length} вопросов?\n\nМодель: gpt-5.6-terra\nЗапросов: ${requests}\nОриентир: 2–6 минут на блок, без жёсткого таймаута.\nПроверяется только русский оригинал.`)) return;
+    checkSubmitting.current = true;
+    setWorking(true);
     try {
       await enqueue('quiz-check', { quizId: selected, questionIds: items.map(item => item.id), reportKey: quizKey,
         reportLabel: quiz?.titleRu ?? (topic === 'all' ? 'Общий квиз' : `Общий квиз · ${topic}`) });
+      if (fromDialog) { checkDialog.current?.close(); setCheckDialogOpen(false); }
       setMessage('Проверка добавлена в постоянную очередь. Можно переключить вкладку или обновить страницу.');
     } catch (error) { setMessage((error as Error).message); }
+    finally { checkSubmitting.current = false; setWorking(false); }
   }
   async function replaceQuestion(question: ContentQuestion) {
     if (!window.confirm('Заменить этот вопрос новым в той же тематике? Это один запрос к Codex и расход лимитов. Новый вопрос нужно будет проверить; замена сохранится в игре только после дискеты.')) return;
@@ -158,7 +171,7 @@ export function ContentStudio() {
       {quality && qualityIds && <button className={button} onClick={() => setQualityIds(null)}>Сбросить локальные замечания</button>}
     </div>
     <div className="mb-5 flex flex-wrap items-center gap-2"><button disabled={busy || working} className={button} onClick={newQuestion}>Добавить вопрос</button>
-      <button disabled={busy || working || !pendingCheck.length} className={button} onClick={() => void check(pendingCheck)}>Проверить список ({pendingCheck.length})</button>
+      <button disabled={busy || working || !pendingCheck.length} className={button} onClick={() => { setCheckAmount(''); setCheckDialogOpen(true); }}>Проверить список ({pendingCheck.length})</button>
       <QuizCheckReports quizKey={quizKey} />
       {quiz && <><label className="text-xs text-slate-400">Количество<input aria-label="Количество генерируемых вопросов" className={`${field} !mt-0 ml-2 !w-16`} type="number" min={1} max={10} value={count} onChange={e => setCount(Number(e.target.value))} /></label><button disabled={busy || working} className={button} onClick={() => void generate()}>Создать вопросы через Codex</button></>}
     </div>
@@ -187,9 +200,9 @@ export function ContentStudio() {
         <p className="mt-3 text-sm font-semibold">{q.check.correction.questionRu}</p>{q.check.scope !== 'ru' && <p className="mt-1 text-xs text-slate-400">{q.check.correction.questionEn}</p>}
         <ol className="mt-3 space-y-1 text-xs">{q.check.correction.options.map((o, i) => <li key={i} className={`rounded-lg px-2 py-2 ${i === q.check!.correction!.correctIndex ? 'bg-emerald-300/10 text-emerald-200' : 'text-slate-400'}`}>{String.fromCharCode(65 + i)} · {o.ru}{q.check!.scope !== 'ru' && <span className="block opacity-70">{o.en}</span>}</li>)}</ol>
         {q.check.correction.sources.map(source => <a key={source} href={source} target="_blank" rel="noopener noreferrer" className="mt-2 block break-all text-xs text-blue-200 underline">{source}</a>)}
-        <div className="mt-3 flex flex-wrap items-center gap-2"><button className={`${button} bg-indigo-200/10 text-indigo-100`} disabled={busy || working || q.check.correction.status !== 'verified'} onClick={() => void act('fix-question', { quizId: selected, id: q.id, signature: q.check!.signature })}>Исправить</button><span className="text-[11px] text-slate-400">{q.check.correction.status === 'verified' ? 'После применения: «Проверен Codex». Запись в игру — через дискету.' : 'Исправление пока не подтверждено источниками. Повторите проверку или отредактируйте вручную.'}</span></div>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><button className={`${button} bg-indigo-200/10 text-indigo-100`} disabled={busy || working || q.check.correction.status !== 'verified' || (!!requiredPolicy && q.check.policy !== requiredPolicy)} onClick={() => void act('fix-question', { quizId: selected, id: q.id, signature: q.check!.signature })}>Исправить</button><span className="text-[11px] text-slate-400">{requiredPolicy && q.check.policy !== requiredPolicy ? 'Предложение относится к старому канону. Сначала перепроверьте вопрос.' : q.check.correction.status === 'verified' ? 'После применения: «Проверен Codex». Запись в игру — через дискету.' : 'Исправление пока не подтверждено источниками. Повторите проверку или отредактируйте вручную.'}</span></div>
       </section>}
-      <div className="mt-4 flex flex-wrap gap-2"><button disabled={busy || working} className={button} onClick={() => setEditing(structuredClone(q))}>Редактировать</button><button className={button} onClick={() => setPreview(q)}>Preview</button><button className={button} onClick={() => setHistoryQuestion(q)}>История</button><button disabled={busy || working || isCurrentCodexVerified(q)} className={button} onClick={() => void check([q])}>{isCurrentCodexVerified(q) ? 'Уже проверен' : requiredPolicy && isCodexVerified(q) ? 'Перепроверить по профилю' : 'Проверить'}</button>
+      <div className="mt-4 flex flex-wrap gap-2"><button disabled={busy || working} className={button} onClick={() => setEditing(structuredClone(q))}>Редактировать</button><button className={button} onClick={() => setPreview(q)}>Preview</button><button className={button} onClick={() => setHistoryQuestion(q)}>История</button><button disabled={busy || working || isCurrentCodexVerified(q) || activeCheckIds.has(q.id)} className={button} onClick={() => void check([q])}>{activeCheckIds.has(q.id) ? 'Уже в очереди' : isCurrentCodexVerified(q) ? 'Уже проверен' : requiredPolicy && isCodexVerified(q) ? 'Перепроверить по профилю' : 'Проверить'}</button>
         <button disabled={!isCurrentCodexVerified(q)} className={button} onClick={() => void translate([q])}>Перевести</button>
         <QuizCheckReports quizKey={quizKey} questionId={q.id} />
         {q.check && q.check.status !== 'verified' && isCurrentCheck(q) && <button disabled={busy || working} className={`${button} text-indigo-200`} onClick={() => void replaceQuestion(q)}>Заменить вопрос</button>}
@@ -199,6 +212,21 @@ export function ContentStudio() {
     {filtered.length === 0 && <p className="py-8 text-center text-sm text-slate-400">Вопросов пока нет. Добавьте вручную или создайте через Codex.</p>}
     {preview && <QuestionPreview question={preview} onClose={() => setPreview(null)} />}
     {historyQuestion && <QuestionHistory quizId={selected} question={historyQuestion} revision={draft.revision} onRestored={reload} onClose={() => setHistoryQuestion(null)} />}
+    {checkDialogOpen && <dialog ref={checkDialog} onClose={() => setCheckDialogOpen(false)} className="m-auto w-[min(460px,calc(100%-2rem))] rounded-2xl border border-white/15 bg-slate-950 p-6 text-white backdrop:bg-black/80">
+      <form onSubmit={e => { e.preventDefault(); if (validCheckAmount) void check(pendingCheck.slice(0, requestedCheckCount), true); }} className="space-y-4">
+        <h2 className="text-xl font-semibold">Проверить вопросы</h2>
+        <p className="text-sm text-slate-300">Осталось в текущем списке: {pendingCheck.length}. Проверка начнётся с первого непроверенного вопроса и пойдёт по порядку.</p>
+        <label className="block text-sm text-slate-200">Сколько вопросов проверить сейчас?
+          <input autoFocus required type="number" inputMode="numeric" min={1} max={pendingCheck.length} step={1} className={field} value={checkAmount} onChange={e => setCheckAmount(e.target.value)} placeholder={`От 1 до ${pendingCheck.length}`} />
+        </label>
+        <p className="text-xs text-slate-400">{validCheckAmount ? `Для ${requestedCheckCount} вопросов потребуется ${Math.ceil(requestedCheckCount / CONTENT_CHECK_BATCH_SIZE)} запросов.` : 'Введите целое число в пределах оставшихся вопросов.'} Для всех оставшихся потребуется {Math.ceil(pendingCheck.length / CONTENT_CHECK_BATCH_SIZE)} запросов. Модель: gpt-5.6-terra. Проверяется русский оригинал; один блок может занять 2–6 минут.</p>
+        <div className="flex flex-wrap gap-2">
+          <button disabled={working || !validCheckAmount} className={button} type="submit">Проверить {validCheckAmount ? requestedCheckCount : ''}</button>
+          <button disabled={working || !pendingCheck.length} className={button} type="button" onClick={() => void check(pendingCheck, true)}>ВСЕ ОСТАВШИЕСЯ ({pendingCheck.length})</button>
+          <button disabled={working} className={button} type="button" onClick={() => { checkDialog.current?.close(); setCheckDialogOpen(false); }}>Отмена</button>
+        </div>
+      </form>
+    </dialog>}
     {editing && <dialog ref={questionDialog} onClose={() => setEditing(null)} className="m-auto max-h-[90vh] w-[min(700px,calc(100%-2rem))] overflow-auto rounded-2xl border border-white/15 bg-slate-950 p-6 text-white backdrop:bg-black/80">
       <form onSubmit={async e => { e.preventDefault(); if (await act('save-question', { quizId: selected, question: editing })) setEditing(null); }} className="space-y-3">
         <h2 className="text-xl font-semibold">Редактор вопроса</h2><p className="text-xs text-slate-400">Правки остаются в черновике. Любое изменение сбрасывает проверку.</p>
