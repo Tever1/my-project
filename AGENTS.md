@@ -24,15 +24,13 @@ Codex работает в нескольких чатах с разделени�
 
 ## Перед существенной работой
 
-Прочитать полностью:
-
-1. `AGENTS.md`;
-2. `PROJECT_CONTEXT.md` — архитектура, утверждённое поведение и ограничения;
-3. `TASKS.md` — актуальная очередь и следующий номер отчёта;
-4. `docs/CODEX_WORKFLOW.md` — при запуске, завершении, передаче или ревью
-   существенной задачи;
-5. релевантные ADR и документы из `docs/`;
-6. `codex-reports/CODEX-HANDOFF.md` при восстановлении или передаче контекста.
+Использовать уже переданные инструкции и краткий checkpoint текущей задачи.
+Проверить статус Git и читать только относящиеся к задаче разделы канонических
+документов: PROJECT_CONTEXT.md, TASKS.md, docs/CODEX_WORKFLOW.md, релевантные ADR
+и codex-reports/CODEX-HANDOFF.md. Не загружать эти файлы целиком по умолчанию.
+При продолжении читать только изменения после checkpoint. Полное чтение допустимо,
+если конкретное противоречие или риск нельзя разрешить узким поиском; сначала
+кратко назвать причину. Уже прочитанные неизменившиеся инструкции не перечитывать.
 
 `.codex/STATUS.md`, `.codex/WORKFLOW.md`, `CLAUDE.md` и старые
 `codex-tasks/**` являются историческими материалами, а не источниками текущего
@@ -152,7 +150,9 @@ Codex работает в нескольких чатах с разделени�
 
 ## Проверки и завершение
 
-Для существенного изменения выполнить применимые проверки:
+Для существенного изменения выполнить применимые проверки один раз на итоговом коде.
+В режиме DeepSeek проверки выполняет worker; Codex проверяет результаты и diff.
+Не повторять успешные проверки без изменения кода, сбоя или конкретного сомнения:
 
 1. scoped diff и `git diff --check`;
 2. `npx tsc --noEmit`;
@@ -166,669 +166,93 @@ Codex работает в нескольких чатах с разделени�
 согласованы между собой.
 
 
-# DeepSeek Worker Collaboration
-
-This repository supports a local DeepSeek worker used as an implementation agent under Codex supervision.
-
-## Roles
-
-Codex is the technical lead and final authority.
-
-Codex is responsible for:
-- understanding the user's request;
-- deciding architecture and implementation direction;
-- defining scope and constraints;
-- deciding which files/subsystems should be affected;
-- defining acceptance criteria;
-- deciding which tests and server checks are required;
-- reviewing DeepSeek's actual git diff;
-- identifying regressions, architectural issues, security issues, and incomplete work;
-- deciding whether the result is accepted;
-- deciding the next development step.
-
-DeepSeek is the implementation worker.
-
-DeepSeek should handle most high-volume and token-intensive execution work, including:
-- repository investigation;
-- reading many related files;
-- implementation across multiple files;
-- refactoring;
-- repetitive edits;
-- writing tests;
-- running tests;
-- investigating ordinary test failures;
-- fixing implementation defects found during Codex review;
-- other large mechanical coding tasks.
-
-Codex should avoid duplicating large implementation work itself while DeepSeek collaboration is enabled.
-
-## Collaboration mode
-
-The current mode is controlled with:
-
-deepseek-mode status
-
-Possible modes:
-
-- ON: Codex should delegate appropriate implementation-heavy work to DeepSeek.
-- OFF: Codex must not invoke DeepSeek and must perform development work itself.
-
-When the user says things equivalent to:
-
-- "перестаем обращаться к deepseek"
-- "дальше работай сам"
-- "отключи deepseek"
-- "не используй deepseek"
-
-Codex must run:
-
-deepseek-mode off
-
-and continue working without DeepSeek.
-
-When the user later says things equivalent to:
-
-- "возвращаемся к совместной работе с deepseek"
-- "снова используем deepseek"
-- "включи deepseek"
-- "подключи deepseek обратно"
-
-Codex must run:
-
-deepseek-mode on
-
-and resume the collaboration workflow.
-
-The user's latest explicit instruction about DeepSeek usage always takes precedence.
-
-Do not automatically discard existing DeepSeek task changes when collaboration is turned off.
-
-## Starting a new DeepSeek task
-
-Before a new delegated task, Codex must check:
-
-deepseek-mode status
-
-If mode is ON, prepare a fresh worker branch with:
-
-deepseek-sync-start
-
-This creates a task branch in the dedicated worktree:
-
-/Users/anastasiaivanova/my-project-deepseek
-
-Do not run deepseek-sync-start between review/fix iterations of the same task.
-
-## Delegating work
-
-Run:
-
-deepseek-worker "<task>"
-
-The task given to DeepSeek should clearly include:
-- objective;
-- relevant architectural constraints;
-- acceptance criteria;
-- behavior that must not change;
-- tests/checks DeepSeek should run;
-- instruction not to make unrelated changes.
-
-Codex defines WHAT and the constraints.
-
-DeepSeek may determine implementation details, but significant architectural changes should be escalated back to Codex rather than invented silently.
-
-## Reviewing DeepSeek work
-
-Never accept DeepSeek's textual claim that a task is complete without inspecting the repository.
-
-Codex must review the worker worktree directly, including as appropriate:
-
-git -C /Users/anastasiaivanova/my-project-deepseek status
-git -C /Users/anastasiaivanova/my-project-deepseek diff --stat
-git -C /Users/anastasiaivanova/my-project-deepseek diff
-
-Codex should also inspect important changed files directly and determine any additional tests required.
-
-If review fails, delegate corrections with another:
-
-deepseek-worker "<correction task>"
-
-Continue on the same DeepSeek task branch.
-
-## Acceptance
-
-Only after Codex has reviewed the implementation and required tests have passed may Codex run:
-
-deepseek-accept
-
-Do not manually copy files between worktrees.
-
-Do not merge or accept DeepSeek changes before review.
-
-## Main principle
-
-The preferred collaboration model while DeepSeek mode is ON is:
-
-User
-→ Codex plans and directs
-→ DeepSeek performs implementation-heavy work
-→ Codex reviews
-→ DeepSeek fixes issues if needed
-→ Codex verifies tests
-→ Codex accepts the result
-
-Codex remains responsible for the final technical decision.
-
-# Codex ↔ DeepSeek Collaboration Protocol
-
-This repository supports a local DeepSeek implementation worker controlled by Codex.
-
-## Core roles
-
-The active Codex model is the technical lead, orchestrator, reviewer, and final authority.
-
-DeepSeek is the implementation worker.
-
-The user communicates with Codex. Codex may delegate implementation work to DeepSeek but remains responsible for all final technical decisions.
-
-## Collaboration mode
-
-Before delegating work, Codex must check:
-
-deepseek-mode status
-
-Possible states:
-
-- ON — DeepSeek collaboration is enabled.
-- OFF — Codex must not invoke DeepSeek and must implement work itself.
-
-When the user says things equivalent to:
-
-- "перестаем обращаться к deepseek"
-- "дальше работай сам"
-- "отключи deepseek"
-- "не используй deepseek"
-- "работай без deepseek"
-
-Codex must run:
-
-deepseek-mode off
-
-After this, Codex must not invoke:
-
-- deepseek-sync-start
-- deepseek-worker
-
-Codex continues development itself.
-
-When the user later says things equivalent to:
-
-- "возвращаемся к совместной работе с deepseek"
-- "включи deepseek"
-- "снова используем deepseek"
-- "подключи deepseek обратно"
-
-Codex must run:
-
-deepseek-mode on
-
-The user's latest explicit instruction about DeepSeek always takes precedence.
-
-Turning DeepSeek OFF must never automatically delete or reset an existing DeepSeek task branch or its changes.
-
-## What Codex owns
-
-Codex is responsible for:
-
-- understanding the user's goal;
-- architecture;
-- task scope;
-- implementation direction;
-- deciding which subsystems may change;
-- API contracts;
-- data-model and persistence decisions;
-- security-sensitive decisions;
-- backward compatibility;
-- acceptance criteria;
-- test strategy;
-- deciding which server/integration tests must run;
-- reviewing actual repository changes;
-- detecting regressions;
-- reviewing important implementation details;
-- deciding PASS or FAIL;
-- deciding the next development step.
-
-Codex should spend its tokens primarily on decisions, review, and control rather than large mechanical implementation work.
-
-## What should normally be delegated to DeepSeek
-
-When DeepSeek mode is ON, Codex should delegate most high-volume and token-intensive execution work, including:
-
-- reading many related repository files;
-- repository investigation;
-- multi-file implementation;
-- repetitive code edits;
-- large refactors;
-- boilerplate;
-- adding or updating tests;
-- running tests;
-- investigating ordinary test failures;
-- fixing implementation defects;
-- typecheck/lint/build fixes;
-- documentation updates related to an implementation;
-- searching usages and dependencies across the repository.
-
-The goal is for DeepSeek to perform most implementation-heavy work while Codex directs and verifies it.
-
-## Work that Codex should normally keep
-
-Codex should normally make or explicitly approve:
-
-- architecture changes;
-- new cross-cutting abstractions;
-- API contract changes;
-- database/schema strategy;
-- authentication/authorization design;
-- security-sensitive behavior;
-- destructive migrations;
-- major dependency changes;
-- changes with broad backward-compatibility impact.
-
-Codex may still delegate the coding of these decisions after deciding the approach.
-
-## Starting a new DeepSeek task
-
-A new DeepSeek task may start only when:
-
-1. collaboration mode is ON;
-2. the main worktree is clean;
-3. there is no unresolved previous DeepSeek task.
-
-Prepare the worker with:
-
-deepseek-sync-start
-
-This creates a fresh branch:
-
-deepseek/task-...
-
-inside:
-
-/Users/anastasiaivanova/my-project-deepseek
-
-The new task is based on the current HEAD of:
-
-/Users/anastasiaivanova/my-project
-
-Do not run deepseek-sync-start again during review/fix iterations of the same task.
-
-## Delegating implementation
-
-Use:
-
-deepseek-worker "<task>"
-
-A good DeepSeek task should contain:
-
-- objective;
-- relevant context;
-- architectural constraints;
-- files/subsystems known to be relevant when useful;
-- behavior that must remain unchanged;
-- acceptance criteria;
-- tests/checks to run;
-- explicit prohibition on unrelated changes.
-
-Codex defines WHAT must be achieved and the important constraints.
-
-DeepSeek may determine ordinary implementation details.
-
-## DeepSeek escalation rule
-
-DeepSeek must not silently make significant architectural decisions.
-
-When implementation reveals a decision with meaningful architectural, security, persistence, compatibility, or API implications, DeepSeek should stop and report:
-
-BLOCKED — ARCHITECTURAL DECISION REQUIRED
-
-The report should contain:
-
-- the discovered issue;
-- why the current task cannot safely continue without a decision;
-- relevant files/subsystems;
-- available options;
-- consequences/tradeoffs of each option;
-- a recommendation if useful.
-
-Codex then decides the direction and sends DeepSeek a follow-up task on the same task branch.
-
-## Required DeepSeek completion report
-
-For substantial implementation tasks, Codex should instruct DeepSeek to finish with a concise report containing:
-
-Changed files:
-- ...
-
-Implemented:
-- ...
-
-Tests/checks run:
-- ...
-
-Results:
-- ...
-
-Remaining issues:
-- none / ...
-
-Architectural decisions required:
-- none / ...
-
-DeepSeek's textual report is informational only. It is never a substitute for Codex reviewing the repository.
-
-## Codex review
-
-After DeepSeek finishes, Codex must review the worker worktree itself.
-
-At minimum inspect:
-
-git -C /Users/anastasiaivanova/my-project-deepseek status --short
-
-git -C /Users/anastasiaivanova/my-project-deepseek diff --stat
-
-git -C /Users/anastasiaivanova/my-project-deepseek diff
-
-Codex should additionally inspect important changed files directly.
-
-Codex must not accept a task only because DeepSeek says tests passed or the implementation is complete.
-
-## Review outcome: FAIL
-
-If Codex finds problems, do not create a new task branch.
-
-Keep the existing deepseek/task-* branch and call:
-
-deepseek-worker "<correction task>"
-
-The correction request should clearly identify:
-
-- what is wrong;
-- affected files or behavior;
-- expected result;
-- required tests/checks.
-
-This review/fix loop may repeat as many times as necessary.
-
-## Tests
-
-DeepSeek should run the routine tests requested by Codex.
-
-Codex decides whether additional checks are required after reviewing the diff.
-
-Typical checks may include:
-
-- lint;
-- TypeScript typecheck;
-- unit tests;
-- integration tests;
-- server tests;
-- production build;
-- API smoke tests;
-- regression checks for existing behavior.
-
-Running a test is normally execution work and should be delegated to DeepSeek when collaboration mode is ON.
-
-Codex evaluates the results and decides whether validation is sufficient.
-
-## Review outcome: PASS
-
-Only after:
-
-- Codex has reviewed the actual diff;
-- required tests have passed;
-- no unresolved architectural issues remain;
-
-may Codex run:
-
-deepseek-accept
-
-deepseek-accept commits the worker changes and cherry-picks the approved commit into the main worktree.
-
-Do not manually copy files between worktrees.
-
-Do not run deepseek-accept before Codex review.
-
-## After acceptance
-
-After deepseek-accept, Codex should verify:
-
-git -C /Users/anastasiaivanova/my-project status
-
-and inspect the resulting main-branch commit if appropriate.
-
-Before starting another DeepSeek task, the previous task must be considered complete and the main repository must be in a known clean state.
-
-## Important safety principles
-
-- DeepSeek must work only in /Users/anastasiaivanova/my-project-deepseek.
-- Codex works against /Users/anastasiaivanova/my-project.
-- Never give DeepSeek Full Access when Workspace Write is sufficient.
-- Never automatically discard worker changes.
-- Never automatically accept worker changes.
-- Never let DeepSeek's self-reported completion replace Codex review.
-- Never start a new task on top of unresolved worker changes.
-
-## Preferred workflow while collaboration is ON
-
-User
-→ Codex understands the task
-→ Codex decides architecture/scope
-→ deepseek-sync-start
-→ Codex delegates implementation with deepseek-worker
-→ DeepSeek implements and runs routine checks
-→ Codex reviews the actual diff
-→ FAIL: DeepSeek fixes the same task
-→ Codex reviews again
-→ PASS: deepseek-accept
-→ Codex verifies main worktree
-→ Codex reports final result to user
-
-## Preferred workflow while collaboration is OFF
-
-User
-→ Codex understands the task
-→ Codex implements directly
-→ Codex runs/reviews tests
-→ Codex reports final result
-
-
-## Standard DeepSeek task format
-
-When delegating a substantial implementation task to DeepSeek, Codex should use a structured prompt with the following sections.
-
-### Objective
-
-State exactly what must be implemented or fixed.
-
-### Context
-
-Provide only the context DeepSeek needs to work efficiently:
-- relevant feature/module;
-- current behavior;
-- why the change is needed;
-- known related components.
-
-Avoid dumping unnecessary project history.
-
-### Constraints
-
-State important technical constraints, for example:
-- existing API contracts that must remain compatible;
-- architectural patterns that must be preserved;
-- files/subsystems that must not be changed;
-- security or persistence constraints;
-- no unrelated refactoring.
-
-### Relevant files/subsystems
-
-List known relevant files or directories when useful.
-
-DeepSeek may inspect additional files if needed.
-
-### Acceptance criteria
-
-Define observable conditions that mean the implementation is complete.
-
-Prefer concrete criteria such as:
-- endpoint returns expected data;
-- UI state behaves correctly;
-- reconnect flow remains unchanged;
-- all existing tests continue to pass.
-
-### Required validation
-
-Specify checks DeepSeek must run, when applicable:
-- npm run typecheck
-- npm run lint
-- npm test
-- targeted unit/integration tests
-- production build
-- server/API smoke tests
-
-DeepSeek should fix ordinary implementation/test failures before returning.
-
-### Do not change
-
-Explicitly state anything that must remain untouched.
-
-Examples:
-- unrelated UI;
-- public API shape;
-- existing localization behavior;
-- generated assets;
-- unrelated dependencies.
-
-### Escalation rule
-
-If DeepSeek discovers a decision with architectural, API, security, persistence, migration, or backward-compatibility impact, it must stop and report:
-
-BLOCKED — ARCHITECTURAL DECISION REQUIRED
-
-It must not silently choose a major architectural direction.
-
-### Completion report
-
-DeepSeek must end substantial tasks with:
-
-Changed files:
-- ...
-
-Implemented:
-- ...
-
-Tests/checks run:
-- ...
-
-Results:
-- ...
-
-Remaining issues:
-- none / ...
-
-Architectural decisions required:
-- none / ...
-
-Codex must treat this report as informational only and still review the actual repository changes.
-
-## Delegation threshold
-
-Do not invoke DeepSeek for trivial changes where delegation overhead is greater than the implementation work.
-
-Codex should normally implement directly when the task is limited to examples such as:
-- a one-line fix;
-- simple text/copy change;
-- renaming a local variable;
-- a tiny isolated style adjustment;
-- a very small config change with obvious behavior;
-- another clearly local change that can be safely implemented and verified immediately.
-
-Codex should normally prefer DeepSeek when the task involves one or more of:
-- multiple files;
-- broad repository investigation;
-- significant implementation volume;
-- repetitive changes;
-- refactoring;
-- writing or updating several tests;
-- debugging test failures;
-- large log analysis;
-- repository-wide search;
-- substantial documentation changes tied to code;
-- implementation that is likely to consume significant context or tokens.
-
-The purpose of DeepSeek delegation is to offload high-volume execution work, not to delegate every edit.
-
-## User-visible progress
-
-During a delegated task, Codex should keep the user informed at meaningful milestones without flooding the chat with low-level tool activity.
-
-Preferred progress updates:
-
-- "DeepSeek: анализирует задачу"
-- "DeepSeek: выполняет реализацию"
-- "DeepSeek: запускает проверки"
-- "Codex: проверяет diff"
-- "DeepSeek: исправляет замечания"
-- "Codex: финальная проверка"
-- "Результат принят"
-
-Do not report every file read, grep call, or shell command unless it is relevant to a problem or the user asks for detailed logs.
-
-
-## Review/fix loop guardrail
-
-Do not allow an unbounded DeepSeek correction loop.
-
-If DeepSeek fails to resolve the same substantive issue after two correction attempts, Codex must stop the automatic retry cycle and reassess the task.
-
-Codex should then decide one of the following:
-
-- reformulate the task with clearer constraints;
-- provide additional repository context;
-- change the implementation approach;
-- split the task into smaller parts;
-- handle the problematic part directly;
-- ask the user for a decision if the blocker is genuinely architectural or ambiguous.
-
-Do not continue sending nearly identical correction prompts to DeepSeek indefinitely.
-
-A retry counts toward this limit when it addresses the same underlying defect or failed acceptance criterion.
-
-A new independent defect discovered during review may start a new correction cycle.
-
-If the failure reveals an architectural, API, security, persistence, migration, or backward-compatibility decision, use the existing escalation rule instead of repeated retries.
-
-Codex should inform the user when the automatic correction loop is stopped because repeated DeepSeek attempts did not resolve the issue.
-
-## DeepSeek usage reporting
-
-After each completed DeepSeek worker task, Codex should run:
-
-deepseek-stats
-
-Codex should include a concise usage summary in the user-facing progress or completion message.
-
-Preferred format:
-
-DeepSeek usage:
-- Task: $...
-- Today: $...
-- This month: $...
-
-Do not dump the full usage CSV or detailed token accounting into the chat unless the user asks for it.
-
-If useful, Codex may additionally mention total tokens for the current task.
-
-Usage reporting is informational only and must not replace implementation review, test validation, or acceptance checks.
-
-If a DeepSeek task fails or is stopped before acceptance, Codex should still report the task usage if a usage record was created.
-
+# Codex ↔ DeepSeek: экономный режим
+
+Этот раздел заменяет прежние дублирующие протоколы DeepSeek. Пользователь явно
+разрешил совместную работу для этого проекта. В режиме ON реализацию выполняет
+DeepSeek; Codex отвечает за постановку, архитектуру, безопасность, ревью и принятие.
+Автоматическое подключение других агентов и сбор limit-savings метрик не нужны.
+
+## Режим и начало
+
+- Проверить `deepseek-mode status` перед делегированием. ON — делегировать
+  существенную реализацию; OFF — работать самостоятельно и не запускать worker.
+- По явной просьбе пользователя включить/выключить DeepSeek выполнить
+  `deepseek-mode on/off`. Последнее явное решение пользователя имеет приоритет.
+- Отключение не удаляет незавершённую ветку и изменения worker.
+- Codex работает в /Users/anastasiaivanova/my-project; DeepSeek — только
+  в /Users/anastasiaivanova/my-project-deepseek с Workspace Write.
+- Новая task-ветка через `deepseek-sync-start` допустима лишь при чистом основном
+  дереве и отсутствии незавершённой предыдущей задачи. В цикле исправлений
+  использовать ту же ветку, повторно sync-start не запускать.
+- Тривиальные локальные правки и настройку самого запуска worker Codex выполняет
+  непосредственно, когда передача обойдётся дороже самой работы.
+
+## Постановка и выполнение
+
+- Codex кратко задаёт цель, scope, ограничения, критерии готовности и необходимые
+  проверки. Не передавать worker всю историю чата.
+- DeepSeek исследует реализацию, пишет код и тесты, выполняет проверки,
+  исправляет обычные ошибки и готовит нужный отчёт.
+- Изменения архитектуры, API, хранения, авторизации, privacy и совместимости
+  сначала согласуются с Codex. Worker сообщает
+  BLOCKED — ARCHITECTURAL DECISION REQUIRED и кратко описывает варианты.
+- Browser QA, production build, commit и push требуют разрешения пользователя
+  согласно правилам проекта; worker не получает эти права автоматически.
+- Запуск: `deepseek-worker "<task>"`. Стандартный вывод содержит только служебный
+  статус и отдельный итог до 2000 символов. Полный журнал остаётся локальным.
+  Версионируемый исходник: scripts/deepseek-worker.zsh; проверка без API:
+  `node scripts/test-deepseek-worker.cjs`. Установленная команда:
+  /Users/anastasiaivanova/.local/bin/deepseek-worker.
+
+## Ограничения контекста Codex
+
+- НЕ читать рассуждения DeepSeek, промежуточный поток или полный журнал.
+  НЕ обходить тихий запуск через прямой dsh, tee или tail журнала.
+- Получать только финальный итог: изменённые файлы, результат, команды проверок
+  и PASS/FAIL, оставшиеся проблемы. Отсутствие итога не означает успех.
+- При сбое сначала проверить код завершения и наличие итога; запросить у worker
+  конкретное недостающее свидетельство. Если требуется журнал, извлечь только
+  относящиеся к конкретной ошибке строки, до 2000 символов, без рассуждений.
+  Не перезапускать задачу автоматически только ради отсутствующего отчёта.
+- Не подключать большие диагностические навыки для обычной delegated-задачи.
+  Исследование поручать worker. Явно названный пользователем навык применять.
+- На продолжении: checkpoint, статус Git, новый diff. Не повторять полный анализ
+  репозитория, не перечитывать неизменившиеся большие документы.
+- Независимые короткие проверки объединять. Ожидание worker не должно регулярно
+  загружать журналы: проверять только завершение, сохранять краткие обновления.
+- Бюджеты вывода инструментов задавать явно. Это ограничивает объём контекста,
+  но не является техническим лимитом токенов или обещанием процента экономии.
+
+## Ревью и исправления
+
+- Проверить реальный status и diff --stat worker, затем scoped diff изменённых
+  файлов. Текстовый отчёт не заменяет ревью.
+- Не загружать весь repository diff или полные исходники по умолчанию.
+  Читать diff порциями по файлам; полный файл — лишь для конкретного вопроса.
+  Весь значимый diff должен быть проверен, даже если он большой.
+- Проверить безопасность, совместимость, privacy/reconnect, если затронуты.
+  Успешные проверки worker на том же коде повторно не запускать без причины.
+- Замечания отправлять одним списком через deepseek-worker на той же task-ветке.
+  После исправления читать новый delta и результаты затронутых проверок.
+- После двух неудачных исправлений одной проблемы остановить повторения:
+  уточнить подход, разделить задачу, исправить локально или вынести существенное
+  продуктовое/архитектурное решение пользователю.
+- Только после собственного PASS и успешных проверок применять deepseek-accept;
+  эта команда коммитит и переносит изменения, поэтому требуется разрешение на
+  commit. Не копировать файлы вручную и не принимать непроверенную работу.
+- После accept проверить основной status и перенесённый diff/commit.
+
+## Завершение и продолжение
+
+- Небольшое продолжение закрывать коротким результатом; обновлять существующий
+  отчёт, если он нужен, без дублирования нескольких подробных сводок.
+- Для существенной работы сохранить один номерной отчёт с фактами и ограничениями.
+  Общие документы менять лишь при изменении канонического статуса/решения.
+- Краткий checkpoint для нового чата: цель, ветки/HEAD, изменённые файлы,
+  выполненные проверки, замечания, ровно следующий шаг. Использовать существующий
+  отчёт/checkpoint; не создавать новый большой диагностический контекст.
+- deepseek-stats после worker — только краткие суммы task/today/month, без CSV
+  и подробных токенов. Не выдавать стоимость DeepSeek за экономию лимита Codex.
+- Обновления пользователю — по существенным этапам. Финал: что готово,
+  проверено и осталось. Не повторять ход работы.
